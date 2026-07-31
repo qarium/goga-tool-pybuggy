@@ -5,6 +5,7 @@ These tests verify the contract compliance of render_info:
 - Correct signature (endpoints: list[Endpoint]) -> str
 """
 
+import pytest
 from goga_tool_pybuggy.output import render_info
 from goga_tool_pybuggy.spec import Endpoint
 
@@ -130,3 +131,59 @@ def test_render_info_ensure_ascii_false() -> None:
     # Should contain readable Cyrillic, not escaped unicode
     assert "Получить список клиентов" in result
     assert "\\u" not in result  # No unicode escapes
+
+
+def test_render_info_serializes_date_and_datetime() -> None:
+    """date/datetime carried in resolved specs render as ISO 8601 strings.
+
+    swax/Prance convert YAML date examples into ``datetime.date``/
+    ``datetime.datetime``; render_info must serialize them instead of raising
+    ``TypeError: Object of type datetime is not JSON serializable``.
+    """
+    import json
+    from datetime import date, datetime, timezone
+
+    endpoint = Endpoint(
+        method="get",
+        path="/orders/history",
+        request={},
+        response={"200": {}},
+        query_params={
+            "from": {"type": "string", "format": "date", "example": date(2020, 1, 1)},
+            "until": {
+                "type": "string",
+                "format": "date-time",
+                "example": datetime(2020, 1, 1, 10, 0, tzinfo=timezone.utc),
+            },
+        },
+        description="orders history",
+    )
+
+    result = render_info([endpoint])
+    parsed = json.loads(result)
+
+    assert parsed["QueryParams"]["from"]["example"] == "2020-01-01"
+    assert parsed["QueryParams"]["until"]["example"] == "2020-01-01T10:00:00+00:00"
+
+
+def test_render_info_unknown_type_still_raises_typeerror() -> None:
+    """Non-JSON-native values other than date/datetime still raise TypeError.
+
+    The serializer must not silently swallow unexpected types; it re-raises so
+    genuine encoding bugs stay visible.
+    """
+
+    class _Opaque:
+        pass
+
+    endpoint = Endpoint(
+        method="get",
+        path="/x",
+        request={"thing": _Opaque()},
+        response={},
+        query_params={},
+        description="",
+    )
+
+    with pytest.raises(TypeError):
+        render_info([endpoint])

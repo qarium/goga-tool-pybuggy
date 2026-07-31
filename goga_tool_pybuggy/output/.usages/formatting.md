@@ -30,6 +30,8 @@ print(render_info(endpoints))  # один объект или массив пр�
 
 Ключи фиксированы (PascalCase): `Method` (нижний регистр), `Path` (`{param}`→`:param`), `Request`, `Response`, `QueryParams`, `Description`. При нескольких совпадениях — JSON-массив объектов.
 
+Date-значения из спецификации (примеры `format: date`/`date-time`, которые Prance превращает в `datetime.date`/`datetime.datetime`) попадают в JSON как ISO 8601-строки — сериализация для них не падает.
+
 ## Предусловия
 
 - Передавайте уже извлечённые `Endpoint`.

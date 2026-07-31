@@ -54,6 +54,7 @@ Annotations: |
     Requirements:
     - Keys are exactly Method, Path, Request, Response, QueryParams, Description (PascalCase).
     - Method is lowercased; Path uses the ":param" form (braces stripped).
+    - Non-JSON-native values carried by resolved specs (datetime.date / datetime.datetime, produced from YAML date examples under format: date / date-time) render as ISO 8601 strings; serialization must not raise for them. Other non-JSON-native types still raise TypeError.
 
     Constraints:
     - Pure function — returns the JSON string; does not print.
