@@ -52,7 +52,7 @@ docs = [
 ]
 
 [project.scripts]
-goga_tool_pybuggy = "goga_tool_pybuggy:main"
+pybuggy = "goga_tool_pybuggy:main"
 
 [tool.setuptools_scm]
 
