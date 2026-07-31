@@ -1,0 +1,74 @@
+Imports:
+  - Types: [load_config, Config, SpecEntry]
+    Usages: [configuration]
+    From: pybuggy/config
+  - Types: [load_spec, extract_endpoints, build_endpoint_id]
+    Usages: [spec]
+    From: pybuggy/spec
+  - Types: [render_info]
+    Usages: [formatting]
+    From: pybuggy/output
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  click: .goga/usages/cooks/click.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `click` for the command wrapper, the --spec option, and the variadic positional endpoint-ids filter.
+  Use `configuration` from Imports for loading and iterating the config.
+  Use `spec` from Imports for parsing a spec, extracting endpoints, and the endpoint id.
+  Use `formatting` from Imports for rendering the JSON.
+
+  Use relative imports inside the cell.
+  The handler `run_info` is the testable entry point; the Click wrapper info_cmd binds the --spec option and the positional endpoint-ids filter, and calls `run_info` (CLI tests call `run_info` directly).
+
+---
+
+"run_info(endpoint_ids: Optional[list[str]] = None, spec_name: Optional[str])":
+  location: info.py
+  annotations: |
+    Handler for the endpoint info command: print the endpoint(s) matching the `endpoint_ids` filter (or every endpoint when no filter is given) as JSON.
+
+    `endpoint_ids`: optional endpoint-id filter keyed on the endpoint id (as produced by `build_endpoint_id`); when None or empty show every endpoint of the selected specs, otherwise show only endpoints whose id is in the list.
+    `spec_name`: optional filter; when set search only that spec, otherwise search all specs.
+
+    Algorithm:
+    1. Load the config via `load_config` (fixed config path).
+    2. If `spec_name` is set and not in `Config` specs, raise click.ClickException("spec not found: <spec_name>").
+    3. Select specs: all `Config` specs, or only `spec_name` when provided.
+    4. Normalize `endpoint_ids` into an id set; an empty value means "no filter" (show every endpoint).
+    5. For each selected spec (`SpecEntry`): parse via `load_spec`; if "paths" not in spec, raise click.ClickException (invalid spec file); extract endpoints via `extract_endpoints`; when the filter is set keep only endpoints whose id is in the set, otherwise keep all.
+    6. Collect all matches across specs.
+    7. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids (sorted) — before anything is printed.
+    8. Render via `render_info`(matches) and print (single object, or array when several).
+
+    Requirements:
+    - A collision (same id across specs) yields all matches as a JSON array (see `formatting`).
+    - `endpoint_ids` of None or empty shows every endpoint of the selected specs — the unfiltered command is unchanged.
+    - Every requested id in `endpoint_ids` must match at least one selected spec, else a click.ClickException is raised and nothing is printed.
+
+    Constraints:
+    - Read-only — does not modify specs or config.
+    - Do not print anything before validating the `endpoint_ids` filter against the collected endpoints.
+
+    Use `configuration` from Imports for config access.
+    Use `spec` from Imports for parse, extract, and the endpoint id (`build_endpoint_id`) used as the filter key.
+    Use `formatting` from Imports for rendering.
+
+"info_cmd(spec_name: Optional[str], endpoint_ids: tuple[str, ...])":
+  location: info.py
+  annotations: |
+    Click command wrapper for the endpoint info subcommand; binds the --spec option and the variadic positional endpoint-ids filter, then delegates to `run_info`.
+
+    `spec_name`: optional spec filter, bound from --spec.
+    `endpoint_ids`: zero or more positional endpoint ids (a variadic click.argument); when none are given, `run_info` receives None (no filter).
+
+    Use `click` for the command wrapper, the option binding, and the variadic positional argument.
+
+---
+
+Author: Goga
+CreatedAt: 08/07/26
+Description: |
+  endpoint info command handler — prints endpoint details as JSON by endpoint id, optionally filtered to a subset of endpoint ids.

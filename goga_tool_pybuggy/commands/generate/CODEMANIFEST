@@ -1,0 +1,125 @@
+Imports:
+  - Types: [load_config, Config, SpecEntry]
+    Usages: [configuration]
+    From: pybuggy/config
+  - Types: [load_spec, extract_endpoints, Endpoint]
+    Usages: [spec]
+    From: pybuggy/spec
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  click: .goga/usages/cooks/click.md
+  datamodel-code-generator: .goga/usages/cooks/datamodel-code-generator.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `click` for the command wrapper (options) and mapping domain errors to ClickException.
+  Use `configuration` from Imports for loading and iterating the config.
+  Use `spec` from Imports for parsing a spec and extracting endpoints.
+  Use `datamodel-code-generator` for building the request-body pydantic models and `conventions` (ruff) for aligning the generated api.py text.
+
+  Use relative imports inside the cell.
+  The handler `run_generate` is the testable entry point; the Click wrapper `generate_cmd` binds options and the positional endpoint-ids filter and calls `run_generate` (CLI tests call `run_generate` directly).
+  Write artifacts under the current working directory; tests isolate via tmp_path and a cwd override (see `conventions`).
+  Per-endpoint scaffold artifacts: response schemas (JSON), an api.py pytest fixture (text from the pure routine `render_api_module`), and empty __init__.py package markers on every directory of the api.py path.
+
+---
+
+"run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[list[str]] = None)":
+  location: generate.py
+  annotations: |
+    Handler for the endpoint generate command: scaffold api/ response-schema files, empty tests/ directories, and a per-endpoint api.py pytest fixture from the spec config.
+
+    `spec_name`: optional filter; when set generate only that spec, otherwise generate all specs.
+    `force`: when false, existing schema/api.py files are skipped silently; when true, files are overwritten.
+    `endpoint_ids`: optional endpoint-id filter keyed on the `Endpoint` id; when None or empty generate every endpoint of the selected specs, otherwise generate only endpoints whose id is in the list.
+
+    Algorithm:
+    1. Load the config via `load_config` (fixed config path).
+    2. If `spec_name` is set and not in `Config` specs, raise click.ClickException("spec not found: <spec_name>").
+    3. Select specs: all `Config` specs, or only `spec_name` when provided.
+    4. Normalize `endpoint_ids` into an id set; an empty value means "no filter" (keep every endpoint).
+    5. Phase 1 — collect and validate (no disk writes): for each selected spec (name, `SpecEntry`):
+       a. Parse the spec at cwd / `SpecEntry` location via `load_spec`.
+       b. If "paths" not in spec, raise click.ClickException (spec has no paths).
+       c. Extract endpoints via `extract_endpoints`.
+       d. If no endpoints, log a WARNING and continue this spec (no artifacts) — based on the pre-filter list.
+       e. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
+    6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids — before any artifact is written.
+    7. Phase 2 — write artifacts, for each collected (name, `Endpoint`):
+       a. Create cwd/api/<name>/<Endpoint.id>/schemas and cwd/tests/<name>/<Endpoint.id>.
+       b. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
+       c. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<name>/<Endpoint.id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
+       d. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<name>/<Endpoint.id>/api.py (same `force` skip/overwrite semantics).
+
+    Requirements:
+    - Each schema file contains the resolved schema serialized as prettified JSON (indent=2, ensure_ascii=False); codes without application/json content produce an empty schema (serialized as {}).
+    - Write every response status code from the `Endpoint` response, including empty {} schemas.
+    - api.py contains the fixture and the optional Request class exactly as produced by `render_api_module`.
+    - api.py follows the same `force` skip/overwrite semantics as schema files; idempotent — without `force`, existing files are preserved and no per-file output is emitted.
+    - Every directory on the api.py path (cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
+    - Output root is the current working directory (Path.cwd()).
+    - `endpoint_ids` of None or empty generates every endpoint of the selected specs — the unfiltered command is unchanged.
+    - Every requested id in `endpoint_ids` must match at least one selected spec, else a click.ClickException is raised and no artifacts are written.
+
+    Constraints:
+    - Do not write request-body or query-parameter schemas — only response schemas.
+    - Do not compute the fixture/Request text in `run_generate` — delegate to `render_api_module`.
+    - Do not populate tests/<spec>/<id>/ with any files — only create the empty directory.
+    - Do not write __init__.py markers anywhere except the api.py path (never under tests/).
+    - Do not emit per-file output when skipping existing files.
+    - Do not write any artifact before validating the `endpoint_ids` filter against the collected endpoints.
+
+    Use `configuration` from Imports for config access.
+    Use `spec` from Imports for parse + extract and for the `Endpoint` id used as the filter key.
+
+"render_api_module(endpoint: Endpoint) -> module: str":
+  location: generate.py
+  annotations: |
+    Render the full source text of the per-endpoint pytest-fixture module api.py from a single `Endpoint`. Deterministic — an identical endpoint yields an identical module; the only out-of-process call is the ruff subprocess used to align the text.
+
+    `endpoint`: the endpoint to scaffold (carries method, path, request schema, and a computed id).
+    `module`: complete api.py source text, deterministic for a given endpoint, ruff-aligned, ready to write to disk.
+
+    Algorithm:
+    1. Build the fixture name from the endpoint id and method: drop the trailing "_<method>" suffix of the id and prepend "<method>_".
+    2. Build the route string from the endpoint path: replace each "{name}" path segment with ":name", preserving the parameter name and its original case (e.g. {orderID} -> :orderID).
+    3. Determine the request-body model scope: collect the properties of the endpoint request schema; when absent, empty, or non-dict, omit the request-body model entirely. Sanitize each property fragment by replacing any non-dict/non-bool fragment with the boolean true schema, so malformed fragments never raise and degrade to Any.
+    4. When properties exist, render the pydantic model text via `datamodel-code-generator`: a Request model plus any nested object/array models from the resolved request-body JSON-Schema, with disable_timestamp=True and disable_future_imports=True, then strip the generator header.
+    5. Assemble the module sections in order: import pytest; from pybuggy.api import Endpoint, Api; the optional model text; the fixture. Align the whole text with ruff via `conventions`: sort/merge imports with the ruff check command, then format with the ruff format command, both at line-length 120 and py310.
+
+    Requirements:
+    - The fixture is decorated with @pytest.fixture(scope='function') and returns Endpoint(api, '<route>', method='<METHOD>').
+    - <METHOD> equals the endpoint method converted to upper case.
+    - The route string preserves OpenAPI path-parameter names and their case; only the brace-to-colon form changes.
+    - Request-body models are generated by `datamodel-code-generator`; nested objects become their own pydantic models and arrays become typed lists, not Any.
+    - The rendered text is ruff-aligned; an identical endpoint yields an identical module, with no timestamps.
+
+    Constraints:
+    - Do not include path or query parameters as fields of the request-body model — path parameters appear only as :param in the route string.
+    - Do not write to disk (writing is `run_generate`'s responsibility).
+    - Do not hand-construct pydantic field types — delegate model rendering to `datamodel-code-generator`.
+    - Never raise on a malformed property schema; sanitize it to the true (any) schema before generation.
+    - Preserve the OpenAPI parameter name and case in :param; the lowercase form lives only in the fixture name (derived from the endpoint id).
+
+    Use `datamodel-code-generator` for the request-body model text and its generation parameters.
+    Use `conventions` for aligning the generated text with ruff.
+    Use `spec` from Imports for the `Endpoint` field contract.
+
+"generate_cmd(spec_name: Optional[str], force: bool, endpoint_ids: tuple[str, ...])":
+  location: generate.py
+  annotations: |
+    Click command wrapper for the endpoint generate subcommand; binds the --spec and --force options, the variadic positional endpoint-ids filter, and delegates to `run_generate`.
+
+    `spec_name`: optional spec filter, bound from -s/--spec.
+    `force`: overwrite flag, bound from -f/--force.
+    `endpoint_ids`: zero or more positional endpoint ids (a variadic click.argument); when none are given, `run_generate` receives None (no filter).
+
+    Use `click` for the command wrapper, the option binding, and the variadic positional argument.
+
+---
+
+Author: Goga
+CreatedAt: 08/07/26
+Description: |
+  endpoint generate command handler — scaffolds api/ response-schema files, per-endpoint api.py pytest fixtures, empty __init__.py package markers on the api.py path, and empty tests/ directories from specs, optionally filtered by endpoint id.

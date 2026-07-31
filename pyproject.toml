@@ -1,0 +1,131 @@
+[build-system]
+requires = ["setuptools>=61.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "goga-tool-pybuggy"
+dynamic = ["version"]
+description = ""
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "BSD-3-Clause"}
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+dependencies = [
+    "click>=8.0",
+    "datamodel-code-generator>=0.68",
+    "gitpython>=3.1",
+    "goga>=1.1.0",  # resolved from .libs/ in dev (newer per-field API; no PyPI release)
+    "jsonpath-ng>=1.6",
+    "jsonschema>=4.0",
+    "prance>=23.0.0",
+    "pydantic>=2.0",
+    "pyhamcrest>=2.0",
+    "pyyaml>=6.0",
+    "ruamel.yaml>=0.18",
+    "ruff>=0.15.0",
+    "swax>=1.0.0,<1.1.0",
+    "resq>=1.0.0,<1.1.0",
+    "pluginator>=0.1.0,<0.2.0",
+    "jinja2>=3.1",
+    "flaky>=3.8.1"
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.15.0",
+    "jinja2>=3.1",
+]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+]
+
+[project.scripts]
+goga_tool_pybuggy = "goga_tool_pybuggy:main"
+
+[tool.setuptools_scm]
+
+[tool.setuptools.packages.find]
+include = ["goga_tool_pybuggy*"]
+
+[tool.setuptools.package-data]
+goga_tool_pybuggy = ["skills/**/*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+src = ["goga_tool_pybuggy"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "PL",  # pylint: deep logic analyze
+    "PLR", # pylint Refactor
+    "C4",  # flake8-comprehensions
+    "DTZ", # flake8-datetimez
+    "PT",  # flake8-pytest-style
+    "ARG", # flake8-unused-arguments
+    "RUF", # ruff-specific rules
+    "PTH", # flake8-use-pathlib
+    "C90", # Mccabe: check complexity
+]
+
+ignore = [
+    "UP045", # `X | None` — not compatible with Python 3.10 dataclass fields, use `typing.Optional`
+    "N999",  # goga entity modules are PascalCase (match the class name) per CODEMANIFEST `location`
+]
+
+[tool.ruff.lint.mccabe]
+# threshhold for max function complexity
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",    # assert allowed in tests
+    "ARG001",  # unused function arguments allowed in tests
+    "ARG002",  # unused method arguments allowed in tests
+    "PLR2004", # magic value comparisons in assertions are acceptable
+    "RUF001",  # Cyrillic strings in test fixtures are intentional
+    "PLC0415", # local imports in tests (facade verification, isolated imports)
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+# auto format lists
+skip-magic-trailing-comma = false
+# Linux (\n)
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::ResourceWarning",
+]
+
+[tool.coverage.run]
+source = ["goga_tool_pybuggy"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

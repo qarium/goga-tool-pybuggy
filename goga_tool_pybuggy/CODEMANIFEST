@@ -1,0 +1,80 @@
+Imports:
+  - Types: [pull_cmd]
+    From: pybuggy/commands/pull
+  - Types: [list_cmd]
+    From: pybuggy/commands/list
+  - Types: [info_cmd]
+    From: pybuggy/commands/info
+  - Types: [generate_cmd]
+    From: pybuggy/commands/generate
+  - Types: [init_cmd]
+    From: pybuggy/commands/init
+  - Types: [install]
+    From: pybuggy/plugin
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  click: .goga/usages/cooks/click.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `click` for the root group, the endpoint subgroup, command registration, and the top-level init command.
+
+  This cell is the package composition root: it owns the root group `main` and assembles the full CLI.
+  Use relative imports inside the cell.
+
+---
+
+"main()":
+  location: cli.py
+  annotations: |
+    Root Click group of the pybuggy CLI; exposes the endpoint subgroup with the pull/list/info/generate commands
+    and the top-level init command.
+
+    Algorithm:
+    1. Define the `main` root group via `click`.
+    2. Define the endpoint subgroup via `click`.
+    3. Register `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd` on the endpoint subgroup.
+    4. Attach the endpoint subgroup to `main`.
+    5. Register `init_cmd` on `main` directly (top-level — not under the endpoint subgroup).
+    6. Export `main` via __all__.
+
+    Requirements:
+    - Assembly runs at package import (in __init__.py), before any subcommand is invoked.
+    - The package entry point resolves to this `main` (pyproject: pybuggy = "pybuggy:main").
+    - python -m pybuggy runs via __main__.py (from pybuggy import main; main()).
+
+    Use `click` for the group and subgroup.
+
+->install: {}
+
+"retries(max_runs: int, *, min_passes: int | None, delay: int | float | None) -> decorator: Callable":
+  location: tools.py
+  annotations: |
+    Decorator-factory that wraps the flaky library to rerun a test up to `max_runs` times, requiring `min_passes` successes, with an optional `delay` between reruns. Exposed on the package facade for consumer test suites.
+
+    `max_runs`: maximum number of test runs (required, positive int)
+    `min_passes`: minimum successful runs required for the test to pass; when None, flaky derives its own default
+    `delay`: seconds to sleep between reruns; when None, reruns run immediately and no rerun filter is applied
+    `decorator`: the flaky decorator to apply to a test function
+
+    Algorithm:
+    1. Build a rerun filter: None when `delay` is None; otherwise a callable that sleeps `delay` seconds and returns True (unconditional rerun).
+    2. Delegate to flaky with `max_runs`, `min_passes`, and the rerun filter, and return its decorator.
+
+    Requirements:
+    - `max_runs` must be a positive int.
+    - The rerun filter is wired in only when `delay` is not None, so a None delay never reaches the sleep.
+
+    Constraints:
+    - The rerun filter always returns True — reruns are unconditional up to `max_runs`.
+
+    Use `conventions` for code writing rules and testing.
+
+---
+
+Author: Goga
+CreatedAt: 08/07/26
+Description: |
+  Package composition root — owns the root CLI group main, assembles the endpoint subgroup
+  (pull/list/info/generate), and registers the top-level `init` command.

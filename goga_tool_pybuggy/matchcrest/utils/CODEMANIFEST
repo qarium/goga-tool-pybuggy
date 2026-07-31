@@ -1,0 +1,119 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+  requests: .goga/usages/cooks/requests.md
+  dateutil: |
+    python-dateutil — parses ISO date strings into datetime in `date_to_timestamp`.
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, logging, and testing.
+  Use `requests` for the HTTP GET liveness probe in `url_is_live`.
+  Use `dateutil` for ISO-date parsing in `date_to_timestamp`.
+
+  Leaf utility cell: imports only stdlib and external libraries (requests, dateutil) — no internal pybuggy cells.
+  All entries are module-level routines exported via __all__. Use relative imports inside the cell.
+
+---
+
+"waiting_for(f: Callable, *, args: list | tuple | None = None, kwargs: dict | None = None, timeout: int | float = 5, delay: int | float = 0.5, hook: Callable | None = None) -> result: Any":
+  location: utils.py
+  annotations: |
+    Retry-loop: invoke `f` repeatedly until it returns a truthy value or `timeout` elapses.
+
+    `f`: callable to retry.
+    `args`: positional arguments forwarded to `f` (empty when None).
+    `kwargs`: keyword arguments forwarded to `f` (empty when None).
+    `timeout`: total seconds to keep retrying.
+    `delay`: seconds slept between attempts.
+    `hook`: optional transformer applied to the return value before the truthiness test.
+    `result`: the first truthy return value (after `hook` when given).
+
+    Algorithm:
+    1. Record the start time.
+    2. While now <= start + timeout: call f(*args, **kwargs); when `hook` is callable, transform the result; return it when truthy; otherwise sleep `delay`.
+    3. Raise TimeoutError when the loop exits without a truthy value.
+
+    Requirements:
+    - Default timeout is 5s, default delay is 0.5s.
+
+"join(...parts: str) -> url: str":
+  location: utils.py
+  annotations: |
+    Concatenate URL parts into a single URL string.
+
+    parts: URL segments to join.
+    `url`: the joined URL.
+
+    Algorithm:
+    1. Accumulate each part with its trailing '/' stripped.
+    2. Append a trailing '/' when the last part originally ended with '/'.
+
+"url_is_valid(url: str, is_live: bool = False, allowed_protocols: list | tuple | None = None) -> valid: bool":
+  location: utils.py
+  annotations: |
+    Check that `url` is structurally valid, optionally probing liveness.
+
+    `url`: the URL to validate.
+    `is_live`: when True, also require the URL to respond 2xx via `url_is_live`.
+    `allowed_protocols`: accepted schemes (defaults to ['https', 'http']).
+    `valid`: True when `url` parses with a netloc and an allowed scheme, and (when requested) is live.
+
+    Algorithm:
+    1. Parse `url`; resolve allowed_protocols to ['https', 'http'] when None.
+    2. Require a netloc; relative links are accepted with the first allowed protocol prepended.
+    3. When `is_live`, return False unless url_is_live(join(protocol, url)) is True.
+    4. Return True otherwise.
+
+"url_is_live(url: str) -> live: bool":
+  location: utils.py
+  annotations: |
+    HTTP liveness probe: GET `url` and treat any 2xx status as live.
+
+    `url`: the URL to probe.
+    `live`: True when the response status code is in the 200–299 range.
+
+    Algorithm:
+    1. Issue requests.get(url).
+    2. Return True when 200 <= status_code <= 299, otherwise False.
+
+    Use `requests` for the GET request.
+
+"date_to_timestamp(value: date | datetime) -> timestamp: float":
+  location: utils.py
+  annotations: |
+    Convert a date or datetime to a UNIX timestamp (float).
+
+    `value`: a `date` or `datetime` object.
+    `timestamp`: the POSIX timestamp of `value`.
+
+    Algorithm:
+    1. When `value` is a datetime, return value.timestamp().
+    2. When `value` is a date, parse its ISO string via `dateutil` and return the timestamp.
+    3. Raise ValueError for any other type.
+
+    Use `dateutil` for ISO-date parsing.
+
+    Requirements:
+    - Accepts only `date` or `datetime` instances.
+
+"allow_failure(f: Callable) -> wrapped: Callable":
+  location: utils.py
+  annotations: |
+    Decorator that swallows any exception raised by `f`, logs it, and returns None.
+
+    `f`: the callable to wrap.
+    `wrapped`: a wrapper preserving `f`'s signature (via functools.wraps) that never raises.
+
+    Algorithm:
+    1. Return a wrapper that calls `f` inside try/except.
+    2. On any Exception, log it via the module logger and return None; otherwise return `f`'s result.
+
+    Use `conventions` for structured logging.
+
+---
+
+Author: Goga
+CreatedAt: 14/07/26
+Description: |
+  Leaf utility cell for matchcrest: retry-loop (waiting_for), URL helpers (join, url_is_valid,
+  url_is_live), date conversion (date_to_timestamp), and the allow_failure decorator.
+  Consumed by the matchers cell.

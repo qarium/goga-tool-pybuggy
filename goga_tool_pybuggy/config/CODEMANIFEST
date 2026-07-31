@@ -1,0 +1,89 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+  pyyaml: |
+    Read config.yml with yaml.safe_load only — never yaml.load. The raw dict is
+    an intermediate; the contract validates it into pydantic models via model_validate.
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `pyyaml` for loading the config file at .goga/tools/pybuggy/config.yml.
+
+  All pydantic models use kw_only=True (Python 3.10+).
+  Use typing.Optional (not X | None) for fields meaning explicit absence.
+  Use relative imports inside the cell.
+
+---
+
+"GitEntry(url: str, location: str, ref: Optional[str])":
+  location: git_entry.py
+  annotations: |
+    Remote source of a spec for the endpoint pull command — clone URL, in-repo path, and optional git ref.
+
+    `url`: clone URL consumed by shallow-clone in the pull command (no embedded tokens).
+    `location`: path inside the repository (file or subdirectory) to copy from.
+    `ref`: optional git ref (branch or tag name) to clone; when None the remote default branch is cloned.
+
+    Use `conventions` for pydantic model rules.
+
+    Requirements:
+    - `ref` is Optional — when None the pull command clones the remote default branch.
+
+    Constraints:
+    - `url` must be a valid clone target for GitPython (no embedded tokens).
+    - `ref` should be a branch or tag name; a bare commit SHA is not guaranteed to resolve under a shallow clone.
+
+"SpecEntry(type: Literal['swagger','openapi'], location: str, git: Optional[GitEntry])":
+  location: spec_entry.py
+  annotations: |
+    One spec entry of the pybuggy config: declared format, local path, and optional remote source.
+
+    `type`: declared spec format — constrained to 'swagger'/'openapi' via Literal; pydantic rejects other values at validation time.
+    `location`: local path (from project root) to the spec file — shown in the list command header and used as the pull copy target.
+    `git`: optional remote source; when absent the spec is treated as local-only and the pull command skips it with a WARNING.
+
+    Use `conventions` for pydantic model rules.
+
+    Requirements:
+    - `git` is Optional — a spec may already be present locally without a remote.
+
+    Constraints:
+    - `type` declares the format but does not drive parsing — Prance auto-detects the version at parse time.
+
+"Config(specs: dict[str, SpecEntry])":
+  location: config.py
+  annotations: |
+    Root configuration of pybuggy, stored at .goga/tools/pybuggy/config.yml.
+
+    `specs`: mapping of spec name to its `SpecEntry`; the name is the dict key, surfaced in list/info.
+
+    Use `conventions` for pydantic model rules.
+
+    Constraints:
+    - `specs` is required — a config without specs is invalid.
+
+"load_config(path: Optional[pathlib.Path]) -> config: Config":
+  location: storage.py
+  annotations: |
+    Read the pybuggy config file and validate it into a `Config` model.
+
+    `path`: path to the config file; optional — when None, defaults to the fixed pybuggy config location (.goga/tools/pybuggy/config.yml).
+    `config`: the parsed and validated configuration.
+
+    Algorithm:
+    1. If `path` is None, use the fixed config location (.goga/tools/pybuggy/config.yml).
+    2. Read file text as UTF-8.
+    3. yaml.safe_load the contents.
+    4. Config.model_validate(raw) to enforce the schema.
+
+    Requirements:
+    - Use yaml.safe_load only — never yaml.load.
+
+    Use `pyyaml` for the loading pattern.
+    Use `conventions` for pydantic validation rules.
+
+---
+
+Author: Goga
+CreatedAt: 02/07/26
+Description: |
+  pybuggy configuration models and YAML loader for .goga/tools/pybuggy/config.yml.

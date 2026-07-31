@@ -1,0 +1,208 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+  click: .goga/usages/cooks/click.md
+  ruamel-yaml: .goga/usages/cooks/ruamel-yaml.md
+  goga: .goga/usages/cooks/goga.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `click` for the command wrapper and for mapping domain errors to click.ClickException.
+  Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing, create-if-absent).
+  Use `goga` for the in-process initialization of the goga-project via goga.init per-field Questionnaire methods + FileGenerator (language hardcoded to python; image python-only; no InitLogic).
+
+  Top-level bootstrap command pybuggy init — initializes the goga-project (when not yet initialized) and then ships the
+  consumer usages of the api cell and their referencing annotations into the project where it is invoked. The handler
+  `run_init` is the testable entry point; the click wrapper `init_cmd` carries no options and delegates to `run_init`
+  (CLI tests call `run_init` directly). The goga-project initialization is delegated in-process to `run_goga_init`
+  (public, in __all__) — the test seam.
+  Usages are discovered from the installed pybuggy.api package via importlib.resources (not from cwd).
+  Target is the consumer goga-project config <cwd>/.goga/config.yml under codemanifest.usages and
+  codemanifest.annotations — NOT .goga/tools/pybuggy/config.yml; this cell does not use the config cell or load_config.
+  Use relative imports inside the cell.
+
+---
+
+"run_init() -> exit_code:int":
+  location: init.py
+  annotations: |
+    Handler for the init command: ensure the goga-project is initialized, then bootstrap the consumer usages of the api
+    cell into the project where the command is invoked.
+
+    `exit_code`: 0 on success; non-zero goga-init exit code propagated when goga init fails or is cancelled.
+
+    Algorithm:
+    1. Resolve the output root as the current working directory.
+    2. When <cwd>/.goga/config.yml does NOT exist (goga-project not yet initialized): call `run_goga_init`;
+       if it returns a non-zero exit code, return that code immediately (do NOT register usages or annotations).
+    3. Discover every .usages/*.md under the api cell (including its subcells such as asserts) from the installed
+       pybuggy.api package via importlib.resources; stem is the filename without .md.
+    4. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md, creating parent
+       directories and overwriting any existing file.
+    5. Build usage_keys as pybuggy-<stem> mapped to .goga/usages/cooks/pybuggy/<stem>.md; delegate the registration
+       to `register_usages` with <cwd>/.goga/config.yml and usage_keys, receiving the added usage keys.
+    6. Build annotation_lines as pybuggy-<stem> mapped to a referencing annotation line for each usage — the
+       hand-authored description for the known api/asserts stems, a bare backtick reference otherwise; delegate the
+       registration to `register_annotations` with <cwd>/.goga/config.yml and annotation_lines, receiving the added
+       annotation keys.
+    7. Log INFO for each added usage/annotation key and WARNING for each skipped one.
+    8. Return 0.
+
+    Requirements:
+    - The goga-project is initialized at most once — when <cwd>/.goga/config.yml is absent; on already-initialized
+      projects the interactive goga init is skipped (idempotent, non-interactive on re-runs).
+    - Usages bootstrap is idempotent — repeated runs overwrite the copied .md files and skip already-registered keys.
+    - Annotations bootstrap is idempotent — repeated runs skip annotation lines whose backtick reference already
+      exists; the existing annotation text (e.g. the base convention annotations from goga init) is preserved.
+    - Discovery is recursive under pybuggy.api so future subcells are registered without editing the command.
+    - The command works from the installed wheel: importlib.resources resolves the installed pybuggy.api package.
+
+    Constraints:
+    - Do not register pybuggy usages or annotations when goga init failed/was cancelled — propagate goga's exit code instead.
+    - Do not read usages from the current working directory — always from the installed pybuggy.api package.
+    - Do not copy usages of internal development cells (config, spec, output, matchcrest, plugin, commands).
+    - Carry no options — files are overwritten, keys/annotations are skipped.
+
+    Use `run_goga_init` for the goga-project initialization.
+    Use `register_usages` for the codemanifest.usages registration.
+    Use `register_annotations` for the codemanifest.annotations registration.
+    Use `click` for mapping bootstrap failures to click.ClickException.
+    Use `conventions` for structured logging and testing.
+
+"run_goga_init() -> exit_code:int":
+  location: init.py
+  annotations: |
+    In-process initialization of the goga-project, Python-tailored — the contract test seam (public, in __all__).
+
+    Unlike goga's universal InitLogic flow (which prompts for the language via ask_language), this routine drives the
+    per-field Questionnaire methods individually, hardcodes language="python" (pybuggy is a Python project), selects the
+    Docker image from the python-only set (ask_image("python")), assembles a GogaConfigAnswers, and delegates file
+    generation to FileGenerator().generate(InitAnswers(...)). InitLogic is NOT used.
+
+    `exit_code`: 0 on success; 1 on user cancellation (click.Abort) or generation failure (the routine returns a code
+    and never raises, so run_init — which calls it outside its own try/except — relies on this).
+
+    Algorithm:
+    1. Instantiate Questionnaire() and FileGenerator() from goga.init (NO InitLogic — manual per-field orchestration).
+    2. language = "python"  (hardcoded; ask_language is NOT called — pybuggy is a Python project).
+    3. Collect the remaining config fields by calling the per-field Questionnaire methods individually:
+       - (usages_prefill, annotations_prefill) = questionnaire.ask_base_convention()
+       - codemanifest_usages       = questionnaire.ask_codemanifest_usages(usages_prefill)
+       - codemanifest_annotations  = questionnaire.ask_codemanifest_annotations(annotations_prefill)
+       - agent           = questionnaire.ask_agent()
+       - image           = questionnaire.ask_image(language)        # python-only set: 3.10–3.14
+       - dockerfile_path = questionnaire.ask_dockerfile_path()
+       - env             = questionnaire.ask_env(agent)
+       - pipeline_agent  = questionnaire.ask_pipeline_agent(agent)
+       - pipeline_env    = questionnaire.ask_pipeline_env(pipeline_agent)
+    4. Assemble GogaConfigAnswers(language="python", agent=..., image=..., pipeline_agent=..., pipeline_env=...,
+       env=..., dockerfile_path=..., codemanifest_usages=..., codemanifest_annotations=...).
+    5. generator.generate(InitAnswers(goga_config=config)); return 0 on success.
+    6. On click.Abort (user cancel) return 1; on other Exception log + echo + return 1 (replicates InitLogic.run()'s
+       handling, which is no longer available since InitLogic is bypassed).
+
+    Requirements:
+    - Interactive (TTY prompts via click) — callers and tests stub this routine via monkeypatch to avoid prompts.
+    - Returns a code and never raises on cancellation/failure so the caller can propagate it cleanly.
+
+    Constraints:
+    - Do NOT call ask_language — language is hardcoded to "python" (pybuggy is a Python project).
+    - Do NOT use InitLogic / ask / ask_goga_config — orchestrate the per-field methods manually to fix the language and
+      restrict the image set.
+    - Do NOT duplicate goga's prompt/generation logic — only orchestrate the existing ask_* methods and FileGenerator.generate.
+    - Do NOT propagate an exception on cancellation/failure — return a code (run_init relies on this).
+
+    Use `goga` from Usages for the per-field Questionnaire methods + FileGenerator.generate contract.
+    Use `click` for click.Abort handling.
+    Use `conventions` for type hints and structured logging on failure.
+
+"register_usages(config_path: Path, usage_keys: dict[str, str]) -> added_keys: list[str]":
+  location: init.py
+  annotations: |
+    Round-trip edit of the consumer .goga/config.yml under codemanifest.usages: register each entry of `usage_keys`,
+    skipping keys already present, and creating a minimal file when none exists.
+
+    `config_path`: path to the consumer .goga/config.yml.
+    `usage_keys`: mapping of pybuggy-<stem> to the relative path .goga/usages/cooks/pybuggy/<stem>.md to register.
+    `added_keys`: the keys actually added (pre-existing keys are skipped and excluded).
+
+    Algorithm:
+    1. Configure ruamel YAML with preserve_quotes=True.
+    2. When `config_path` exists, load it; when the load yields None (empty file), treat the document as empty.
+       Navigate to codemanifest.usages, creating the nested CommentedMap nodes when missing.
+    3. When `config_path` does not exist, build a fresh CommentedMap with a codemanifest.usages map.
+    4. For each (key, value) in `usage_keys`: when the key is already in usages, skip it; otherwise insert it and
+       append the key to `added_keys`.
+    5. Ensure the parent directory of `config_path` exists and dump the document back to `config_path`.
+    6. Return `added_keys`.
+
+    Requirements:
+    - Existing keys (including user-defined ones outside this command) are never overwritten — the run is idempotent.
+    - Comments, key order, quotes, and block-scalars of the existing file are preserved.
+    - When the file is absent, a minimal valid file carrying the codemanifest.usages block is created.
+
+    Constraints:
+    - Do not use pyyaml — it would reformat the file and drop comments.
+    - Do not touch keys outside codemanifest.usages.
+
+    Use `ruamel-yaml` for the round-trip load/modify/dump and the CommentedMap construction.
+    Use `conventions` for type hints and relative imports.
+
+"register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> added_keys: list[str]":
+  location: init.py
+  annotations: |
+    Round-trip edit of the consumer .goga/config.yml under codemanifest.annotations: append each annotation line of
+    `annotation_lines`, skipping lines whose backtick reference (pybuggy-<stem>) already appears, and creating a
+    literal block scalar (``|``) when none exists. The existing annotation text is preserved — only missing lines are
+    appended.
+
+    `config_path`: path to the consumer .goga/config.yml.
+    `annotation_lines`: mapping of pybuggy-<stem> to one annotation line to append (each references the usage via a
+      backtick).
+    `added_keys`: the keys whose annotation line was actually added (pre-referenced keys are skipped and excluded).
+
+    Algorithm:
+    1. Configure ruamel YAML with preserve_quotes=True.
+    2. When `config_path` exists, load it; when the load yields None (empty file), treat the document as empty.
+       Navigate to codemanifest, resolving the annotations scalar (empty string when absent/null; ValueError when it
+       exists but is not a scalar).
+    3. When `config_path` does not exist, build a fresh CommentedMap.
+    4. For each (key, line) in `annotation_lines`: when the line's backtick reference is already present in the
+       annotation text, skip it; otherwise append the line (with a trailing newline) to the text and record the key
+       in `added_keys`.
+    5. When at least one line was added, write the text back as a literal block scalar (``|``) under
+       codemanifest.annotations; ensure the parent directory of `config_path` exists and dump the document back.
+    6. Return `added_keys`.
+
+    Requirements:
+    - Annotation lines whose backtick reference already appears are never duplicated — the run is idempotent.
+    - Comments, key order, quotes, and block-scalars of the existing file are preserved.
+    - The existing annotation text (base convention annotations from goga init) is preserved — only missing lines appended.
+    - When the file is absent, a minimal valid file carrying the codemanifest.annotations block is created.
+
+    Constraints:
+    - Do not use pyyaml — it would reformat the file and drop comments.
+    - Do not touch keys outside codemanifest.annotations.
+
+    Use `ruamel-yaml` for the round-trip load/modify/dump and the LiteralScalarString block-scalar construction.
+    Use `conventions` for type hints and relative imports.
+
+"init_cmd(ctx: click.Context)":
+  location: init.py
+  annotations: |
+    Click command wrapper for the top-level init command; carries no options or arguments, delegates to `run_init`, and
+    propagates the returned exit code via ctx.exit.
+
+    `ctx`: Click execution context used to control the process exit code.
+
+    Use `click` for the command wrapper (@click.command("init"), @click.pass_context).
+
+---
+
+Author: Goga
+CreatedAt: 27/07/26
+Description: |
+  Top-level init command handler — initializes the goga-project in-process via goga init (when not yet initialized),
+  then bootstraps the consumer usages of the api cell into the project where it is invoked: discovers .usages/*.md from
+  the installed pybuggy.api package, copies them under .goga/usages/cooks/pybuggy/, and registers them in
+  .goga/config.yml under codemanifest.usages; appends a referencing annotation line per usage under
+  codemanifest.annotations; idempotent.

@@ -1,0 +1,268 @@
+Imports:
+  - Types:
+      - assert_that
+      - BaseContext
+      - JsonschemaMatcher
+      - ResponseCodeMatcher
+      - ResponseHeadersByKeyMatcher
+      - ResponseHeadersByValueMatcher
+      - JsonHasDataByKeyMatcher
+      - JsonHasNotDataByKeyMatcher
+      - JsonContainsKeyMatcher
+    Usages:
+      - matchcrest
+    From: pybuggy/matchcrest
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  jsonschema: .goga/usages/cooks/jsonschema.md
+  hamcrest: .goga/usages/cooks/hamcrest.md
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, and testing.
+  Use `matchcrest` from Imports for `assert_that` and the matcher catalog backing every `Expected` and `AssertField` check.
+  Use `hamcrest` for the `assert_that` entry point re-exported by matchcrest.
+  Use `jsonschema` for the Draft7Validator contract that `JsonschemaMatcher` wraps under the hood.
+
+  Assert sub-cell of pybuggy/api. Carries the full assert layer: `AssertConfig` bundles the static check configuration (status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class); `Expected` is the two-level dispatcher (response-level matchcrest checks plus a field-level entry through its dispatcher call) and the default response-level assert class; `AssertField` is the field-level assert over a resolved body value and the default field-level assert class; load_assert_class imports a custom assert class by dotted module:Class path. `Expected` and `AssertField` are reached through the parent api cell — its response wrapper returns `Expected`, whose dispatcher call returns `AssertField` — never constructed directly by consumers. The search contexts (ResponseContext/JsonFieldContext/JsonPathFieldContext/SearchItem) and BaseAssert are internal.
+
+  Polling: timeout/delay (from `AssertConfig` as the baseline, overridable per check method) drive matchcrest's retry loop — the response is re-fetched between attempts until the assertion passes or the timeout elapses. Pluggable classes: assert_response_class/assert_field_class select a custom `Expected`/`AssertField` subclass via `load_assert_class` (resolved where the response/field class is constructed).
+
+  Use relative imports inside the cell.
+
+---
+
+"AssertConfig(status: int | None = None, data_key: str | None = None, error_key: str | None = None, schemas_dir: Path | None = None, timeout: int | float | None = None, delay: int | float | None = None, assert_field_class: str | None = None, assert_response_class: str | None = None)":
+  location: config.py
+  annotations: |
+    Static configuration for response-level asserts — bundles the expected success status, the success/error body keys, the json-schema directory, the polling options, and the pluggable-class hooks so `Expected` (and the parent cell's response wrapper) accept a single configuration value.
+
+    `status`: expected success status code; None disables the status auto-check.
+    `data_key`: success-body key asserted present (positive) / absent (negative); also the positive field-search root; None skips it.
+    `error_key`: error-body key asserted absent (positive) / present (negative); also the negative field-search root; None skips it.
+    `schemas_dir`: directory of json-schema files (<status>*.json) for auto-validation; None or a missing directory skips it.
+    timeout: baseline polling timeout (seconds) — when set, matchcrest retries each assertion, re-fetching the response, until it passes or the timeout elapses; None runs the assertion once.
+    delay: seconds slept between polling attempts; None uses the matcher default.
+    assert_field_class: dotted module:Class path of a custom `AssertField` subclass; None uses the built-in `AssertField`.
+    assert_response_class: dotted module:Class path of a custom `Expected` subclass; None uses the built-in `Expected`.
+
+    Requirements:
+    - pydantic BaseModel, kw_only=True, with None defaults (absence semantics).
+
+    Use `conventions` for pydantic usage and type hints.
+
+"load_assert_class(import_path: str, base_class: type) -> cls: type":
+  location: base.py
+  annotations: |
+    Import an assert class by dotted module:Class path, validating it subclasses `base_class`.
+
+    `import_path`: module.path:ClassName — the module is imported with importlib and the class read off it.
+    `base_class`: the required base — the loaded class must be a subclass of it.
+    `cls`: the loaded class.
+
+    Algorithm:
+    1. Split `import_path` into module path and class name on the first ":" (ValueError when none).
+    2. Import the module (ImportError on a missing module).
+    3. Read the class off the module (ImportError when absent).
+    4. Require the class to subclass `base_class` (TypeError otherwise); return it.
+
+    Use `conventions` for type hints.
+
+"Expected(response: resq.http.Response, config: AssertConfig, is_negative: bool = False)":
+  location: expected.py
+  annotations: |
+    Two-level assert dispatcher. Response-level checks (methods below) are matchcrest assertions over an internal ResponseContext and return this `Expected` for fluent chaining. Calling the dispatcher (e.g. expected('data.items')) returns an `AssertField` for field-level checks through the body (dotted path or jsonpath). This is also the default response-level assert class: when config.assert_response_class is set, the parent cell's response wrapper loads that subclass (it must subclass `Expected`).
+
+    `response`: the raw resq.http.Response under inspection.
+    `config`: the static check configuration (`AssertConfig`) — status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class (each optional; None skips/disables that check).
+    `is_negative`: selects the negative auto-check path and field root.
+
+    The timeout/delay from `config` are the polling baseline — matchcrest retries each assertion (re-fetching the response between attempts) until it passes or the timeout elapses. Each check method also accepts timeout/delay kwargs that override the baseline for one assertion.
+
+    Use `matchcrest` for `assert_that` and the matcher catalog backing every check.
+    Use `jsonschema` for the Draft7Validator contract that `JsonschemaMatcher` wraps.
+    Use `conventions` for type hints and relative imports.
+  methods:
+    "has_status_code(code: int, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expected": |
+      Assert the response status code equals the given value (`ResponseCodeMatcher`).
+
+      `code`: expected HTTP status code.
+      `reason`: optional assertion message prefix.
+      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `chain`: this `Expected`, for chaining.
+    "has_header(key: str, value: str | None = None, contains: bool | None = None, startswith: bool | None = None, endswith: bool | None = None, count: int | None = None, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expected": |
+      Assert a response header is present (`ResponseHeadersByKeyMatcher`), and — when value is given — that its value matches it (`ResponseHeadersByValueMatcher`). Header keys are matched case-insensitively.
+
+      `key`: header name (any case).
+      `value`: optional expected header value (equals by default).
+      `contains`/`startswith`/`endswith`: optional substring/prefix/suffix match mode for the value (or the key when value is None).
+      `count`: when value is None, require exactly that many matching headers.
+      `reason`: optional assertion message prefix.
+      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `chain`: this `Expected`, for chaining.
+
+      Constraints:
+      - `count` and `value` together raise ValueError.
+    "json_has_data_by_key(key: str, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expected": |
+      Assert the response body contains the given key with a non-None value (`JsonHasDataByKeyMatcher`).
+
+      `key`: body key expected to be present.
+      `reason`: optional assertion message prefix.
+      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `chain`: this `Expected`, for chaining.
+    "json_has_not_data_by_key(key: str, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expected": |
+      Assert the response body does not contain the given key (or it is None) (`JsonHasNotDataByKeyMatcher`).
+
+      `key`: body key expected to be absent.
+      `reason`: optional assertion message prefix.
+      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `chain`: this `Expected`, for chaining.
+    "json_contains_key(key: str | list[str], reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expected": |
+      Assert the response body contains the key (nested when given a list) (`JsonContainsKeyMatcher`).
+
+      `key`: a single key or an ordered list drilling into nested objects.
+      `reason`: optional assertion message prefix.
+      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `chain`: this `Expected`, for chaining.
+    "jsonschema_is_valid(schema: dict | str, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expected": |
+      Validate the response body against a json-schema (JsonschemaMatcher).
+
+      `schema`: schema as a dict, or a path to a .json schema file (read as UTF-8).
+      `reason`: optional assertion message prefix.
+      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `chain`: this `Expected`, for chaining.
+
+      Algorithm:
+      1. When schema is a str, read the file and json.loads it.
+      2. assert_that over a json context with JsonschemaMatcher(schema) (jsonschema validation under the hood).
+
+      Use `matchcrest` for JsonschemaMatcher; `jsonschema` for the validation contract.
+    "jsonschemas_is_valid(schemas_dir: str | Path, status_code: int, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expected": |
+      Validate the body against the first "<status_code>*" schema file in a directory (JsonschemaMatcher); silent skip when the directory is missing or no file matches.
+
+      `schemas_dir`: directory of json-schema files.
+      `status_code`: status whose "<status_code>*" file is loaded.
+      `reason`: optional assertion message prefix.
+      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `chain`: this `Expected`, for chaining.
+    "__call__(search: str | None = None, index: int | None = None, hook: Callable = None, in_array: bool = False) -> field: AssertField": |
+      Start a field-level assert at `search` (dotted path or jsonpath).
+
+      `search`: a dotted path (a.b.c) resolved under the data_key/error_key root, a jsonpath ($.a.b[*]) resolved via jsonpath_ng, or None to target the whole rooted body.
+      `index`: optional list index applied after the search.
+      `hook`: optional callable applied to the resolved value (TypeError when not callable).
+      `in_array`: treat the resolved value as a list so per-method any options apply element-wise.
+      `field`: the `AssertField` ready for chaining.
+
+      Algorithm:
+      1. When search is None or looks like a jsonpath, build a JsonPathFieldContext; otherwise a JsonFieldContext.
+      2. Resolve the field class: the built-in `AssertField`, or — when config.assert_field_class is set — load_assert_class(config.assert_field_class, AssertField).
+      3. Construct it over the context, forwarding the config baseline timeout/delay.
+
+      Use `matchcrest` for the value matchers consumed by `AssertField`.
+    "autocheck()": |
+      Run the configured auto-check once, selecting the path by is_negative.
+
+      Algorithm:
+      1. When is_negative, run the negative path; otherwise run the positive path.
+
+      Positive path:
+      1. When status is not None, assert has_status_code(status).
+      2. Read response.json().
+      3. When error_key is not None, assert it is absent.
+      4. When data_key is not None, assert it is present.
+      5. Validate against the first schemas_dir file matching "<status_code>*" via JsonschemaMatcher; skip when schemas_dir is missing or no file matches.
+
+      Negative path:
+      1. Read response.json().
+      2. When data_key is not None, assert it is absent.
+      3. When error_key is not None, assert it is present.
+      4. Do not check status and do not validate json-schema.
+
+      Requirements:
+      - Auto-validation loads the first file whose name starts with the actual status code string; absent dir/file is a silent skip.
+      - The auto-check uses the config timeout/delay baseline (no per-check override).
+
+      Use `matchcrest` for JsonschemaMatcher; `jsonschema` for the validation contract.
+
+"AssertField(context: BaseContext, is_negative: bool = False, in_array: bool = False, timeout: int | float | None = None, delay: int | float | None = None)":
+  location: field.py
+  annotations: |
+    Field-level assert over a resolved body value (produced by Expected.__call__, never constructed directly by consumers; also the default field-level assert class — Expected.__call__ loads the assert_field_class subclass when configured). Every check is a matchcrest assert_that over the context and a matcher, with an optional reason, returning this `AssertField` for chaining; calling the field (search/index/hook) drills one level deeper. The search contexts (ResponseContext/JsonFieldContext/JsonPathFieldContext/SearchItem) are internal and live in contexts.py.
+
+    `context`: the search context providing the resolved value and a key label.
+    `is_negative`: negative-path flag propagated to drilled fields.
+    `in_array`: when True, the resolved value is treated as a list and the per-method any option applies element-wise.
+    timeout/delay: polling baseline inherited from `AssertConfig` via Expected.__call__ and propagated on drill-down; per-check timeout/delay kwargs override it for one assertion.
+
+    The timeout/delay are the polling baseline — matchcrest retries each assertion (re-fetching the response between attempts) until it passes or the timeout elapses. Each check method also accepts timeout/delay kwargs that override the baseline for one assertion.
+
+    Use `matchcrest` for the value/exception matcher catalog.
+    Use `conventions` for type hints and relative imports.
+  properties:
+    "value -> Any": |
+      The currently resolved field value (no assertion).
+  methods:
+    "__call__(search: str | None = None, index: int | None = None, hook: Callable = None, in_array: bool = None) -> field: AssertField": |
+      Drill one level deeper, returning a new `AssertField` over the extended search context.
+
+      `search`/`index`/`hook`: forwarded to the context to append a search step.
+      `in_array`: optional override of this field's in_array flag (defaults to the current one).
+      `field`: a new `AssertField`.
+    "contains(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value contains `value` (ValueContainsMatcher).
+    "not_contains(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value does not contain `value` (ValueNotContainsMatcher).
+    "equal_to(value: Any, reason: str = '', any: bool = False, strict: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value equals `value`; `strict` → identity (ValueIsEqualMatcher).
+    "not_equal_to(value: Any, reason: str = '', any: bool = False, strict: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value does not equal `value` (ValueIsNotEqualMatcher).
+    "greater_than(value: Any, reason: str = '', any: bool = False, or_equal: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value is greater than `value`; `or_equal` → >= (ValueIsGreaterMatcher).
+    "lesser_than(value: Any, reason: str = '', any: bool = False, or_equal: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value is lesser than `value`; `or_equal` → <= (ValueIsLesserMatcher).
+    "has_length(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert len() of the resolved value equals `value` (ValueLengthEqualMatcher).
+    "has_length_greater(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert len() of the resolved value is greater than `value` (ValueLengthGreaterMatcher).
+    "has_length_lesser(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert len() of the resolved value is lesser than `value` (ValueLengthLesserMatcher).
+    "is_url(reason: str = '', any: bool = False, is_live: bool = False, allowed_protocols: list[str] | None = None, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value is a valid URL (ValueIsUrlMatcher).
+    "match_regex(pattern: str, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value matches `pattern` (ValueRegexMatcher).
+    "contains_dict(dct: dict, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved dict contains every key/value from `dct` (ValueContainsDictMatcher).
+    "startswith(value: str, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved string starts with `value` (ValueStartsWithMatcher).
+    "endswith(value: str, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved string ends with `value` (ValueEndsWithMatcher).
+    "empty(reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value is empty/falsy (ValueIsEmpty).
+    "not_empty(reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value is not empty/truthy (ValueIsNotEmpty).
+    "has_date(value: date | datetime, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved date/datetime equals `value` (ValueDateEqualMatcher).
+    "has_date_greater(value: date | datetime, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved date/datetime is greater than `value` (ValueDateGreaterMatcher).
+    "has_date_lesser(value: date | datetime, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved date/datetime is lesser than `value` (ValueDateLesserMatcher).
+    "is_in(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value is a member of `value` (ValueIsInMatcher).
+    "is_not_in(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved value is not a member of `value` (ValueIsNotInMatcher).
+    "is_subset(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved iterable is a subset of `value` (ValueIsSubsetMatcher).
+    "is_disjoint(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved iterable is disjoint from `value` (ValueIsDisjointMatcher).
+    "raise_exc(expected_exc: type[Exception] | tuple[type[Exception], ...], reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> ctx: contextmanager": |
+      Context manager asserting that accessing the value raises one of `expected_exc` (RaisedExceptionMatcher); yields the value.
+    "not_raise_exc(reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> ctx: contextmanager": |
+      Context manager asserting that accessing the value raises nothing (NotRaisedExceptionMatcher); yields the value.
+
+---
+
+Author: Goga
+CreatedAt: 14/07/26
+Description: |
+  Assert sub-cell of pybuggy/api. Carries the full assert layer: AssertConfig (static check config — status/data_key/error_key/schemas_dir), Expected (response-level matchcrest dispatcher and field-level entry via __call__), and AssertField (field-level assert over a resolved response-body value) — all matchcrest-backed. Reached through the parent cell's ResponseWrapper.expected.

@@ -1,0 +1,110 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, dataclass/abc usage, docstrings, and testing.
+
+  Generic discovery contract for finding pytest-plugin modules by walking package directories and single module files. A loader discovers dotted module names from its source and appends them into a caller-supplied accumulator list, mutating it in place and returning nothing.
+
+  This cell exposes only the discovery primitives. Assembling the recursive pytest_plugins list from a plugin's loader config section is the consumer's responsibility — not part of this contract. The loader-section config keys (loader/packages/modules) belong to the consumer and are NOT part of any parent PluginConfigKeys, to avoid a parent↔loaders import cycle.
+
+  Constraints:
+  - No new runtime dependencies — loaders are built on dataclass/abc classes (pybuggy does not declare attrs).
+  - Imports must stay safe at module load: probing a candidate module must not pollute sys.modules.
+  - Use relative imports inside the cell.
+
+---
+
+"BaseLoader()":
+  location: loaders.py
+  annotations: |
+    Abstract loader contract. A loader discovers pytest-plugin module dotted names from a source (a package directory or a single module file) and appends them into a caller-supplied accumulator list, mutating it in place and returning nothing.
+
+    Use `conventions` for type hints, relative imports, and abc usage.
+  methods:
+    "from_config(config: str | dict[str, str | bool]) -> loader: BaseLoader": |
+      Classmethod factory building a loader from a loader-config item.
+
+      `config`: a bare dotted name (str) or a mapping with a name and an optional required flag.
+      `loader`: the constructed loader.
+
+      Algorithm:
+      1. When `config` is a str, build the loader from name=config (required defaults to True).
+      2. When `config` is a dict, build the loader from name=config['name'] and required=config.get('required', True).
+
+      Use `conventions` for type hints.
+    "load(modules: list[str])": |
+      Append discovered pytest-plugin module dotted names into `modules`, mutating it in place.
+
+      `modules`: the accumulator list the loader appends into.
+
+      Concrete loaders realize this by probing each candidate (trial import for a pytest-plugin surface) and appending the dotted names that qualify. The accumulator is mutated in place; nothing is returned.
+
+      Use `conventions` for type hints and relative imports.
+
+"PackageLoader(name: str, required: bool = True)":
+  location: loaders.py
+  annotations: |
+    Concrete loader walking a package directory and appending its pytest-plugin module dotted names into the accumulator.
+
+    `name`: dotted package name to walk (dots map to path separators).
+    `required`: when True, a missing directory is an error; when False, it is tolerated.
+
+    Use `conventions` for type hints, relative imports, and dataclass usage.
+  properties:
+    "name -> str": |
+      Dotted package name being walked.
+    "required -> bool": |
+      Whether a missing directory is an error.
+  methods:
+    "load(modules: list[str])": |
+      Walk the package and append its pytest-plugin module dotted names into `modules`.
+
+      `modules`: the accumulator list to mutate in place.
+
+      Algorithm:
+      1. Resolve the package directory from name (dots to path separators).
+      2. When the directory is missing: raise OSError when required is True, otherwise return without appending.
+      3. Recurse into every subdirectory that contains __init__.py; for each .py file, build its dotted module name.
+      4. For each candidate, probe it for a pytest-plugin surface and append the dotted name when it qualifies.
+      5. The accumulator is mutated in place; nothing is returned.
+
+      Requirements:
+      - A directory is traversed only when it contains __init__.py.
+
+      Use `conventions` for type hints and relative imports.
+
+"ModuleLoader(name: str, required: bool = True)":
+  location: loaders.py
+  annotations: |
+    Concrete loader inspecting a single module file and appending its dotted name into the accumulator when it is a pytest plugin.
+
+    `name`: dotted module name of a single file (the .py extension is implied).
+    `required`: when True, a missing file is an error; when False, it is tolerated.
+
+    Use `conventions` for type hints, relative imports, and dataclass usage.
+  properties:
+    "name -> str": |
+      Dotted module name of the single file.
+    "required -> bool": |
+      Whether a missing file is an error.
+  methods:
+    "load(modules: list[str])": |
+      Inspect the single module file and append its dotted name into `modules` when it is a pytest plugin.
+
+      `modules`: the accumulator list to mutate in place.
+
+      Algorithm:
+      1. Resolve the file from name (append .py).
+      2. When the file is missing: raise FileNotFoundError when required is True, otherwise return without appending.
+      3. Probe the module for a pytest-plugin surface and append the dotted name when it qualifies; otherwise append nothing.
+      4. The accumulator is mutated in place; nothing is returned.
+
+      Use `conventions` for type hints and relative imports.
+
+---
+
+Author: Goga
+CreatedAt: 16/07/26
+Description: |
+  Generic pytest-plugin discovery contract: abstract `BaseLoader` with the `from_config` factory and the `load` mutate-accumulator contract, plus the `PackageLoader` (walk a package directory) and `ModuleLoader` (inspect a single file) implementations. Leaf cell consumed by pybuggy/plugin; assembling the recursive pytest_plugins list is the consumer's responsibility.

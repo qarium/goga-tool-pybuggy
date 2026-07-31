@@ -1,0 +1,104 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+  swax-openapi: .goga/usages/cooks/swax-openapi.md
+  click: .goga/usages/cooks/click.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `swax-openapi` for parsing specs via swax.openapi and the endpoint-extraction pattern over the parsed dict.
+  Use `click` for mapping SpecParseError to ClickException in `load_spec` (uniform non-zero exit).
+
+  Use relative imports inside the cell.
+  Extraction is pure logic over the parsed dict — $ref are already inlined by Prance (see `swax-openapi`).
+  Keep only HTTP methods in path-items; merge path-item parameters into operations when present.
+
+---
+
+"build_endpoint_id(method: str, path: str) -> endpoint_id: str":
+  location: endpoint_id.py
+  annotations: |
+    Deterministic id derived from an HTTP method and path template.
+
+    `method`: HTTP method (e.g. POST, GET) — normalized to lower.
+    `path`: path template (e.g. /v1/API/{name}) — leading slash and braces stripped.
+    `endpoint_id`: stable lowercased identifier, e.g. v1_api_name_post.
+
+    Algorithm:
+    1. Drop a single leading "/" from `path`.
+    2. Remove "{" and "}" from `path` (keep the parameter name).
+    3. Lowercase the result.
+    4. Replace every "/" with "_".
+    5. Append "_" + method.lower().
+
+    Requirements:
+    - Verified on: POST /v1/API/{name} -> v1_api_name_post; GET /clients/startup -> clients_startup_get; DELETE /clients/profile -> clients_profile_delete.
+
+    Constraints:
+    - Pure function — no I/O, no parsing.
+
+"Endpoint(method: str, path: str, request: dict[str, Any], response: dict[str, Any], query_params: dict[str, Any], description: str)":
+  location: endpoint.py
+  annotations: |
+    A single endpoint extracted from a spec operation: method, path, and resolved request/response shapes.
+
+    `method`: HTTP method, lowercased.
+    `path`: path template with parameters in braces, e.g. /clients/{id}.
+    `request`: resolved request-body schema (primary JSON content) or {}.
+    `response`: {status_code: resolved_schema} for each response (primary JSON content).
+    `query_params`: {param_name: schema} for query parameters only.
+    `description`: operation description or "".
+
+    Use `conventions` for pydantic model rules.
+
+    Constraints:
+    - `request`/`response`/`query_params` hold already-resolved schemas (Prance inlined refs — see `swax-openapi`).
+  properties:
+    "id -> str": |
+      Stable identifier derived via `build_endpoint_id` from the endpoint's method and path. Computed field — not a constructor input.
+
+"load_spec(spec_path: pathlib.Path) -> spec: dict[str, Any]":
+  location: loader.py
+  annotations: |
+    Parse a spec file into a fully dereferenced dict via swax.openapi.
+
+    `spec_path`: path to a .yaml/.yml/.json spec file (resolved from project root).
+    `spec`: dereferenced specification dict with $ref inlined.
+
+    Algorithm:
+    1. Call swax.openapi.parse_spec(`spec_path`).
+    2. On SpecParseError, raise click.ClickException carrying the path and reason.
+
+    Requirements:
+    - $ref must already be resolved by Prance — never resolve references manually downstream.
+
+    Use `swax-openapi` for the parse_spec contract and error mapping.
+
+"extract_endpoints(spec: dict[str, Any]) -> endpoints: list[Endpoint]":
+  location: extract.py
+  annotations: |
+    Walk a parsed spec's operations and build an `Endpoint` for each method+path.
+
+    `spec`: dereferenced specification dict (output of `load_spec`).
+    `endpoints`: one `Endpoint` per declared operation.
+
+    Algorithm:
+    1. Read spec["paths"].
+    2. For each path-item, for each HTTP method present in (get, post, put, delete, patch, options, head), take the operation.
+    3. Build an `Endpoint` from the operation: request-body schema (primary JSON content), response schemas, query parameters, description.
+    4. Compute each `Endpoint` id via `build_endpoint_id`.
+
+    Requirements:
+    - Skip non-method keys in path-items (parameters, summary).
+    - Path-item parameters are inherited by all operations — merge with operation parameters when extracting query params.
+
+    Constraints:
+    - Pure logic over `spec` — no I/O, no $ref resolution.
+
+    Use `swax-openapi` for the operation/field extraction pattern.
+
+---
+
+Author: Goga
+CreatedAt: 02/07/26
+Description: |
+  Endpoint model, deterministic endpoint id, spec parsing via swax.openapi, and endpoint extraction.

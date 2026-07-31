@@ -1,0 +1,69 @@
+Imports:
+  - Types: [load_config, Config, SpecEntry]
+    Usages: [configuration]
+    From: pybuggy/config
+  - Types: [load_spec, extract_endpoints]
+    Usages: [spec]
+    From: pybuggy/spec
+  - Types: [render_list]
+    Usages: [formatting]
+    From: pybuggy/output
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  click: .goga/usages/cooks/click.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `click` for the command wrapper (options).
+  Use `configuration` from Imports for loading and iterating the config.
+  Use `spec` from Imports for parsing a spec and extracting endpoints.
+  Use `formatting` from Imports for rendering the text block.
+
+  Use relative imports inside the cell.
+  The handler `run_list` is the testable entry point; the Click wrapper list_cmd binds options and calls `run_list` (CLI tests call `run_list` directly).
+
+---
+
+"run_list(spec_name: Optional[str])":
+  location: list.py
+  annotations: |
+    Handler for the endpoint list command: print endpoints grouped by spec.
+
+    `spec_name`: optional filter; when set list only that spec, otherwise list all specs.
+
+    Algorithm:
+    1. Load the config via `load_config` (fixed config path) and iterate its specs.
+    2. Select specs: all `Config` specs, or only `spec_name` when provided.
+    3. For each selected spec (name, entry):
+       a. Parse the spec at project-root / `SpecEntry` location via `load_spec`.
+       b. Extract endpoints via `extract_endpoints`.
+       c. Render the block via `render_list`(name, `SpecEntry` location, endpoints).
+       d. Print the block.
+    4. A spec parse error propagates as the ClickException raised by `load_spec`.
+
+    Requirements:
+    - Output format must match the contract (see `formatting`).
+
+    Constraints:
+    - Read-only — does not modify specs or config.
+
+    Use `configuration` from Imports for config access.
+    Use `spec` from Imports for parse + extract.
+    Use `formatting` from Imports for rendering.
+
+"list_cmd(spec_name: Optional[str])":
+  location: list.py
+  annotations: |
+    Click command wrapper for the endpoint list subcommand; binds the --spec option and delegates to `run_list`.
+
+    `spec_name`: optional spec filter, bound from --spec.
+
+    Use `click` for the command wrapper and option binding.
+
+---
+
+Author: Goga
+CreatedAt: 08/07/26
+Description: |
+  endpoint list command handler — prints endpoints grouped by spec.

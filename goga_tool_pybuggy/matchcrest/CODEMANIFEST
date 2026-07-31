@@ -1,0 +1,117 @@
+Imports:
+  - Types:
+      - BaseContext
+      - BaseMatcher
+      - MatchResult
+      - allow_failure
+      - RaisedExceptionMatcher
+      - NotRaisedExceptionMatcher
+      - ResponseCodeMatcher
+      - ResponseHeadersByValueMatcher
+      - ResponseHeadersByKeyMatcher
+      - ResponseBodyMatcher
+      - JsonschemaMatcher
+      - JsonHasDataByKeyMatcher
+      - JsonHasNotDataByKeyMatcher
+      - JsonContainsKeyMatcher
+      - ValueContainsMatcher
+      - ValueNotContainsMatcher
+      - ValueIsEqualMatcher
+      - ValueIsNotEqualMatcher
+      - ValueIsGreaterMatcher
+      - ValueIsLesserMatcher
+      - ValueLengthEqualMatcher
+      - ValueLengthGreaterMatcher
+      - ValueLengthLesserMatcher
+      - ValueIsUrlMatcher
+      - ValueRegexMatcher
+      - ValueContainsDictMatcher
+      - ValueEndsWithMatcher
+      - ValueStartsWithMatcher
+      - ValueIsEmpty
+      - ValueIsNotEmpty
+      - ValueDateEqualMatcher
+      - ValueDateGreaterMatcher
+      - ValueDateLesserMatcher
+      - ValueIsInMatcher
+      - ValueIsNotInMatcher
+      - ValueIsSubsetMatcher
+      - ValueIsDisjointMatcher
+    Usages:
+      - matchers
+    From: pybuggy/matchcrest/matchers
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  hamcrest: .goga/usages/cooks/hamcrest.md
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, and testing.
+  Use `hamcrest` for `assert_that` — the assertion entry point re-exported from hamcrest; it drives every
+  matcher's _matches.
+  Use `matchers` from Imports for the matcher catalog and the BaseContext data-source contract.
+
+  Composition facade: the root defines no new behavior — it re-exports the matcher types from `matchers`
+  (via embedding) and exposes `assert_that`. Consumers import the full API from pybuggy.matchcrest.
+  Use relative imports inside the cell.
+
+---
+
+'assert_that(actual: Any, matcher: BaseMatcher, reason: str = "")':
+  location: __init__.py
+  annotations: |
+    Assertion entry point — re-exported as-is from hamcrest. Applies `matcher` to `actual` and raises an
+    AssertionError with the matcher's expectation/error messages on mismatch.
+
+    `actual`: the value or `BaseContext` under test.
+    `matcher`: a matchcrest `BaseMatcher` (or any hamcrest matcher).
+    `reason`: optional assertion message prefix.
+
+    Use `hamcrest` for the assert_that contract and overload set.
+
+->BaseContext: {}
+->BaseMatcher: {}
+->MatchResult: {}
+->allow_failure: {}
+->RaisedExceptionMatcher: {}
+->NotRaisedExceptionMatcher: {}
+->ResponseCodeMatcher: {}
+->ResponseHeadersByValueMatcher: {}
+->ResponseHeadersByKeyMatcher: {}
+->ResponseBodyMatcher: {}
+->JsonschemaMatcher: {}
+->JsonHasDataByKeyMatcher: {}
+->JsonHasNotDataByKeyMatcher: {}
+->JsonContainsKeyMatcher: {}
+->ValueContainsMatcher: {}
+->ValueNotContainsMatcher: {}
+->ValueIsEqualMatcher: {}
+->ValueIsNotEqualMatcher: {}
+->ValueIsGreaterMatcher: {}
+->ValueIsLesserMatcher: {}
+->ValueLengthEqualMatcher: {}
+->ValueLengthGreaterMatcher: {}
+->ValueLengthLesserMatcher: {}
+->ValueIsUrlMatcher: {}
+->ValueRegexMatcher: {}
+->ValueContainsDictMatcher: {}
+->ValueEndsWithMatcher: {}
+->ValueStartsWithMatcher: {}
+->ValueIsEmpty: {}
+->ValueIsNotEmpty: {}
+->ValueDateEqualMatcher: {}
+->ValueDateGreaterMatcher: {}
+->ValueDateLesserMatcher: {}
+->ValueIsInMatcher: {}
+->ValueIsNotInMatcher: {}
+->ValueIsSubsetMatcher: {}
+->ValueIsDisjointMatcher: {}
+
+---
+
+Author: Goga
+CreatedAt: 14/07/26
+Description: |
+  Composition facade for matchcrest — re-exports the full matcher API from `matchers` (BaseContext,
+  BaseMatcher, MatchResult, all value/response/error matchers, allow_failure) and exposes hamcrest's
+  assert_that as the assertion entry point.

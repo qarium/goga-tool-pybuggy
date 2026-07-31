@@ -1,0 +1,68 @@
+Imports:
+  - Types:
+      - Endpoint
+    Usages:
+      - spec
+    From: pybuggy/spec
+
+Usages:
+  conventions: .goga/usages/conventions.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `spec` from Imports for the `Endpoint` shape consumed by the formatters.
+
+  Use relative imports inside the cell.
+  Formatters are pure functions — no I/O; stdout is written by the command handlers.
+
+---
+
+"render_list(name: str, location: str, endpoints: list[Endpoint]) -> text: str":
+  location: list.py
+  annotations: |
+    Format one spec's endpoints as a text block for the endpoint list command.
+
+    `name`: spec name (the config dict key).
+    `location`: local path of the spec (from project root).
+    `spec`: endpoints of the spec.
+    `text`: a header line followed by one line per endpoint.
+
+    Algorithm:
+    1. Emit header "<name> (<location>)".
+    2. For each endpoint (sorted by id) emit "* <id> -> [<METHOD>] <path>", where METHOD is the uppercased method of `Endpoint` and the path is its raw path (with braces).
+
+    Requirements:
+    - Header and line formats must match the contract example exactly.
+
+    Constraints:
+    - Pure function — returns the string; does not print.
+
+    Use `spec` from Imports for the `Endpoint` fields.
+
+"render_info(endpoints: list[Endpoint]) -> json: str":
+  location: info.py
+  annotations: |
+    Format endpoint(s) as JSON for the endpoint info command, with contract-fixed PascalCase keys.
+
+    `spec`: one or more matching endpoints (single -> object; several -> array).
+    `json`: JSON string with keys Method, Path, Request, Response, QueryParams, Description.
+
+    Algorithm:
+    1. For each endpoint build an object: Method = method (lower); Path = path with "{param}" -> ":param"; Request = request; Response = response; QueryParams = query_params; Description = description.
+    2. One endpoint -> single JSON object; several -> JSON array of objects.
+
+    Requirements:
+    - Keys are exactly Method, Path, Request, Response, QueryParams, Description (PascalCase).
+    - Method is lowercased; Path uses the ":param" form (braces stripped).
+
+    Constraints:
+    - Pure function — returns the JSON string; does not print.
+
+    Use `spec` from Imports for the `Endpoint` fields.
+
+---
+
+Author: Goga
+CreatedAt: 02/07/26
+Description: |
+  Text and JSON formatters for the list and info commands.

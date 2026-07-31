@@ -1,0 +1,177 @@
+Imports:
+  - Types:
+      - Api
+    From: pybuggy/api
+  - Types:
+      - BaseLoader
+      - PackageLoader
+      - ModuleLoader
+    Usages:
+      - registration
+      - discovery
+    From: pybuggy/plugin/loaders
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  pluginator: .goga/usages/cooks/pluginator.md
+  jinja2: .goga/usages/cooks/jinja2.md
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, docstrings, and testing.
+  Use `pluginator` for the plugin framework contract — @define.plugin, define.option, the option resolution chain, fixtures as plugin-class methods, install_pytest_plugins, call_context, and the configure() lifecycle hook.
+  Use `jinja2` for the Jinja2 base_url engine: the Environment/StrictUndefined configuration, the custom match_re test, and the required-dependency contract.
+
+  pybuggy pytest-plugin cell. Provides the api fixture (function-scope) that constructs `Api` from plugin options, and wires the plugin into pytest through `install`. A consumer enables it by calling pybuggy.plugin.install() from conftest.py — there is no import-time auto-wiring, so pytest_plugins = ['pybuggy.plugin'] alone does NOT enable the plugin. The generated endpoint fixtures resolve api into a working `Api`.
+
+  base_url is a Jinja2 template string rendered once in the pluginator configure lifecycle hook (pytest configphase, before any test or fixture runs) against the rendering context = the full environment plus the CLI options the user actually passed (auto-captured from the CLI; see `pluginator`). The api fixture consumes the rendered value; there is no rendering inside the fixture. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined and a custom match_re test, so an unknown variable raises (URLs must not be silently truncated). The rendered value is stored back onto the base_url option for the api fixture to read. A plain URL without Jinja placeholders renders to itself, and every whitespace run in the rendered value is removed so a multi-line template (YAML folded (>) / literal (|) scalars, or a template with an empty Jinja block) yields one clean URL.
+
+  Constraints:
+  - `install` is NOT called at import time; a consumer must call pybuggy.plugin.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
+  - `ApiPlugin` overrides BasePlugin.__init__ to accept context (and optional loaders) and to register discovered plugins synchronously.
+  - `install` defaults loaders to [PackageLoader('api', required=False)] when omitted, so the generated api/ fixture tree is discovered out of the box; override with install(loaders=[...]), the loader config section (PluginConfigKeys.LOADER), or disable with install(loaders=[]).
+  - Minimal fixture profile: base_url, headers, timeout, data_key, error_key, plus the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) — no auth, no cookies.
+  - The api fixture is a generator (yield + teardown): after the test it calls api.close() to release the underlying resq session's connection pool.
+  - base_url template rendering is eager: it runs once in configure at pytest configphase, so a missing required base_url surfaces there (not on fixture invocation). The api fixture reads self.base_url, which configure overwrote with the rendered value (configure always runs before any fixture invocation).
+  - CLI placeholders in the base_url template require the consumer to register the matching options (e.g. --env) via pytest_addoption in conftest — pytest rejects unregistered options. Only options the user actually typed enter the rendering context; the full resolved option namespace is intentionally NOT used, to avoid leaking internal/plugin options.
+  - Rendering is single-engine: every base_url template is rendered with Jinja2 (a required dependency); a plain URL without Jinja placeholders renders to itself.
+  - Jinja2 uses StrictUndefined: an unknown variable raises — URLs must not be silently truncated.
+  - The rendered base_url is URL-normalized: every whitespace run is removed (a URL never legitimately contains literal whitespace — it would be percent-encoded to %20 and break the request path), so YAML folded (>) / literal (|) multi-line templates and empty Jinja blocks do not leak whitespace into the URL.
+  - A custom match_re test (a regex match anchored at start, taking the pattern as its argument) is registered for conditional URL assembly; Jinja2 has no built-in regex test.
+  - Use relative imports inside the cell.
+
+---
+
+"ApiPlugin(*, context: dict, loaders: list[BaseLoader] | None = None, default_retries: int | None = None, default_assert_timeout: int | None = None, default_assert_delay: int | float | None = None)":
+  location: plugin.py
+  annotations: |
+    Plugin class providing configurable options and the api fixture. Decorated with @define.plugin bound to the pybuggy config file.
+
+    `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is populated on construction.
+    `loaders`: explicit loaders in addition to those in the loader config section; defaults to none.
+    `default_retries`: default flaky rerun count for the retries option when neither the config key nor the --retries CLI is set; defaults to none (the option then resolves to 0 / no reruns).
+    `default_assert_timeout`: default baseline assert-polling timeout for the assert_timeout option when neither the config key nor the --api-assert-timeout CLI is set; defaults to none (no polling unless configured).
+    `default_assert_delay`: default baseline assert-polling delay for the assert_delay option when neither the config key nor the --api-assert-delay CLI is set; defaults to none.
+
+    Algorithm:
+    1. Call super().__init__() so BasePlugin resolves the config file.
+    2. Store default_retries/default_assert_timeout/default_assert_delay as the default_from sources for their options.
+    3. Assemble the recursive pytest_plugins list and write it back into `context`: read the loader section of the plugin config, build `PackageLoader`/`ModuleLoader` from its packages/modules, prepend the explicit `loaders`, drive each loader to append discovered dotted names, then deduplicate the list.
+    4. Must complete synchronously on construction so pytest_plugins is populated before import finishes.
+
+    Use `pluginator` for the @define.plugin contract and the BasePlugin.__init__ it overrides, the define.option descriptor, and the option resolution chain (plugin_config_key → env → CLI → default_from → required/nullable).
+    Use `conventions` for type hints, relative imports, and kw_only usage where applicable.
+    Use `registration` and `discovery` for the loader-driven registration step.
+  properties:
+    "base_url -> str": |
+      Service base URL as a Jinja2 template string. The option value resolves following `pluginator`: plugin config → env QA_BASE_URL → CLI --api-url → required (no default). Only the interpretation of the value is specific to this cell: it is rendered once in configure against the full environment plus the passed CLI options (see configure), and the rendered value is stored back onto this option. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined (an unknown variable raises) and a custom match_re test; a plain URL without Jinja placeholders renders to itself; every whitespace run in the rendered value is removed (a URL never legitimately contains literal whitespace), so a multi-line template yields one clean URL.
+    "headers -> dict[str, str]": |
+      Resolved default headers dict. Default {} when nothing is configured. Sourced from the headers plugin config key.
+    "timeout -> float | None": |
+      Resolved network timeout. Default None. Resolution: plugin config → env QA_API_TIMEOUT → CLI --api-timeout → None.
+    "data_key -> str | None": |
+      Resolved response-body success key. Default None. Sourced from the data_key plugin config key.
+    "error_key -> str | None": |
+      Resolved response-body error key. Default None. Sourced from the error_key plugin config key.
+    "retries -> int": |
+      Resolved flaky rerun count for the test run. Default 0 (no reruns). Resolution: plugin config (PluginConfigKeys.RETRIES) → CLI --retries → default_from the constructor default → int() (0). Orthogonal to the api fixture: when positive, pytest_collection_modifyitems stamps unmarked items with pytest.mark.flaky(max_runs=retries).
+    "assert_timeout -> int | None": |
+      Resolved baseline assert-polling timeout. Default None (no polling). Resolution: plugin config (PluginConfigKeys.ASSERT_TIMEOUT) → CLI --api-assert-timeout → default_from the constructor default → None. Forwarded into Api → AssertConfig to drive matchcrest's retry loop.
+    "assert_delay -> float | None": |
+      Resolved seconds between assert-polling attempts. Default None. Resolution: plugin config (PluginConfigKeys.ASSERT_DELAY) → CLI --api-assert-delay → default_from the constructor default → None. Forwarded into Api → AssertConfig.
+    "assert_field_class -> str | None": |
+      Resolved dotted module:Class path of a custom AssertField subclass. Default None (built-in AssertField). Sourced from the assert_field_class plugin config key. Forwarded into Api → AssertConfig; resolved by Expected.__call__ via load_assert_class.
+    "assert_response_class -> str | None": |
+      Resolved dotted module:Class path of a custom Expected subclass. Default None (built-in Expected). Sourced from the assert_response_class plugin config key. Forwarded into Api → AssertConfig; resolved by ResponseWrapper.expected via load_assert_class.
+  methods:
+    "configure()": |
+      Pluginator lifecycle callback (NOT a pytest hookimpl). Renders the base_url template once, at pytest configphase, against the full environment plus the CLI options the user actually passed, with Jinja2, and stores the rendered value back onto the base_url option for the api fixture to consume. Pluginator auto-discovers a no-arg configure method and calls it from pytest_configure after config init and install, when the pytest config and the resolved base_url are both available (see `pluginator`).
+
+      Algorithm:
+      1. Build the rendering context as a plain dict initialized with the full os.environ.
+      2. Merge in the CLI options the user actually typed: collect the option tokens from the CLI, normalize their names, take their resolved values, and drop None. The full resolved option namespace is intentionally NOT used — it carries internal/plugin options that must not leak into the template (see `pluginator` for the config-time CLI sources).
+      3. Render the template once via `render_base_url` (Jinja2; StrictUndefined; the match_re test registered) against the rendering context, and store the result back onto the base_url option. `render_base_url` also removes every whitespace run from the rendered URL, so a multi-line base_url template renders to a single clean URL. A plain base_url without placeholders renders to itself.
+
+      Requirements:
+      - Runs once at pytest configphase, before any test or fixture invocation.
+      - The pytest config must be initialized (pluginator calls this after config init).
+
+      Constraints:
+      - Rendering uses Jinja2 only (a required dependency declared in pyproject.toml).
+      - Jinja2 uses StrictUndefined: an unknown variable raises (URLs must not be silently truncated).
+      - Rendering is performed by the `render_base_url` routine, which also normalizes the URL (removes every whitespace run).
+
+      Use `pluginator` for the configure() lifecycle discovery and the pytest_config contract.
+      Use `jinja2` for the Jinja2 engine configuration, StrictUndefined, and the match_re test.
+      Use `conventions` for type hints and relative imports.
+    "api() -> api: Iterator[Api]": |
+      Function-scope generator fixture yielding an `Api` built from the resolved plugin options and closing it after the test.
+
+      api: the `Api` client consumed by generated endpoint fixtures.
+
+      Algorithm:
+      1. Construct `Api` with base_url = self.base_url (the value rendered once in configure and stored back onto the option), headers, timeout, data_key, error_key, and the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) read from this plugin's resolved options.
+      2. Yield the `Api` to the test.
+      3. After the test, call api.close() to release the underlying resq session's connection pool.
+
+      Constraints:
+      - Do not configure auth or cookies — minimal profile.
+      - Consume the base_url option as rendered by configure (no rendering inside the fixture).
+
+      Use `pluginator` for the fixture-as-method convention.
+      Use `conventions` for type hints.
+    "pytest_collection_modifyitems(items: list[pytest.Item])": |
+      pytest hook (tryfirst). When retries resolves to a positive int, stamp every collected item without an existing flaky marker with pytest.mark.flaky(max_runs=retries); items already carrying a flaky marker are left untouched to avoid double-marking. The flaky package is NOT disabled here — the marker is the contract surface and takes effect when flaky is installed in the consumer suite.
+
+      Algorithm:
+      1. Skip unless self.retries is truthy and greater than 0.
+      2. For each item without an existing flaky marker, stamp it with pytest.mark.flaky(max_runs=retries).
+
+      Use `pluginator` for the hook discovery via pluginmanager registration in pytest_configure.
+      Use `conventions` for type hints.
+
+"install(...kwargs: dict)":
+  location: __init__.py
+  annotations: |
+    Install the plugin into pytest at import time, then synchronously register discovered generated fixtures.
+
+    kwargs: context (defaulted via call_context()) and loaders (defaulted to the api package discovery) are forwarded to `ApiPlugin`; ApiPlugin.__init__ then registers discovered plugins, populating the pytest_plugins list.
+
+    Algorithm:
+    1. Default context to call_context(), which resolves to the caller module's globals through the one-level wrapper — so calling `install` from conftest.py targets the conftest namespace (where pytest picks up the hooks and pytest_plugins).
+    2. Default loaders to [PackageLoader('api', required=False)] when omitted (auto-discovery of the api/ tree); an explicit loaders overrides it, loaders=[] disables it.
+    3. Construct an `ApiPlugin` instance — context and loaders are forwarded; ApiPlugin.__init__ registers discovered plugins synchronously, populating the pytest_plugins list.
+    4. Call install_pytest_plugins to inject pytest_addoption/pytest_configure/pytest_collection_finish into that namespace (see `pluginator`).
+
+    Requirements:
+    - `install` must be the one-level wrapper around call_context(); calling call_context() directly would resolve the wrong stack frame.
+    - The loader step must run synchronously so pytest_plugins is populated before import finishes.
+
+    Use `pluginator` for install_pytest_plugins and call_context.
+    Use `registration` for the loader-driven registration step.
+
+"render_base_url(template: str, context: dict) -> rendered:str":
+  location: render.py
+  annotations: |
+    Render a base_url template once with the Jinja2 engine against `context`, then normalize the result as a URL.
+
+    `template`: the base_url option value, a Jinja2 template string.
+    `context`: the rendering context — the full environment plus the CLI options the user actually passed.
+    `rendered`: the rendered URL with all literal whitespace removed; a plain template without placeholders renders to itself.
+
+    Algorithm:
+    1. Build a Jinja2 Environment with StrictUndefined (an unknown variable raises) and register the match_re test (regex match anchored at start) for conditional URL assembly.
+    2. Render `template` against `context`.
+    3. Remove every whitespace run from the rendered string: a URL never legitimately contains literal whitespace (it would be percent-encoded to %20 and break the request path), so whitespace introduced by a YAML folded/literal block scalar or an empty Jinja block is dropped. This lets a multi-line base_url template render to a single clean URL in both conditional branches.
+
+    Constraints:
+    - Single-engine: Jinja2 only (a required dependency). URLs must not be silently truncated.
+    - The output is URL-normalized: it contains no literal whitespace (whitespace runs are removed, not preserved).
+
+    Use `jinja2` for the Environment configuration, StrictUndefined, and the match_re test.
+
+---
+
+Author: Goga
+CreatedAt: 16/07/26
+Description: |
+  pybuggy pytest-plugin cell: the ApiPlugin plugin class with configurable options and the api fixture, and the install() entry point that wires the plugin into pytest. Built on pluginator.

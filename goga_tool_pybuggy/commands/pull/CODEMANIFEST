@@ -1,0 +1,82 @@
+Imports:
+  - Types: [load_config, Config, SpecEntry, GitEntry]
+    Usages: [configuration]
+    From: pybuggy/config
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  gitpython: .goga/usages/cooks/gitpython.md
+  click: .goga/usages/cooks/click.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `gitpython` for shallow-clone as a context manager and copy-to-local semantics.
+  Use `click` for the command wrapper (options) and mapping domain errors to ClickException.
+  Use `configuration` from Imports for loading and iterating the config.
+
+  Use relative imports inside the cell.
+  The handler `run_pull` is the testable entry point; the Click wrapper pull_cmd only binds options and calls `run_pull` (CLI tests call `run_pull` directly).
+  Map domain errors (clone failure, missing repo path) to click.ClickException for a uniform non-zero exit.
+
+---
+
+"run_pull(spec_name: Optional[str], ref: Optional[str | tuple])":
+  location: pull.py
+  annotations: |
+    Handler for the endpoint pull command: download specs from their git sources into their local location, idempotently.
+
+    `spec_name`: optional filter; when set pull only that spec, otherwise pull all specs.
+    `ref`: optional git ref override. Accepts: None (no override); a global ref string applied to every selected spec; or a tuple of items where each item is a global ref string or a (spec_name, ref) pair (per-spec override, produced by `SmartParam`). A plain string remains a global override (backward compatible with direct handler calls).
+
+    Algorithm:
+    1. Load the config via `load_config` (fixed config path) and iterate its specs.
+    2. Select specs: all `Config` specs, or only `spec_name` when provided.
+    3. Normalize the ref override into a global ref and a per-spec map: plain-string items become the global ref, (name, ref) items populate the per-spec map; None items are skipped. A per-spec name absent from the configuration raises click.ClickException.
+    4. For each selected entry:
+       a. If the entry git field is None, log a WARNING ("no remote source; treated as local") and skip.
+       b. Otherwise resolve the effective ref: per-spec override for this name wins, else the global ref, else the `GitEntry` ref, else None. Shallow-clone the `GitEntry` url into a temp dir (depth=1) at the effective ref (None means the remote default branch), copy the `GitEntry` location -> project-root / `SpecEntry` location, overwriting existing files (idempotent).
+    5. On clone failure or missing repo path, raise click.ClickException with a clear message.
+
+    Requirements:
+    - Idempotent — repeated runs overwrite the target files.
+    - `SpecEntry` location is project-root-relative; create parent dirs as needed.
+
+    Constraints:
+    - Treat the repo as read-only — no commit/push.
+    - Do not embed tokens in clone URLs — rely on git credential helpers (see `gitpython`).
+
+    Use `gitpython` for the clone+copy pattern and error mapping.
+    Use `configuration` from Imports for config access.
+
+"pull_cmd(spec_name: Optional[str], ref: tuple)":
+  location: pull.py
+  annotations: |
+    Click command wrapper for the endpoint pull subcommand; binds the --spec and --ref options and delegates to `run_pull`.
+
+    `spec_name`: optional spec filter, bound from --spec.
+    `ref`: tuple of --ref values, each parsed by `SmartParam` (multiple=True); a value without ':' is a global ref, 'NAME:REF' is a per-spec pair. Empty tuple when --ref is absent (no override). Passed straight to `run_pull`.
+
+    Use `click` for the command wrapper and option binding.
+
+"SmartParam()":
+  location: pull.py
+  annotations: |
+    A click.ParamType that parses a single --ref value into either a global ref or a per-spec (name, ref) override. Sets the click ParamType name to smart-ref.
+
+    Use `click` for the ParamType base and the convert callback contract.
+    Use `conventions` for type hints and relative imports.
+  methods:
+    "convert(value: str | None, param, ctx) -> ref: str | tuple[str, str] | None": |
+      Parse one --ref token; click calls convert once per value (multiple=True).
+
+      `value`: the raw --ref token supplied by click.
+      `ref`: None for None/'' (no override); the value unchanged when it has no ':' (global ref); the (name, ref) pair when it is 'NAME:REF', splitting on the first ':' only so the ref value may itself contain ':'.
+
+      Use `click` for the convert callback contract.
+
+---
+
+Author: Goga
+CreatedAt: 08/07/26
+Description: |
+  endpoint pull command handler — downloads specs from git sources into local paths.

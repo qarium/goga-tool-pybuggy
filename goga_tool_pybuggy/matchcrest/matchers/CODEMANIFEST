@@ -1,0 +1,409 @@
+Imports:
+  - Types:
+      - allow_failure
+      - waiting_for
+      - date_to_timestamp
+      - url_is_valid
+    Usages:
+      - helpers
+    From: pybuggy/matchcrest/utils
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  hamcrest: .goga/usages/cooks/hamcrest.md
+  jsonschema: .goga/usages/cooks/jsonschema.md
+  requests: .goga/usages/cooks/requests.md
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, type hints, and testing.
+  Use `hamcrest` for the matcher base contract — `BaseMatcher` extends hamcrest.core.base_matcher.BaseMatcher;
+  _matches/describe_to/describe_mismatch are the hamcrest hooks driven by assert_that.
+  Use `jsonschema` for response-body validation in `JsonschemaMatcher`.
+  Use `requests` for status-code name lookup (requests.codes) in `ResponseCodeMatcher`.
+  Use `helpers` from Imports for retry (`waiting_for`), failure-tolerant reporting (`allow_failure`),
+  date conversion (`date_to_timestamp`), and URL validation (`url_is_valid`).
+
+  Every concrete matcher specializes the local `BaseMatcher` (DSL mutation BaseMatcher::X) and implements
+  the _assert(item) -> MatchResult hook. BaseValueMatcher/BaseSetValueMatcher are internal bases
+  (not in the facade) supplying the any/in_array constructor modifiers and the iterable-value contract
+  for value matchers.
+
+---
+
+"BaseContext()":
+  location: base.py
+  annotations: |
+    Abstract data-source context consumed by every matcher. Subclassed by consumers to expose
+    the value under test and, for retry, to re-read it.
+
+    Requirements:
+    - Default implementations raise NotImplementedError; the consumer must override value, key, and update.
+  properties:
+    "value -> Any": |
+      The current value under test.
+    "key -> str | None": |
+      A label identifying the source (used in expectation/error messages).
+  methods:
+    "update()": |
+      Re-read the current value for the next retry attempt.
+
+"MatchResult(result: bool, *, errors: list[str] | tuple[str] | None = None, expectations: list[str] | None = None)":
+  location: base.py
+  annotations: |
+    Outcome of a matcher's _assert: a boolean plus the human-readable expectation and error messages.
+
+    `result`: True when the assertion held.
+    `errors`: mismatch messages (required when `result` is False).
+    `expectations`: what was expected (required when `result` is False).
+
+    Algorithm:
+    1. Store result, errors, expectations.
+    2. When result is False, assert that both `errors` and `expectations` are provided.
+
+    Requirements:
+    - A negative result must carry non-empty `errors` and `expectations` (AssertionError otherwise).
+  properties:
+    "errors -> list[str]": |
+      Mismatch messages (empty list when none were given).
+    "expectations -> list[str]": |
+      Expectation messages (empty list when none were given).
+  methods:
+    "__bool__() -> ok: bool": |
+      Truthiness of the result.
+
+      `ok`: True when the assertion held.
+
+"BaseMatcher(expected_value: Any = None, *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: base.py
+  annotations: |
+    Base matcher extending the external hamcrest BaseMatcher. Owns the retry/timeout loop, stores the last
+    item and `MatchResult`, and delegates the actual check to the abstract _assert hook.
+
+    `expected_value`: the value the matcher is constructed with (read by _assert via self.expected_value).
+    `proofs`: number of successful retries required (default 1).
+    `timeout`: when set, wraps the matching pass in `waiting_for` until success or timeout.
+    `delay`: sleep between retry attempts and between proofs.
+
+    Algorithm (_matches — hamcrest entry called by assert_that):
+    1. Store item as self.item.
+    2. Run the matching pass: directly when `timeout` is None, otherwise via `waiting_for`.
+    3. When self.result is still None, set a negative MatchResult ("unknown error").
+    4. When the result is negative, run __save_report__ under `allow_failure`.
+    5. Return bool(self.result).
+
+    Algorithm (__matches — the proof loop):
+    1. For each of self._proofs attempts: run __assert_try; return early on a negative result; sleep `delay` between attempts.
+
+    Algorithm (__assert_try):
+    1. When not the first attempt, call item.update() to re-read the value.
+    2. Set self.result = self._assert(item); increment the attempt counter.
+
+    Requirements:
+    - _assert is the single customization hook subclasses implement.
+    - describe_to/describe_mismatch render expectation/error messages from self.result.
+
+    Use `helpers` from Imports for `waiting_for` and `allow_failure`.
+    Use `hamcrest` for the parent BaseMatcher and Description contract.
+  properties:
+    "expected_value -> Any": |
+      The value the matcher was constructed with.
+    "item -> BaseContext | None": |
+      The last context the matcher was applied to.
+    "result -> MatchResult | None": |
+      The last MatchResult produced by _assert.
+  methods:
+    "_assert(item: BaseContext) -> result: MatchResult": |
+      Abstract assertion hook: evaluate `item` against self.expected_value and return a `MatchResult`.
+      Implemented by every concrete matcher.
+
+      `item`: the data-source context.
+      `result`: the outcome of the check.
+    "_matches(item: BaseContext) -> ok: bool": |
+      Hamcrest entry point: run the retry/timeout pass and report success.
+
+      `item`: the data-source context.
+      `ok`: True when the final result is positive.
+
+"BaseMatcher::RaisedExceptionMatcher(expected_value: tuple[tuple[type[Exception], ...], Exception | None], *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: error.py
+  annotations: |
+    Assert that the raised exception is one of the expected types.
+
+    `expected_value`: a (expected_exc_types, raised_exc) pair — expected_exc_types is a tuple of Exception
+    classes, raised_exc is the exception that was raised (or None).
+
+    Algorithm:
+    1. Unpack expected_exc and raised_exc from self.expected_value.
+    2. When raised_exc is None -> MatchResult(False, "No exception was raised").
+    3. When isinstance(raised_exc, expected_exc) -> MatchResult(True); otherwise MatchResult(False) with the
+       raised type and message.
+
+"BaseMatcher::NotRaisedExceptionMatcher(expected_value: Exception | None, *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: error.py
+  annotations: |
+    Assert that no exception was raised.
+
+    `expected_value`: the exception that was raised (None means none raised).
+
+    Algorithm:
+    1. When self.expected_value is not None -> MatchResult(False) with the raised type and message.
+    2. Otherwise -> MatchResult(True).
+
+"BaseMatcher::ResponseCodeMatcher(...args, ...kwargs)":
+  location: response.py
+  annotations: |
+    Assert the response status code equals the expected value.
+
+    The expected value is an int, an Enum (normalized to its value), or a requests.codes name string.
+
+    Algorithm (construction):
+    1. Normalize: Enum -> .value; str -> requests.codes[name]; require an int, otherwise ValueError.
+    Algorithm (_assert):
+    2. Compare self.expected_value to item.value; return MatchResult with the expectation and the actual code.
+
+    Use `requests` for the status-code name lookup.
+
+"BaseMatcher::ResponseHeadersByValueMatcher(...args, ...kwargs)":
+  location: response.py
+  annotations: |
+    Assert the value of the response header at the key modifier matches the expected value.
+
+    expected_value: expected header value (compared case-insensitively).
+    key: header name to look up (case-insensitive).
+    contains/startswith/endswith: relaxation modes (at least one selects substring matching).
+
+    Algorithm:
+    1. Find the header value at the key (case-insensitive); fail when absent.
+    2. When a relaxation flag is set, check the corresponding substring relation; otherwise require equality.
+
+"BaseMatcher::ResponseHeadersByKeyMatcher(...args, ...kwargs)":
+  location: response.py
+  annotations: |
+    Assert a response header matching the expected value (by key) exists.
+
+    expected_value: header key to match (case-insensitive).
+    count: when set, require exactly this many matching headers.
+    contains/startswith/endswith: match header keys by substring relation; otherwise exact key.
+
+    Algorithm:
+    1. Filter headers by the selected key-match mode (exact when no relaxation flag).
+    2. Fail when no header matches; when count is set, fail unless the match count equals it.
+
+"BaseMatcher::ResponseBodyMatcher(expected_value: Any, *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: response.py
+  annotations: |
+    Assert the response body equals `expected_value`.
+
+    `expected_value`: expected body.
+
+    Algorithm:
+    1. Compare item.value to self.expected_value; messages truncate bodies to MAX_BODY_LEN (75).
+
+    Requirements:
+    - MAX_BODY_LEN is a Final class attribute equal to 75.
+
+"BaseMatcher::JsonschemaMatcher(expected_value: dict, *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: response.py
+  annotations: |
+    Assert the JSON value conforms to the jsonschema in `expected_value`.
+
+    `expected_value`: a jsonschema dict.
+
+    Algorithm:
+    1. Run jsonschema.validate(item.value, self.expected_value).
+    2. On ValidationError -> MatchResult(False) with the failing json_path and message; otherwise MatchResult(True).
+
+    Use `jsonschema` for validation.
+
+"BaseMatcher::JsonHasDataByKeyMatcher(expected_value: str, *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: response.py
+  annotations: |
+    Assert the JSON object has data at `expected_value` (dict.get is not None).
+
+    `expected_value`: the key to look up.
+
+    Algorithm:
+    1. Treat item.value as a dict ({} when not a dict); fail when get(expected_value) is None; otherwise pass.
+
+"BaseMatcher::JsonHasNotDataByKeyMatcher(expected_value: str, *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: response.py
+  annotations: |
+    Assert the JSON object has no data at `expected_value` (dict.get is None).
+
+    `expected_value`: the key that must be absent.
+
+    Algorithm:
+    1. Treat item.value as a dict ({} when not a dict); fail when get(expected_value) is not None; otherwise pass.
+
+"BaseMatcher::JsonContainsKeyMatcher(...args, ...kwargs)":
+  location: response.py
+  annotations: |
+    Assert a nested key path exists in the JSON object.
+
+    expected_value: a single key or a list/tuple of keys forming a path.
+
+    Algorithm (construction):
+    1. Wrap a scalar expected_value into a single-element list.
+    Algorithm (_assert):
+    2. Walk the dict descending into each key in order; fail on the first missing key; otherwise pass.
+
+"BaseMatcher::BaseValueMatcher(...args, ...kwargs)":
+  location: value.py
+  annotations: |
+    Internal abstract base for the value matchers. Introduces the any / in_array constructor modifiers and
+    forwards the remaining arguments to BaseMatcher. Not exported through the facade.
+
+    any: short-circuit modifier — pass as soon as one element satisfies the check (allowed with in_array only).
+    in_array: treat the value under test as a collection and assert per element.
+
+    Algorithm:
+    1. Pop any and in_array from the constructor (default False).
+    2. When any is set without in_array, raise ValueError.
+    3. Forward the remaining arguments to BaseMatcher.
+
+    Requirements:
+    - any may be combined with in_array only; any other combination raises ValueError.
+
+    The _assert hook stays abstract — concrete value matchers implement the per-element check.
+
+"BaseValueMatcher::BaseSetValueMatcher(expected_value: Any, ...kwargs)":
+  location: value.py
+  annotations: |
+    Internal abstract base for the set-theory value matchers (subset, disjoint). Requires `expected_value` to be
+    iterable and re-validates the current value's iterability on each assertion. Not exported through the facade.
+
+    Algorithm:
+    1. Raise ValueError when `expected_value` is not iterable.
+    2. Forward to BaseValueMatcher.
+
+"BaseMatcher::ValueContainsMatcher(expected_value: Any, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value contains `expected_value` (membership). `any` short-circuits on the first containing value.
+
+"BaseMatcher::ValueNotContainsMatcher(expected_value: Any, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value does not contain `expected_value`. `any` short-circuits on the first non-containing value.
+
+"BaseMatcher::ValueIsEqualMatcher(...args, ...kwargs)":
+  location: value.py
+  annotations: |
+    Assert each value equals the expected value. The strict modifier uses identity (is) instead of ==. The any modifier short-circuits on the first equal value.
+
+"BaseMatcher::ValueIsNotEqualMatcher(...args, ...kwargs)":
+  location: value.py
+  annotations: |
+    Assert each value does not equal the expected value. The strict modifier uses identity (is not). The any modifier short-circuits on the first non-equal value.
+
+"BaseMatcher::ValueIsGreaterMatcher(...args, ...kwargs)":
+  location: value.py
+  annotations: |
+    Assert each value is greater than the expected value (>= when the or_equal modifier is set). The any modifier short-circuits on the first passing value.
+
+"BaseMatcher::ValueIsLesserMatcher(...args, ...kwargs)":
+  location: value.py
+  annotations: |
+    Assert each value is lesser than the expected value (<= when the or_equal modifier is set). The any modifier short-circuits on the first passing value.
+
+"BaseMatcher::ValueLengthEqualMatcher(expected_value: int, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert len(value) equals `expected_value`. `any` short-circuits on the first matching length.
+
+"BaseMatcher::ValueLengthGreaterMatcher(expected_value: int, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert len(value) is greater than `expected_value`. `any` short-circuits on the first passing length.
+
+"BaseMatcher::ValueLengthLesserMatcher(expected_value: int, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert len(value) is lesser than `expected_value`. `any` short-circuits on the first passing length.
+
+"BaseMatcher::ValueRegexMatcher(expected_value: re.Pattern, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value matches `expected_value` via expected_value.match. `any` short-circuits on the first match.
+
+"BaseMatcher::ValueContainsDictMatcher(expected_value: dict, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value (a dict) contains every key/value pair from `expected_value`. Non-dict values fail. `any` short-circuits on the first matching dict.
+
+"BaseMatcher::ValueEndsWithMatcher(expected_value: str, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each string value ends with `expected_value`. Non-string values fail. `any` short-circuits on the first match.
+
+"BaseMatcher::ValueStartsWithMatcher(expected_value: str, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each string value starts with `expected_value`. Non-string values fail. `any` short-circuits on the first match.
+
+"BaseMatcher::ValueIsEmpty(expected_value: Any = None, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value is empty (bool(value) is False). `any` short-circuits on the first empty value.
+
+"BaseMatcher::ValueIsNotEmpty(expected_value: Any = None, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value is not empty (bool(value) is True). `any` short-circuits on the first non-empty value.
+
+"BaseMatcher::ValueIsInMatcher(expected_value: Collection, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value is a member of `expected_value`. `any` short-circuits on the first member.
+
+"BaseMatcher::ValueIsNotInMatcher(expected_value: Collection, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value is not a member of `expected_value`. `any` short-circuits on the first non-member.
+
+"BaseMatcher::ValueIsSubsetMatcher(expected_value: Iterable, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value (as a set) is a subset of `expected_value`. Requires iterable values and expected_value. `any` short-circuits on the first subset.
+
+"BaseMatcher::ValueIsDisjointMatcher(expected_value: Iterable, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value (as a set) is disjoint from `expected_value`. Requires iterable values and expected_value. `any` short-circuits on the first disjoint set.
+
+"BaseMatcher::ValueIsUrlMatcher(...args, ...kwargs)":
+  location: value.py
+  annotations: |
+    Assert each value is a valid URL (optionally live). The is_live modifier requires a 2xx response; the allowed_protocols modifier restricts schemes. The any modifier short-circuits on the first valid URL.
+
+    Use `helpers` from Imports for `url_is_valid`.
+
+"BaseMatcher::ValueDateEqualMatcher(expected_value: date | datetime, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each date/datetime value equals `expected_value` (compared as timestamps). Non-date values fail. `any` short-circuits on the first equal date.
+
+    Use `helpers` from Imports for `date_to_timestamp`.
+
+"BaseMatcher::ValueDateGreaterMatcher(expected_value: date | datetime, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each date/datetime value is greater than `expected_value` (as timestamps). Non-date values fail. `any` short-circuits on the first passing date.
+
+    Use `helpers` from Imports for `date_to_timestamp`.
+
+"BaseMatcher::ValueDateLesserMatcher(expected_value: date | datetime, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each date/datetime value is lesser than `expected_value` (as timestamps). Non-date values fail. `any` short-circuits on the first passing date.
+
+    Use `helpers` from Imports for `date_to_timestamp`.
+
+---
+
+Author: Goga
+CreatedAt: 14/07/26
+Description: |
+  Matcher cell for matchcrest: base infrastructure (BaseContext, BaseMatcher, MatchResult) plus
+  concrete value/response/error matchers. Specializes the local BaseMatcher and imports retry/url/date
+  helpers from utils. Built on PyHamcrest.
