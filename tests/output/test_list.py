@@ -1,14 +1,14 @@
 """Contract and logic tests for render_list output formatter."""
 
-from pybuggy.output import render_list
-from pybuggy.spec import Endpoint
+from goga_tool_pybuggy.output import render_list
+from goga_tool_pybuggy.spec import Endpoint
 
 
 def test_render_list_facade_import():
-    """Contract test: render_list is importable from pybuggy.output facade."""
+    """Contract test: render_list is importable from goga_tool_pybuggy.output facade."""
     import importlib
 
-    output_module = importlib.import_module("pybuggy.output")
+    output_module = importlib.import_module("goga_tool_pybuggy.output")
     assert hasattr(output_module, "render_list")
     assert callable(output_module.render_list)
 

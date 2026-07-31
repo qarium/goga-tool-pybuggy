@@ -1,17 +1,17 @@
 """Contract tests for render_info routine.
 
 These tests verify the contract compliance of render_info:
-- Importable from pybuggy.output facade
+- Importable from goga_tool_pybuggy.output facade
 - Correct signature (endpoints: list[Endpoint]) -> str
 """
 
-from pybuggy.output import render_info
-from pybuggy.spec import Endpoint
+from goga_tool_pybuggy.output import render_info
+from goga_tool_pybuggy.spec import Endpoint
 
 
 def test_render_info_importable_from_facade() -> None:
-    """render_info must be importable from pybuggy.output facade."""
-    from pybuggy.output import render_info
+    """render_info must be importable from goga_tool_pybuggy.output facade."""
+    from goga_tool_pybuggy.output import render_info
 
     assert callable(render_info)
 

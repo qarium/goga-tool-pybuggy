@@ -1,8 +1,8 @@
-# pybuggy.commands.generate — команда endpoint generate
+# goga_tool_pybuggy.commands.generate — команда endpoint generate
 
 ## Предметная область
 
-Шаблоны потребления cell `pybuggy/commands/generate`: скаффолдинг каталогов `api/` (JSON-схемы
+Шаблоны потребления cell `goga_tool_pybuggy/commands/generate`: скаффолдинг каталогов `api/` (JSON-схемы
 ответов + pytest-фикстура `api.py` на эндпоинт + пустые `__init__.py`-маркеры пакета на каждом
 каталоге пути к `api.py`) и пустых каталогов `tests/` из спецификаций.
 Аудитория — регистрация в CLI (`generate_cmd`) и тесты (`run_generate` напрямую; чистый рендерер
@@ -13,7 +13,7 @@
 `run_generate` — тестируемая точка входа (Click-обёртка `generate_cmd` связывает опции и вызывает
 `run_generate`):
 
-    from pybuggy.commands.generate import run_generate
+    from goga_tool_pybuggy.commands.generate import run_generate
 
     run_generate(spec_name=None, force=False)    # все спеки, пропуск существующего
     run_generate(spec_name="shop", force=True)  # одна спека, перезапись
@@ -23,7 +23,7 @@
 `render_api_module` — чистая функция `Endpoint -> str`, возвращает полный текст `api.py`. Используется
 в тестах для проверки содержимого фикстуры без записи на диск:
 
-    from pybuggy.commands.generate import render_api_module
+    from goga_tool_pybuggy.commands.generate import render_api_module
 
     module_text = render_api_module(endpoint)   # str; детерминирован для данного endpoint
 
@@ -72,14 +72,14 @@ ensure_ascii=False). Для кодов без `application/json` пишется 
   необязательные поля — `T | None = None` (union operator), nullable required — `T | None`
   без дефолта. При отсутствии свойств тела класс `Request` и импорт `pydantic` опускаются.
 - Импорты собираются `ruff` (`check --fix --select I`): `pytest`,
-  `from pybuggy.api import Api, Endpoint`, опционально `from pydantic import BaseModel`
+  `from goga_tool_pybuggy.api import Api, Endpoint`, опционально `from pydantic import BaseModel`
   (и `RootModel`/`typing` — только когда сгенерированные модели их требуют).
 
 Пример с телом и path-параметром (POST `/clients/calls/{orderID}/status`, тело `{note: string}`):
 
 ```python
 import pytest
-from pybuggy.api import Api, Endpoint
+from goga_tool_pybuggy.api import Api, Endpoint
 from pydantic import BaseModel
 
 
@@ -139,8 +139,8 @@ id (`Endpoint.id`, те же id, что в командах `endpoint list`/`end
 ## Предусловия
 
 - Файлы spec должны быть в `location` (после `pull` или вручную).
-- Конфиг валиден и лежит по фиксированному пути (см. `pybuggy.config`); загрузка — через `load_config`.
+- Конфиг валиден и лежит по фиксированному пути (см. `goga_tool_pybuggy.config`); загрузка — через `load_config`.
 - Артефакты пишутся в текущий рабочий каталог (`Path.cwd()`); тесты изолируют через `tmp_path` и
   подмену `cwd`.
-- `api.py` импортирует из `pybuggy.api` (`Endpoint`, `Api`); модуль может отсутствовать в проекте на
-  момент генерации — файл предназначен для последующего использования, а не для импорта в самом pybuggy.
+- `api.py` импортирует из `goga_tool_pybuggy.api` (`Endpoint`, `Api`); модуль может отсутствовать в проекте на
+  момент генерации — файл предназначен для последующего использования, а не для импорта в самом goga_tool_pybuggy.

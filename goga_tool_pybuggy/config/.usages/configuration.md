@@ -1,13 +1,13 @@
-# pybuggy.config — чтение конфигурации
+# goga_tool_pybuggy.config — чтение конфигурации
 
 ## Предметная область
 
-Шаблоны потребления cell `pybuggy/config`: загрузка `.goga/tools/pybuggy/config.yml` в типизированные модели и доступ к spec-записям. Аудитория — команды `pull`/`list`/`info` и CLI-фасад.
+Шаблоны потребления cell `goga_tool_pybuggy/config`: загрузка `.goga/tools/pybuggy/config.yml` в типизированные модели и доступ к spec-записям. Аудитория — команды `pull`/`list`/`info` и CLI-фасад.
 
 ## Загрузка конфигурации
 
 ```python
-from pybuggy.config import load_config
+from goga_tool_pybuggy.config import load_config
 
 config = load_config(path)  # path — от корня проекта; переопределяется через --config
 ```

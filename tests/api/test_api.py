@@ -1,4 +1,4 @@
-"""Contract and logic tests for `pybuggy.api.api`.
+"""Contract and logic tests for `goga_tool_pybuggy.api.api`.
 
 Contract tests (``TestApi``) lock the facade/API shape: importability,
 construction, the set of stored-field properties, the read-only nature of
@@ -15,7 +15,7 @@ import inspect
 from unittest import mock
 
 import pytest
-from pybuggy.api.api import Api
+from goga_tool_pybuggy.api.api import Api
 from requests.auth import AuthBase
 
 from tests.api.conftest import HeaderAuth
@@ -25,7 +25,7 @@ class TestApi:
     """Contract tests for the `Api` facade/API shape."""
 
     def test_imports_succeed(self) -> None:
-        """Api is importable from pybuggy.api.api."""
+        """Api is importable from goga_tool_pybuggy.api.api."""
         assert isinstance(Api, type)
 
     def test_constructs_with_keys(self) -> None:

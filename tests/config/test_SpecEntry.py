@@ -3,7 +3,7 @@
 import inspect
 
 import pytest
-from pybuggy.config import GitEntry, SpecEntry
+from goga_tool_pybuggy.config import GitEntry, SpecEntry
 from pydantic import BaseModel, ValidationError
 
 
@@ -11,7 +11,7 @@ class TestSpecEntryContract:
     """Declared API of the ``SpecEntry`` entity."""
 
     def test_spec_entry_is_importable_from_config_facade(self):
-        """``SpecEntry`` is re-exported by the ``pybuggy.config`` facade."""
+        """``SpecEntry`` is re-exported by the ``goga_tool_pybuggy.config`` facade."""
         assert SpecEntry is not None
 
     def test_spec_entry_is_a_pydantic_model(self):

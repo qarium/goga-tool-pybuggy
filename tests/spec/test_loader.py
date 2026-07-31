@@ -7,8 +7,8 @@ class TestLoadSpecContract:
     """Contract tests for load_spec routine."""
 
     def test_import_load_spec_from_facade(self):
-        """load_spec must be importable from pybuggy.spec facade."""
-        from pybuggy.spec import load_spec
+        """load_spec must be importable from goga_tool_pybuggy.spec facade."""
+        from goga_tool_pybuggy.spec import load_spec
 
         assert callable(load_spec)
 
@@ -17,7 +17,7 @@ class TestLoadSpecContract:
         import inspect
         from typing import get_type_hints
 
-        from pybuggy.spec import load_spec
+        from goga_tool_pybuggy.spec import load_spec
 
         sig = inspect.signature(load_spec)
         params = list(sig.parameters.keys())
@@ -43,7 +43,7 @@ class TestLoadSpecLogic:
     def test_load_spec_parses_valid_spec(self, tmp_path):
         """load_spec should return a dict with 'paths' key for a valid minimal spec."""
         import yaml
-        from pybuggy.spec import load_spec
+        from goga_tool_pybuggy.spec import load_spec
 
         # Create a minimal valid OpenAPI 3.0 spec
         spec_content = {
@@ -70,7 +70,7 @@ class TestLoadSpecLogic:
     def test_load_spec_maps_parse_error_to_click_exception(self, tmp_path):
         """load_spec should map SpecParseError to click.ClickException."""
         import click
-        from pybuggy.spec import load_spec
+        from goga_tool_pybuggy.spec import load_spec
 
         # Create an invalid spec file
         spec_file = tmp_path / "invalid.yaml"

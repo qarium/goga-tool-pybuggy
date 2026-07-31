@@ -1,6 +1,6 @@
-"""Module entry point for ``python -m pybuggy``."""
+"""Module entry point for ``python -m goga_tool_pybuggy``."""
 
-from pybuggy import main
+from goga_tool_pybuggy import main
 
 if __name__ == "__main__":
     main()

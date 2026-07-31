@@ -6,11 +6,11 @@ import typing
 import pydantic
 import pytest
 import yaml
-from pybuggy.config import Config, load_config
+from goga_tool_pybuggy.config import Config, load_config
 
 
 def test_load_config_importable_from_facade() -> None:
-    """Contract test: load_config is importable from pybuggy.config facade."""
+    """Contract test: load_config is importable from goga_tool_pybuggy.config facade."""
     assert callable(load_config)
 
 

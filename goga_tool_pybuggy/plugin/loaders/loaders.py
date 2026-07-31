@@ -1,8 +1,8 @@
-"""Generic pytest-plugin discovery for the `pybuggy.plugin` cell.
+"""Generic pytest-plugin discovery for the `goga_tool_pybuggy.plugin` cell.
 
 Discovers pytest-plugin modules by trial import and by walking the filesystem.
 It exposes no network or framework surface of its own; it is a leaf cell
-consumed by the parent ``pybuggy.plugin`` cell.
+consumed by the parent ``goga_tool_pybuggy.plugin`` cell.
 
 Entities realized in this module:
 
@@ -20,7 +20,7 @@ Entities realized in this module:
 
 The assembly of the ``pytest_plugins`` list (reading the plugin's ``loader``
 config section and driving the loaders) is the parent plugin's responsibility —
-see ``ApiPlugin._load_plugins`` in ``pybuggy/plugin/plugin.py``.
+see ``ApiPlugin._load_plugins`` in ``goga_tool_pybuggy/plugin/plugin.py``.
 
 Only the standard library is used — no new runtime dependencies.
 """

@@ -1,7 +1,7 @@
 """Shared fixtures for the matchcrest test suite."""
 
 import pytest
-from pybuggy.matchcrest.matchers import BaseContext
+from goga_tool_pybuggy.matchcrest.matchers import BaseContext
 
 
 class ValueContext(BaseContext):

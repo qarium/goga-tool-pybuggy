@@ -3,7 +3,7 @@
 ## Предметная область
 
 `jsonschema` валидирует JSON-тело ответа (`resq.http.Response.json()`) против json-схемы.
-Используется ячейкой `pybuggy/api/asserts`: методы `Expected.jsonschema_is_valid`
+Используется ячейкой `goga_tool_pybuggy/api/asserts`: методы `Expected.jsonschema_is_valid`
 (одна схема dict/путь) и `Expected.jsonschemas_is_valid` (каталог схем по статусу), а также
 авто-валидация positive-пути (по файлу `schemas/<status>*.json`).
 

@@ -4,7 +4,7 @@ import re
 from datetime import date
 
 import pytest
-from pybuggy.matchcrest.matchers import (
+from goga_tool_pybuggy.matchcrest.matchers import (
     ValueContainsDictMatcher,
     ValueContainsMatcher,
     ValueDateEqualMatcher,

@@ -7,14 +7,14 @@ from unittest.mock import patch
 
 import click
 import pytest
-from pybuggy.commands.pull import run_pull
+from goga_tool_pybuggy.commands.pull import run_pull
 
-CONFIG_PATH_ATTR = "pybuggy.config.storage.CONFIG_PATH"
+CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
 
 
 def test_run_pull_importable_from_facade() -> None:
-    """run_pull should be importable from pybuggy.commands.pull facade."""
-    from pybuggy.commands.pull import run_pull as imported
+    """run_pull should be importable from goga_tool_pybuggy.commands.pull facade."""
+    from goga_tool_pybuggy.commands.pull import run_pull as imported
 
     assert imported is run_pull
 
@@ -54,7 +54,7 @@ specs:
     (clone_root / "specs").mkdir()
     (clone_root / "specs" / "client.yaml").write_text("spec content here")
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         run_pull(None)
 
@@ -64,7 +64,7 @@ specs:
 
     # Idempotent: run again overwrites
     (clone_root / "specs" / "client.yaml").write_text("updated content")
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone2:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone2:
         mock_clone2.return_value.__enter__.return_value = clone_root
         run_pull(None)
     assert dest_file.read_text() == "updated content"
@@ -95,7 +95,7 @@ specs:
     client_dir.mkdir()
     (client_dir / "openapi.yaml").write_text("dir content")
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         run_pull(None)
 
@@ -125,7 +125,7 @@ specs:
     clone_root = tmp_path / "clone"
     clone_root.mkdir()
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
 
         with pytest.raises(click.ClickException) as exc_info:
@@ -197,7 +197,7 @@ specs:
 
     from git import GitCommandError
 
-    with patch("pybuggy.commands.pull.pull.Repo.clone_from") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.Repo.clone_from") as mock_clone:
         mock_clone.side_effect = GitCommandError("clone", "failed to clone")
 
         with pytest.raises(click.ClickException) as exc_info:
@@ -248,7 +248,7 @@ specs:
         else:
             yield str(clone2)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.side_effect = mock_clone_func
         run_pull("client")
 
@@ -284,7 +284,7 @@ specs:
         target.mkdir(parents=True, exist_ok=True)
         shutil.copy2(fixture / "specs" / "client.yaml", target / "client.yaml")
 
-    with patch("pybuggy.commands.pull.pull.Repo.clone_from") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.Repo.clone_from") as mock_clone:
         mock_clone.side_effect = fake_clone
         run_pull(None)
 
@@ -322,7 +322,7 @@ specs:
         target.mkdir(parents=True, exist_ok=True)
         shutil.copy2(fixture / "specs" / "client.yaml", target / "client.yaml")
 
-    with patch("pybuggy.commands.pull.pull.Repo.clone_from") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.Repo.clone_from") as mock_clone:
         mock_clone.side_effect = fake_clone
         run_pull(None)
 
@@ -368,7 +368,7 @@ def test_run_pull_cli_ref_overrides_config_ref(tmp_path: Path, monkeypatch: pyte
     _write_client_config(tmp_path, monkeypatch, ref="v1")
     clone_root = _fake_clone_root(tmp_path)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         run_pull(None, ref="v2")
 
@@ -385,7 +385,7 @@ def test_run_pull_cli_ref_overrides_absent_config_ref(
     _write_client_config(tmp_path, monkeypatch, ref=None)
     clone_root = _fake_clone_root(tmp_path)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         run_pull(None, ref="v2")
 
@@ -399,7 +399,7 @@ def test_run_pull_ref_none_uses_config_ref(tmp_path: Path, monkeypatch: pytest.M
     _write_client_config(tmp_path, monkeypatch, ref="v1")
     clone_root = _fake_clone_root(tmp_path)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         run_pull(None)  # ref defaults to None
 
@@ -415,7 +415,7 @@ def test_run_pull_ref_none_uses_default_branch_when_config_ref_absent(
     _write_client_config(tmp_path, monkeypatch, ref=None)
     clone_root = _fake_clone_root(tmp_path)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         run_pull(None)
 
@@ -483,7 +483,7 @@ def test_run_pull_applies_per_spec_refs_in_one_call(
         seen[url] = ref
         yield str(clone1) if "repo.git" in str(url) else str(clone2)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone_repo:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone_repo:
         mock_clone_repo.side_effect = mock_clone
         run_pull(None, ref=(("client", "v1"), ("server", "v2")))
 
@@ -509,7 +509,7 @@ def test_run_pull_per_spec_ref_overrides_global(
         seen[url] = ref
         yield str(clone1) if "repo.git" in str(url) else str(clone2)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone_repo:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone_repo:
         mock_clone_repo.side_effect = mock_clone
         run_pull(None, ref=("v9", ("server", "v3")))
 
@@ -524,7 +524,7 @@ def test_run_pull_per_spec_ref_overrides_config_ref(
     _write_client_config(tmp_path, monkeypatch, ref="v1")
     clone_root = _fake_clone_root(tmp_path)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         run_pull(None, ref=(("client", "v2"),))
 
@@ -569,7 +569,7 @@ def test_run_pull_per_spec_ref_in_config_but_filtered_does_not_raise(
     _write_two_spec_config(tmp_path, monkeypatch)
     clone1, _ = _two_spec_clone_roots(tmp_path)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone1)
         # client is pulled (--spec client); server is in config but filtered — no error.
         run_pull("client", ref=(("server", "v3"),))
@@ -593,7 +593,7 @@ def test_run_pull_global_ref_as_str_still_works(
         seen[url] = ref
         yield str(clone1) if "repo.git" in str(url) else str(clone2)
 
-    with patch("pybuggy.commands.pull.pull.clone_repo") as mock_clone_repo:
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone_repo:
         mock_clone_repo.side_effect = mock_clone
         run_pull(None, ref="v7")
 
@@ -606,7 +606,7 @@ def test_run_pull_global_ref_as_str_still_works(
 
 def test_smart_param_none_and_empty_yield_none() -> None:
     """SmartParam should map None/empty to None (no override)."""
-    from pybuggy.commands.pull.pull import SmartParam
+    from goga_tool_pybuggy.commands.pull.pull import SmartParam
 
     smart = SmartParam()
     assert smart.convert(None, None, None) is None
@@ -615,21 +615,21 @@ def test_smart_param_none_and_empty_yield_none() -> None:
 
 def test_smart_param_plain_value_is_global_ref() -> None:
     """SmartParam should return a colon-free value unchanged (global ref)."""
-    from pybuggy.commands.pull.pull import SmartParam
+    from goga_tool_pybuggy.commands.pull.pull import SmartParam
 
     assert SmartParam().convert("v2", None, None) == "v2"
 
 
 def test_smart_param_colon_value_is_per_spec_pair() -> None:
     """SmartParam should split 'NAME:REF' into a (name, ref) per-spec pair."""
-    from pybuggy.commands.pull.pull import SmartParam
+    from goga_tool_pybuggy.commands.pull.pull import SmartParam
 
     assert SmartParam().convert("client:v2", None, None) == ("client", "v2")
 
 
 def test_smart_param_splits_only_on_first_colon() -> None:
     """SmartParam should keep extra colons in the ref value (split on first ':' only)."""
-    from pybuggy.commands.pull.pull import SmartParam
+    from goga_tool_pybuggy.commands.pull.pull import SmartParam
 
     assert SmartParam().convert("client:feat:x", None, None) == ("client", "feat:x")
 
@@ -640,7 +640,7 @@ def test_smart_param_splits_only_on_first_colon() -> None:
 def test_pull_cmd_collects_multiple_refs_as_tuple(monkeypatch: pytest.MonkeyPatch) -> None:
     """pull_cmd should collect repeated --ref values (parsed by SmartParam) into one tuple."""
     from click.testing import CliRunner
-    from pybuggy.commands.pull import pull_cmd
+    from goga_tool_pybuggy.commands.pull import pull_cmd
 
     captured: dict = {}
 
@@ -648,7 +648,7 @@ def test_pull_cmd_collects_multiple_refs_as_tuple(monkeypatch: pytest.MonkeyPatc
         captured["spec_name"] = spec_name
         captured["ref"] = ref
 
-    monkeypatch.setattr("pybuggy.commands.pull.pull.run_pull", fake_run)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.pull.pull.run_pull", fake_run)
 
     runner = CliRunner()
     result = runner.invoke(pull_cmd, ["--ref", "client:v1", "--ref", "server:v2", "--ref", "v9"])

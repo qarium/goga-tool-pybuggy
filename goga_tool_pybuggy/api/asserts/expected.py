@@ -1,4 +1,4 @@
-"""Response-level assert dispatcher of the `pybuggy.api.asserts` cell.
+"""Response-level assert dispatcher of the `goga_tool_pybuggy.api.asserts` cell.
 
 ``Expected`` is the two-level assert entry point:
 

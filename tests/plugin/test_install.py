@@ -1,4 +1,4 @@
-"""Tests for `install` in the `pybuggy.plugin` cell.
+"""Tests for `install` in the `goga_tool_pybuggy.plugin` cell.
 
 Mirrors the source layout (`tests/plugin/test_install.py`). Covers the contract
 surface (importability from the facade + the ``**kwargs`` signature) and the
@@ -15,7 +15,7 @@ import inspect
 import sys
 import types
 
-import pybuggy.plugin
+import goga_tool_pybuggy.plugin
 import pytest
 
 
@@ -23,7 +23,7 @@ import pytest
 def isolate_sys_modules():
     """Snapshot and restore sys.modules so import-time trial imports never leak.
 
-    ``test_install_outside_api_tree_does_not_raise`` reloads ``pybuggy.plugin``,
+    ``test_install_outside_api_tree_does_not_raise`` reloads ``goga_tool_pybuggy.plugin``,
     which re-runs the top-level ``install()`` (and thus ``_load_plugins``); the
     loaders and integration suites already isolate ``sys.modules`` the same way.
     """
@@ -40,15 +40,15 @@ class TestInstallContract:
     """Contract tests for `install`."""
 
     def test_install_importable_from_facade(self):
-        from pybuggy.plugin import install as install_direct
+        from goga_tool_pybuggy.plugin import install as install_direct
 
-        assert install_direct is pybuggy.plugin.install
+        assert install_direct is goga_tool_pybuggy.plugin.install
 
     def test_install_is_callable(self):
-        assert callable(pybuggy.plugin.install)
+        assert callable(goga_tool_pybuggy.plugin.install)
 
     def test_install_signature_accepts_kwargs(self):
-        signature = inspect.signature(pybuggy.plugin.install)
+        signature = inspect.signature(goga_tool_pybuggy.plugin.install)
 
         var_keyword = [param for param in signature.parameters.values() if param.kind == inspect.Parameter.VAR_KEYWORD]
         assert len(var_keyword) == 1
@@ -63,7 +63,7 @@ class TestInstallLogic:
         monkeypatch.chdir(tmp_path)
 
         namespace = types.ModuleType("ctx")
-        pybuggy.plugin.install(context=namespace.__dict__)
+        goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
 
         assert callable(namespace.pytest_addoption)
         assert callable(namespace.pytest_configure)
@@ -76,6 +76,6 @@ class TestInstallLogic:
 
         # Force a fresh re-execution of the module body so the top-level
         # `install()` runs against this cwd.
-        importlib.reload(pybuggy.plugin)
+        importlib.reload(goga_tool_pybuggy.plugin)
 
-        assert getattr(pybuggy.plugin, "pytest_plugins", []) == []
+        assert getattr(goga_tool_pybuggy.plugin, "pytest_plugins", []) == []

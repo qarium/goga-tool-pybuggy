@@ -1,16 +1,16 @@
 Imports:
   - Types: [pull_cmd]
-    From: pybuggy/commands/pull
+    From: goga_tool_pybuggy/commands/pull
   - Types: [list_cmd]
-    From: pybuggy/commands/list
+    From: goga_tool_pybuggy/commands/list
   - Types: [info_cmd]
-    From: pybuggy/commands/info
+    From: goga_tool_pybuggy/commands/info
   - Types: [generate_cmd]
-    From: pybuggy/commands/generate
+    From: goga_tool_pybuggy/commands/generate
   - Types: [init_cmd]
-    From: pybuggy/commands/init
+    From: goga_tool_pybuggy/commands/init
   - Types: [install]
-    From: pybuggy/plugin
+    From: goga_tool_pybuggy/plugin
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -41,8 +41,8 @@ Annotations: |
 
     Requirements:
     - Assembly runs at package import (in __init__.py), before any subcommand is invoked.
-    - The package entry point resolves to this `main` (pyproject: pybuggy = "pybuggy:main").
-    - python -m pybuggy runs via __main__.py (from pybuggy import main; main()).
+    - The package entry point resolves to this `main` (pyproject: pybuggy = "goga_tool_pybuggy:main").
+    - python -m goga_tool_pybuggy runs via __main__.py (from goga_tool_pybuggy import main; main()).
 
     Use `click` for the group and subgroup.
 

@@ -15,7 +15,7 @@ Annotations: |
   `run_init` is the testable entry point; the click wrapper `init_cmd` carries no options and delegates to `run_init`
   (CLI tests call `run_init` directly). The goga-project initialization is delegated in-process to `run_goga_init`
   (public, in __all__) — the test seam.
-  Usages are discovered from the installed pybuggy.api package via importlib.resources (not from cwd).
+  Usages are discovered from the installed goga_tool_pybuggy.api package via importlib.resources (not from cwd).
   Target is the consumer goga-project config <cwd>/.goga/config.yml under codemanifest.usages and
   codemanifest.annotations — NOT .goga/tools/pybuggy/config.yml; this cell does not use the config cell or load_config.
   Use relative imports inside the cell.
@@ -35,7 +35,7 @@ Annotations: |
     2. When <cwd>/.goga/config.yml does NOT exist (goga-project not yet initialized): call `run_goga_init`;
        if it returns a non-zero exit code, return that code immediately (do NOT register usages or annotations).
     3. Discover every .usages/*.md under the api cell (including its subcells such as asserts) from the installed
-       pybuggy.api package via importlib.resources; stem is the filename without .md.
+       goga_tool_pybuggy.api package via importlib.resources; stem is the filename without .md.
     4. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md, creating parent
        directories and overwriting any existing file.
     5. Build usage_keys as pybuggy-<stem> mapped to .goga/usages/cooks/pybuggy/<stem>.md; delegate the registration
@@ -53,12 +53,12 @@ Annotations: |
     - Usages bootstrap is idempotent — repeated runs overwrite the copied .md files and skip already-registered keys.
     - Annotations bootstrap is idempotent — repeated runs skip annotation lines whose backtick reference already
       exists; the existing annotation text (e.g. the base convention annotations from goga init) is preserved.
-    - Discovery is recursive under pybuggy.api so future subcells are registered without editing the command.
-    - The command works from the installed wheel: importlib.resources resolves the installed pybuggy.api package.
+    - Discovery is recursive under goga_tool_pybuggy.api so future subcells are registered without editing the command.
+    - The command works from the installed wheel: importlib.resources resolves the installed goga_tool_pybuggy.api package.
 
     Constraints:
     - Do not register pybuggy usages or annotations when goga init failed/was cancelled — propagate goga's exit code instead.
-    - Do not read usages from the current working directory — always from the installed pybuggy.api package.
+    - Do not read usages from the current working directory — always from the installed goga_tool_pybuggy.api package.
     - Do not copy usages of internal development cells (config, spec, output, matchcrest, plugin, commands).
     - Carry no options — files are overwritten, keys/annotations are skipped.
 
@@ -203,6 +203,6 @@ CreatedAt: 27/07/26
 Description: |
   Top-level init command handler — initializes the goga-project in-process via goga init (when not yet initialized),
   then bootstraps the consumer usages of the api cell into the project where it is invoked: discovers .usages/*.md from
-  the installed pybuggy.api package, copies them under .goga/usages/cooks/pybuggy/, and registers them in
+  the installed goga_tool_pybuggy.api package, copies them under .goga/usages/cooks/pybuggy/, and registers them in
   .goga/config.yml under codemanifest.usages; appends a referencing annotation line per usage under
   codemanifest.annotations; idempotent.

@@ -1,7 +1,7 @@
 """Contract and logic tests for Endpoint entity."""
 
 import pytest
-from pybuggy.spec import Endpoint
+from goga_tool_pybuggy.spec import Endpoint
 from pydantic import ValidationError
 
 
@@ -9,8 +9,8 @@ class TestEndpointContract:
     """Contract tests for Endpoint entity."""
 
     def test_endpoint_importable_from_facade(self) -> None:
-        """Endpoint should be importable from pybuggy.spec facade."""
-        from pybuggy.spec import Endpoint
+        """Endpoint should be importable from goga_tool_pybuggy.spec facade."""
+        from goga_tool_pybuggy.spec import Endpoint
 
         assert Endpoint is not None
 

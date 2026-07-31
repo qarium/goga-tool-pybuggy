@@ -1,14 +1,14 @@
-# pybuggy.commands.pull — команда endpoint pull
+# goga_tool_pybuggy.commands.pull — команда endpoint pull
 
 ## Предметная область
 
-Шаблоны потребления cell `pybuggy/commands/pull`: скачивание spec из git-источников в локальные `location`. Аудитория — регистрация в CLI (`pull_cmd`) и тесты (`run_pull` напрямую).
+Шаблоны потребления cell `goga_tool_pybuggy/commands/pull`: скачивание spec из git-источников в локальные `location`. Аудитория — регистрация в CLI (`pull_cmd`) и тесты (`run_pull` напрямую).
 
 ## Вызов handler-функции
 
 `run_pull` — тестируемая точка входа (Click-обёртка `pull_cmd` только связывает опции и вызывает `run_pull`):
 
-    from pybuggy.commands.pull import run_pull
+    from goga_tool_pybuggy.commands.pull import run_pull
 
     run_pull(spec_name=None)              # тянуть все спеки
     run_pull(spec_name="client")          # только одну spec
@@ -42,6 +42,6 @@ CLI-форма (`pull_cmd`):
 
 ## Предусловия
 
-- Конфиг валиден и лежит по фиксированному пути (см. `pybuggy.config`).
+- Конфиг валиден и лежит по фиксированному пути (см. `goga_tool_pybuggy.config`).
 - Токены в clone-URL не встраиваются — полагайтесь на git credential helpers.
 - Репозиторий — read-only (без commit/push).

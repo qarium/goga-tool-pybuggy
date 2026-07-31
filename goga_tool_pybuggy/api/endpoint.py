@@ -1,4 +1,4 @@
-"""Callable route over an ``Api`` for the `pybuggy.api` cell.
+"""Callable route over an ``Api`` for the `goga_tool_pybuggy.api` cell.
 
 ``Endpoint`` binds an ``Api`` client, an HTTP verb, and a route path into a
 callable that issues a single request per call and returns a ``ResponseWrapper``.

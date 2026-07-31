@@ -9,7 +9,7 @@ mocked at the import point.
 
 from unittest import mock
 
-from pybuggy import tools
+from goga_tool_pybuggy import tools
 
 
 class TestRetriesContract:

@@ -1,10 +1,10 @@
-# pybuggy.commands.init — инициализация goga-проекта и bootstrap consumer-usages ячейки api
+# goga_tool_pybuggy.commands.init — инициализация goga-проекта и bootstrap consumer-usages ячейки api
 
 ## Предметная область
 
 Команда `pybuggy init` под капотом **инициализирует goga-проект** (если он ещё не создан) и затем доставляет
 consumer-usages ячейки `api` (и её подклеток) в проект, где она вызвана, чтобы goga-агент потребителя знал, как
-пользоваться pybuggy. Аудитория — интегратор, подключающий pybuggy в свой проект (`pip install pybuggy`), и goga-агент
+пользоваться goga_tool_pybuggy. Аудитория — интегратор, подключающий pybuggy в свой проект (`pip install pybuggy`), и goga-агент
 потребителя.
 
 Инициализация goga-проекта выполняется in-process пакетом `goga` (per-field методы `goga.init.Questionnaire` +
@@ -21,9 +21,9 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 ## Точка входа
 
 - Консольная команда (top-level, не под `endpoint`): `pybuggy init`
-- Модульный запуск: `python -m pybuggy init`
+- Модульный запуск: `python -m goga_tool_pybuggy init`
 - Программный импорт фасада:
-      from pybuggy.commands.init import run_init, run_goga_init, init_cmd, register_usages, register_annotations
+      from goga_tool_pybuggy.commands.init import run_init, run_goga_init, init_cmd, register_usages, register_annotations
 
 ---
 
@@ -31,7 +31,7 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 
 В проекте без `.goga/config.yml`:
 1. Команда **интерактивно** инициализирует goga-проект (вопросы об агенте/образе/...; язык зафиксирован `python`).
-2. По завершении создаётся полный `.goga/config.yml`, затем регистрируются usages pybuggy.
+2. По завершении создаётся полный `.goga/config.yml`, затем регистрируются usages goga_tool_pybuggy.
 
       cd my-consumer-project
       pybuggy init        # → опросник goga, затем регистрация pybuggy usages
@@ -78,18 +78,18 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 `run_init()` оперирует cwd как корнем вывода и **возвращает exit code (int)**:
 
       import pytest
-      from pybuggy.commands.init import run_init
+      from goga_tool_pybuggy.commands.init import run_init
 
       def test_init_in_fresh_project(tmp_path, monkeypatch):
           monkeypatch.chdir(tmp_path)
           # заглушить интерактивный goga init, чтобы тесты не зависели от TTY:
-          monkeypatch.setattr("pybuggy.commands.init.init.run_goga_init", lambda: 0)
+          monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
           assert run_init() == 0
           assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
       def test_goga_cancel_aborts(tmp_path, monkeypatch):
           monkeypatch.chdir(tmp_path)
-          monkeypatch.setattr("pybuggy.commands.init.init.run_goga_init", lambda: 1)  # отмена
+          monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)  # отмена
           assert run_init() == 1
           assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()  # usages не пишутся
 
@@ -102,7 +102,7 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 
 - Требует установленный пакет `goga` (зависимость pybuggy) — для in-process инициализации goga-проекта.
 - Пишет в `<cwd>/.goga/` (создаёт `.goga/usages/cooks/pybuggy/`, `.goga/config.yml`).
-- Читает usages из **установленного** пакета `pybuggy.api` (`importlib.resources`), не из cwd — работает после
+- Читает usages из **установленного** пакета `goga_tool_pybuggy.api` (`importlib.resources`), не из cwd — работает после
   `pip install pybuggy`, а не только из checkout.
 - Discovery рекурсивен по `.usages/*.md` под ячейкой `api` — будущие подклетки подключаются без правки команды.
 - Копирует только usages ячейки `api`; внутренние ячейки разработки (`config`/`spec`/`output`/...) не копируются.

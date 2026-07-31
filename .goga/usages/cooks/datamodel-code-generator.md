@@ -3,7 +3,7 @@
 ## Предметная область
 
 Генерация pydantic v2 моделей (`BaseModel`) из JSON-Schema запроса эндпоинта для
-модуля-фикстуры `api.py`. Используется в cell `pybuggy/commands/generate` (рутина
+модуля-фикстуры `api.py`. Используется в cell `goga_tool_pybuggy/commands/generate` (рутина
 `render_api_module`) вместо ручного маппинга типов: datamodel-code-generator строит
 полноценные модели, включая вложенные объекты и массивы, которые ручной маппинг
 раньше деградировал до `Any`.
@@ -81,7 +81,7 @@ datamodel-code-generator prependит заголовок-комментарий (
 datamodel-codegen:` …) даже с `disable_timestamp=True` — его нужно отрезать (ведущие
 `#`-строки и пустые строки до первого кода).
 
-Собранный модуль (модели + `import pytest` + `from pybuggy.api import Endpoint, Api` +
+Собранный модуль (модели + `import pytest` + `from goga_tool_pybuggy.api import Endpoint, Api` +
 фикстура) выравнивается через `ruff` (замена isort+black): `ruff check --fix --select I`
 (сортировка/слияние импортов) + `ruff format` (форматирование), с теми же опциями, что в
 `pyproject.toml` (`--line-length 120 --target-version py310`). ruff определяется через

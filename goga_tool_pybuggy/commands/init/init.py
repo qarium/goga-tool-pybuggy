@@ -34,7 +34,7 @@ def _walk(directory: Any, discovered: list[tuple[str, str]]) -> None:
 
 
 def _discover_usages(root: Any) -> list[tuple[str, str]]:
-    """Recursively discover ``.usages/*.md`` files under ``root`` (the installed pybuggy.api package)."""
+    """Recursively discover ``.usages/*.md`` files under ``root`` (the installed goga_tool_pybuggy.api package)."""
     discovered: list[tuple[str, str]] = []
 
     _walk(root, discovered)
@@ -270,7 +270,7 @@ def run_init() -> int:
 
     When ``<cwd>/.goga/config.yml`` is absent, the interactive goga-project initialization is run
     in-process via ``run_goga_init``; a non-zero exit code is returned immediately (no usages are
-    registered). After that, every ``.usages/*.md`` under the installed ``pybuggy.api`` package
+    registered). After that, every ``.usages/*.md`` under the installed ``goga_tool_pybuggy.api`` package
     (including its subcells such as ``asserts``) is copied to
     ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md`` and the ``pybuggy-<stem>`` keys are registered in
     ``<cwd>/.goga/config.yml`` under ``codemanifest.usages``. A referencing annotation line is also
@@ -293,7 +293,7 @@ def run_init() -> int:
             return rc
 
     try:
-        discovered = _discover_usages(importlib.resources.files("pybuggy.api"))
+        discovered = _discover_usages(importlib.resources.files("goga_tool_pybuggy.api"))
 
         for stem, text in discovered:
             dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"

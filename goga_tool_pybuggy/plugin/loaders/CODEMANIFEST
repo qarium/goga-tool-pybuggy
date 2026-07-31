@@ -107,4 +107,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 16/07/26
 Description: |
-  Generic pytest-plugin discovery contract: abstract `BaseLoader` with the `from_config` factory and the `load` mutate-accumulator contract, plus the `PackageLoader` (walk a package directory) and `ModuleLoader` (inspect a single file) implementations. Leaf cell consumed by pybuggy/plugin; assembling the recursive pytest_plugins list is the consumer's responsibility.
+  Generic pytest-plugin discovery contract: abstract `BaseLoader` with the `from_config` factory and the `load` mutate-accumulator contract, plus the `PackageLoader` (walk a package directory) and `ModuleLoader` (inspect a single file) implementations. Leaf cell consumed by goga_tool_pybuggy/plugin; assembling the recursive pytest_plugins list is the consumer's responsibility.

@@ -1,4 +1,4 @@
-# pybuggy.matchcrest — проверка ответов и значений матчёрами
+# goga_tool_pybuggy.matchcrest — проверка ответов и значений матчёрами
 
 ## Предметная область
 
@@ -13,7 +13,7 @@ matchcrest построен на PyHamcrest: матчёры наследуют `
 ## Фасад
 
 ```python
-from pybuggy.matchcrest import assert_that, ResponseCodeMatcher, ValueIsEqualMatcher
+from goga_tool_pybuggy.matchcrest import assert_that, ResponseCodeMatcher, ValueIsEqualMatcher
 ```
 
 - `assert_that` — точка проверки (реэкспорт из hamcrest).
@@ -26,7 +26,7 @@ from pybuggy.matchcrest import assert_that, ResponseCodeMatcher, ValueIsEqualMat
 Матчёр не знает про HTTP/requests — он читает значение из контекста `BaseContext`. Минимальный сценарий:
 
 ```python
-from pybuggy.matchcrest import assert_that, BaseContext, ResponseCodeMatcher
+from goga_tool_pybuggy.matchcrest import assert_that, BaseContext, ResponseCodeMatcher
 
 class Ctx(BaseContext):
     def __init__(self, response):

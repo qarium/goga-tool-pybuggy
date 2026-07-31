@@ -13,7 +13,7 @@ loaders.
 accumulator list passed to it and returns nothing.
 
 ```python
-from pybuggy.plugin.loaders import PackageLoader, ModuleLoader
+from goga_tool_pybuggy.plugin.loaders import PackageLoader, ModuleLoader
 ```
 
 ## Build a loader from a config item

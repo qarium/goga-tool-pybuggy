@@ -17,9 +17,9 @@ from __future__ import annotations
 
 from unittest import mock
 
-from pybuggy.api.api import Api
-from pybuggy.api.auth import CombineAuth
-from pybuggy.api.endpoint import Endpoint
+from goga_tool_pybuggy.api.api import Api
+from goga_tool_pybuggy.api.auth import CombineAuth
+from goga_tool_pybuggy.api.endpoint import Endpoint
 
 from tests.api.conftest import HeaderAuth, StubRequest
 
@@ -94,14 +94,14 @@ class TestCallLevelAuthIntegration:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
         assert rw.call_args.args[3] is False
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw_error,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw_error,
         ):
             ep.error()
         assert rw_error.call_args.args[3] is True

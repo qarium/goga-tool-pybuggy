@@ -2,7 +2,7 @@
 
 ## Предметная область
 
-`resq` — HTTP-клиент проекта, используется ячейкой `pybuggy/api` как транспорт под капотом
+`resq` — HTTP-клиент проекта, используется ячейкой `goga_tool_pybuggy/api` как транспорт под капотом
 `Api`. Sync-направление resq построено поверх `requests` (держит `requests.Session`), поэтому
 аутентификация `requests.auth.AuthBase` применяется напрямую — без адаптеров.
 
@@ -51,7 +51,7 @@ polling-окну resq — для одиночного запроса pybuggy и�
 
 Sync resq = `requests` под капотом, поэтому `requests.auth.AuthBase` (любой callable-объект
 `(PreparedRequest) -> PreparedRequest`) подключается штатным аргументом `auth=` и применяется к
-`PreparedRequest`. Это основа для `CombineAuth`/`AuthWrapper` в `pybuggy/api`.
+`PreparedRequest`. Это основа для `CombineAuth`/`AuthWrapper` в `goga_tool_pybuggy/api`.
 
 ```python
 from requests.auth import AuthBase

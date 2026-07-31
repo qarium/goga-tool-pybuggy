@@ -1,4 +1,4 @@
-"""Integration tests for the `pybuggy.plugin` cell (end-to-end).
+"""Integration tests for the `goga_tool_pybuggy.plugin` cell (end-to-end).
 
 Mirrors the source layout (``tests/plugin/test_integration.py``). Covers the
 cross-cell and end-to-end acceptance scenarios from the design's Test Stack
@@ -6,13 +6,13 @@ Trace:
 
 - the wiring chain (``install`` -> ``ApiPlugin`` ->
   ``install_pytest_plugins`` + ``_load_plugins``); and
-- the full ``pybuggy.plugin.install()`` enablement run as a real pytest subprocess
+- the full ``goga_tool_pybuggy.plugin.install()`` enablement run as a real pytest subprocess
   (hook injection, ``--api-url`` CLI registration, recursive generated-fixture
   loading, and the ``api`` fixture resolving into a working ``Api``).
 
 Environment notes (the plugin under test is unchanged against the real packages):
 
-- ``pybuggy`` is not pip-installed here — it imports only off its source root —
+- ``goga_tool_pybuggy`` is not pip-installed here — it imports only off its source root —
   so the subprocess is given the source root via ``PYTHONPATH``.
 - the env ships an empty ``resq`` stub (no ``Session``); constructing an ``Api``
   performs no network I/O, so the generated project's ``conftest.py`` provides a
@@ -25,12 +25,12 @@ import subprocess
 import sys
 import types
 
-import pybuggy
+import goga_tool_pybuggy
 import pytest
-from pybuggy.plugin import install
+from goga_tool_pybuggy.plugin import install
 
-# Source root that makes `pybuggy` importable in the subprocess.
-_PROJECT_ROOT = str(pathlib.Path(pybuggy.__file__).resolve().parent.parent)
+# Source root that makes `goga_tool_pybuggy` importable in the subprocess.
+_PROJECT_ROOT = str(pathlib.Path(goga_tool_pybuggy.__file__).resolve().parent.parent)
 
 # A `@pytest.fixture` so the trial-import probe recognizes the module as a pytest
 # plugin. Used for the in-process wiring test where the body is never invoked, so
@@ -49,7 +49,7 @@ def get_orders():
 _GENERATED_FIXTURE_SOURCE = """\
 import pytest
 
-from pybuggy.api import Api, Endpoint
+from goga_tool_pybuggy.api import Api, Endpoint
 
 
 @pytest.fixture
@@ -72,9 +72,9 @@ if not hasattr(resq, "Session"):
 
     resq.Session = _Session
 
-import pybuggy.plugin
+import goga_tool_pybuggy.plugin
 
-pybuggy.plugin.install()
+goga_tool_pybuggy.plugin.install()
 """
 
 # A consumer test: uses the discovered `get_orders` fixture (exercising the full
@@ -119,7 +119,7 @@ class TestPluginIntegration:
     """Cross-cell integration: the import-time wiring chain."""
 
     def test_install_wires_hooks_into_namespace(self, tmp_path, monkeypatch):
-        # The api/ tree makes _load_plugins (pybuggy.plugin -> pybuggy.plugin.loaders)
+        # The api/ tree makes _load_plugins (goga_tool_pybuggy.plugin -> goga_tool_pybuggy.plugin.loaders)
         # discover a real generated-fixture module into the namespace.
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)

@@ -1,7 +1,7 @@
 Imports:
   - Types:
       - Api
-    From: pybuggy/api
+    From: goga_tool_pybuggy/api
   - Types:
       - BaseLoader
       - PackageLoader
@@ -9,7 +9,7 @@ Imports:
     Usages:
       - registration
       - discovery
-    From: pybuggy/plugin/loaders
+    From: goga_tool_pybuggy/plugin/loaders
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -21,12 +21,12 @@ Annotations: |
   Use `pluginator` for the plugin framework contract — @define.plugin, define.option, the option resolution chain, fixtures as plugin-class methods, install_pytest_plugins, call_context, and the configure() lifecycle hook.
   Use `jinja2` for the Jinja2 base_url engine: the Environment/StrictUndefined configuration, the custom match_re test, and the required-dependency contract.
 
-  pybuggy pytest-plugin cell. Provides the api fixture (function-scope) that constructs `Api` from plugin options, and wires the plugin into pytest through `install`. A consumer enables it by calling pybuggy.plugin.install() from conftest.py — there is no import-time auto-wiring, so pytest_plugins = ['pybuggy.plugin'] alone does NOT enable the plugin. The generated endpoint fixtures resolve api into a working `Api`.
+  pybuggy pytest-plugin cell. Provides the api fixture (function-scope) that constructs `Api` from plugin options, and wires the plugin into pytest through `install`. A consumer enables it by calling goga_tool_pybuggy.plugin.install() from conftest.py — there is no import-time auto-wiring, so pytest_plugins = ['goga_tool_pybuggy.plugin'] alone does NOT enable the plugin. The generated endpoint fixtures resolve api into a working `Api`.
 
   base_url is a Jinja2 template string rendered once in the pluginator configure lifecycle hook (pytest configphase, before any test or fixture runs) against the rendering context = the full environment plus the CLI options the user actually passed (auto-captured from the CLI; see `pluginator`). The api fixture consumes the rendered value; there is no rendering inside the fixture. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined and a custom match_re test, so an unknown variable raises (URLs must not be silently truncated). The rendered value is stored back onto the base_url option for the api fixture to read. A plain URL without Jinja placeholders renders to itself, and every whitespace run in the rendered value is removed so a multi-line template (YAML folded (>) / literal (|) scalars, or a template with an empty Jinja block) yields one clean URL.
 
   Constraints:
-  - `install` is NOT called at import time; a consumer must call pybuggy.plugin.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
+  - `install` is NOT called at import time; a consumer must call goga_tool_pybuggy.plugin.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
   - `ApiPlugin` overrides BasePlugin.__init__ to accept context (and optional loaders) and to register discovered plugins synchronously.
   - `install` defaults loaders to [PackageLoader('api', required=False)] when omitted, so the generated api/ fixture tree is discovered out of the box; override with install(loaders=[...]), the loader config section (PluginConfigKeys.LOADER), or disable with install(loaders=[]).
   - Minimal fixture profile: base_url, headers, timeout, data_key, error_key, plus the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) — no auth, no cookies.

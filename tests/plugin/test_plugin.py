@@ -1,4 +1,4 @@
-"""Tests for the `pybuggy.plugin` cell (`ApiPlugin` + service constants).
+"""Tests for the `goga_tool_pybuggy.plugin` cell (`ApiPlugin` + service constants).
 
 Mirrors the source layout (`tests/plugin/test_plugin.py`). Covers the contract
 surface (importability + presence of the option descriptors and the `api`
@@ -15,8 +15,8 @@ import inspect
 from unittest import mock
 
 import pytest
-from pybuggy.plugin import ApiPlugin
-from pybuggy.plugin.loaders import PackageLoader
+from goga_tool_pybuggy.plugin import ApiPlugin
+from goga_tool_pybuggy.plugin.loaders import PackageLoader
 
 # Jinja2 is a required dependency of pybuggy (declared in pyproject.toml core
 # dependencies), so the Jinja render-path tests run unconditionally.
@@ -94,12 +94,12 @@ class TestApiPluginContract:
     """Contract tests for `ApiPlugin`."""
 
     def test_api_plugin_importable_from_facade(self):
-        import pybuggy.plugin as plugin_facade
+        import goga_tool_pybuggy.plugin as plugin_facade
 
         assert plugin_facade.ApiPlugin is ApiPlugin
 
     def test_api_plugin_importable_from_location(self):
-        import pybuggy.plugin.plugin as plugin_module
+        import goga_tool_pybuggy.plugin.plugin as plugin_module
 
         assert plugin_module.ApiPlugin is ApiPlugin
 
@@ -154,7 +154,7 @@ class TestApiPluginContract:
         assert sig.parameters["default_assert_delay"].default is None
 
     def test_plugin_config_keys_enum(self):
-        from pybuggy.plugin.plugin import PluginConfigKeys
+        from goga_tool_pybuggy.plugin.plugin import PluginConfigKeys
 
         assert PluginConfigKeys.BASE_URL.value == "base_url"
         assert PluginConfigKeys.HEADERS.value == "headers"
@@ -194,7 +194,7 @@ class TestApiPluginLogic:
         # base_url is rendered once in configure(); a plain URL renders to itself.
         _lifecycle(plugin)
 
-        with mock.patch("pybuggy.plugin.plugin.Api") as mock_api:
+        with mock.patch("goga_tool_pybuggy.plugin.plugin.Api") as mock_api:
             gen = ApiPlugin.api.__wrapped__(plugin)
             result = next(gen)  # drive the generator up to the yield
 
@@ -246,7 +246,7 @@ class TestApiPluginLogic:
         plugin = ApiPlugin(context={})
         _lifecycle(plugin)  # base_url from the config file renders to itself
 
-        with mock.patch("pybuggy.plugin.plugin.Api") as mock_api:
+        with mock.patch("goga_tool_pybuggy.plugin.plugin.Api") as mock_api:
             next(ApiPlugin.api.__wrapped__(plugin))  # drive up to the yield
 
         assert mock_api.call_args.kwargs["base_url"] == "https://cfg.example"
@@ -268,7 +268,7 @@ class TestApiPluginLogic:
         plugin.plugin_config = {"assert_timeout": 1, "assert_delay": 0.1}
         _lifecycle(plugin)
 
-        with mock.patch("pybuggy.plugin.plugin.Api") as mock_api:
+        with mock.patch("goga_tool_pybuggy.plugin.plugin.Api") as mock_api:
             instance = mock_api.return_value
             gen = ApiPlugin.api.__wrapped__(plugin)
 
@@ -365,7 +365,7 @@ class TestApiPluginConfigure:
 
         plugin = ApiPlugin(context={})
         # args names ONLY --env; option carries env plus an unrelated internal key.
-        with mock.patch("pybuggy.plugin.plugin.render_base_url", return_value="rendered") as spy:
+        with mock.patch("goga_tool_pybuggy.plugin.plugin.render_base_url", return_value="rendered") as spy:
             _lifecycle(
                 plugin,
                 args=["--env", "dev"],
@@ -384,7 +384,7 @@ class TestApiPluginConfigure:
 
         plugin = ApiPlugin(context={})
         # --unset is typed but resolves to None -> dropped from the context.
-        with mock.patch("pybuggy.plugin.plugin.render_base_url", return_value="rendered") as spy:
+        with mock.patch("goga_tool_pybuggy.plugin.plugin.render_base_url", return_value="rendered") as spy:
             _lifecycle(
                 plugin,
                 args=["--env", "dev", "--unset"],

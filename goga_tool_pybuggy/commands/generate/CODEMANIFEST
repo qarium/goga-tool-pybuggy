@@ -1,10 +1,10 @@
 Imports:
   - Types: [load_config, Config, SpecEntry]
     Usages: [configuration]
-    From: pybuggy/config
+    From: goga_tool_pybuggy/config
   - Types: [load_spec, extract_endpoints, Endpoint]
     Usages: [spec]
-    From: pybuggy/spec
+    From: goga_tool_pybuggy/spec
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -86,7 +86,7 @@ Annotations: |
     2. Build the route string from the endpoint path: replace each "{name}" path segment with ":name", preserving the parameter name and its original case (e.g. {orderID} -> :orderID).
     3. Determine the request-body model scope: collect the properties of the endpoint request schema; when absent, empty, or non-dict, omit the request-body model entirely. Sanitize each property fragment by replacing any non-dict/non-bool fragment with the boolean true schema, so malformed fragments never raise and degrade to Any.
     4. When properties exist, render the pydantic model text via `datamodel-code-generator`: a Request model plus any nested object/array models from the resolved request-body JSON-Schema, with disable_timestamp=True and disable_future_imports=True, then strip the generator header.
-    5. Assemble the module sections in order: import pytest; from pybuggy.api import Endpoint, Api; the optional model text; the fixture. Align the whole text with ruff via `conventions`: sort/merge imports with the ruff check command, then format with the ruff format command, both at line-length 120 and py310.
+    5. Assemble the module sections in order: import pytest; from goga_tool_pybuggy.api import Endpoint, Api; the optional model text; the fixture. Align the whole text with ruff via `conventions`: sort/merge imports with the ruff check command, then format with the ruff format command, both at line-length 120 and py310.
 
     Requirements:
     - The fixture is decorated with @pytest.fixture(scope='function') and returns Endpoint(api, '<route>', method='<METHOD>').

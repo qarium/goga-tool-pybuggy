@@ -1,4 +1,4 @@
-"""Call-level combined authentication primitives for the `pybuggy.api` cell.
+"""Call-level combined authentication primitives for the `goga_tool_pybuggy.api` cell.
 
 Three self-contained auth entities (only ``requests`` + stdlib ``typing``):
 

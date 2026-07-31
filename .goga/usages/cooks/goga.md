@@ -4,7 +4,7 @@
 
 Пакет `goga` предоставляет Python-API для интерактивной инициализации goga-проекта — то же, что делает CLI-команда
 `goga init`, но in-process. Аудитория — ячейки pybuggy, которые под капотом инициализируют goga-проект
-(напр. `pybuggy/commands/init`). API сборочное: `Questionnaire` опрашивает поля конфига по одному, `FileGenerator`
+(напр. `goga_tool_pybuggy/commands/init`). API сборочное: `Questionnaire` опрашивает поля конфига по одному, `FileGenerator`
 пишет файлы по собранным ответам.
 
 ## Контракт инициализации

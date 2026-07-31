@@ -1,1 +1,1 @@
-"""Tests for pybuggy.spec cell."""
+"""Tests for goga_tool_pybuggy.spec cell."""

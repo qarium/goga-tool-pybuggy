@@ -1,4 +1,4 @@
-"""Search contexts for `pybuggy.api` asserts.
+"""Search contexts for `goga_tool_pybuggy.api` asserts.
 
 Each context is a matchcrest ``BaseContext``: matchers read the value under test
 from ``value`` and use ``key`` only as a label in mismatch messages.

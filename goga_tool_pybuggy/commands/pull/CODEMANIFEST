@@ -1,7 +1,7 @@
 Imports:
   - Types: [load_config, Config, SpecEntry, GitEntry]
     Usages: [configuration]
-    From: pybuggy/config
+    From: goga_tool_pybuggy/config
 
 Usages:
   conventions: .goga/usages/conventions.md

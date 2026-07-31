@@ -1,4 +1,4 @@
-"""Tests for ``pybuggy.api.asserts.field.AssertField``.
+"""Tests for ``goga_tool_pybuggy.api.asserts.field.AssertField``.
 
 Covers the field-level assert entry produced by ``Expected.__call__``: dotted and
 jsonpath search, drill-down (``index``/``hook``), the ``data_key``/``error_key``
@@ -12,8 +12,8 @@ from __future__ import annotations
 from datetime import date
 
 import pytest
-from pybuggy.api import Expected
-from pybuggy.api.asserts.config import AssertConfig
+from goga_tool_pybuggy.api import Expected
+from goga_tool_pybuggy.api.asserts.config import AssertConfig
 
 from tests.api.conftest import FakeResponse
 
@@ -84,7 +84,7 @@ class TestFieldDrillDown:
 
     def test_drill_returns_new_assert_field(self) -> None:
         """Drilling returns a distinct AssertField (immutable chain)."""
-        from pybuggy.api import AssertField
+        from goga_tool_pybuggy.api import AssertField
 
         base = _expected()("items")
         drilled = base(index=0)

@@ -1,7 +1,7 @@
 """Contract tests for the exception matchers."""
 
 
-from pybuggy.matchcrest.matchers import (
+from goga_tool_pybuggy.matchcrest.matchers import (
     NotRaisedExceptionMatcher,
     RaisedExceptionMatcher,
 )

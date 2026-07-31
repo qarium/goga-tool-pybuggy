@@ -1,4 +1,4 @@
-# pybuggy/commands/pull facade
+# goga_tool_pybuggy/commands/pull facade
 
 from .pull import SmartParam, pull_cmd, run_pull
 

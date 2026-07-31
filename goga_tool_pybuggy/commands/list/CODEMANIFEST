@@ -1,13 +1,13 @@
 Imports:
   - Types: [load_config, Config, SpecEntry]
     Usages: [configuration]
-    From: pybuggy/config
+    From: goga_tool_pybuggy/config
   - Types: [load_spec, extract_endpoints]
     Usages: [spec]
-    From: pybuggy/spec
+    From: goga_tool_pybuggy/spec
   - Types: [render_list]
     Usages: [formatting]
-    From: pybuggy/output
+    From: goga_tool_pybuggy/output
 
 Usages:
   conventions: .goga/usages/conventions.md

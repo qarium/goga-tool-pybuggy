@@ -11,7 +11,7 @@ Imports:
       - JsonContainsKeyMatcher
     Usages:
       - matchcrest
-    From: pybuggy/matchcrest
+    From: goga_tool_pybuggy/matchcrest
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -24,7 +24,7 @@ Annotations: |
   Use `hamcrest` for the `assert_that` entry point re-exported by matchcrest.
   Use `jsonschema` for the Draft7Validator contract that `JsonschemaMatcher` wraps under the hood.
 
-  Assert sub-cell of pybuggy/api. Carries the full assert layer: `AssertConfig` bundles the static check configuration (status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class); `Expected` is the two-level dispatcher (response-level matchcrest checks plus a field-level entry through its dispatcher call) and the default response-level assert class; `AssertField` is the field-level assert over a resolved body value and the default field-level assert class; load_assert_class imports a custom assert class by dotted module:Class path. `Expected` and `AssertField` are reached through the parent api cell — its response wrapper returns `Expected`, whose dispatcher call returns `AssertField` — never constructed directly by consumers. The search contexts (ResponseContext/JsonFieldContext/JsonPathFieldContext/SearchItem) and BaseAssert are internal.
+  Assert sub-cell of goga_tool_pybuggy/api. Carries the full assert layer: `AssertConfig` bundles the static check configuration (status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class); `Expected` is the two-level dispatcher (response-level matchcrest checks plus a field-level entry through its dispatcher call) and the default response-level assert class; `AssertField` is the field-level assert over a resolved body value and the default field-level assert class; load_assert_class imports a custom assert class by dotted module:Class path. `Expected` and `AssertField` are reached through the parent api cell — its response wrapper returns `Expected`, whose dispatcher call returns `AssertField` — never constructed directly by consumers. The search contexts (ResponseContext/JsonFieldContext/JsonPathFieldContext/SearchItem) and BaseAssert are internal.
 
   Polling: timeout/delay (from `AssertConfig` as the baseline, overridable per check method) drive matchcrest's retry loop — the response is re-fetched between attempts until the assertion passes or the timeout elapses. Pluggable classes: assert_response_class/assert_field_class select a custom `Expected`/`AssertField` subclass via `load_assert_class` (resolved where the response/field class is constructed).
 
@@ -265,4 +265,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 14/07/26
 Description: |
-  Assert sub-cell of pybuggy/api. Carries the full assert layer: AssertConfig (static check config — status/data_key/error_key/schemas_dir), Expected (response-level matchcrest dispatcher and field-level entry via __call__), and AssertField (field-level assert over a resolved response-body value) — all matchcrest-backed. Reached through the parent cell's ResponseWrapper.expected.
+  Assert sub-cell of goga_tool_pybuggy/api. Carries the full assert layer: AssertConfig (static check config — status/data_key/error_key/schemas_dir), Expected (response-level matchcrest dispatcher and field-level entry via __call__), and AssertField (field-level assert over a resolved response-body value) — all matchcrest-backed. Reached through the parent cell's ResponseWrapper.expected.

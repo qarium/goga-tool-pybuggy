@@ -1,8 +1,8 @@
-# pybuggy.commands.info — команда endpoint info
+# goga_tool_pybuggy.commands.info — команда endpoint info
 
 ## Предметная область
 
-Шаблоны потребления cell `pybuggy/commands/info`: вывод деталей эндпоинта по его id (одному или
+Шаблоны потребления cell `goga_tool_pybuggy/commands/info`: вывод деталей эндпоинта по его id (одному или
 нескольким) в виде JSON. Аудитория — регистрация в CLI (`info_cmd`) и тесты (`run_info` напрямую).
 
 ## Вызов handler-функции
@@ -10,7 +10,7 @@
 `run_info` — тестируемая точка входа (Click-обёртка `info_cmd` связывает позиционный variadic
 `endpoint-ids` и опцию `--spec`, вызывает `run_info`):
 
-    from pybuggy.commands.info import run_info
+    from goga_tool_pybuggy.commands.info import run_info
 
     run_info(["clients_startup_get"])                        # только указанный эндпоинт, поиск по всем spec
     run_info(["clients_startup_get"], spec_name="client")    # в одной spec
@@ -24,7 +24,7 @@
 - Нет совпадений → `click.ClickException` («endpoint not found: <id>»).
 - Одно совпадение → JSON-объект; несколько (коллизия id в разных spec или несколько запрошенных id)
   → JSON-массив.
-- Конфиг грузится из фиксированного пути через `load_config()`. Формат задаёт `pybuggy.output.render_info`.
+- Конфиг грузится из фиксированного пути через `load_config()`. Формат задаёт `goga_tool_pybuggy.output.render_info`.
 
 ## Фильтр по endpoint-id
 
@@ -52,5 +52,5 @@
 
 - Файлы spec должны быть в `location` (после `pull` или вручную).
 - id эндпоинта строится по алгоритму `build_endpoint_id`.
-- Конфиг валиден и лежит по фиксированному пути (см. `pybuggy.config`).
+- Конфиг валиден и лежит по фиксированному пути (см. `goga_tool_pybuggy.config`).
 - Команда read-only — не модифицирует spec/конфиг.

@@ -1,4 +1,4 @@
-"""`pybuggy.plugin.loaders` cell facade.
+"""`goga_tool_pybuggy.plugin.loaders` cell facade.
 
 Exposes the contract entities of the generic pytest-plugin discovery cell:
 

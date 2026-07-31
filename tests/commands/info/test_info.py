@@ -5,9 +5,9 @@ from pathlib import Path
 
 import click
 import pytest
-from pybuggy.commands.info import info_cmd, run_info
+from goga_tool_pybuggy.commands.info import info_cmd, run_info
 
-CONFIG_PATH_ATTR = "pybuggy.config.storage.CONFIG_PATH"
+CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
 
 _OPENAPI_PREFIX = """\
 openapi: 3.0.0
@@ -43,8 +43,8 @@ def _write_config(tmp_path: Path, specs: dict) -> Path:
 
 
 def test_run_info_importable_from_facade() -> None:
-    """run_info should be importable from pybuggy.commands.info facade."""
-    from pybuggy.commands.info import run_info as imported
+    """run_info should be importable from goga_tool_pybuggy.commands.info facade."""
+    from goga_tool_pybuggy.commands.info import run_info as imported
 
     assert imported is run_info
 
@@ -306,7 +306,7 @@ def test_info_cmd_binds_endpoint_ids_and_spec(tmp_path: Path, monkeypatch: pytes
         captured["endpoint_ids"] = endpoint_ids
         captured["spec_name"] = spec_name
 
-    monkeypatch.setattr("pybuggy.commands.info.info.run_info", fake_run_info)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.info.info.run_info", fake_run_info)
 
     # Options precede the variadic positional endpoint-ids (click parses options before the variadic tail)
     result = CliRunner().invoke(info_cmd, ["--spec", "client", "id1", "id2"])

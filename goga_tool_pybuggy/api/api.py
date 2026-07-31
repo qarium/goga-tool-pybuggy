@@ -1,4 +1,4 @@
-"""HTTP client of the `pybuggy.api` cell.
+"""HTTP client of the `goga_tool_pybuggy.api` cell.
 
 ``Api`` composes a ``resq.Session`` over a base URL, stores the per-client
 authenticator, default headers/cookies, a request timeout, and the success/error

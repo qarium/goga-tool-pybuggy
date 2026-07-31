@@ -1,4 +1,4 @@
-"""Tests for the `pybuggy.plugin.render` cell (`render_base_url`).
+"""Tests for the `goga_tool_pybuggy.plugin.render` cell (`render_base_url`).
 
 Mirrors the source layout (`tests/plugin/test_render.py`). Covers the contract
 surface (importability + presence of `render_base_url`) and the rendering
@@ -15,14 +15,14 @@ clean URL in both conditional branches.
 
 import jinja2
 import pytest
-from pybuggy.plugin.render import _match_re, render_base_url
+from goga_tool_pybuggy.plugin.render import _match_re, render_base_url
 
 
 class TestRenderBaseUrlContract:
     """Contract tests for `render_base_url`."""
 
     def test_render_base_url_importable_from_location(self):
-        import pybuggy.plugin.render as render_module
+        import goga_tool_pybuggy.plugin.render as render_module
 
         assert render_module.render_base_url is render_base_url
 

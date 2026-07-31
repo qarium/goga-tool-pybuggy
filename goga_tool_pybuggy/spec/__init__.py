@@ -1,5 +1,5 @@
 """
-pybuggy.spec — OpenAPI endpoint extraction.
+goga_tool_pybuggy.spec — OpenAPI endpoint extraction.
 
 Exports build_endpoint_id, Endpoint, load_spec, extract_endpoints.
 """

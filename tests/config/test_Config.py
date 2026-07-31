@@ -3,7 +3,7 @@
 import inspect
 
 import pytest
-from pybuggy.config import Config, SpecEntry
+from goga_tool_pybuggy.config import Config, SpecEntry
 from pydantic import BaseModel, ValidationError
 
 
@@ -11,7 +11,7 @@ class TestConfigContract:
     """Declared API of the ``Config`` entity."""
 
     def test_config_is_importable_from_config_facade(self):
-        """``Config`` is re-exported by the ``pybuggy.config`` facade."""
+        """``Config`` is re-exported by the ``goga_tool_pybuggy.config`` facade."""
         assert Config is not None
 
     def test_config_is_a_pydantic_model(self):

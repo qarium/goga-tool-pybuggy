@@ -3,7 +3,7 @@ Imports:
       - Endpoint
     Usages:
       - spec
-    From: pybuggy/spec
+    From: goga_tool_pybuggy/spec
 
 Usages:
   conventions: .goga/usages/conventions.md

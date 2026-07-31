@@ -1,4 +1,4 @@
-"""`pybuggy.plugin` cell facade.
+"""`goga_tool_pybuggy.plugin` cell facade.
 
 Exposes the contract entities of the pybuggy pytest-plugin cell:
 
@@ -11,8 +11,8 @@ Exposes the contract entities of the pybuggy pytest-plugin cell:
   registers the discovered generated fixtures. ``context`` is defaulted via
   ``call_context()`` (the caller's namespace) and forwarded to ``ApiPlugin``,
   whose ``__init__`` runs ``_load_plugins``. A consumer calls
-  ``pybuggy.plugin.install()`` from conftest.py — there is no import-time
-  auto-wiring, so ``pytest_plugins = ["pybuggy.plugin"]`` alone does NOT enable
+  ``goga_tool_pybuggy.plugin.install()`` from conftest.py — there is no import-time
+  auto-wiring, so ``pytest_plugins = ["goga_tool_pybuggy.plugin"]`` alone does NOT enable
   the plugin.
 
 ``Api`` is consumed internally by ``ApiPlugin.api()`` and is deliberately not

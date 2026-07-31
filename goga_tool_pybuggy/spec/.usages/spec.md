@@ -1,13 +1,13 @@
-# pybuggy.spec — разбор спек и извлечение эндпоинтов
+# goga_tool_pybuggy.spec — разбор спек и извлечение эндпоинтов
 
 ## Предметная область
 
-Шаблоны потребления cell `pybuggy/spec`: разбор spec-файла в dict и извлечение эндпоинтов (метод+путь + развёрнутые схемы). Аудитория — команды `list`/`info`.
+Шаблоны потребления cell `goga_tool_pybuggy/spec`: разбор spec-файла в dict и извлечение эндпоинтов (метод+путь + развёрнутые схемы). Аудитория — команды `list`/`info`.
 
 ## Разбор spec-файла
 
 ```python
-from pybuggy.spec import load_spec
+from goga_tool_pybuggy.spec import load_spec
 
 spec = load_spec(spec_path)  # pathlib.Path; $ref уже инлайнированы Prance
 ```
@@ -17,7 +17,7 @@ spec = load_spec(spec_path)  # pathlib.Path; $ref уже инлайнирова�
 ## Извлечение эндпоинтов
 
 ```python
-from pybuggy.spec import extract_endpoints
+from goga_tool_pybuggy.spec import extract_endpoints
 
 endpoints = extract_endpoints(spec)  # list[Endpoint], один на метод+путь
 for ep in endpoints:

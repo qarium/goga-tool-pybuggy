@@ -1,9 +1,9 @@
 """Smoke and re-export tests for the matchcrest composition facade."""
 
-import pybuggy.matchcrest as facade
+import goga_tool_pybuggy.matchcrest as facade
 import pytest
-from pybuggy.matchcrest import ValueIsEqualMatcher, assert_that
-from pybuggy.matchcrest.matchers import __all__ as matchers_all
+from goga_tool_pybuggy.matchcrest import ValueIsEqualMatcher, assert_that
+from goga_tool_pybuggy.matchcrest.matchers import __all__ as matchers_all
 
 
 class TestFacade:

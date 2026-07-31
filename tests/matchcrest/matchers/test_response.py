@@ -3,7 +3,7 @@
 from enum import Enum
 
 import pytest
-from pybuggy.matchcrest.matchers import (
+from goga_tool_pybuggy.matchcrest.matchers import (
     JsonContainsKeyMatcher,
     JsonHasDataByKeyMatcher,
     JsonHasNotDataByKeyMatcher,

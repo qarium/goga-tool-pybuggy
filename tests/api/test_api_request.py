@@ -1,4 +1,4 @@
-"""Tests for ``Api.request`` serialization in `pybuggy.api.api`.
+"""Tests for ``Api.request`` serialization in `goga_tool_pybuggy.api.api`.
 
 Covers the single-request serialization algorithm: pydantic ``params``/``json``
 dumping (with ``use_aliases``), ``:name`` path substitution, headers/cookies
@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from unittest import mock
 
-from pybuggy.api.api import Api
+from goga_tool_pybuggy.api.api import Api
 from pydantic import BaseModel, ConfigDict, Field
 
 from tests.api.conftest import HeaderAuth

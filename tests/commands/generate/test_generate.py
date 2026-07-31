@@ -5,10 +5,10 @@ from pathlib import Path
 
 import click
 import pytest
-from pybuggy.commands.generate import generate_cmd, render_api_module, run_generate
-from pybuggy.spec import Endpoint
+from goga_tool_pybuggy.commands.generate import generate_cmd, render_api_module, run_generate
+from goga_tool_pybuggy.spec import Endpoint
 
-CONFIG_PATH_ATTR = "pybuggy.config.storage.CONFIG_PATH"
+CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
 
 # Shared OpenAPI fragments ---------------------------------------------------
 
@@ -673,7 +673,7 @@ def test_generate_cmd_binds_spec_force_and_endpoint_ids(tmp_path: Path, monkeypa
         captured["force"] = force
         captured["endpoint_ids"] = endpoint_ids
 
-    monkeypatch.setattr("pybuggy.commands.generate.generate.run_generate", fake_run_generate)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.generate.generate.run_generate", fake_run_generate)
 
     # Options precede the variadic positional endpoint-ids (click parses options before the variadic tail)
     result = CliRunner().invoke(generate_cmd, ["-s", "x", "-f", "id1", "id2"])
@@ -903,7 +903,7 @@ def test_render_api_module_with_request_body() -> None:
 
     assert module == (
         "import pytest\n"
-        "from pybuggy.api import Api, Endpoint\n"
+        "from goga_tool_pybuggy.api import Api, Endpoint\n"
         "from pydantic import BaseModel\n\n\n"
         "class Request(BaseModel):\n"
         "    note: str\n"
@@ -930,7 +930,7 @@ def test_render_api_module_without_request_body() -> None:
 
     assert module == (
         "import pytest\n"
-        "from pybuggy.api import Api, Endpoint\n\n\n"
+        "from goga_tool_pybuggy.api import Api, Endpoint\n\n\n"
         '@pytest.fixture(scope="function")\n'
         "def get_health(api: Api) -> Endpoint:\n"
         '    return Endpoint(api, "/health", method="GET")\n'
@@ -962,7 +962,7 @@ def test_render_api_module_primitives_union_nested_and_array() -> None:
 
     assert module == (
         "import pytest\n"
-        "from pybuggy.api import Api, Endpoint\n"
+        "from goga_tool_pybuggy.api import Api, Endpoint\n"
         "from pydantic import BaseModel\n\n\n"
         "class Addr(BaseModel):\n"
         "    city: str | None = None\n\n\n"
@@ -1050,7 +1050,7 @@ def test_render_api_module_all_optional_fields_when_no_required() -> None:
 
     assert module == (
         "import pytest\n"
-        "from pybuggy.api import Api, Endpoint\n"
+        "from goga_tool_pybuggy.api import Api, Endpoint\n"
         "from pydantic import BaseModel\n\n\n"
         "class Request(BaseModel):\n"
         "    a: str | None = None\n"

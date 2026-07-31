@@ -1,4 +1,4 @@
-"""`pybuggy.api` cell facade.
+"""`goga_tool_pybuggy.api` cell facade.
 
 Exposes the contract entities of the runtime HTTP cell:
 

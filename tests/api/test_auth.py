@@ -1,4 +1,4 @@
-"""Contract and logic tests for `pybuggy.api.auth`.
+"""Contract and logic tests for `goga_tool_pybuggy.api.auth`.
 
 Pure-logic tests (no mocks): the auth primitives operate on stub
 ``PreparedRequest``-like objects (the ``stub_request`` fixture) and on real
@@ -8,7 +8,7 @@ Pure-logic tests (no mocks): the auth primitives operate on stub
 from __future__ import annotations
 
 import pytest
-from pybuggy.api.auth import Auth, AuthWrapper, CombineAuth
+from goga_tool_pybuggy.api.auth import Auth, AuthWrapper, CombineAuth
 from requests.auth import AuthBase
 
 from tests.api.conftest import HeaderAuth
@@ -18,7 +18,7 @@ class TestAuthContract:
     """Contract tests for the auth entities' facade/API shape."""
 
     def test_imports_succeed(self) -> None:
-        """CombineAuth, AuthWrapper, Auth are importable from pybuggy.api.auth."""
+        """CombineAuth, AuthWrapper, Auth are importable from goga_tool_pybuggy.api.auth."""
         assert isinstance(CombineAuth, type)
         assert isinstance(AuthWrapper, type)
         assert isinstance(Auth, type)

@@ -4,14 +4,14 @@ from pathlib import Path
 
 import click
 import pytest
-from pybuggy.commands.list import run_list
+from goga_tool_pybuggy.commands.list import run_list
 
-CONFIG_PATH_ATTR = "pybuggy.config.storage.CONFIG_PATH"
+CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
 
 
 def test_run_list_importable_from_facade() -> None:
-    """run_list should be importable from pybuggy.commands.list facade."""
-    from pybuggy.commands.list import run_list as imported
+    """run_list should be importable from goga_tool_pybuggy.commands.list facade."""
+    from goga_tool_pybuggy.commands.list import run_list as imported
 
     assert imported is run_list
 

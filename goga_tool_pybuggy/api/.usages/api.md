@@ -1,8 +1,8 @@
-# pybuggy.api — потребление runtime из тестовых фикстур
+# goga_tool_pybuggy.api — потребление runtime из тестовых фикстур
 
 ## Предметная область
 
-Runtime ячейки `pybuggy/api` выполняет HTTP-запросы из сгенерированных фикстур и
+Runtime ячейки `goga_tool_pybuggy/api` выполняет HTTP-запросы из сгенерированных фикстур и
 проверяет ответ. Аудитория — автор тестового проекта, который использует
 сгенерированные `pybuggy` фикстуры. Содержит готовые шаблоны потребления фасада и
 подробный референс API: `Api`, `Endpoint`, `ResponseWrapper`, `Expected`,
@@ -16,7 +16,7 @@ pybuggy поставляет **только классы**. Экземпляр `
 ## Фасад
 
 ```python
-from pybuggy.api import Api, Endpoint, ResponseWrapper, Expected, AssertField, Auth
+from goga_tool_pybuggy.api import Api, Endpoint, ResponseWrapper, Expected, AssertField, Auth
 ```
 
 | Сущность | Назначение |
@@ -154,7 +154,7 @@ caller-словарь), вынимает `auth`/`use_autocheck`, резолви�
 from collections.abc import Iterator
 
 import pytest
-from pybuggy.api import Api
+from goga_tool_pybuggy.api import Api
 
 
 @pytest.fixture(scope="session")
@@ -193,7 +193,7 @@ api = Api(
 ```python
 # api/<spec>/<id>/api.py
 import pytest
-from pybuggy.api import Endpoint, Api
+from goga_tool_pybuggy.api import Endpoint, Api
 from pydantic import BaseModel
 
 
@@ -264,7 +264,7 @@ def test_initiate(post_clients_calls_initiate: Endpoint):
 ```
 
 Полный референс всех field-level и response-level матчёров — в практике
-суб-клетки `pybuggy/api/asserts`.
+суб-клетки `goga_tool_pybuggy/api/asserts`.
 
 ---
 
@@ -348,8 +348,8 @@ Api(base_url=..., assert_field_class="myproj:StrictAssertField")
 
 | Класс | Откуда импортировать | Назначение |
 |-------|----------------------|------------|
-| runtime-`Endpoint` | `pybuggy.api` | callable-маршрут: делает HTTP-запрос, проверяет ответ (этот фасад) |
+| runtime-`Endpoint` | `goga_tool_pybuggy.api` | callable-маршрут: делает HTTP-запрос, проверяет ответ (этот фасад) |
 | spec-`Endpoint` (pydantic) | слой спецификаций | pydantic-модель операции (method/path/schemas); запросов не делает |
 
-В тестах нужен runtime-`Endpoint` — импортируйте его из `pybuggy.api`. spec-`Endpoint`
+В тестах нужен runtime-`Endpoint` — импортируйте его из `goga_tool_pybuggy.api`. spec-`Endpoint`
 к выполнению запросов отношения не имеет.

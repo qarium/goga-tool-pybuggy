@@ -1,6 +1,6 @@
-"""Field-level asserts for `pybuggy.api`.
+"""Field-level asserts for `goga_tool_pybuggy.api`.
 
-``AssertField`` wraps a search :class:`~pybuggy.api.asserts.contexts.BaseContext`
+``AssertField`` wraps a search :class:`~goga_tool_pybuggy.api.asserts.contexts.BaseContext`
 and exposes matchcrest-backed assertions over the resolved field value. Every
 check is an ``assert_that(context, matcher, reason=...)`` that returns ``self``
 for fluent chaining; calling the field (``field(search=..., index=..., hook=...)``

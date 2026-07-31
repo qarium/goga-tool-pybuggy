@@ -7,13 +7,13 @@ the generated endpoint fixtures under `api/`. Target audience: test-suite and in
 
 ## Enable the plugin
 
-Call `pybuggy.plugin.install()` from the root `conftest.py`:
+Call `goga_tool_pybuggy.plugin.install()` from the root `conftest.py`:
 
 ```python
 # conftest.py
-import pybuggy.plugin
+import goga_tool_pybuggy.plugin
 
-pybuggy.plugin.install()
+goga_tool_pybuggy.plugin.install()
 ```
 
 `install()` resolves the caller's (conftest) namespace through `call_context()` and injects the pytest hooks
@@ -21,7 +21,7 @@ pybuggy.plugin.install()
 `pytest_plugins` with the discovered generated fixtures. Pass an explicit `install(loaders=[...])` to override
 discovery, or `install(loaders=[])` to disable it.
 
-> There is **no import-time auto-wiring**: `pytest_plugins = ["pybuggy.plugin"]` alone does NOT enable the plugin —
+> There is **no import-time auto-wiring**: `pytest_plugins = ["goga_tool_pybuggy.plugin"]` alone does NOT enable the plugin —
 > the explicit `install()` call is required.
 
 ## What enabling wires
@@ -67,9 +67,9 @@ Pass an explicit `loaders` to `install()` to change the discovered trees, or add
 do it declaratively:
 
 ```python
-pybuggy.plugin.install(loaders=[PackageLoader("api"), PackageLoader("service")])
+goga_tool_pybuggy.plugin.install(loaders=[PackageLoader("api"), PackageLoader("service")])
 # or disable discovery entirely:
-pybuggy.plugin.install(loaders=[])
+goga_tool_pybuggy.plugin.install(loaders=[])
 ```
 
 ```yaml

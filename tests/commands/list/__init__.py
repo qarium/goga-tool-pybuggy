@@ -1,1 +1,1 @@
-"""Tests for pybuggy.commands.list."""
+"""Tests for goga_tool_pybuggy.commands.list."""

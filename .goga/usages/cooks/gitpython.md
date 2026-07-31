@@ -2,7 +2,7 @@
 
 ## Предметная область
 
-Шаблон доступа к удалённому git-репозиторию со спецификациями для команды `pybuggy endpoint pull`. `pybuggy` обращается с репозиторием как с **read-only**: shallow-clone во временную директорию, чтение, копирование нужного файла/подкаталога в локальный `location`, удаление клона. Никаких commit/push.
+Шаблон доступа к удалённому git-репозиторию со спецификациями для команды `goga_tool_pybuggy endpoint pull`. `pybuggy` обращается с репозиторием как с **read-only**: shallow-clone во временную директорию, чтение, копирование нужного файла/подкаталога в локальный `location`, удаление клона. Никаких commit/push.
 
 Идиома зеркалирует cell `swax/git/` (`clone_specs` как context manager), но реализована **внутри pybuggy** (cell `swax.git` не используется — только `swax.openapi`).
 
@@ -86,5 +86,5 @@ def install_spec(repo_url: str, git_location: str, local_location: pathlib.Path,
 
 ## Тестирование
 
-- `Repo.clone_from` мокать в точке импорта (`mock.patch("pybuggy.<...>.Repo.clone_from")`) — реальное клонирование в тестах не выполнять (см. `.goga/usages/conventions.md`, раздел Mocks).
+- `Repo.clone_from` мокать в точке импорта (`mock.patch("goga_tool_pybuggy.<...>.Repo.clone_from")`) — реальное клонирование в тестах не выполнять (см. `.goga/usages/conventions.md`, раздел Mocks).
 - Копирование/разрешение путей тестировать на `tmp_path` с псевдо-«клоном» (поддиректория-фикстура).

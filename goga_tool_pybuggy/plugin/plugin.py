@@ -1,7 +1,7 @@
 """pybuggy pytest-plugin cell.
 
 This cell turns pybuggy into a pytest plugin so a consumer enables it with a
-single ``pytest_plugins = ["pybuggy.plugin"]`` line in ``conftest.py``. It is
+single ``pytest_plugins = ["goga_tool_pybuggy.plugin"]`` line in ``conftest.py``. It is
 built on the ``pluginator`` framework and provides:
 
 - the function-scope ``api`` fixture that constructs an :class:`Api` from the

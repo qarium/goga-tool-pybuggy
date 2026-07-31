@@ -12,7 +12,7 @@
 ## Фасад
 
 ```python
-from pybuggy.matchcrest.utils import (
+from goga_tool_pybuggy.matchcrest.utils import (
     waiting_for, join, url_is_valid, url_is_live, date_to_timestamp, allow_failure,
 )
 ```
@@ -24,7 +24,7 @@ from pybuggy.matchcrest.utils import (
 `waiting_for` вызывает функцию, пока она не вернёт truthy-значение или не выйдет timeout.
 
 ```python
-from pybuggy.matchcrest.utils import waiting_for
+from goga_tool_pybuggy.matchcrest.utils import waiting_for
 
 def ready() -> bool:
     return poll_resource()  # True когда ресурс готов
@@ -43,7 +43,7 @@ except TimeoutError:
 ## URL-хелперы
 
 ```python
-from pybuggy.matchcrest.utils import join, url_is_valid
+from goga_tool_pybuggy.matchcrest.utils import join, url_is_valid
 
 join("https://api.example.com/", "/v1/", "/users/")   # 'https://api.example.com/v1/users/'
 url_is_valid("https://example.com")                    # True (структурно)
@@ -59,7 +59,7 @@ url_is_valid("https://example.com", is_live=True)      # True только пр�
 
 ```python
 from datetime import date
-from pybuggy.matchcrest.utils import date_to_timestamp
+from goga_tool_pybuggy.matchcrest.utils import date_to_timestamp
 
 ts = date_to_timestamp(date(2026, 7, 14))   # float
 ```
@@ -74,7 +74,7 @@ ts = date_to_timestamp(date(2026, 7, 14))   # float
 безопасной записи отчёта (`BaseMatcher.__save_report__`).
 
 ```python
-from pybuggy.matchcrest.utils import allow_failure
+from goga_tool_pybuggy.matchcrest.utils import allow_failure
 
 @allow_failure
 def risky():

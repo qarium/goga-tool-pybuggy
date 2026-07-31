@@ -1,4 +1,4 @@
-"""Assert configuration of the `pybuggy.api.asserts` cell.
+"""Assert configuration of the `goga_tool_pybuggy.api.asserts` cell.
 
 ``AssertConfig`` bundles the response-check configuration — the fields that
 answer "what to check" — passed from ``Endpoint`` through ``ResponseWrapper``

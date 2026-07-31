@@ -4,7 +4,7 @@
 
 `pluginator` — фреймворк для декларативного описания pytest-плагинов: опции (env / конфиг /
 CLI / дефолт), фикстуры как методы класса-плагина, действия (`actions`) и единая установка в
-pytest через инъекцию хуков. Используется ячейкой `pybuggy/plugin`, чтобы предоставить фикстуру
+pytest через инъекцию хуков. Используется ячейкой `goga_tool_pybuggy/plugin`, чтобы предоставить фикстуру
 `api` и зарегистрировать сгенерированные фикстуры.
 
 Импорт в коде:
@@ -181,16 +181,16 @@ class MyPlugin:
 
 ```python
 # conftest.py
-pytest_plugins = ["pybuggy.plugin"]
+pytest_plugins = ["goga_tool_pybuggy.plugin"]
 ```
 
 — обёртка `install()` вызывается **на верхнем уровне** модуля-плагина (`<пакет>/__init__.py`). При
-импорте `pybuggy.plugin` `call_context()` резолвится в globals этого же модуля, хуки
+импорте `goga_tool_pybuggy.plugin` `call_context()` резолвится в globals этого же модуля, хуки
 (`pytest_addoption`/`pytest_configure`/`pytest_collection_finish`) инжектятся в неймспейс
-`pybuggy.plugin`, и pytest их находит.
+`goga_tool_pybuggy.plugin`, и pytest их находит.
 
 Тот же приём регистрирует **сгенерированные фикстуры**: loader, отрабатывая внутри `install()`,
-кладёт список найденных модулей в `context["pytest_plugins"]` (т.е. в `pybuggy.plugin.pytest_plugins`),
+кладёт список найденных модулей в `context["pytest_plugins"]` (т.е. в `goga_tool_pybuggy.plugin.pytest_plugins`),
 и pytest рекурсивно их догружает. Поэтому loader обязан работать синхронно при импорте.
 
 Важно: импорт модуля-плагина вне pytest-проекта не должен падать — обход отсутствующего пакета
@@ -215,7 +215,7 @@ CommandLine("--api-url", action="store", help="Base URL of the service under tes
 `Action(name, module, *, enable=True, default_config=None)` — отложенно-импортируемое действие.
 `module` — dotted-путь к модулю с функцией `main(context, config)` (и опционально
 `setup(config)`). Действие вызывается через `plugin.action(name, context, lazy=True/False)`; при
-`lazy=True` возвращает замыкание, дорабатывающее контекст в момент вызова. Ячейка `pybuggy/plugin`
+`lazy=True` возвращает замыкание, дорабатывающее контекст в момент вызова. Ячейка `goga_tool_pybuggy/plugin`
 actions не использует — описано для полноты картины фреймворка.
 
 ---

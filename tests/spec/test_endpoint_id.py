@@ -1,12 +1,12 @@
 """Contract tests for build_endpoint_id routine."""
 
 import pytest
-from pybuggy.spec import build_endpoint_id
+from goga_tool_pybuggy.spec import build_endpoint_id
 
 
 def test_build_endpoint_id_is_importable_from_facade() -> None:
-    """Verify build_endpoint_id can be imported from pybuggy.spec facade."""
-    from pybuggy.spec import build_endpoint_id as imported_func
+    """Verify build_endpoint_id can be imported from goga_tool_pybuggy.spec facade."""
+    from goga_tool_pybuggy.spec import build_endpoint_id as imported_func
 
     assert imported_func is build_endpoint_id
 

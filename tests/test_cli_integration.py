@@ -1,7 +1,7 @@
 """End-to-end integration tests for the pybuggy CLI.
 
 Tests the full CLI flow from entry point through subcommands. The config path is
-static (``pybuggy.config.CONFIG_PATH``); tests point it at a local ``config.yml``
+static (``goga_tool_pybuggy.config.CONFIG_PATH``); tests point it at a local ``config.yml``
 via monkeypatch and run inside an isolated filesystem.
 """
 
@@ -10,9 +10,9 @@ import pathlib
 
 import pytest
 from click.testing import CliRunner
-from pybuggy import main
+from goga_tool_pybuggy import main
 
-CONFIG_PATH_ATTR = "pybuggy.config.storage.CONFIG_PATH"
+CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
 
 _CLIENT_SPEC = """
 openapi: 3.0.0
@@ -334,8 +334,8 @@ paths:
 
 
 def test_entry_point_pybuggy_main() -> None:
-    """Verify that the entry point pybuggy:main is accessible."""
-    import pybuggy
+    """Verify that the entry point goga_tool_pybuggy:main is accessible."""
+    import goga_tool_pybuggy
 
-    assert callable(pybuggy.main)
-    assert hasattr(pybuggy.main, "commands")
+    assert callable(goga_tool_pybuggy.main)
+    assert hasattr(goga_tool_pybuggy.main, "commands")

@@ -1,4 +1,4 @@
-"""Shared base for `pybuggy.api` asserts (matchcrest-backed).
+"""Shared base for `goga_tool_pybuggy.api` asserts (matchcrest-backed).
 
 ``BaseAssert`` is the minimal helper shared by the assert entities: it builds a
 matchcrest matcher from its class and the expected value, injecting the polling

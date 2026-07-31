@@ -1,4 +1,4 @@
-"""Contract and logic tests for `pybuggy.api.endpoint`.
+"""Contract and logic tests for `goga_tool_pybuggy.api.endpoint`.
 
 Contract tests (``TestEndpoint``) lock the facade/API shape: importability,
 construction, the ``url_path``/``method`` properties, the presence of
@@ -9,7 +9,7 @@ Logic tests (``TestCallAuth``, ``TestCallKeysAndAutocheck``, ``TestCallKwargs``)
 exercise ``_call``'s call-level auth resolution, data/error-key fallback, the
 ``use_autocheck`` override, and kwargs handling. The network and the deferred
 ``ResponseWrapper`` behavior are mocked at their boundaries (``api.request`` and
-``pybuggy.api.endpoint.ResponseWrapper``); the auth primitives
+``goga_tool_pybuggy.api.endpoint.ResponseWrapper``); the auth primitives
 (``CombineAuth``/``AuthWrapper``) are exercised for real.
 """
 
@@ -20,9 +20,9 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-from pybuggy.api.api import Api
-from pybuggy.api.auth import AuthWrapper, CombineAuth
-from pybuggy.api.endpoint import Endpoint
+from goga_tool_pybuggy.api.api import Api
+from goga_tool_pybuggy.api.auth import AuthWrapper, CombineAuth
+from goga_tool_pybuggy.api.endpoint import Endpoint
 from requests.auth import AuthBase
 
 from tests.api.conftest import HeaderAuth, StubRequest
@@ -59,7 +59,7 @@ class TestEndpoint:
     """Contract tests for the ``Endpoint`` facade/API shape."""
 
     def test_imports_succeed(self) -> None:
-        """Endpoint is importable from pybuggy.api.endpoint."""
+        """Endpoint is importable from goga_tool_pybuggy.api.endpoint."""
         assert isinstance(Endpoint, type)
 
     def test_constructs_and_stores_url_path_method(self) -> None:
@@ -234,7 +234,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
 
@@ -248,7 +248,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
 
@@ -268,7 +268,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
 
@@ -285,7 +285,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
 
@@ -302,14 +302,14 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep(use_autocheck=False)
         assert rw.call_args.args[2] is False
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
         assert rw.call_args.args[2] is True
@@ -321,7 +321,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
 
@@ -334,7 +334,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep.error()
 
@@ -353,7 +353,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
 
@@ -378,7 +378,7 @@ class TestCallKeysAndAutocheck:
 
         with (
             mock.patch.object(api, "request"),
-            mock.patch("pybuggy.api.endpoint.ResponseWrapper") as rw,
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
         ):
             ep()
 

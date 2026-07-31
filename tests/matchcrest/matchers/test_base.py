@@ -1,7 +1,7 @@
 """Contract and branch tests for the matchcrest matcher base infrastructure."""
 
 import pytest
-from pybuggy.matchcrest.matchers import BaseContext, BaseMatcher, MatchResult
+from goga_tool_pybuggy.matchcrest.matchers import BaseContext, BaseMatcher, MatchResult
 
 
 class TestBaseContext:

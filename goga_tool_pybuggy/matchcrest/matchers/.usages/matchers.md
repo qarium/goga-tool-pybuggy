@@ -5,7 +5,7 @@
 Клетка матчеров matchcrest: базис (`BaseContext`, `BaseMatcher`, `MatchResult`) и конкретные матчёры
 для значений, HTTP-ответов и исключений. Аудитория — прямые потребители матчёров и авторы кастомных
 матчёров. Описывает, как подать данные в матча, применить его через `assert_that` и расширить
-`BaseMatcher`. Каталог «какой матча для какой проверки» — в корневой клетке `pybuggy.matchcrest`.
+`BaseMatcher`. Каталог «какой матча для какой проверки» — в корневой клетке `goga_tool_pybuggy.matchcrest`.
 
 Все матчёры построены на PyHamcrest: `BaseMatcher` наследует `hamcrest.core.base_matcher.BaseMatcher`,
 а `assert_that(actual, matcher)` запускает проверку.
@@ -15,7 +15,7 @@
 ## Фасад
 
 ```python
-from pybuggy.matchcrest.matchers import (
+from goga_tool_pybuggy.matchcrest.matchers import (
     BaseContext, BaseMatcher, MatchResult,
     ValueIsEqualMatcher, ResponseCodeMatcher, RaisedExceptionMatcher,  # ...и т.д.
 )
@@ -29,7 +29,7 @@ from pybuggy.matchcrest.matchers import (
 реализует `BaseContext`, открывая `value`, `key` и `update()`:
 
 ```python
-from pybuggy.matchcrest.matchers import BaseContext
+from goga_tool_pybuggy.matchcrest.matchers import BaseContext
 
 class ResponseContext(BaseContext):
     def __init__(self, response):
@@ -56,7 +56,7 @@ class ResponseContext(BaseContext):
 
 ```python
 from hamcrest import assert_that
-from pybuggy.matchcrest.matchers import ResponseCodeMatcher
+from goga_tool_pybuggy.matchcrest.matchers import ResponseCodeMatcher
 
 assert_that(ResponseContext(response), ResponseCodeMatcher(200, timeout=10))
 ```
@@ -74,7 +74,7 @@ Value-матчёры принимают `any` и `in_array` (оба по умо�
 - `any=True` (только вместе с `in_array`) — достаточно первого успешного элемента.
 
 ```python
-from pybuggy.matchcrest.matchers import ValueIsEqualMatcher
+from goga_tool_pybuggy.matchcrest.matchers import ValueIsEqualMatcher
 
 ValueIsEqualMatcher("admin", any=True, in_array=True)  # хотя бы один элемент == "admin"
 ```
@@ -86,7 +86,7 @@ ValueIsEqualMatcher("admin", any=True, in_array=True)  # хотя бы один 
 Реализуйте единственный хук `_assert(item) -> MatchResult`:
 
 ```python
-from pybuggy.matchcrest.matchers import BaseMatcher, MatchResult
+from goga_tool_pybuggy.matchcrest.matchers import BaseMatcher, MatchResult
 
 class StatusCodeInRange(BaseMatcher):
     def _assert(self, item) -> MatchResult:

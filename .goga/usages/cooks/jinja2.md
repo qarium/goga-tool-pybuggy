@@ -2,7 +2,7 @@
 
 ## Предметная область
 
-`jinja2` — используется для рендеринга `base_url` ячейки `pybuggy/plugin`. Шаблон `base_url` рендерится
+`jinja2` — используется для рендеринга `base_url` ячейки `goga_tool_pybuggy/plugin`. Шаблон `base_url` рендерится
 через `jinja2.Environment(undefined=StrictUndefined)` с зарегистрированным кастомным тестом
 `match_re`. Jinja-режим даёт потребителю условную логику и regex-проверку прямо в шаблоне URL —
 без предварительного вычисления переменных в `conftest`.

@@ -1,4 +1,4 @@
-"""Response-wrapper layer of the `pybuggy.api` cell.
+"""Response-wrapper layer of the `goga_tool_pybuggy.api` cell.
 
 ``ResponseWrapper`` is a context manager over a raw ``resq.http.Response`` that
 lazily exposes an :class:`Expected` dispatcher (from the `asserts` sub-cell) and

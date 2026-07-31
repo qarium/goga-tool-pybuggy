@@ -8,7 +8,7 @@ import click
 import click.testing
 import pytest
 import yaml
-from pybuggy.commands.init import (
+from goga_tool_pybuggy.commands.init import (
     init_cmd,
     register_annotations,
     register_usages,
@@ -23,8 +23,8 @@ _USAGE_KEYS = {
 }
 
 _ANNOTATION_LINES = {
-    "pybuggy-api": "`pybuggy-api` — runtime facade of pybuggy.api for executing HTTP requests.",
-    "pybuggy-asserts": "`pybuggy-asserts` — full assert layer of pybuggy.api.asserts built on matchcrest.",
+    "pybuggy-api": "`pybuggy-api` — runtime facade of goga_tool_pybuggy.api for executing HTTP requests.",
+    "pybuggy-asserts": "`pybuggy-asserts` — full assert layer of goga_tool_pybuggy.api.asserts built on matchcrest.",
 }
 
 
@@ -32,15 +32,15 @@ _ANNOTATION_LINES = {
 
 
 def test_run_init_importable_from_facade() -> None:
-    """run_init should be importable from the pybuggy.commands.init facade."""
-    from pybuggy.commands.init import run_init as imported
+    """run_init should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import run_init as imported
 
     assert imported is run_init
 
 
 def test_register_usages_importable_from_facade() -> None:
-    """register_usages should be importable from the pybuggy.commands.init facade."""
-    from pybuggy.commands.init import register_usages as imported
+    """register_usages should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import register_usages as imported
 
     assert imported is register_usages
 
@@ -53,7 +53,7 @@ def test_init_cmd_carries_no_options() -> None:
 
 def test_init_cmd_propagates_exit_code_via_ctx(monkeypatch: pytest.MonkeyPatch) -> None:
     """init_cmd propagates run_init's exit code through ctx.exit via the Click context."""
-    monkeypatch.setattr("pybuggy.commands.init.init.run_init", lambda: 2)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_init", lambda: 2)
     runner = click.testing.CliRunner()
     result = runner.invoke(init_cmd, [])
 
@@ -74,15 +74,15 @@ def test_register_usages_signature() -> None:
 
 
 def test_register_annotations_importable_from_facade() -> None:
-    """register_annotations should be importable from the pybuggy.commands.init facade."""
-    from pybuggy.commands.init import register_annotations as imported
+    """register_annotations should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import register_annotations as imported
 
     assert imported is register_annotations
 
 
 def test_register_annotations_is_public_in_facade() -> None:
     """register_annotations is exposed on the facade __all__ (public contract)."""
-    from pybuggy.commands.init import __all__ as facade_all
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
 
     assert "register_annotations" in facade_all
 
@@ -105,7 +105,7 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     """In a fresh project run_init calls run_goga_init, then discovers/copies/registers usages+annotations."""
     monkeypatch.chdir(tmp_path)
     run_goga_init_stub = mock.Mock(return_value=0)
-    monkeypatch.setattr("pybuggy.commands.init.init.run_goga_init", run_goga_init_stub)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_stub)
 
     assert run_init() == 0
 
@@ -117,11 +117,11 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     assert set(cfg["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts"}
     assert cfg["codemanifest"]["usages"]["pybuggy-api"].endswith("api.md")
 
+    from goga_tool_pybuggy.commands.init.init import PYBUGGY_ANNOTATIONS
+
     annotations = cfg["codemanifest"]["annotations"]
-    assert "`pybuggy-api`" in annotations
-    assert "`pybuggy-asserts`" in annotations
-    assert "runtime facade" in annotations
-    assert "matchcrest" in annotations
+    assert PYBUGGY_ANNOTATIONS["api"] in annotations
+    assert PYBUGGY_ANNOTATIONS["asserts"] in annotations
 
 
 def test_run_init_recursive_discovery_picks_subcell(
@@ -129,7 +129,7 @@ def test_run_init_recursive_discovery_picks_subcell(
 ) -> None:
     """run_init should discover the asserts subcell of api recursively."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
 
     run_init()
 
@@ -145,7 +145,7 @@ def test_run_init_in_initialized_project_skips_goga_init(
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
     monkeypatch.chdir(tmp_path)
     run_goga_init_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
 
     assert run_init() == 0
 
@@ -159,9 +159,9 @@ def test_run_init_propagates_goga_cancel_without_registering(
 ) -> None:
     """A non-zero run_goga_init exit code is returned without registering any usages."""
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("pybuggy.commands.init.init.run_goga_init", lambda: 1)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
     register_spy = mock.Mock(wraps=register_usages)
-    monkeypatch.setattr("pybuggy.commands.init.init.register_usages", register_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.register_usages", register_spy)
 
     assert run_init() == 1
 
@@ -178,7 +178,7 @@ def test_run_init_idempotent_second_run_no_diff(
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
     monkeypatch.chdir(tmp_path)
     run_goga_init_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
 
     run_init()
     before = config.read_text()
@@ -200,7 +200,7 @@ def test_run_init_maps_bootstrap_failure_to_click_exception(
     monkeypatch.chdir(tmp_path)
 
     with (
-        mock.patch("pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")),
+        mock.patch("goga_tool_pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")),
         pytest.raises(click.ClickException),
     ):
         run_init()
@@ -210,15 +210,15 @@ def test_run_init_maps_bootstrap_failure_to_click_exception(
 
 
 def test_run_goga_init_importable_from_facade() -> None:
-    """run_goga_init should be importable from the pybuggy.commands.init facade."""
-    from pybuggy.commands.init import run_goga_init as imported
+    """run_goga_init should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import run_goga_init as imported
 
     assert imported is run_goga_init
 
 
 def test_run_goga_init_is_public_in_facade() -> None:
     """run_goga_init is exposed on the facade __all__ (public test seam)."""
-    from pybuggy.commands.init import __all__ as facade_all
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
 
     assert "run_goga_init" in facade_all
 
@@ -248,7 +248,7 @@ def _stub_questionnaire(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     questionnaire.ask_pipeline_agent.return_value = "pcoder"
     questionnaire.ask_pipeline_env.return_value = {"PKEY": "pv"}
 
-    monkeypatch.setattr("pybuggy.commands.init.init.Questionnaire", mock.Mock(return_value=questionnaire))
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Questionnaire", mock.Mock(return_value=questionnaire))
 
     return questionnaire
 
@@ -259,7 +259,7 @@ def test_run_goga_init_hardcodes_python_and_calls_ask_image_python(
     """run_goga_init hardcodes language='python', skips ask_language, calls ask_image('python')."""
     questionnaire = _stub_questionnaire(monkeypatch)
     generator = mock.Mock()
-    monkeypatch.setattr("pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
 
     assert run_goga_init() == 0
 
@@ -274,11 +274,11 @@ def test_run_goga_init_assembles_goga_config_answers(monkeypatch: pytest.MonkeyP
     """run_goga_init assembles GogaConfigAnswers from the per-field answers and feeds InitAnswers."""
     questionnaire = _stub_questionnaire(monkeypatch)
     generator = mock.Mock()
-    monkeypatch.setattr("pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
     config_spy = mock.Mock(name="GogaConfigAnswers")
     answers_spy = mock.Mock(name="InitAnswers")
-    monkeypatch.setattr("pybuggy.commands.init.init.GogaConfigAnswers", config_spy)
-    monkeypatch.setattr("pybuggy.commands.init.init.InitAnswers", answers_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.GogaConfigAnswers", config_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.InitAnswers", answers_spy)
 
     assert run_goga_init() == 0
 
@@ -302,7 +302,7 @@ def test_run_goga_init_returns_1_on_abort(monkeypatch: pytest.MonkeyPatch) -> No
     _stub_questionnaire(monkeypatch)
     generator = mock.Mock()
     generator.generate.side_effect = click.Abort()
-    monkeypatch.setattr("pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
 
     assert run_goga_init() == 1
 
@@ -312,11 +312,11 @@ def test_run_goga_init_returns_1_on_generation_error(monkeypatch: pytest.MonkeyP
     _stub_questionnaire(monkeypatch)
     generator = mock.Mock()
     generator.generate.side_effect = RuntimeError("boom")
-    monkeypatch.setattr("pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
     logger = mock.Mock()
-    monkeypatch.setattr("pybuggy.commands.init.init.logger", logger)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.logger", logger)
     echo = mock.Mock()
-    monkeypatch.setattr("pybuggy.commands.init.init.click.echo", echo)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.click.echo", echo)
 
     assert run_goga_init() == 1
 
@@ -329,7 +329,7 @@ def test_run_goga_init_returns_1_on_abort_during_prompt(monkeypatch: pytest.Monk
     """run_goga_init returns 1 (never raises) when the user cancels during a prompt."""
     questionnaire = _stub_questionnaire(monkeypatch)
     questionnaire.ask_agent.side_effect = click.Abort()  # user cancels mid-flow
-    monkeypatch.setattr("pybuggy.commands.init.init.FileGenerator", mock.Mock())
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock())
 
     assert run_goga_init() == 1
 
@@ -337,7 +337,7 @@ def test_run_goga_init_returns_1_on_abort_during_prompt(monkeypatch: pytest.Monk
 def test_run_goga_init_threads_answers_into_downstream_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Each collected answer threads into the downstream prompt (prefill tuple, agent, pipeline_agent)."""
     questionnaire = _stub_questionnaire(monkeypatch)
-    monkeypatch.setattr("pybuggy.commands.init.init.FileGenerator", mock.Mock())
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock())
 
     assert run_goga_init() == 0
 
@@ -509,19 +509,20 @@ def test_register_annotations_non_scalar_annotations_raises(tmp_path: Path) -> N
 
 def test_annotation_for_known_stem_uses_hand_authored_text() -> None:
     """_annotation_for returns the hand-authored line for known pybuggy usage stems."""
-    from pybuggy.commands.init.init import _annotation_for
+    from goga_tool_pybuggy.commands.init.init import PYBUGGY_ANNOTATIONS, _annotation_for
 
     api_line = _annotation_for("api")
     asserts_line = _annotation_for("asserts")
 
-    assert api_line.startswith("`pybuggy-api`")
-    assert "runtime facade" in api_line
-    assert asserts_line.startswith("`pybuggy-asserts`")
-    assert "matchcrest" in asserts_line
+    # the hand-authored line is returned verbatim, and references its usage key
+    assert api_line == PYBUGGY_ANNOTATIONS["api"]
+    assert asserts_line == PYBUGGY_ANNOTATIONS["asserts"]
+    assert "`pybuggy-api`" in api_line
+    assert "`pybuggy-asserts`" in asserts_line
 
 
 def test_annotation_for_unknown_stem_uses_bare_backtick() -> None:
     """_annotation_for falls back to a bare backtick reference for an unknown future subcell."""
-    from pybuggy.commands.init.init import _annotation_for
+    from goga_tool_pybuggy.commands.init.init import _annotation_for
 
     assert _annotation_for("future-cell") == "`pybuggy-future-cell`"

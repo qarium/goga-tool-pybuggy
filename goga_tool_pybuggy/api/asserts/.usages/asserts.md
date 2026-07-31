@@ -1,8 +1,8 @@
-# pybuggy.api.asserts — полный референс ассертов
+# goga_tool_pybuggy.api.asserts — полный референс ассертов
 
 ## Предметная область
 
-Sub-cell `pybuggy/api/asserts` — полный assert-слой pybuggy на базе matchcrest.
+Sub-cell `goga_tool_pybuggy/api/asserts` — полный assert-слой pybuggy на базе matchcrest.
 Аудитория — автор тестового проекта, проверяющий ответы через сгенерированные
 фикстуры. Практика описывает **как потреблять** ассерты (response-level и
 field-level), а не как они реализованы.
@@ -25,7 +25,7 @@ field-level), а не как они реализованы.
 ## Точка входа
 
 ```python
-from pybuggy.api.asserts import AssertField  # для type-hint'а
+from goga_tool_pybuggy.api.asserts import AssertField  # для type-hint'а
 ```
 
 `AssertField` оборачивает внутренний search-context и предоставляет matchcrest-матчёры над разрешённым значением. `Expected`, `AssertConfig` и `load_assert_class`

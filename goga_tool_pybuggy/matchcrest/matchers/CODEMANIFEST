@@ -6,7 +6,7 @@ Imports:
       - url_is_valid
     Usages:
       - helpers
-    From: pybuggy/matchcrest/utils
+    From: goga_tool_pybuggy/matchcrest/utils
 
 Usages:
   conventions: .goga/usages/conventions.md

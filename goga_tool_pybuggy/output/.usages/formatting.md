@@ -1,13 +1,13 @@
-# pybuggy.output — форматирование вывода команд
+# goga_tool_pybuggy.output — форматирование вывода команд
 
 ## Предметная область
 
-Шаблоны потребления cell `pybuggy/output`: форматирование эндпоинтов в текст (`list`) и JSON (`info`). Аудитория — команды `list`/`info`. Форматтеры — чистые функции; печать в stdout делает команда-вызыватель.
+Шаблоны потребления cell `goga_tool_pybuggy/output`: форматирование эндпоинтов в текст (`list`) и JSON (`info`). Аудитория — команды `list`/`info`. Форматтеры — чистые функции; печать в stdout делает команда-вызыватель.
 
 ## Вывод list (текст)
 
 ```python
-from pybuggy.output import render_list
+from goga_tool_pybuggy.output import render_list
 
 block = render_list(name, location, endpoints)
 print(block)
@@ -23,7 +23,7 @@ client (.specs/openapi/client/client-openapi.yaml)
 ## Вывод info (JSON)
 
 ```python
-from pybuggy.output import render_info
+from goga_tool_pybuggy.output import render_info
 
 print(render_info(endpoints))  # один объект или массив при коллизии
 ```

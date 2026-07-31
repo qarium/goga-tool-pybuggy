@@ -23,7 +23,6 @@ dependencies = [
     "click>=8.0",
     "datamodel-code-generator>=0.68",
     "gitpython>=3.1",
-    "goga>=1.1.0",  # resolved from .libs/ in dev (newer per-field API; no PyPI release)
     "jsonpath-ng>=1.6",
     "jsonschema>=4.0",
     "prance>=23.0.0",
@@ -32,11 +31,12 @@ dependencies = [
     "pyyaml>=6.0",
     "ruamel.yaml>=0.18",
     "ruff>=0.15.0",
+    "jinja2>=3.1",
+    "flaky>=3.8.1",
     "swax>=1.0.0,<1.1.0",
     "resq>=1.0.0,<1.1.0",
     "pluginator>=0.1.0,<0.2.0",
-    "jinja2>=3.1",
-    "flaky>=3.8.1"
+    "goga>=1.1.0,<1.2.0",
 ]
 
 [project.optional-dependencies]

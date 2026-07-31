@@ -5,7 +5,7 @@ Imports:
       - Expected
     Usages:
       - asserts
-    From: pybuggy/api/asserts
+    From: goga_tool_pybuggy/api/asserts
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -18,7 +18,7 @@ Annotations: |
   HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expected` (response-level dispatcher and field-level entry), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling status/data_key/error_key/schemas_dir) — is imported from the `asserts` sub-cell; matchcrest is reached only through that sub-cell.
   Use `asserts` from Imports for `Expected`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expected` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own keys (falling back to the `Api`-level keys) plus status and schemas_dir.
   Sync-only. `Api` is a composition over resq.Session (not a subclass): auth/headers/cookies/data_key/error_key live on `Api` and are injected into each request.
-  The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expected` are re-exported from `asserts` for type-hinting; `AssertConfig`, `CombineAuth`/`AuthWrapper` and the search contexts stay internal to the cell.
+  The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from goga_tool_pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expected` are re-exported from `asserts` for type-hinting; `AssertConfig`, `CombineAuth`/`AuthWrapper` and the search contexts stay internal to the cell.
   Call-level auth on an `Endpoint` call accepts an AuthBase, an `Auth` protocol object (auth(request)), or a plain callable, and is combined with the stored `Api` auth via `CombineAuth`/`AuthWrapper`.
 
   Use relative imports inside the cell.
@@ -228,7 +228,7 @@ Annotations: |
 "Auth()":
   location: auth.py
   annotations: |
-    Structural protocol for a per-call authenticator: any object exposing an auth(request) method is accepted as the call-level auth of an `Endpoint` call. Implemented by consumers; never constructed by pybuggy.
+    Structural protocol for a per-call authenticator: any object exposing an auth(request) method is accepted as the call-level auth of an `Endpoint` call. Implemented by consumers; never constructed by goga_tool_pybuggy.
 
     Use `conventions` for type hints.
   methods:

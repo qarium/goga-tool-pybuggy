@@ -4,7 +4,7 @@ from datetime import date, datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pybuggy.matchcrest.utils import (
+from goga_tool_pybuggy.matchcrest.utils import (
     allow_failure,
     date_to_timestamp,
     join,
@@ -12,9 +12,9 @@ from pybuggy.matchcrest.utils import (
     url_is_valid,
     waiting_for,
 )
-from pybuggy.matchcrest.utils.utils import parse_date_iso_string
+from goga_tool_pybuggy.matchcrest.utils.utils import parse_date_iso_string
 
-UTILS = "pybuggy.matchcrest.utils.utils"
+UTILS = "goga_tool_pybuggy.matchcrest.utils.utils"
 
 
 def to_none(_value):

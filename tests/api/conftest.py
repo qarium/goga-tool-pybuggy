@@ -1,4 +1,4 @@
-"""Shared fixtures and helpers for `pybuggy.api` cell tests.
+"""Shared fixtures and helpers for `goga_tool_pybuggy.api` cell tests.
 
 Provides:
 - ``HeaderAuth`` — an ``AuthBase`` that sets a single configurable header on a

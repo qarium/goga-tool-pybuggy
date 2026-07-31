@@ -39,7 +39,7 @@ Imports:
       - ValueIsDisjointMatcher
     Usages:
       - matchers
-    From: pybuggy/matchcrest/matchers
+    From: goga_tool_pybuggy/matchcrest/matchers
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -52,7 +52,7 @@ Annotations: |
   Use `matchers` from Imports for the matcher catalog and the BaseContext data-source contract.
 
   Composition facade: the root defines no new behavior — it re-exports the matcher types from `matchers`
-  (via embedding) and exposes `assert_that`. Consumers import the full API from pybuggy.matchcrest.
+  (via embedding) and exposes `assert_that`. Consumers import the full API from goga_tool_pybuggy.matchcrest.
   Use relative imports inside the cell.
 
 ---

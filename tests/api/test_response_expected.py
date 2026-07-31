@@ -1,4 +1,4 @@
-"""Tests for ``pybuggy.api.asserts.expected`` and ``pybuggy.api.response``.
+"""Tests for ``goga_tool_pybuggy.api.asserts.expected`` and ``goga_tool_pybuggy.api.response``.
 
 Covers the response-level ``Expected`` checks (matchcrest-backed), the
 ``ResponseWrapper.expected`` lazy build + memoized autocheck, and the autocheck
@@ -12,9 +12,9 @@ import json
 from pathlib import Path
 
 import pytest
-from pybuggy.api.asserts.config import AssertConfig
-from pybuggy.api.asserts.expected import Expected
-from pybuggy.api.response import ResponseWrapper
+from goga_tool_pybuggy.api.asserts.config import AssertConfig
+from goga_tool_pybuggy.api.asserts.expected import Expected
+from goga_tool_pybuggy.api.response import ResponseWrapper
 
 from tests.api.conftest import FakeResponse
 
@@ -152,7 +152,7 @@ class TestExpectedCallFieldDispatch:
 
     def test_call_returns_assert_field(self) -> None:
         """Calling the dispatcher yields an AssertField over the body."""
-        from pybuggy.api import AssertField
+        from goga_tool_pybuggy.api import AssertField
 
         response = FakeResponse(body={"data": {"name": "abc"}})
 

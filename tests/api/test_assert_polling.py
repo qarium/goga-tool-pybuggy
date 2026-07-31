@@ -1,4 +1,4 @@
-"""Tests for assert polling and pluggable-class loading in `pybuggy.api.asserts`.
+"""Tests for assert polling and pluggable-class loading in `goga_tool_pybuggy.api.asserts`.
 
 Covers the four ``ApiPlugin`` assert options:
 
@@ -19,11 +19,11 @@ import time
 from typing import Any
 
 import pytest
-from pybuggy.api.asserts.config import AssertConfig
-from pybuggy.api.asserts.base import load_assert_class
-from pybuggy.api.asserts.expected import Expected
-from pybuggy.api.asserts.field import AssertField
-from pybuggy.api.response import ResponseWrapper
+from goga_tool_pybuggy.api.asserts.config import AssertConfig
+from goga_tool_pybuggy.api.asserts.base import load_assert_class
+from goga_tool_pybuggy.api.asserts.expected import Expected
+from goga_tool_pybuggy.api.asserts.field import AssertField
+from goga_tool_pybuggy.api.response import ResponseWrapper
 
 from tests.api.conftest import FakeResponse
 

@@ -1,11 +1,11 @@
 """Contract and logic tests for extract_endpoints routine."""
 
-from pybuggy.spec import Endpoint, build_endpoint_id, extract_endpoints
+from goga_tool_pybuggy.spec import Endpoint, build_endpoint_id, extract_endpoints
 
 
 def test_extract_endpoints_import_from_facade() -> None:
-    """Test that extract_endpoints is importable from pybuggy.spec facade."""
-    from pybuggy.spec import extract_endpoints as extract_endpoints_facade
+    """Test that extract_endpoints is importable from goga_tool_pybuggy.spec facade."""
+    from goga_tool_pybuggy.spec import extract_endpoints as extract_endpoints_facade
 
     assert extract_endpoints_facade is extract_endpoints
 
@@ -20,7 +20,7 @@ def test_extract_endpoints_signature() -> None:
     assert len(params) == 1, f"Expected 1 parameter, got {len(params)}"
     assert params[0] == "spec", f"Expected parameter 'spec', got '{params[0]}'"
     assert sig.return_annotation == list[Endpoint] or str(sig.return_annotation) in (
-        "list[pybuggy.spec.Endpoint.Endpoint]",
+        "list[goga_tool_pybuggy.spec.Endpoint.Endpoint]",
         "list[__main__.Endpoint]",
     ), f"Expected return annotation list[Endpoint], got {sig.return_annotation}"
 

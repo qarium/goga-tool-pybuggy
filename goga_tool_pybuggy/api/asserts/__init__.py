@@ -1,4 +1,4 @@
-"""Asserts subpackage of `pybuggy.api`.
+"""Asserts subpackage of `goga_tool_pybuggy.api`.
 
 Exposes the two assert dispatchers, their static configuration, and the
 pluggable-class loader: ``AssertConfig`` carries the static check configuration
