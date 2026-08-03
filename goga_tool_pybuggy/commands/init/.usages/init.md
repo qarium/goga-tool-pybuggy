@@ -18,6 +18,30 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 
 ---
 
+## Построение .goga/tools/pybuggy/config.yml
+
+Помимо инициализации goga-проекта и bootstrap usages, на **каждом** вызове `pybuggy init` интерактивно строится
+конфигурация инструмента `.goga/tools/pybuggy/config.yml` (плагинные опции + секция `specs`).
+
+Что опрашивается (интерактивный шаг, изолированный в `build_pybuggy_config`):
+- Скалярные ключи плагина: `base_url` (обязательный — Jinja2-шаблон URL; пустой ввод переспрашивается и не может быть
+  пропущен), `timeout`, `data_key`, `error_key`, `retries`, `assert_timeout`, `assert_delay`, `assert_field_class`,
+  `assert_response_class` — каждый по одному; необязательные можно пропустить (Enter → пропуск).
+- `headers` и `loader` НЕ опрашиваются — записываются закомментированными примерами.
+- `specs`: для каждой spec последовательно опрашиваются имя, `type` (`swagger`|`openapi`), `location` (обязательно) и
+  опциональный git-блок (`url`, `location`, `ref`); поддерживается несколько specs. Требуется **минимум одна** spec —
+  конфиг без specs невалиден (первое имя spec переспрашивается, пока не введено, как `base_url`).
+
+Перезапись: если `.goga/tools/pybuggy/config.yml` уже существует — подтверждение (y/N). При отказе (N) файл сохраняется,
+шаг пропускается, остальной `init` продолжается (exit 0). При согласии (y) файл перегенерируется.
+
+Эмиссия (`write_pybuggy_config`, чистая, без TTY): активные значения пишутся как `key: value`; пропущенные необязательные
+скаляры, а также `headers` и `loader` — закомментированными записями (`# key:`) с пояснением; `specs` — активным YAML.
+Сгенерированный файл валиден для config-ячейки (`load_config`/`Config`): присутствует `specs` с обязательными полями
+`SpecEntry`; скалярные плагинные ключи игнорируются `Config` (extra=ignore).
+
+---
+
 ## Точка входа
 
 - Консольная команда (top-level, не под `endpoint`): `pybuggy init`
@@ -84,6 +108,8 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
           monkeypatch.chdir(tmp_path)
           # заглушить интерактивный goga init, чтобы тесты не зависели от TTY:
           monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+          # заглушить интерактивное построение .goga/tools/pybuggy/config.yml (шаг run_init №3):
+          monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
           assert run_init() == 0
           assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
@@ -95,6 +121,9 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 
 Для прямой регистрации usages без discovery/копирования — `register_usages` (контракт не изменился); для дописывания
 ссылающихся аннотаций в `codemanifest.annotations` — `register_annotations` (round-trip, идемпотентно по бэктик-ссылке).
+Интерактивное построение `.goga/tools/pybuggy/config.yml` изолировано в `build_pybuggy_config` (testable-seam, в `__all__`;
+возвращает exit code, не бросает — стабится monkeypatch по образцу `run_goga_init`); чистую эмиссию YAML тестируют напрямую
+через `write_pybuggy_config` (без TTY): передают `scalar_values` (с пропусками) и `specs`, проверяют результат.
 
 ---
 
@@ -107,5 +136,5 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 - Discovery рекурсивен по `.usages/*.md` под ячейкой `api` — будущие подклетки подключаются без правки команды.
 - Копирует только usages ячейки `api`; внутренние ячейки разработки (`config`/`spec`/`output`/...) не копируются.
 - goga-init запускается только при отсутствии `.goga/config.yml` (эвристика «инициализирован»).
-- Цель — goga-project-конфиг `.goga/config.yml` (блоки `codemanifest.usages` и `codemanifest.annotations`),
-  НЕ `.goga/tools/pybuggy/config.yml`.
+- Цели записи — goga-project-конфиг `.goga/config.yml` (блоки `codemanifest.usages` и `codemanifest.annotations`)
+  и `.goga/tools/pybuggy/config.yml` (плагинные опции + specs; см. раздел «Построение .goga/tools/pybuggy/config.yml»).
