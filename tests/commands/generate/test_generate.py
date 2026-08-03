@@ -278,10 +278,10 @@ def test_run_generate_raises_when_spec_has_no_paths(tmp_path: Path, monkeypatch:
     assert "spec has no paths" in str(exc.value)
 
 
-def test_run_generate_warns_and_continues_when_no_endpoints(
+def test_run_generate_skips_spec_silently_when_no_endpoints(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """run_generate should log a WARNING and create no artifacts when a spec has no endpoints."""
+    """run_generate should silently skip a spec with no endpoints and create no artifacts."""
     monkeypatch.chdir(tmp_path)
 
     _write_spec(
@@ -303,7 +303,7 @@ paths:
     with caplog.at_level("WARNING"):
         run_generate(None, False)
 
-    assert any("no endpoints" in rec.message for rec in caplog.records)
+    assert not any("no endpoints" in rec.message for rec in caplog.records)
     assert not (tmp_path / "api").exists()
     assert not (tmp_path / "tests").exists()
 

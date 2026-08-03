@@ -43,7 +43,7 @@ Annotations: |
        a. Parse the spec at cwd / `SpecEntry` location via `load_spec`.
        b. If "paths" not in spec, raise click.ClickException (spec has no paths).
        c. Extract endpoints via `extract_endpoints`.
-       d. If no endpoints, log a WARNING and continue this spec (no artifacts) — based on the pre-filter list.
+       d. If no endpoints, silently continue this spec (no artifacts) — based on the pre-filter list.
        e. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids — before any artifact is written.
     7. Phase 2 — write artifacts, for each collected (name, `Endpoint`):

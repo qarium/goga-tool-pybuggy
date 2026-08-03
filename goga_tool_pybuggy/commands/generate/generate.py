@@ -1,7 +1,6 @@
 """generate command handler - scaffold api/ schema files, api.py fixture modules and empty tests/ dirs from specs."""
 
 import json
-import logging
 import re
 import shutil
 import subprocess
@@ -21,8 +20,6 @@ from datamodel_code_generator import (
 
 from ...config import Config, SpecEntry, load_config
 from ...spec import Endpoint, extract_endpoints, load_spec
-
-logger = logging.getLogger(__name__)
 
 # JSON-Schema draft id stamped on the request-body fragment before model generation.
 _JSON_SCHEMA_DRAFT = "http://json-schema.org/draft-07/schema#"
@@ -293,10 +290,9 @@ def _collect_specs(
 
         endpoints = extract_endpoints(spec)
 
-        # No endpoints: warn and skip artifact creation for this spec (pre-filter check,
-        # so the warning reflects a spec with no operations, not an empty filter result).
+        # No endpoints: skip artifact creation for this spec silently (pre-filter check,
+        # so the skip reflects a spec with no operations, not an empty filter result).
         if not endpoints:
-            logger.warning(f"no endpoints; skipping artifacts: {name}")
             continue
 
         # Apply the optional endpoint-id filter
