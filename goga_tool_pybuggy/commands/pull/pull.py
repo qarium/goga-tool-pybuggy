@@ -1,6 +1,5 @@
 """pull command handler - clone specs from git repositories."""
 
-import logging
 import shutil
 import tempfile
 import urllib.parse
@@ -12,8 +11,6 @@ import click
 from git import GitCommandError, Repo
 
 from ...config import load_config
-
-logger = logging.getLogger(__name__)
 
 
 def _validate_no_path_traversal(path_str: str, path_type: str) -> None:
@@ -63,7 +60,7 @@ def clone_repo(url: str, ref: Optional[str] = None):
             remote default branch is cloned via ``depth=1``.
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
-        logger.debug(f"Cloning {url} to {tmp_dir}")
+        click.echo(f"Cloning {url} to {tmp_dir}")
         # branch=None makes GitPython omit --branch, preserving the default-branch behavior.
         Repo.clone_from(url, tmp_dir, depth=1, branch=ref)
         yield tmp_dir
@@ -118,7 +115,7 @@ def _resolve_refs(ref: Optional[str | tuple]) -> tuple:
 
 
 def _effective_ref(
-    name: str, git_ref: Optional[str], global_ref: Optional[str], per_spec: dict
+        name: str, git_ref: Optional[str], global_ref: Optional[str], per_spec: dict
 ) -> Optional[str]:
     """Resolve the effective ref for a single spec.
 
@@ -197,7 +194,6 @@ def run_pull(spec_name: Optional[str], ref: Optional[str | tuple] = None) -> Non
     # Process each spec
     for name, entry in specs.items():
         if entry.git is None:
-            logger.warning(f"no remote source; treated as local: {name}")
             continue
 
         # Validate paths and prepare destination
@@ -220,7 +216,7 @@ def run_pull(spec_name: Optional[str], ref: Optional[str | tuple] = None) -> Non
                 else:
                     shutil.copy2(source, destination)
 
-                logger.info(f"Pulled {name} to {destination}")
+                click.echo(f"Pulled {name} to {destination}")
 
         except GitCommandError as exc:
             raise click.ClickException(f"git clone failed: {exc}") from exc
