@@ -624,9 +624,18 @@ def _spec_entry(git: bool = False) -> SpecEntry:
 def test_write_pybuggy_config_all_scalars_answered_emits_active_and_commented_complex(
     tmp_path: Path,
 ) -> None:
-    """All 9 scalars answered + specs: complex headers/loader still commented, scalars active."""
+    """All 9 scalars answered + specs: complex headers/loader still commented, scalars active.
+
+    Numeric scalars (``timeout``/``retries``/``assert_timeout``/``assert_delay``) are emitted as
+    numbers matching their ``ApiPlugin`` option types; the remaining string scalars stay strings.
+    """
     scalar_values = {key: f"v-{key}" for key in _ALL_SCALAR_KEYS}
     scalar_values["base_url"] = "https://{{ host }}/api"
+    # numeric members must carry valid numbers for their ApiPlugin option types (int/float)
+    scalar_values["timeout"] = "30"
+    scalar_values["retries"] = "2"
+    scalar_values["assert_timeout"] = "10"
+    scalar_values["assert_delay"] = "0.5"
     config = tmp_path / "config.yml"
 
     write_pybuggy_config(config, scalar_values, {"api": _spec_entry()})
@@ -640,6 +649,18 @@ def test_write_pybuggy_config_all_scalars_answered_emits_active_and_commented_co
 
     cfg = yaml.safe_load(text)
     assert set(cfg) == set(_ALL_SCALAR_KEYS) | {"specs"}
+    # numeric scalars emitted as numbers, not quoted strings
+    assert isinstance(cfg["timeout"], float)
+    assert cfg["timeout"] == 30.0
+    assert isinstance(cfg["retries"], int)
+    assert cfg["retries"] == 2
+    assert isinstance(cfg["assert_timeout"], int)
+    assert cfg["assert_timeout"] == 10
+    assert isinstance(cfg["assert_delay"], float)
+    assert cfg["assert_delay"] == 0.5
+    # the remaining answered scalars stay plain strings
+    assert isinstance(cfg["data_key"], str)
+    assert cfg["data_key"] == "v-data_key"
 
     from goga_tool_pybuggy.config import load_config
 
@@ -683,6 +704,37 @@ def test_write_pybuggy_config_spec_with_git_emits_git_block(tmp_path: Path) -> N
     assert cfg.specs["api"].git.url == "https://example.com/specs.git"
     assert cfg.specs["api"].git.location == "api.yaml"
     assert cfg.specs["api"].git.ref == "main"
+
+
+def test_write_pybuggy_config_spec_git_ref_none_comments_ref(tmp_path: Path) -> None:
+    """A git source without a ref emits no active ``ref`` key; ref is documented as ``# ref:``.
+
+    The commented ``ref`` is attached as an end-of-line comment on ``location`` — ruamel cannot
+    place a standalone comment after the last key of a block mapping — so ``ref`` stays documented
+    without producing an empty active key (``ref:``). The file round-trips through ``load_config``
+    with ``git.ref`` resolving to ``None``.
+    """
+    config = tmp_path / "config.yml"
+    specs = {
+        "api": SpecEntry(
+            type="openapi",
+            location="specs/api.yaml",
+            git=GitEntry(url="https://example.com/specs.git", location="api.yaml", ref=None),
+        )
+    }
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
+
+    text = config.read_text()
+    assert "# ref:" in text  # ref documented as a comment, not an empty active key
+    cfg = yaml.safe_load(text)
+    assert "ref" not in cfg["specs"]["api"]["git"]  # no active ref key
+
+    from goga_tool_pybuggy.config import load_config
+
+    parsed = load_config(config)
+    assert parsed.specs["api"].git is not None
+    assert parsed.specs["api"].git.ref is None
 
 
 def test_write_pybuggy_config_is_deterministic(tmp_path: Path) -> None:
@@ -788,31 +840,49 @@ def test_write_pybuggy_config_multiple_specs_preserve_order(tmp_path: Path) -> N
 # build_pybuggy_config logic tests --------------------------------------------
 
 
-def test_build_pybuggy_config_preserves_existing_on_no(
+def test_build_pybuggy_config_overwrites_existing_without_confirm(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Answering 'no' to overwrite skips the build and preserves the existing config (scenario B)."""
+    """An existing tool config is always overwritten — no existence check, no overwrite confirmation."""
     config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
-    original = "base_url: https://{{ host }}/api\nspecs:\n  api:\n    type: openapi\n    location: specs/api.yaml\n"
-    config.write_text(original)
+    config.write_text("base_url: stale\nspecs: {}\n")  # pre-existing content to replace
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git declined; never an overwrite prompt
+    monkeypatch.setattr(
+        click,
+        "prompt",
+        mock.Mock(
+            side_effect=[
+                "https://{{ host }}/api",  # base_url (required)
+                *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+                "api",  # first spec name (required)
+                "openapi",  # type (click.Choice)
+                "specs/api.yaml",  # location (required)
+                "",  # second spec name (empty to finish) -> break
+            ]
+        ),
+    )
 
     assert build_pybuggy_config() == 0
 
-    assert config.read_text() == original  # file preserved, untouched
+    text = config.read_text()
+    assert "stale" not in text  # previous content replaced
+    assert "base_url: |" in text  # regenerated from the prompted answers
 
 
 def test_build_pybuggy_config_returns_nonzero_on_abort(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A click.Abort during the overwrite confirmation returns non-zero without raising (scenario C)."""
-    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("base_url: https://{{ host }}/api\nspecs: {}\n")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=click.Abort()))
+    """A click.Abort during prompting returns non-zero without raising (scenario C).
+
+    With the overwrite confirmation removed, cancellation surfaces from the interactive prompts
+    (here the first ``base_url`` prompt); it is never raised — ``build_pybuggy_config`` returns a
+    code.
+    """
+    monkeypatch.chdir(tmp_path)  # no existing config
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git source declined
+    monkeypatch.setattr(click, "prompt", mock.Mock(side_effect=click.Abort()))  # abort at first prompt
 
     rc = build_pybuggy_config()
 

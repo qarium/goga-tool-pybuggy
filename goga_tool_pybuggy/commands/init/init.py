@@ -234,20 +234,41 @@ _LOADER_BLOCK = (
 # Complex plugin members never captured as scalars; emitted as the commented example blocks above.
 _COMPLEX_MEMBERS = frozenset({PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER})
 
+# Numeric plugin members emitted as YAML numbers, matching their ``ApiPlugin`` option types, instead
+# of the plain string captured by the interactive prompt. All other scalar members stay plain
+# strings. An empty answer (``None``) still becomes a skipped commented record.
+_NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
+    PluginConfigKeys.TIMEOUT: float,
+    PluginConfigKeys.RETRIES: int,
+    PluginConfigKeys.ASSERT_TIMEOUT: int,
+    PluginConfigKeys.ASSERT_DELAY: float,
+}
+
 
 def _git_entry_to_map(git: GitEntry) -> CommentedMap:
     """Render a ``GitEntry`` as a round-trip ``CommentedMap`` preserving field order.
+
+    ``url``/``location`` are always active keys. ``ref`` is active when set; when ``None`` it is
+    emitted as a commented record (``# ref:``) instead of an empty active key, so the option stays
+    documented without producing a schema key (``GitEntry`` defaults ``ref`` to ``None``).
+    ruamel cannot attach a standalone comment after the last key of a block mapping (the ``after``
+    comment on the last key is silently dropped on emit), so the commented ``ref`` is attached as an
+    end-of-line comment on ``location`` — the field immediately preceding it — keeping it at the
+    position where ``ref`` would otherwise appear.
 
     Args:
         git: The remote git source to render.
 
     Returns:
-        A ``CommentedMap`` with ``url``/``location``/``ref`` in declaration order.
+        A ``CommentedMap`` with ``url``/``location`` (and ``ref`` when set) in declaration order.
     """
     g = CommentedMap()
     g["url"] = git.url
     g["location"] = git.location
-    g["ref"] = git.ref
+    if git.ref is not None:
+        g["ref"] = git.ref
+    else:
+        g.yaml_add_eol_comment("ref:", "location")
     return g
 
 
@@ -257,7 +278,9 @@ def write_pybuggy_config(
     """Emit ``.goga/tools/pybuggy/config.yml`` from answered scalars and specs.
 
     Pure, TTY-free, deterministic round-trip emitter. Active scalar values
-    (``scalar_values[member.value]`` not None) are written as ``key: value``; skipped optional
+    (``scalar_values[member.value]`` not None) are written as ``key: value`` — numeric members
+    (``timeout``/``retries``/``assert_timeout``/``assert_delay``) are coerced to their ``ApiPlugin``
+    option type (``float``/``int``) so the scalar is a number, not a quoted string; skipped optional
     scalars (``None``) and the complex ``HEADERS``/``LOADER`` members are emitted as commented
     records (``# key:``) pinned to the next active key via the ruamel ``before`` comment, so they
     document the full option surface without becoming schema keys (``Config`` ignores extra scalars
@@ -279,6 +302,7 @@ def write_pybuggy_config(
         specs: Ordered mapping of spec name to ``SpecEntry`` (always non-empty by caller contract).
 
     Raises:
+        ValueError: If a numeric member's answer cannot coerce to its target type.
         YAMLError: Forwarded unchanged from ruamel if raised during emission (not expected).
     """
     yaml = YAML()
@@ -317,7 +341,11 @@ def write_pybuggy_config(
                 PluginConfigKeys.BASE_URL.value, before="required, Jinja2 template"
             )
         else:
-            doc[member.value] = value
+            # Numeric members (timeout/retries/assert_timeout/assert_delay) are coerced to their
+            # ``ApiPlugin`` option type so the emitted scalar is a number, not a quoted string — a
+            # non-numeric answer raises ValueError (surfaced by build_pybuggy_config as exit code 1).
+            target_type = _NUMERIC_MEMBERS.get(member)
+            doc[member.value] = target_type(value) if target_type is not None else value
             _flush(member.value)
 
     specs_map = CommentedMap()
@@ -466,26 +494,21 @@ def build_pybuggy_config() -> int:
 
     Testable-seam target: prompts the scalar ``PluginConfigKeys`` (skipping the complex
     ``HEADERS``/``LOADER`` members) and at least one spec, then delegates emission to
-    :func:`write_pybuggy_config`. The destination is ``<cwd>/.goga/tools/pybuggy/config.yml``; when it
-    already exists a ``y/N`` overwrite confirmation is asked — answering ``no`` skips the build and
-    preserves the file (exit code ``0``). ``base_url`` is required (re-prompted when empty); the
-    remaining scalars are optional (empty → ``None``, i.e. a skipped commented record). The first
-    spec name is required (at least one spec is mandatory); subsequent prompts accept an empty name
-    to finish.
+    :func:`write_pybuggy_config`. The destination ``<cwd>/.goga/tools/pybuggy/config.yml`` is always
+    (over)written — no existence check and no overwrite confirmation — so every run regenerates it.
+    ``base_url`` is required (re-prompted when empty); the remaining scalars are optional (empty →
+    ``None``, i.e. a skipped commented record). The first spec name is required (at least one spec
+    is mandatory); subsequent prompts accept an empty name to finish.
 
     Mirrors :func:`run_goga_init`: it returns an exit code and never raises — a ``click.Abort`` (user
     cancellation) or any other ``Exception`` is logged and echoed, returning ``1``. ``run_init``
     relies on this never-raises contract (it calls this step outside its own try/except).
 
     Returns:
-        0 on success or on a user-declined overwrite (file preserved); 1 on cancellation or failure.
+        0 on success; 1 on cancellation or failure.
     """
     config_path = Path.cwd() / ".goga" / "tools" / "pybuggy" / "config.yml"
     try:
-        if config_path.exists() and not click.confirm("Overwrite existing config?", default=False):
-            logger.info("config build skipped", extra={"path": str(config_path)})
-            return 0
-
         scalar_values = _ask_scalar_values()
 
         specs: dict[str, SpecEntry] = {}
@@ -583,9 +606,9 @@ def run_init() -> int:
        initialization in-process via :func:`run_goga_init`; a non-zero exit code is returned
        immediately (no usages are registered).
     3. Build the pybuggy tool config on every call via :func:`build_pybuggy_config`
-       (``<cwd>/.goga/tools/pybuggy/config.yml``); a non-zero exit code is returned immediately. On
-       success the file is written or, when the user declines the overwrite, skipped and preserved;
-       either way init continues.
+       (``<cwd>/.goga/tools/pybuggy/config.yml``); a non-zero exit code is returned immediately. The
+       tool config is always (over)written — :func:`build_pybuggy_config` neither checks for nor
+       confirms an existing file — so init continues on success.
     4. Discover every ``.usages/*.md`` under the installed ``goga_tool_pybuggy.api`` package
        (including its subcells such as ``asserts``).
     5. Copy each discovered file to ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md``.
