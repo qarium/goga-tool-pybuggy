@@ -17,7 +17,7 @@ Usages:
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the command wrapper, interactive prompts (plugin scalar keys + specs survey), confirm-overwrite (y/N),
+  Use `click` for the command wrapper, interactive prompts (plugin scalar keys + specs survey),
     and mapping domain errors to click.ClickException.
   Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing) AND for emitting
     .goga/tools/pybuggy/config.yml with active values plus commented records (skipped optional fields and headers/loader examples).
@@ -43,7 +43,7 @@ Annotations: |
     Algorithm:
     1. Resolve the output root as the current working directory.
     2. When <cwd>/.goga/config.yml does NOT exist: call `run_goga_init`; if non-zero, return it immediately.
-    3. Call `build_pybuggy_config`; if non-zero (cancel/error) return it; on 0 (written or skipped) continue.
+    3. Call `build_pybuggy_config`; if non-zero (cancel/error) return it; on 0 (tool config written/overwritten) continue.
     4. Discover every .usages/*.md under the api cell (incl. asserts) from the installed goga_tool_pybuggy.api package.
     5. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md.
     6. Register usage keys via `register_usages` with <cwd>/.goga/config.yml (idempotent, skip-existing).
@@ -52,7 +52,7 @@ Annotations: |
     9. Return 0.
 
     Requirements:
-    - The config-build step (`build_pybuggy_config`) runs on every call; on user refusal the file is preserved and init continues.
+    - The config-build step (`build_pybuggy_config`) runs on every call and always (over)writes the tool config — on success (0) init continues.
     - The goga-project is initialized at most once; usages/annotations bootstrap is idempotent.
 
     Constraints:
@@ -67,22 +67,21 @@ Annotations: |
     Interactive testable-seam that builds <cwd>/.goga/tools/pybuggy/config.yml on every call — the contract test seam
     (public, in __all__). Isolates all TTY prompts; callers/tests stub this routine via monkeypatch (like run_goga_init).
 
-    `exit_code`: 0 on success (file written) or skip (existing file preserved on user "no"); non-zero on cancel/error.
+    `exit_code`: 0 on success (file written/overwritten); non-zero on cancel/error.
 
     Algorithm:
     1. Resolve the config path as <cwd>/.goga/tools/pybuggy/config.yml.
-    2. When the file already exists: prompt confirm-overwrite (y/N) via `click`; on "no" log INFO and return 0 (skip).
-    3. Survey the scalar plugin keys from `PluginConfigKeys` (every member except HEADERS and LOADER): each prompt carries a
+    2. Survey the scalar plugin keys from `PluginConfigKeys` (every member except HEADERS and LOADER): each prompt carries a
        descriptive text stating what the field is for. BASE_URL is required (empty re-prompts — cannot be skipped); the
        remaining scalars are optional (empty -> None/skipped).
-    4. Survey specs interactively via `click`: for each spec prompt name, type (swagger|openapi), location (required), and
+    3. Survey specs interactively via `click`: for each spec prompt name, type (swagger|openapi), location (required), and
        optional git block (url, location, ref); construct a `SpecEntry` (with `GitEntry` when git given) keyed by name;
        repeat until the user stops, but require AT LEAST ONE spec — the loop re-prompts for the first spec name until one
        is entered (mirrors BASE_URL: a config without specs is invalid per `configuration`). Structure per
        `configuration`.
-    5. Delegate emission to `write_pybuggy_config` with the config path, the scalar answers (member value -> value|None),
-       and the specs mapping.
-    6. Return 0. On click.Abort return non-zero; on other Exception log + echo + return non-zero (never raises).
+    4. Delegate emission to `write_pybuggy_config` with the config path, the scalar answers (member value -> value|None),
+       and the specs mapping. The destination is always (over)written — no existence check, no overwrite confirmation.
+    5. Return 0. On click.Abort return non-zero; on other Exception log + echo + return non-zero (never raises).
 
     Requirements:
     - Interactive (TTY via click); tests stub this routine, never the real prompts.
@@ -93,11 +92,11 @@ Annotations: |
     - Returns a code and never raises on cancellation/failure.
 
     Constraints:
-    - Do not write the file on user "no" — preserve the existing file and let init continue.
+    - Always (over)write the tool config — no existence check and no overwrite confirmation; the file is regenerated on every call.
     - Do not survey HEADERS or LOADER — emitted as commented examples by write_pybuggy_config.
     - Do not duplicate plugin key names — iterate `PluginConfigKeys`.
 
-    Use `click` for prompts/y-N. Use `PluginConfigKeys` for the scalar key set. Use `SpecEntry` and `GitEntry` for specs.
+    Use `click` for prompts. Use `PluginConfigKeys` for the scalar key set. Use `SpecEntry` and `GitEntry` for specs.
     Use `write_pybuggy_config` for emission. Use `conventions` for logging/type hints/testing.
 
 "write_pybuggy_config(path: Path, scalar_values: dict[str, str | None], specs: dict[str, SpecEntry])":
@@ -113,12 +112,15 @@ Annotations: |
     Algorithm:
     1. Configure ruamel YAML for round-trip (preserve quotes, key order, comments) and build a fresh CommentedMap.
     2. Iterate scalar members of `PluginConfigKeys` (all except HEADERS, LOADER) in canonical order; for each: value
-       present -> active key:value (BASE_URL -> literal block scalar ``|`` always, never a plain scalar); None ->
-       commented "# key:" line with a one-line explanation.
+       present -> active key:value — numeric members (timeout/assert_delay -> float, retries/assert_timeout -> int) are
+       coerced to their `ApiPlugin` option type so the scalar is a number, not a quoted string (BASE_URL -> literal block
+       scalar ``|`` always, never a plain scalar); None -> commented "# key:" line with a one-line explanation.
     3. Emit HEADERS as a commented multi-line example (a "# headers:" block, sample entry, dict note).
     4. Emit LOADER as a commented multi-line example (a "# loader:" block, packages/modules structure, note).
     5. Emit specs mapping as active YAML: name: { type, location, git: { url, location, ref } when present } per
-       `SpecEntry`/`GitEntry` shape (see `configuration`).
+       `SpecEntry`/`GitEntry` shape (see `configuration`). When `GitEntry.ref` is None, `ref` is documented as a `# ref:`
+       end-of-line comment on `location` instead of an empty active key (ruamel cannot place a standalone comment after
+       the last key of a block mapping).
     6. Ensure parent dir of `path` exists; dump the document.
 
     Requirements:
@@ -134,7 +136,7 @@ Annotations: |
 
     Constraints:
     - Do not survey/prompt — pure (TTY-free); interactivity lives in build_pybuggy_config.
-    - Do not read/merge an existing file — build from scratch and overwrite `path` (confirm is build_pybuggy_config's job).
+    - Do not read/merge an existing file — build from scratch and overwrite `path` on every call (build_pybuggy_config neither checks for nor confirms an existing file).
     - Do not use pyyaml — ruamel.yaml round-trip only.
 
     Use `ruamel-yaml` for CommentedMap, commented-record emission, dump. Use `PluginConfigKeys` for canonical scalar key
