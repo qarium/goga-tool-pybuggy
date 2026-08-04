@@ -23,11 +23,13 @@ Annotations: |
     .goga/tools/pybuggy/config.yml with active values plus commented records (skipped optional fields and headers/loader examples).
   Use `goga` for the in-process initialization of the goga-project via goga.init per-field Questionnaire methods + FileGenerator.
 
-  Top-level bootstrap command pybuggy init — initializes the goga-project (when not yet initialized), ships the consumer
-  usages of the api cell into the project, AND interactively builds .goga/tools/pybuggy/config.yml on every call. The
-  handler `run_init` is the testable entry point; the click wrapper `init_cmd` delegates to `run_init`. The goga-project
-  initialization is delegated to `run_goga_init`; the interactive config build is delegated to `build_pybuggy_config`
-  (testable seam for the TTY survey), which delegates file emission to the pure `write_pybuggy_config`. Usages are
+  Top-level bootstrap command pybuggy init — initializes the goga-project (created when absent, recreated only on
+  confirmation), ships the consumer usages of the api cell into the project, AND interactively builds
+  .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation). The handler `run_init` is the
+  testable entry point; the click wrapper `init_cmd` delegates to `run_init`. The goga-project initialization is
+  delegated to `run_goga_init`; the interactive config build is delegated to `build_pybuggy_config` (testable seam for
+  the TTY survey), which delegates file emission to the pure `write_pybuggy_config`. The recreate decisions for both
+  configs live in `run_init` (click.confirm, default no); the builders themselves always (over)write. Usages are
   discovered from the installed goga_tool_pybuggy.api package. Use relative imports inside the cell.
 
 ---
@@ -42,8 +44,13 @@ Annotations: |
 
     Algorithm:
     1. Resolve the output root as the current working directory.
-    2. When <cwd>/.goga/config.yml does NOT exist: call `run_goga_init`; if non-zero, return it immediately.
-    3. Call `build_pybuggy_config`; if non-zero (cancel/error) return it; on 0 (tool config written/overwritten) continue.
+    2. Goga-project config: when <cwd>/.goga/config.yml does NOT exist, call `run_goga_init`; when it DOES exist,
+       ask via `click.confirm` (default no) whether to re-run goga init and overwrite it, and only re-run on yes.
+       If non-zero, return it immediately.
+    3. Pybuggy tool config: when <cwd>/.goga/tools/pybuggy/config.yml does NOT exist, call `build_pybuggy_config`;
+       when it DOES exist, ask via `click.confirm` (default no) whether to rebuild it, and only rebuild on yes.
+       If non-zero (cancel/error) return it; on 0 (or a declined rebuild) continue. The recreate decision lives
+       here in the orchestrator — `build_pybuggy_config` itself always (over)writes without checking.
     4. Discover every .usages/*.md under the api cell (incl. asserts) from the installed goga_tool_pybuggy.api package.
     5. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md.
     6. Register usage keys via `register_usages` with <cwd>/.goga/config.yml (idempotent, skip-existing).
@@ -52,8 +59,12 @@ Annotations: |
     9. Return 0.
 
     Requirements:
-    - The config-build step (`build_pybuggy_config`) runs on every call and always (over)writes the tool config — on success (0) init continues.
-    - The goga-project is initialized at most once; usages/annotations bootstrap is idempotent.
+    - Each config (goga `.goga/config.yml` and pybuggy `.goga/tools/pybuggy/config.yml`) is created when absent and
+      only recreated on explicit `click.confirm` (default no) when present; declining a recreate skips that step so
+      a plain repeat run just re-copies usages and skips registered keys.
+    - The config-build step (`build_pybuggy_config`) always (over)writes the tool config when it runs — the recreate
+      gate is `run_init`'s, not the builder's.
+    - The usages/annotations bootstrap is idempotent.
 
     Constraints:
     - Do not register pybuggy usages/annotations when goga init failed/was cancelled — propagate goga's exit code.
@@ -110,7 +121,9 @@ Annotations: |
     `specs`: mapping of spec name -> `SpecEntry`.
 
     Algorithm:
-    1. Configure ruamel YAML for round-trip (preserve quotes, key order, comments) and build a fresh CommentedMap.
+    1. Configure ruamel YAML for round-trip (preserve quotes, key order, comments) and raise its ``best_width``
+       (``yaml.width``) so long plain scalars — e.g. the git ``url`` — are not line-folded onto a continuation line;
+       build a fresh CommentedMap.
     2. Iterate scalar members of `PluginConfigKeys` (all except HEADERS, LOADER) in canonical order; for each: value
        present -> active key:value — numeric members (timeout/assert_delay -> float, retries/assert_timeout -> int) are
        coerced to their `ApiPlugin` option type so the scalar is a number, not a quoted string (BASE_URL -> literal block
@@ -118,9 +131,10 @@ Annotations: |
     3. Emit HEADERS as a commented multi-line example (a "# headers:" block, sample entry, dict note).
     4. Emit LOADER as a commented multi-line example (a "# loader:" block, packages/modules structure, note).
     5. Emit specs mapping as active YAML: name: { type, location, git: { url, location, ref } when present } per
-       `SpecEntry`/`GitEntry` shape (see `configuration`). When `GitEntry.ref` is None, `ref` is documented as a `# ref:`
-       end-of-line comment on `location` instead of an empty active key (ruamel cannot place a standalone comment after
-       the last key of a block mapping).
+       `SpecEntry`/`GitEntry` shape (see `configuration`). When `GitEntry.ref` is None, `ref` is documented as a standalone
+       `# ref:` line on its own indented line after `location` (the post-value comment slot ``items['location'][2]`` —
+       the slot ruamel's own loader uses for trailing comments; the eol/``after`` slots are dropped on the last key of a
+       block mapping) instead of an empty active key.
     6. Ensure parent dir of `path` exists; dump the document.
 
     Requirements:
@@ -276,8 +290,9 @@ Annotations: |
 Author: Goga
 CreatedAt: 27/07/26
 Description: |
-  Top-level init command handler — initializes the goga-project in-process via goga init (when not yet initialized),
-  then bootstraps the consumer usages of the api cell into the project where it is invoked: discovers .usages/*.md from
-  the installed goga_tool_pybuggy.api package, copies them under .goga/usages/cooks/pybuggy/, and registers them in
-  .goga/config.yml under codemanifest.usages; appends a referencing annotation line per usage under
-  codemanifest.annotations; idempotent. Also interactively builds .goga/tools/pybuggy/config.yml (plugin options + specs) on every call.
+  Top-level init command handler — initializes the goga-project in-process via goga init (created when absent,
+  recreated only on confirmation), then bootstraps the consumer usages of the api cell into the project where it is
+  invoked: discovers .usages/*.md from the installed goga_tool_pybuggy.api package, copies them under
+  .goga/usages/cooks/pybuggy/, and registers them in .goga/config.yml under codemanifest.usages; appends a referencing
+  annotation line per usage under codemanifest.annotations; idempotent. Also interactively builds
+  .goga/tools/pybuggy/config.yml (plugin options + specs) — built when absent, rebuilt only on confirmation.

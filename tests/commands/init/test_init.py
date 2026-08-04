@@ -144,7 +144,7 @@ def test_run_init_recursive_discovery_picks_subcell(
 def test_run_init_in_initialized_project_skips_goga_init(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """On an already-initialized project run_init skips run_goga_init and only registers usages."""
+    """On an already-initialized project run_init asks to recreate goga config; declining skips run_goga_init."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
@@ -152,6 +152,7 @@ def test_run_init_in_initialized_project_skips_goga_init(
     run_goga_init_spy = mock.Mock(return_value=0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline goga recreate
 
     assert run_init() == 0
 
@@ -178,7 +179,7 @@ def test_run_init_propagates_goga_cancel_without_registering(
 def test_run_init_idempotent_second_run_no_diff(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A second run_init overwrites copied files and skips registered keys — no config diff."""
+    """A second run_init (both recreates declined) overwrites copied files and skips keys — no diff."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
@@ -186,6 +187,7 @@ def test_run_init_idempotent_second_run_no_diff(
     run_goga_init_spy = mock.Mock(return_value=0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline both recreates
 
     run_init()
     before = config.read_text()
@@ -197,6 +199,66 @@ def test_run_init_idempotent_second_run_no_diff(
     assert before == after
 
 
+def test_run_init_recreates_goga_config_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When .goga/config.yml exists and the user confirms, run_init re-runs run_goga_init (overwrites)."""
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
+    monkeypatch.chdir(tmp_path)
+    run_goga_init_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))  # accept goga recreate
+
+    assert run_init() == 0
+
+    assert run_goga_init_spy.call_count == 1
+
+
+def test_run_init_rebuilds_pybuggy_config_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the pybuggy tool config exists and the user confirms, run_init rebuilds it."""
+    (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
+    (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    build_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
+    # decline goga recreate, accept pybuggy rebuild
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, True]))
+
+    assert run_init() == 0
+
+    assert build_spy.call_count == 1
+
+
+def test_run_init_skips_pybuggy_rebuild_on_decline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the pybuggy tool config exists and the user declines, run_init skips build_pybuggy_config."""
+    (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
+    (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    build_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
+    # decline both recreates
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
+
+    assert run_init() == 0
+
+    assert build_spy.call_count == 0
+
+
 def test_run_init_maps_bootstrap_failure_to_click_exception(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -206,6 +268,7 @@ def test_run_init_maps_bootstrap_failure_to_click_exception(
     config.write_text("codemanifest:\n  usages: {}\n")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline goga recreate
 
     with (
         mock.patch("goga_tool_pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")),
@@ -709,10 +772,11 @@ def test_write_pybuggy_config_spec_with_git_emits_git_block(tmp_path: Path) -> N
 def test_write_pybuggy_config_spec_git_ref_none_comments_ref(tmp_path: Path) -> None:
     """A git source without a ref emits no active ``ref`` key; ref is documented as ``# ref:``.
 
-    The commented ``ref`` is attached as an end-of-line comment on ``location`` — ruamel cannot
-    place a standalone comment after the last key of a block mapping — so ``ref`` stays documented
-    without producing an empty active key (``ref:``). The file round-trips through ``load_config``
-    with ``git.ref`` resolving to ``None``.
+    The commented ``ref`` is placed on its own indented line after ``location`` (the post-value
+    comment slot — the slot ruamel's own loader uses for trailing comments; the eol/``after`` slots
+    are dropped on the last key of a block mapping). It is NOT an end-of-line comment on
+    ``location``, and no empty active ``ref:`` key is produced. The file round-trips through
+    ``load_config`` with ``git.ref`` resolving to ``None``.
     """
     config = tmp_path / "config.yml"
     specs = {
@@ -726,7 +790,8 @@ def test_write_pybuggy_config_spec_git_ref_none_comments_ref(tmp_path: Path) -> 
     write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
 
     text = config.read_text()
-    assert "# ref:" in text  # ref documented as a comment, not an empty active key
+    assert "location: api.yaml  # ref:" not in text  # not an end-of-line comment on location
+    assert "location: api.yaml\n      # ref:\n" in text  # standalone indented line after location
     cfg = yaml.safe_load(text)
     assert "ref" not in cfg["specs"]["api"]["git"]  # no active ref key
 
@@ -735,6 +800,28 @@ def test_write_pybuggy_config_spec_git_ref_none_comments_ref(tmp_path: Path) -> 
     parsed = load_config(config)
     assert parsed.specs["api"].git is not None
     assert parsed.specs["api"].git.ref is None
+
+
+def test_write_pybuggy_config_long_git_url_not_wrapped(tmp_path: Path) -> None:
+    """A long git clone URL stays on one line (best_width raised so ruamel does not fold it)."""
+    config = tmp_path / "config.yml"
+    url = "git@gitlab.wildberries.ru:taxi/taxi/qa/platform/golang/services/traffic/insts/mock.git"
+    specs = {
+        "api": SpecEntry(
+            type="openapi",
+            location="specs/api.yaml",
+            git=GitEntry(url=url, location="api.yaml", ref="main"),
+        )
+    }
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
+
+    text = config.read_text()
+    assert f"url: {url}\n" in text  # url value on the same line as the key, not folded to a new line
+
+    from goga_tool_pybuggy.config import load_config
+
+    assert load_config(config).specs["api"].git.url == url
 
 
 def test_write_pybuggy_config_is_deterministic(tmp_path: Path) -> None:

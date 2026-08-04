@@ -9,7 +9,9 @@ import click
 from goga.init import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
 from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.error import CommentMark
 from ruamel.yaml.scalarstring import LiteralScalarString
+from ruamel.yaml.tokens import CommentToken
 
 from ...config import GitEntry, SpecEntry
 from ...plugin import PluginConfigKeys
@@ -245,16 +247,23 @@ _NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
 }
 
 
+# Column of the ``url``/``location``/``ref`` keys inside a rendered ``git`` block. The git block is
+# always nested three mappings deep (``specs -> <name> -> git``) and ruamel's default indent is 2,
+# so its child keys sit at column 6. The commented ``# ref:`` line (when ``ref`` is None) must be
+# indented to this same column to line up with the active keys.
+_GIT_CHILD_INDENT = 6
+
+
 def _git_entry_to_map(git: GitEntry) -> CommentedMap:
     """Render a ``GitEntry`` as a round-trip ``CommentedMap`` preserving field order.
 
     ``url``/``location`` are always active keys. ``ref`` is active when set; when ``None`` it is
-    emitted as a commented record (``# ref:``) instead of an empty active key, so the option stays
-    documented without producing a schema key (``GitEntry`` defaults ``ref`` to ``None``).
-    ruamel cannot attach a standalone comment after the last key of a block mapping (the ``after``
-    comment on the last key is silently dropped on emit), so the commented ``ref`` is attached as an
-    end-of-line comment on ``location`` — the field immediately preceding it — keeping it at the
-    position where ``ref`` would otherwise appear.
+    emitted as a commented record (``# ref:``) on its own line instead of an empty active key, so the
+    option stays documented without producing a schema key (``GitEntry`` defaults ``ref`` to
+    ``None``). ruamel drops the ``after`` comment on the last key of a block mapping on emit, but the
+    post-value comment slot (``items[key][2]`` — the slot its own loader uses for trailing comments)
+    survives, so the commented ``ref`` is attached there on ``location`` — the field immediately
+    preceding it — keeping it at the position where ``ref`` would otherwise appear, on its own line.
 
     Args:
         git: The remote git source to render.
@@ -268,7 +277,9 @@ def _git_entry_to_map(git: GitEntry) -> CommentedMap:
     if git.ref is not None:
         g["ref"] = git.ref
     else:
-        g.yaml_add_eol_comment("ref:", "location")
+        indent = " " * _GIT_CHILD_INDENT
+        token = CommentToken(f"\n{indent}# ref:\n", CommentMark(_GIT_CHILD_INDENT))
+        g.ca.items.setdefault("location", [None, None, None, None])[2] = token
     return g
 
 
@@ -307,6 +318,10 @@ def write_pybuggy_config(
     """
     yaml = YAML()
     yaml.preserve_quotes = True
+    # ruamel's default ``best_width`` (80) folds long plain scalars — e.g. a git SSH clone URL — onto
+    # a continuation line, breaking ``url: <value>`` across two lines. Raise the width so plain
+    # scalars (the git ``url``) stay on one line; block scalars (``base_url``) are unaffected.
+    yaml.width = 4096
 
     doc = CommentedMap()
     pending: list[str] = []
@@ -596,19 +611,67 @@ def run_goga_init() -> int:
         return 1
 
 
+def _should_rebuild(path: Path, prompt: str) -> bool:
+    """Decide whether to (re)build the config at ``path`` during ``init``.
+
+    Builds unconditionally when the file is absent (nothing to recreate); when it exists, asks the user via
+    ``click.confirm`` (default ``no``) and rebuilds only on an explicit ``yes``. Isolating this decision keeps
+    :func:`run_init` under the cyclomatic-complexity cap.
+
+    Args:
+        path: The config file whose existence gates the rebuild.
+        prompt: The confirmation question shown when ``path`` already exists.
+
+    Returns:
+        ``True`` when the config should be (re)built; ``False`` when it exists and the user declined.
+    """
+    return not path.exists() or click.confirm(prompt, default=False)
+
+
+def _log_registration(
+    usage_keys: dict[str, str],
+    added_usage_keys: list[str],
+    annotation_lines: dict[str, str],
+    added_annotation_keys: list[str],
+) -> None:
+    """Log INFO for newly-registered usages/annotations and WARNING for already-present (skipped) ones.
+
+    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. A key counts as added when it
+    appears in the corresponding ``added_*`` list returned by :func:`register_usages`/:func:`register_annotations`.
+
+    Args:
+        usage_keys: Full mapping of ``pybuggy-<stem>`` to the copied usage path.
+        added_usage_keys: Keys actually added by :func:`register_usages` (pre-existing ones excluded).
+        annotation_lines: Full mapping of ``pybuggy-<stem>`` to its annotation line.
+        added_annotation_keys: Keys whose annotation line was actually appended by :func:`register_annotations`.
+    """
+    for key, path in usage_keys.items():
+        if key in added_usage_keys:
+            logger.info("usage registered", extra={"key": key, "path": path})
+        else:
+            logger.warning("usage already registered, skipped", extra={"key": key})
+    for key in annotation_lines:
+        if key in added_annotation_keys:
+            logger.info("annotation registered", extra={"key": key})
+        else:
+            logger.warning("annotation already registered, skipped", extra={"key": key})
+
+
 def run_init() -> int:
     """Initialize the goga-project, build the pybuggy tool config, then bootstrap the api usages.
 
     Algorithm (9 steps):
 
     1. Resolve the output root as the current working directory.
-    2. When ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive goga-project
-       initialization in-process via :func:`run_goga_init`; a non-zero exit code is returned
-       immediately (no usages are registered).
-    3. Build the pybuggy tool config on every call via :func:`build_pybuggy_config`
-       (``<cwd>/.goga/tools/pybuggy/config.yml``); a non-zero exit code is returned immediately. The
-       tool config is always (over)written — :func:`build_pybuggy_config` neither checks for nor
-       confirms an existing file — so init continues on success.
+    2. Goga-project config: when ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive
+       goga-project initialization in-process via :func:`run_goga_init`; when it DOES exist, ask
+       (``click.confirm``, default ``no``) whether to re-run goga init and overwrite it, and only
+       re-run on ``yes``. A non-zero exit code is returned immediately (no usages are registered).
+    3. Pybuggy tool config: when ``<cwd>/.goga/tools/pybuggy/config.yml`` does NOT exist, build it
+       via :func:`build_pybuggy_config`; when it DOES exist, ask (``click.confirm``, default ``no``)
+       whether to rebuild it, and only rebuild on ``yes``. A non-zero exit code is returned
+       immediately. :func:`build_pybuggy_config` itself neither checks for nor confirms an existing
+       file (always overwrites) — the recreate decision lives here, in the orchestrator.
     4. Discover every ``.usages/*.md`` under the installed ``goga_tool_pybuggy.api`` package
        (including its subcells such as ``asserts``).
     5. Copy each discovered file to ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md``.
@@ -619,10 +682,11 @@ def run_init() -> int:
     8. Log INFO for added keys/annotations and WARNING for skipped ones.
     9. Return 0.
 
-    Idempotent: repeated runs overwrite the copied files and skip already-registered keys and
-    already-referenced annotations, and goga init is skipped on already-initialized projects. Step 3
-    is called outside this routine's own try/except — it relies on :func:`build_pybuggy_config`
-    never raising (it returns a code on cancellation/failure).
+    Each config is created when absent and only recreated on explicit confirmation when present, so a
+    plain repeat run (both confirms declined) just re-copies the usages and skips already-registered
+    keys/annotations — idempotent. Steps 2 and 3 are called outside this routine's own try/except —
+    they rely on :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code
+    on cancellation/failure).
 
     Returns:
         0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
@@ -631,15 +695,25 @@ def run_init() -> int:
         click.ClickException: On a file-write, YAML, or navigation failure during the bootstrap.
     """
     cwd = Path.cwd()
+    goga_config = cwd / ".goga" / "config.yml"
+    pybuggy_config = cwd / ".goga" / "tools" / "pybuggy" / "config.yml"
 
-    if not (cwd / ".goga" / "config.yml").exists():
+    # Goga-project config: create when absent; recreate only on explicit confirmation (overwriting it
+    # can discard user-customized codemanifest entries beyond pybuggy's own).
+    if _should_rebuild(
+        goga_config, ".goga/config.yml exists — re-run goga init and overwrite it?"
+    ):
         rc = run_goga_init()
         if rc != 0:
             return rc
 
-    rc = build_pybuggy_config()
-    if rc != 0:
-        return rc
+    # Pybuggy tool config: build when absent; rebuild only on explicit confirmation.
+    if _should_rebuild(
+        pybuggy_config, ".goga/tools/pybuggy/config.yml exists — rebuild it from the survey?"
+    ):
+        rc = build_pybuggy_config()
+        if rc != 0:
+            return rc
 
     try:
         discovered = _discover_usages(importlib.resources.files("goga_tool_pybuggy.api"))
@@ -657,17 +731,7 @@ def run_init() -> int:
     except (OSError, YAMLError, ValueError) as e:
         raise click.ClickException(str(e)) from e
 
-    for key, path in usage_keys.items():
-        if key in added_usage_keys:
-            logger.info("usage registered", extra={"key": key, "path": path})
-        else:
-            logger.warning("usage already registered, skipped", extra={"key": key})
-
-    for key in annotation_lines:
-        if key in added_annotation_keys:
-            logger.info("annotation registered", extra={"key": key})
-        else:
-            logger.warning("annotation already registered, skipped", extra={"key": key})
+    _log_registration(usage_keys, added_usage_keys, annotation_lines, added_annotation_keys)
 
     return 0
 
