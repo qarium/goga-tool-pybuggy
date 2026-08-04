@@ -33,7 +33,7 @@ Annotations: |
     2. Select specs: all `Config` specs, or only `spec_name` when provided.
     3. Normalize the ref override into a global ref and a per-spec map: plain-string items become the global ref, (name, ref) items populate the per-spec map; None items are skipped. A per-spec name absent from the configuration raises click.ClickException.
     4. For each selected entry:
-       a. If the entry git field is None, log a WARNING ("no remote source; treated as local") and skip.
+       a. If the entry git field is None, skip it silently (local-only spec).
        b. Otherwise resolve the effective ref: per-spec override for this name wins, else the global ref, else the `GitEntry` ref, else None. Shallow-clone the `GitEntry` url into a temp dir (depth=1) at the effective ref (None means the remote default branch), copy the `GitEntry` location -> project-root / `SpecEntry` location, overwriting existing files (idempotent).
     5. On clone failure or missing repo path, raise click.ClickException with a clear message.
 

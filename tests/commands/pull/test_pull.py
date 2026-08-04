@@ -133,10 +133,10 @@ specs:
         assert "spec path not found in repo" in str(exc_info.value)
 
 
-def test_run_pull_skips_local_only_spec_with_warning(
+def test_run_pull_skips_local_only_spec_silently(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """run_pull should skip specs without git field and log WARNING."""
+    """run_pull silently skips specs without a git field — no file pulled, no warning."""
     monkeypatch.chdir(tmp_path)
 
     config_path = tmp_path / "config.yml"
@@ -153,8 +153,10 @@ specs:
     with caplog.at_level(logging.WARNING):
         run_pull(None)
 
-    assert any("no remote source" in record.message for record in caplog.records)
-    assert any("local_spec" in record.message for record in caplog.records)
+    # the local-only spec is skipped silently: nothing is pulled ...
+    assert not (tmp_path / ".specs" / "local.yaml").exists()
+    # ... and no warning (or higher) is logged
+    assert not any(record.levelno >= logging.WARNING for record in caplog.records)
 
 
 def test_run_pull_raises_on_spec_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

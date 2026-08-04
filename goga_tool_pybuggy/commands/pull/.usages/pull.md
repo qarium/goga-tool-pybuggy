@@ -35,7 +35,7 @@ CLI-форма (`pull_cmd`):
 - Spec с `git` → shallow-clone `git.url` (depth=1) во временную директорию по **эффективному ref**, копирование `git.location` → `<project_root>/<location>` (перезапись, идемпотентно).
 - Приоритет эффективного ref (per-spec): per-spec override (`NAME:REF`) → глобальный `--ref`/`ref` (если передан) → `git.ref` из конфигурации → default branch. `None` на любом уровне означает переход к следующему; `None` в `git.ref` ⇒ default branch.
 - Глобальный `--ref`/`ref` (строка или значение без `:`) применяется **ко всем** выбранным spec за один вызов, но per-spec `NAME:REF` перебивает его для указанной spec. Per-spec ref, имя которого отсутствует в конфигурации, → `click.ClickException` («unknown spec in --ref»). Spec, присутствующая в конфиге, но отсечённая `--spec`, ошибки не вызывает (её per-spec ref просто не применяется). Для конфигов со spec из разных репозиториев: глобальный `--ref` без `--spec` применяется к каждому репозиторию и требует, чтобы ветка/тег существовали во всех них; per-spec `NAME:REF` снимает это требование для остальных репозиториев.
-- Spec без `git` → skip с WARNING («no remote source; treated as local»), без ошибки.
+- Spec без `git` → skip (local-only), без ошибки и без предупреждения.
 - `--spec <name>` сужает до одной spec.
 - Конфиг грузится из фиксированного пути (`.goga/tools/pybuggy/config.yml`) через `load_config()`.
 - Ошибки клона/отсутствия пути → `click.ClickException` (единый ненулевой exit).

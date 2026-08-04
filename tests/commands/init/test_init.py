@@ -713,15 +713,65 @@ def test_write_pybuggy_config_creates_parent_dir(tmp_path: Path) -> None:
     load_config(config)
 
 
-def test_write_pybuggy_config_base_url_jinja_template_unquoted(tmp_path: Path) -> None:
-    """A Jinja2 base_url is emitted as an unquoted plain scalar with the {{ }} preserved."""
+def test_write_pybuggy_config_base_url_jinja_template_block_scalar(tmp_path: Path) -> None:
+    """A Jinja2 base_url is emitted as a literal block scalar with the {{ }} preserved verbatim."""
     config = tmp_path / "config.yml"
 
     write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
 
     text = config.read_text()
-    assert "base_url: https://{{ host }}/api" in text  # unquoted plain scalar
-    assert "{{ host }}" in text
+    assert "base_url: |" in text  # clip indicator
+    assert "base_url: |-" not in text  # no strip dash
+    assert "{{ host }}" in text  # template preserved
+    cfg = yaml.safe_load(text)
+    assert cfg["base_url"].rstrip("\n") == "https://{{ host }}/api"  # round-trip (trailing \n is the clip marker)
+
+
+def test_write_pybuggy_config_multiline_base_url_emits_block_scalar(tmp_path: Path) -> None:
+    """A multi-line base_url template is emitted as a literal block scalar (``|``), losslessly."""
+    config = tmp_path / "config.yml"
+    base_url = (
+        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock\n"
+        '{% if match_re("^feature-.*$", service_version) %}-{{ service_version }}\n'
+        "{% endif %}"
+    )
+
+    write_pybuggy_config(config, {"base_url": base_url}, {"api": _spec_entry()})
+
+    text = config.read_text()
+    assert "base_url: |" in text  # clip indicator
+    assert "base_url: |-" not in text  # no strip dash
+    assert "# required, Jinja2 template" in text  # marker kept (own line above the key)
+    # each template line preserved verbatim, indented under the block
+    assert "  http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock" in text
+
+    cfg = yaml.safe_load(text)
+    assert cfg["base_url"].rstrip("\n") == base_url  # round-trip (trailing \n is the clip marker)
+
+    from goga_tool_pybuggy.config import load_config
+
+    load_config(config)  # validates against Config (ignores scalar plugin keys)
+
+
+def test_write_pybuggy_config_long_single_line_base_url_not_wrapped(tmp_path: Path) -> None:
+    """A long single-line base_url stays on one block-scalar line (ruamel does not line-wrap it)."""
+    config = tmp_path / "config.yml"
+    base_url = (
+        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock"
+        '{% if match_re("^feature-.*$", service_version) %}-{{ service_version }}'
+        "{% endif %}"
+    )
+
+    write_pybuggy_config(config, {"base_url": base_url}, {"api": _spec_entry()})
+
+    text = config.read_text()
+    assert "base_url: |" in text  # clip indicator
+    assert "base_url: |-" not in text  # no strip dash
+    # the whole template sits on a single indented block line — not wrapped across several
+    assert f"  {base_url}" in text
+
+    cfg = yaml.safe_load(text)
+    assert cfg["base_url"].rstrip("\n") == base_url  # round-trip, unwrapped (trailing \n is the clip marker)
 
 
 def test_write_pybuggy_config_multiple_specs_preserve_order(tmp_path: Path) -> None:
@@ -853,7 +903,7 @@ def test_build_pybuggy_config_reprompts_empty_required_base_url(
     # and the valid (not empty) base_url landed in the emitted config
     config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
     raw = yaml.safe_load(config.read_text())
-    assert raw["base_url"] == "https://{{ host }}/api"
+    assert raw["base_url"].rstrip("\n") == "https://{{ host }}/api"  # trailing \n is the clip marker
 
 
 def test_build_pybuggy_config_reprompts_empty_required_location(
@@ -877,8 +927,8 @@ def test_build_pybuggy_config_reprompts_empty_required_location(
 
     assert build_pybuggy_config() == 0
 
-    # the re-prompt fired: the '(required)' prompt variant was invoked
-    assert "location (required)" in _prompt_texts(prompt)
+    # the re-prompt fired: the descriptive '(required)' prompt variant was invoked
+    assert "location — path from the project root to the spec file (required)" in _prompt_texts(prompt)
     from goga_tool_pybuggy.config import load_config
 
     cfg = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml")
@@ -906,7 +956,7 @@ def test_build_pybuggy_config_reprompts_empty_required_first_spec_name(
 
     assert build_pybuggy_config() == 0
 
-    assert "spec name (required)" in _prompt_texts(prompt)
+    assert "spec name — unique name for this spec (required)" in _prompt_texts(prompt)
     from goga_tool_pybuggy.config import load_config
 
     cfg = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml")
@@ -939,8 +989,8 @@ def test_build_pybuggy_config_reprompts_whitespace_git_url_and_location(
     assert build_pybuggy_config() == 0
 
     texts = _prompt_texts(prompt)
-    assert "git url (required)" in texts
-    assert "git location (required)" in texts
+    assert "git url — clone URL of the repository holding the spec (required)" in texts
+    assert "git location — path inside the repository to the spec file (required)" in texts
     from goga_tool_pybuggy.config import load_config
 
     git = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").specs["api"].git
@@ -948,4 +998,41 @@ def test_build_pybuggy_config_reprompts_whitespace_git_url_and_location(
     assert git.url == "https://example.com/specs.git"
     assert git.location == "api.yaml"
     assert git.ref is None  # empty ref coerced to None
+
+
+def test_build_pybuggy_config_base_url_emitted_as_block_scalar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A single-line base_url is emitted as a | block scalar (not a wrapped plain scalar)."""
+    monkeypatch.chdir(tmp_path)  # no existing config -> overwrite confirm skipped
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # no git source
+    base_url = (
+        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock"
+        '{% if service_version is match_re("^feature-.*$") %}-{{ service_version }}'
+        "{% endif %}"
+    )
+    monkeypatch.setattr(
+        click,
+        "prompt",
+        mock.Mock(
+            side_effect=[
+                base_url,  # base_url (required)
+                *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+                "api",  # first spec name
+                "openapi",  # type
+                "specs/api.yaml",  # location
+                "",  # second spec name -> finish
+            ]
+        ),
+    )
+
+    assert build_pybuggy_config() == 0
+
+    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    text = config.read_text()
+    assert "base_url: |" in text
+    assert "base_url: |-" not in text
+    assert f"  {base_url}" in text  # one indented block line — not wrapped
+    raw = yaml.safe_load(text)
+    assert raw["base_url"].rstrip("\n") == base_url
 

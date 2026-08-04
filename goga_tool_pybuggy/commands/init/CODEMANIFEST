@@ -72,8 +72,9 @@ Annotations: |
     Algorithm:
     1. Resolve the config path as <cwd>/.goga/tools/pybuggy/config.yml.
     2. When the file already exists: prompt confirm-overwrite (y/N) via `click`; on "no" log INFO and return 0 (skip).
-    3. Survey the scalar plugin keys from `PluginConfigKeys` (every member except HEADERS and LOADER): for each prompt one
-       value via `click`; BASE_URL required (empty re-prompts — cannot be skipped); the rest optional (empty -> None/skipped).
+    3. Survey the scalar plugin keys from `PluginConfigKeys` (every member except HEADERS and LOADER): each prompt carries a
+       descriptive text stating what the field is for. BASE_URL is required (empty re-prompts — cannot be skipped); the
+       remaining scalars are optional (empty -> None/skipped).
     4. Survey specs interactively via `click`: for each spec prompt name, type (swagger|openapi), location (required), and
        optional git block (url, location, ref); construct a `SpecEntry` (with `GitEntry` when git given) keyed by name;
        repeat until the user stops, but require AT LEAST ONE spec — the loop re-prompts for the first spec name until one
@@ -85,7 +86,9 @@ Annotations: |
 
     Requirements:
     - Interactive (TTY via click); tests stub this routine, never the real prompts.
-    - BASE_URL mandatory and a Jinja2 template (the comment emitted by write_pybuggy_config must reflect this).
+    - Every interactive prompt states what the field is for (description mirrors the ApiPlugin option semantics).
+    - BASE_URL mandatory and a Jinja2 template; write_pybuggy_config always emits it as a literal block scalar with a
+      'required, Jinja2 template' comment.
     - At least one spec is required — the survey cannot complete with zero specs (a config without specs is invalid).
     - Returns a code and never raises on cancellation/failure.
 
@@ -110,7 +113,8 @@ Annotations: |
     Algorithm:
     1. Configure ruamel YAML for round-trip (preserve quotes, key order, comments) and build a fresh CommentedMap.
     2. Iterate scalar members of `PluginConfigKeys` (all except HEADERS, LOADER) in canonical order; for each: value
-       present -> active key:value; None -> commented "# key:" line with a one-line explanation.
+       present -> active key:value (BASE_URL -> literal block scalar ``|`` always, never a plain scalar); None ->
+       commented "# key:" line with a one-line explanation.
     3. Emit HEADERS as a commented multi-line example (a "# headers:" block, sample entry, dict note).
     4. Emit LOADER as a commented multi-line example (a "# loader:" block, packages/modules structure, note).
     5. Emit specs mapping as active YAML: name: { type, location, git: { url, location, ref } when present } per
@@ -124,6 +128,8 @@ Annotations: |
     - The specs mapping is always non-empty (`build_pybuggy_config` enforces ≥1 spec) — never emit an empty or absent
       specs section (a config without specs is invalid).
     - Commented records use a leading "#" and a one-line explanation.
+    - BASE_URL is always a literal block scalar and carries a 'required, Jinja2 template' marker on its own line above
+      the key.
     - Output deterministic for the same inputs.
 
     Constraints:

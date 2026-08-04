@@ -261,10 +261,13 @@ def write_pybuggy_config(
     scalars (``None``) and the complex ``HEADERS``/``LOADER`` members are emitted as commented
     records (``# key:``) pinned to the next active key via the ruamel ``before`` comment, so they
     document the full option surface without becoming schema keys (``Config`` ignores extra scalars
-    via ``extra="ignore"``). ``base_url`` additionally carries an end-of-line
-    ``# required, Jinja2 template`` marker. ``specs`` is emitted as an active section per the
-    ``SpecEntry``/``GitEntry`` form and acts as the terminal anchor for any trailing commented
-    buffer.
+    via ``extra="ignore"``). ``base_url`` is always a Jinja2 template, so it is always emitted as a
+    literal block scalar with the clip indicator (``|``) — a long plain scalar would be line-wrapped
+    by ruamel and mangle the template. A trailing newline is appended so ruamel emits ``|`` rather
+    than ``|-`` (harmless: ``render_base_url`` strips all whitespace); the ``# required, Jinja2
+    template`` marker sits on its own line above the key. ``specs`` is emitted as an active section
+    per the ``SpecEntry``/``GitEntry`` form and acts as the terminal anchor for any trailing
+    commented buffer.
 
     The canonical key order is the ``PluginConfigKeys`` declaration order (no hardcoded keys); the
     ``HEADERS``/``LOADER`` members are filtered out of the scalar walk.
@@ -299,10 +302,23 @@ def write_pybuggy_config(
             pending.append(f"{member.value}: (skipped optional scalar)")
             continue
 
-        doc[member.value] = value
-        _flush(member.value)
+        # base_url is always a Jinja2 template that must survive round-trip verbatim, so it is
+        # always emitted as a literal block scalar (``|``): a long plain scalar would be line-wrapped
+        # by ruamel and mangle the template, and a multi-line template must keep its line breaks. The
+        # ``# required, Jinja2 template`` marker sits on its own line above the key (a same-line
+        # comment lands awkwardly after the block). Other scalars stay plain.
         if member is PluginConfigKeys.BASE_URL:
-            doc.yaml_add_eol_comment("required, Jinja2 template", PluginConfigKeys.BASE_URL.value)
+            # Append a trailing newline so ruamel emits the clip indicator (``|``) instead of the
+            # strip indicator (``|-``); render_base_url strips all whitespace, so the added newline
+            # is harmless and the template still renders to the same URL.
+            doc[member.value] = LiteralScalarString(value + "\n")
+            _flush(member.value)
+            doc.yaml_set_comment_before_after_key(
+                PluginConfigKeys.BASE_URL.value, before="required, Jinja2 template"
+            )
+        else:
+            doc[member.value] = value
+            _flush(member.value)
 
     specs_map = CommentedMap()
     for name, entry in specs.items():
@@ -320,12 +336,48 @@ def write_pybuggy_config(
     yaml.dump(doc, path)
 
 
+# Human-readable prompt text for each optional scalar plugin key — mirrors the
+# ``ApiPlugin`` option docstrings so the user knows what every field is for.
+# ``BASE_URL`` is collected separately as a (possibly multi-line) Jinja2 template;
+# ``HEADERS``/``LOADER`` are complex members and never surveyed here.
+_SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
+    PluginConfigKeys.TIMEOUT: (
+        "timeout — request timeout in seconds for HTTP calls (optional). Enter to skip"
+    ),
+    PluginConfigKeys.DATA_KEY: (
+        "data_key — response body key treated as the success payload (optional). Enter to skip"
+    ),
+    PluginConfigKeys.ERROR_KEY: (
+        "error_key — response body key treated as the error payload (optional). Enter to skip"
+    ),
+    PluginConfigKeys.RETRIES: (
+        "retries — flaky rerun count for failing tests across the suite (optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_TIMEOUT: (
+        "assert_timeout — baseline polling timeout in seconds for retrying assertions "
+        "(optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_DELAY: (
+        "assert_delay — seconds between assertion polling attempts (optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_FIELD_CLASS: (
+        'assert_field_class — dotted "module:Class" of a custom AssertField subclass '
+        "(optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_RESPONSE_CLASS: (
+        'assert_response_class — dotted "module:Class" of a custom Expected subclass '
+        "(optional). Enter to skip"
+    ),
+}
+
+
 def _ask_scalar_values() -> dict[str, str | None]:
     """Interactively collect the scalar ``PluginConfigKeys`` (skipping complex members).
 
     ``base_url`` is required and re-prompted when empty; the remaining scalars are optional and an
-    empty answer maps to ``None`` (a skipped commented record in the emitted config). The canonical
-    order is the ``PluginConfigKeys`` declaration order; ``HEADERS``/``LOADER`` are skipped (complex).
+    empty answer maps to ``None`` (a skipped commented record in the emitted config). Each prompt
+    carries a descriptive text stating what the field is for. The canonical order is the
+    ``PluginConfigKeys`` declaration order; ``HEADERS``/``LOADER`` are skipped (complex).
 
     Returns:
         A mapping of ``PluginConfigKeys.<member>.value`` to the answered string or ``None``.
@@ -339,12 +391,16 @@ def _ask_scalar_values() -> dict[str, str | None]:
             continue
         if member is PluginConfigKeys.BASE_URL:
             while not (
-                val := click.prompt("base_url (required, Jinja2 template)", default="", show_default=False).strip()
+                val := click.prompt(
+                    "base_url — service base URL as a Jinja2 template (required)",
+                    default="",
+                    show_default=False,
+                ).strip()
             ):
                 click.echo("base_url is required")
             scalar_values[member.value] = val
         else:
-            val = click.prompt(member.value, default="", show_default=False).strip()
+            val = click.prompt(_SCALAR_PROMPTS[member], default="", show_default=False).strip()
             scalar_values[member.value] = val or None
     return scalar_values
 
@@ -361,19 +417,46 @@ def _ask_spec() -> SpecEntry:
     Raises:
         click.Abort: Forwarded unchanged from any cancelled ``click`` prompt.
     """
-    t = click.prompt("type", type=click.Choice(["swagger", "openapi"]))
-    location = click.prompt("location", default="", show_default=False).strip()
+    t = click.prompt("spec type — format of the spec file", type=click.Choice(["swagger", "openapi"]))
+    location = click.prompt(
+        "location — path from the project root to the spec file",
+        default="",
+        show_default=False,
+    ).strip()
     while not location:
-        location = click.prompt("location (required)", default="", show_default=False).strip()
+        location = click.prompt(
+            "location — path from the project root to the spec file (required)",
+            default="",
+            show_default=False,
+        ).strip()
     git = None
-    if click.confirm("Add git source?", default=False):
-        g_url = click.prompt("git url", default="", show_default=False).strip()
+    if click.confirm("Add a git source for this spec?", default=False):
+        g_url = click.prompt(
+            "git url — clone URL of the repository holding the spec",
+            default="",
+            show_default=False,
+        ).strip()
         while not g_url:
-            g_url = click.prompt("git url (required)", default="", show_default=False).strip()
-        g_loc = click.prompt("git location", default="", show_default=False).strip()
+            g_url = click.prompt(
+                "git url — clone URL of the repository holding the spec (required)",
+                default="",
+                show_default=False,
+            ).strip()
+        g_loc = click.prompt(
+            "git location — path inside the repository to the spec file",
+            default="",
+            show_default=False,
+        ).strip()
         while not g_loc:
-            g_loc = click.prompt("git location (required)", default="", show_default=False).strip()
-        g_ref = click.prompt("git ref (optional)", default="").strip() or None
+            g_loc = click.prompt(
+                "git location — path inside the repository to the spec file (required)",
+                default="",
+                show_default=False,
+            ).strip()
+        g_ref = click.prompt(
+            "git ref — branch or tag to clone (optional, defaults to the remote default branch)",
+            default="",
+        ).strip() or None
         git = GitEntry(url=g_url, location=g_loc, ref=g_ref)
     return SpecEntry(type=t, location=location, git=git)
 
@@ -409,13 +492,18 @@ def build_pybuggy_config() -> int:
         first = True
         while True:
             name = click.prompt(
-                "spec name" + ("" if first else " (empty to finish)"),
+                "spec name — unique name for this spec (the list/info commands use it as a key)"
+                + ("" if first else " (empty to finish)"),
                 default="",
                 show_default=False,
             ).strip()
             if first:
                 while not name:
-                    name = click.prompt("spec name (required)", default="", show_default=False).strip()
+                    name = click.prompt(
+                        "spec name — unique name for this spec (required)",
+                        default="",
+                        show_default=False,
+                    ).strip()
             elif not name:
                 break
             specs[name] = _ask_spec()
