@@ -994,3 +994,60 @@ def test_extract_endpoints_swagger_x_nullable_without_type_uses_anyof_fallback()
         "type": "object",
         "properties": {"err": {"anyOf": [{"type": "null"}]}},
     }
+
+
+def test_extract_endpoints_preserves_property_named_nullable() -> None:
+    """A property literally named ``nullable``/``x-nullable`` is not dropped.
+
+    Regression: ``_normalize_nullable`` pops the ``nullable``/``x-nullable``
+    keys from every dict it visits. A JSON-Schema ``properties`` map is keyed by
+    property *name*, not by keyword, so a property literally named
+    ``nullable``/``x-nullable`` was mistaken for the nullability keyword and
+    silently deleted (data corruption). The fix treats ``properties``/
+    ``patternProperties`` as containers and recurses into each property's schema
+    without popping on the container. This pins the fix end-to-end for both
+    formats and for boolean-schema properties.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/meta": {
+                "post": {
+                    "parameters": [
+                        {
+                            "in": "body",
+                            "name": "body",
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "name": {"type": "string"},
+                                    # property whose NAME collides with the keyword
+                                    "nullable": {"type": "integer"},
+                                    "x-nullable": {"type": "boolean"},
+                                    # a property name collision whose own schema is
+                                    # the boolean `true` (must not corrupt the map)
+                                    "flag": True,
+                                },
+                            },
+                        }
+                    ],
+                    "responses": {"201": {"description": "created"}},
+                }
+            }
+        },
+    }
+
+    ep = extract_endpoints(spec)[0]
+
+    assert ep.request == {
+        "type": "object",
+        "properties": {
+            "name": {"type": "string"},
+            "nullable": {"type": "integer"},
+            "x-nullable": {"type": "boolean"},
+            "flag": True,
+        },
+    }
+    assert "nullable" in ep.request["properties"]
+    assert "x-nullable" in ep.request["properties"]
+    assert "flag" in ep.request["properties"]

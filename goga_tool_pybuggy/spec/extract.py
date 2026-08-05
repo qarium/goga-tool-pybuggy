@@ -20,6 +20,12 @@ _TYPE_FIELDS = (
     "x-nullable",
 )
 
+# JSON-Schema keywords whose value is a {property-name: schema} map rather than a
+# schema fragment. When recursing, ``_normalize_nullable`` treats these as
+# containers, not schemas — so a property literally named ``nullable`` /
+# ``x-nullable`` is not mistaken for the nullability keyword and dropped.
+_PROPERTY_MAP_KEYS = ("properties", "patternProperties")
+
 
 def detect_spec_version(spec: dict[str, Any]) -> str:
     """Classify a parsed spec by its content as ``"swagger"`` or ``"openapi"``.
@@ -151,10 +157,21 @@ def _normalize_nullable(node: Any) -> Any:
         A normalized copy where nullability is expressed as a union type.
     """
     if isinstance(node, dict):
-        result = {key: _normalize_nullable(value) for key, value in node.items()}
+        result = {}
+        for key, value in node.items():
+            if key in _PROPERTY_MAP_KEYS and isinstance(value, dict):
+                # `properties`/`patternProperties` map property names to their
+                # schemas; the container is NOT itself a schema fragment. Recurse
+                # into each property's schema without popping on the container, so
+                # a property literally named "nullable"/"x-nullable" survives.
+                result[key] = {
+                    name: _normalize_nullable(schema) for name, schema in value.items()
+                }
+            else:
+                result[key] = _normalize_nullable(value)
 
         # Both originating keys are dropped unconditionally; the union is formed
-        # when either carries a truthy value. A `false` value drops the key
+        # when either is literally ``True``. A `false` value drops the key
         # without forming a union.
         nullable_val = result.pop("nullable", None)
         x_nullable_val = result.pop("x-nullable", None)
