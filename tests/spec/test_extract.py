@@ -247,3 +247,75 @@ def test_extract_endpoints_rewrites_openapi_nullable_to_jsonschema_union() -> No
             "error": {"type": ["object", "null"]},
         },
     }
+
+
+def test_extract_endpoints_normalizes_nullable_without_type_via_anyof() -> None:
+    """Test extract_endpoints normalizes a nullable schema that has no ``type``.
+
+    When ``nullable: true`` appears on a fragment without a ``type`` (a valid
+    OpenAPI 3.0 form, e.g. a schema built purely from composition), the normalizer
+    cannot form a ``type`` union and falls back to expressing nullability as an
+    ``anyOf`` branch. This covers both fallback sub-cases: an existing ``anyOf``
+    (appends ``{"type": "null"}``) and a bare nullable (synthesizes
+    ``[{"type": "null"}]``).
+    """
+    spec = {
+        "paths": {
+            "/nullable-anyof": {
+                "post": {
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                # bare nullable, no type, no anyOf
+                                "schema": {"nullable": True}
+                            }
+                        }
+                    },
+                    "parameters": [
+                        {
+                            "name": "filter",
+                            "in": "query",
+                            # nullable, no type, existing anyOf
+                            "schema": {"nullable": True, "anyOf": [{"type": "object"}]},
+                        }
+                    ],
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            # nullable nested, no type, existing anyOf
+                                            "meta": {"nullable": True, "anyOf": [{"type": "string"}]},
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        }
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    endpoint = endpoints[0]
+
+    # bare nullable (no type, no anyOf) -> synthesized single-null anyOf
+    assert endpoint.request == {"anyOf": [{"type": "null"}]}
+
+    # query param: nullable without type + existing anyOf -> null branch appended
+    assert endpoint.query_params["filter"] == {
+        "anyOf": [{"type": "object"}, {"type": "null"}],
+    }
+
+    # response: nullable nested property without type -> anyOf fallback recurses
+    assert endpoint.response["200"] == {
+        "type": "object",
+        "properties": {
+            "meta": {"anyOf": [{"type": "string"}, {"type": "null"}]},
+        },
+    }

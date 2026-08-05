@@ -30,17 +30,19 @@ def _normalize_nullable(node: Any) -> Any:
     if isinstance(node, dict):
         result = {key: _normalize_nullable(value) for key, value in node.items()}
 
-        if "nullable" in result:
-            if result.pop("nullable") is True:
-                existing = result.get("type")
-                if isinstance(existing, str):
-                    result["type"] = [existing, "null"]
-                elif isinstance(existing, list):
-                    if "null" not in existing:
-                        result["type"] = [*existing, "null"]
+        if "nullable" in result and result.pop("nullable") is True:
+            existing = result.get("type")
+            if isinstance(existing, str):
+                result["type"] = [existing, "null"]
+            elif isinstance(existing, list):
+                if "null" not in existing:
+                    result["type"] = [*existing, "null"]
+            else:
+                branches = result.get("anyOf")
+                if isinstance(branches, list):
+                    result["anyOf"] = [*branches, {"type": "null"}]
                 else:
-                    branches = result.get("anyOf")
-                    result["anyOf"] = [*branches, {"type": "null"}] if isinstance(branches, list) else [{"type": "null"}]
+                    result["anyOf"] = [{"type": "null"}]
         return result
 
     if isinstance(node, list):
