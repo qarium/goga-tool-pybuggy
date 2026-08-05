@@ -387,6 +387,65 @@ def test_extract_endpoints_normalizes_nullable_without_type_via_anyof() -> None:
     }
 
 
+def test_extract_endpoints_nullable_dedup_when_type_list_already_has_null() -> None:
+    """A nullable fragment whose ``type`` is already a list including ``"null"`` is not duplicated."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/dedup": {
+                "post": {
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {"type": ["string", "null"], "nullable": True}
+                            }
+                        }
+                    },
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    # The existing "null" must not be appended a second time.
+    assert endpoints[0].request == {"type": ["string", "null"]}
+
+
+def test_extract_endpoints_nullable_recurses_into_composition_and_additional_properties() -> None:
+    """Nullable normalization recurses into ``additionalProperties`` and ``oneOf``/``allOf`` arrays."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/recurse": {
+                "post": {
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "additionalProperties": {"type": "string", "nullable": True},
+                                    "oneOf": [{"type": "integer", "nullable": True}],
+                                    "allOf": [{"type": "object", "nullable": True}],
+                                }
+                            }
+                        }
+                    },
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].request == {
+        "additionalProperties": {"type": ["string", "null"]},
+        "oneOf": [{"type": ["integer", "null"]}],
+        "allOf": [{"type": ["object", "null"]}],
+    }
+
+
 # --- Swagger 2.0 support (Task 2) --------------------------------------------
 
 
@@ -731,3 +790,109 @@ def test_extract_endpoints_swagger_empty_paths_returns_empty_list() -> None:
     version normally and yields no endpoints.
     """
     assert extract_endpoints({"swagger": "2.0", "info": {"title": "T", "version": "1"}}) == []
+
+
+# --- Robustness / additional edge cases (review) -----------------------------
+
+
+def test_extract_endpoints_explicit_null_schema_degrades_to_empty() -> None:
+    """An explicit ``schema: null`` degrades to ``{}`` instead of crashing.
+
+    ``Endpoint.request`` is a non-optional dict, so a null schema must not reach
+    it; the same coercion applies to response schemas and OpenAPI query schemas.
+    """
+    swagger_spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/n": {
+                "post": {
+                    "parameters": [{"name": "b", "in": "body", "schema": None}],
+                    "responses": {"201": {"description": "ok", "schema": None}},
+                }
+            }
+        },
+    }
+    openapi_spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/n": {
+                "post": {
+                    "requestBody": {"content": {"application/json": {"schema": None}}},
+                    "responses": {"201": {"content": {"application/json": {"schema": None}}}},
+                }
+            }
+        },
+    }
+
+    for spec in (swagger_spec, openapi_spec):
+        endpoints = extract_endpoints(spec)
+        assert len(endpoints) == 1
+        assert endpoints[0].request == {}
+        assert endpoints[0].response == {"201": {}}
+
+
+def test_extract_endpoints_skips_query_param_without_name() -> None:
+    """Query parameters missing a (non-empty) ``name`` are skipped, not keyed under a falsy value."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/q": {
+                "get": {
+                    "parameters": [
+                        {"in": "query", "type": "string"},  # no name key
+                        {"name": "", "in": "query", "type": "integer"},  # empty name
+                        {"name": "ok", "in": "query", "type": "boolean"},
+                    ],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].query_params == {"ok": {"type": "boolean"}}
+
+
+def test_extract_endpoints_operation_param_overrides_shared_same_name() -> None:
+    """When path-item and operation share a query-param name, the operation-level schema wins.
+
+    Operation parameters are merged after shared path-item parameters, so the
+    last occurrence wins in the resulting dict.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/dup": {
+                "parameters": [{"name": "limit", "in": "query", "type": "string"}],
+                "get": {
+                    "parameters": [{"name": "limit", "in": "query", "type": "integer"}],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                },
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].query_params == {"limit": {"type": "integer"}}
+
+
+def test_extract_endpoints_openapi_query_null_schema_degrades_to_empty() -> None:
+    """An OpenAPI query param with an explicit ``schema: null`` degrades to ``{}``."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/q": {
+                "get": {
+                    "parameters": [{"name": "t", "in": "query", "schema": None}],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].query_params == {"t": {}}
+

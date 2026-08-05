@@ -60,18 +60,19 @@ def _extract_request(operation: dict[str, Any], version: str) -> dict[str, Any]:
         version: the detected spec version (``"openapi"`` or ``"swagger"``).
 
     Returns:
-        The resolved request schema, or ``{}`` when absent.
+        The resolved request schema, or ``{}`` when absent or explicitly null
+        (a ``schema: null`` fragment has no usable schema and degrades to ``{}``).
     """
     if version == "openapi":
         return (
             operation.get("requestBody", {})
             .get("content", {})
             .get("application/json", {})
-            .get("schema", {})
+            .get("schema") or {}
         )
     for param in operation.get("parameters", []):
         if param.get("in") == "body":
-            return param.get("schema", {})
+            return param.get("schema") or {}
     return {}
 
 
@@ -91,10 +92,10 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
     responses = operation.get("responses", {})
     if version == "openapi":
         return {
-            code: resp.get("content", {}).get("application/json", {}).get("schema", {})
+            code: resp.get("content", {}).get("application/json", {}).get("schema") or {}
             for code, resp in responses.items()
         }
-    return {code: resp.get("schema", {}) for code, resp in responses.items()}
+    return {code: resp.get("schema") or {} for code, resp in responses.items()}
 
 
 def _extract_query_params(
@@ -122,7 +123,7 @@ def _extract_query_params(
             # Skip parameters without names (malformed spec)
             continue
         if version == "openapi":
-            result[name] = param.get("schema", {})
+            result[name] = param.get("schema") or {}
         else:  # swagger — inlined type fields
             result[name] = {k: v for k, v in param.items() if k in _TYPE_FIELDS}
     return result
