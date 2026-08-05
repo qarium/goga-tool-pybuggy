@@ -61,7 +61,7 @@ pybuggy = "goga_tool_pybuggy:main"
 include = ["goga_tool_pybuggy*"]
 
 [tool.setuptools.package-data]
-goga_tool_pybuggy = ["skills/**/*"]
+goga_tool_pybuggy = ["skills/**/*", "pipelines/*.yml"]
 
 [tool.ruff]
 target-version = "py310"
