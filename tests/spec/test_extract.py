@@ -13,9 +13,11 @@ from goga_tool_pybuggy.spec import (
 def test_detect_spec_version_import_from_facade() -> None:
     """Test detect_spec_version is re-exported from the spec facade."""
     from goga_tool_pybuggy.spec import detect_spec_version as facade
+    from goga_tool_pybuggy.spec.extract import detect_spec_version as source_routine
 
-    # The facade symbol must be the exact routine defined in extract.py.
-    assert facade is detect_spec_version
+    # The facade symbol must be the exact routine defined in extract.py
+    # (compared against the source module's object, not a second facade binding).
+    assert facade is source_routine
 
     # Re-export obligation: declared in the facade __all__.
     assert "detect_spec_version" in spec_module.__all__
@@ -896,3 +898,99 @@ def test_extract_endpoints_openapi_query_null_schema_degrades_to_empty() -> None
 
     assert endpoints[0].query_params == {"t": {}}
 
+
+def test_extract_endpoints_swagger_query_array_items_preserved() -> None:
+    """A Swagger array query param keeps its ``items`` element (pinned via _TYPE_FIELDS).
+
+    ``items`` is part of the canonical ``_TYPE_FIELDS`` whitelist. Without a test
+    pinning it, a future edit dropping ``items`` would silently strip the item
+    schema from every array-typed Swagger query param.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/tags": {
+                "get": {
+                    "parameters": [
+                        {"name": "tags", "in": "query", "type": "array", "items": {"type": "string"}}
+                    ],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].query_params == {"tags": {"type": "array", "items": {"type": "string"}}}
+
+
+def test_extract_endpoints_swagger_excludes_formdata_and_file_params() -> None:
+    """Swagger ``in: formData``/file/body params never reach ``query_params``.
+
+    CODEMANIFEST constraint: "Do not extract formData or file-upload parameters."
+    Only ``in: query`` params are extracted; formData (Swagger's POST body vehicle),
+    file-upload and body params must be excluded so form fields don't pollute query.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/upload": {
+                "post": {
+                    "parameters": [
+                        {"name": "q", "in": "query", "type": "string"},
+                        {"name": "field1", "in": "formData", "type": "string"},
+                        {"name": "upload", "in": "formData", "type": "file"},
+                        {"name": "body", "in": "body", "schema": {"type": "object"}},
+                    ],
+                    "responses": {"201": {"description": "created"}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    # Only the query param is extracted; formData/file/body params are excluded.
+    assert endpoints[0].query_params == {"q": {"type": "string"}}
+
+
+def test_extract_endpoints_swagger_x_nullable_without_type_uses_anyof_fallback() -> None:
+    """A type-less Swagger fragment with ``x-nullable: true`` synthesizes an anyOf.
+
+    Mirrors the OpenAPI ``nullable``-without-``type`` fallback on the Swagger entry
+    path: when ``x-nullable: true`` reaches ``_normalize_nullable`` on a fragment
+    with no ``type``, nullability is expressed as a synthesized ``anyOf`` branch
+    (no ``type`` to host the union).
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/xn": {
+                "get": {
+                    "parameters": [
+                        # type-less query param carrying x-nullable (Swagger inlines fields)
+                        {"name": "tag", "in": "query", "x-nullable": True}
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"err": {"x-nullable": True}},
+                            },
+                        }
+                    },
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+    ep = endpoints[0]
+
+    assert ep.query_params["tag"] == {"anyOf": [{"type": "null"}]}
+    assert ep.response["200"] == {
+        "type": "object",
+        "properties": {"err": {"anyOf": [{"type": "null"}]}},
+    }

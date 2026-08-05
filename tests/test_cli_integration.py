@@ -333,6 +333,66 @@ paths:
         assert pathlib.Path("tests/t/clients_startup_get").is_dir()
 
 
+def _swagger_spec_yaml() -> str:
+    """A Swagger 2.0 spec equivalent to the OpenAPI fixture used above."""
+    return """
+swagger: "2.0"
+info:
+  title: Test API
+  version: "1.0"
+paths:
+  /clients/startup:
+    get:
+      operationId: listClients
+      parameters:
+        - name: verbose
+          in: query
+          type: boolean
+      responses:
+        '200':
+          description: Success
+          schema:
+            type: object
+            properties:
+              id:
+                type: string
+        '404':
+          description: Not found
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+"""
+
+
+def test_endpoint_generate_scaffolds_files_swagger_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test endpoint generate scaffolds response schemas from a Swagger 2.0 spec end-to-end.
+
+    Parallel to ``test_endpoint_generate_scaffolds_files`` but with a Swagger 2.0
+    spec and a ``type: swagger`` config entry. Drives the full chain with
+    content-based version detection (``extract_endpoints`` detects ``swagger``),
+    confirming the generate pipeline produces the same scaffolded tree for a
+    Swagger spec as for the equivalent OpenAPI spec.
+    """
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        spec_file = pathlib.Path("specs") / "t.yaml"
+        spec_file.parent.mkdir(parents=True, exist_ok=True)
+        spec_file.write_text(_swagger_spec_yaml())
+
+        config_file = _write_config("  t:\n    type: swagger\n    location: specs/t.yaml\n")
+        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+
+        result = runner.invoke(main, ["endpoint", "generate", "-s", "t"])
+
+        assert result.exit_code == 0
+        assert pathlib.Path("api/t/clients_startup_get/schemas/200.json").exists()
+        assert pathlib.Path("api/t/clients_startup_get/schemas/404.json").exists()
+        assert pathlib.Path("tests/t/clients_startup_get").is_dir()
+
+
 def test_entry_point_pybuggy_main() -> None:
     """Verify that the entry point goga_tool_pybuggy:main is accessible."""
     import goga_tool_pybuggy

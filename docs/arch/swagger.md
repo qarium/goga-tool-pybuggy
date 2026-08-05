@@ -147,7 +147,7 @@ def extract_request_schema_swagger(operation: dict) -> dict:
 def extract_response_schemas_swagger(operation: dict) -> dict:
     return {code: resp.get("schema", {}) for code, resp in operation.get("responses", {}).items()}
 
-_TYPE_FIELDS = ("type", "format", "items", "enum", "default", "description")
+_TYPE_FIELDS = ("type", "format", "items", "enum", "default", "description", "x-nullable")
 def extract_query_params_swagger(operation: dict) -> dict:
     result = {}
     for p in operation.get("parameters", []):
