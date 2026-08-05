@@ -176,3 +176,74 @@ def test_extract_endpoints_with_description() -> None:
 
     assert len(endpoints) == 1
     assert endpoints[0].description == "This is a test endpoint"
+
+
+def test_extract_endpoints_rewrites_openapi_nullable_to_jsonschema_union() -> None:
+    """Test extract_endpoints rewrites OpenAPI 3.0 nullable: true into JSON-Schema union types.
+
+    Nullability is normalized at the OpenAPI → JSON-Schema boundary so every command
+    (generate, info, …) sees one consistent shape — the jsonschema validator used at
+    runtime ignores the OpenAPI ``nullable`` keyword. Each nullable fragment becomes
+    ``type: [<types...>, "null"]`` with ``nullable`` dropped, recursing into nested
+    request/response/query schemas (incl. array items).
+    """
+    spec = {
+        "paths": {
+            "/nullable": {
+                "post": {
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {"ref": {"type": "string", "nullable": True}},
+                                }
+                            }
+                        }
+                    },
+                    "parameters": [{"name": "tag", "in": "query", "schema": {"type": "integer", "nullable": True}}],
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "data": {
+                                                "type": "array",
+                                                "items": {"type": "object", "nullable": True},
+                                            },
+                                            "error": {"type": "object", "nullable": True},
+                                        },
+                                    }
+                                }
+                            }
+                        }
+                    },
+                }
+            }
+        }
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    endpoint = endpoints[0]
+
+    # request: nullable string → union, no nullable key
+    assert endpoint.request == {
+        "type": "object",
+        "properties": {"ref": {"type": ["string", "null"]}},
+    }
+
+    # query param: nullable integer → union
+    assert endpoint.query_params["tag"] == {"type": ["integer", "null"]}
+
+    # response: nested nullable (array items + property) normalized recursively
+    assert endpoint.response["200"] == {
+        "type": "object",
+        "properties": {
+            "data": {"type": "array", "items": {"type": ["object", "null"]}},
+            "error": {"type": ["object", "null"]},
+        },
+    }

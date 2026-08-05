@@ -139,6 +139,68 @@ paths:
     assert not any(test_dir.iterdir())
 
 
+def test_run_generate_rewrites_openapi_nullable_to_jsonschema_union(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_generate should store OpenAPI nullable: true as a JSON-Schema union type.
+
+    Normalization happens in ``extract_endpoints`` (the OpenAPI → JSON-Schema
+    boundary); ``run_generate`` writes that already-normalized schema, so the jsonschema
+    validator at runtime accepts ``null``. This pins the end-to-end contract: an
+    OpenAPI spec with ``nullable`` produces a JSON-Schema file with union types and
+    no ``nullable`` key (recursing into array items).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      nullable: true
+                  error:
+                    type: object
+                    nullable: true
+                  tag:
+                    type: string
+                    nullable: true
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    schema_file = tmp_path / "api" / "shop" / "clients_startup_get" / "schemas" / "200.json"
+    assert schema_file.exists()
+    assert json.loads(schema_file.read_text()) == {
+        "type": "object",
+        "properties": {
+            "data": {
+                "type": "array",
+                "items": {"type": ["object", "null"]},
+            },
+            "error": {"type": ["object", "null"]},
+            "tag": {"type": ["string", "null"]},
+        },
+    }
+
+
 def test_run_generate_writes_empty_schema_for_non_json_code(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """run_generate should write an empty {} schema for a response code without application/json."""
     monkeypatch.chdir(tmp_path)
