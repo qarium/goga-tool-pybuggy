@@ -20,7 +20,7 @@ class SpecEntry(BaseModel):
         location: Local path (from the project root) to the spec file. Surfaced
             in the ``list`` header and is the copy target of ``pull``.
         git: Optional remote source; when absent the spec is treated as
-            local-only and ``pull`` skips it with a WARNING.
+            local-only and ``pull`` skips it silently.
     """
 
     model_config = ConfigDict(kw_only=True)

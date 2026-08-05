@@ -14,6 +14,10 @@ Exposes the contract entities of the pybuggy pytest-plugin cell:
   ``goga_tool_pybuggy.plugin.install()`` from conftest.py — there is no import-time
   auto-wiring, so ``pytest_plugins = ["goga_tool_pybuggy.plugin"]`` alone does NOT enable
   the plugin.
+- ``PluginConfigKeys`` — the config-key enum (the canonical pybuggy config keys
+  consumed by ``ApiPlugin`` via the pluginator option-resolution chain and written
+  into ``.goga/tools/pybuggy/config.yml``), re-exported so other cells iterate the
+  key set data-driven. Re-exported from ``.plugin``.
 
 ``Api`` is consumed internally by ``ApiPlugin.api()`` and is deliberately not
 re-exported through this facade.
@@ -24,9 +28,9 @@ import logging
 from pluginator import call_context, install_pytest_plugins
 
 from .loaders import PackageLoader
-from .plugin import ApiPlugin
+from .plugin import ApiPlugin, PluginConfigKeys
 
-__all__ = ["ApiPlugin", "install"]
+__all__ = ["ApiPlugin", "install", "PluginConfigKeys"]
 
 logger = logging.getLogger(__name__)
 

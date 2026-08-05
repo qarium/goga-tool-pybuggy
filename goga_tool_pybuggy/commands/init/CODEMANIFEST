@@ -1,3 +1,14 @@
+Imports:
+  - Types:
+      - SpecEntry
+      - GitEntry
+    Usages:
+      - configuration
+    From: goga_tool_pybuggy/config
+  - Types:
+      - PluginConfigKeys
+    From: goga_tool_pybuggy/plugin
+
 Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
@@ -6,67 +17,145 @@ Usages:
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the command wrapper and for mapping domain errors to click.ClickException.
-  Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing, create-if-absent).
-  Use `goga` for the in-process initialization of the goga-project via goga.init per-field Questionnaire methods + FileGenerator (language hardcoded to python; image python-only; no InitLogic).
+  Use `click` for the command wrapper, interactive prompts (plugin scalar keys + specs survey),
+    and mapping domain errors to click.ClickException.
+  Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing) AND for emitting
+    .goga/tools/pybuggy/config.yml with active values plus commented records (skipped optional fields and headers/loader examples).
+  Use `goga` for the in-process initialization of the goga-project via goga.init per-field Questionnaire methods + FileGenerator.
 
-  Top-level bootstrap command pybuggy init — initializes the goga-project (when not yet initialized) and then ships the
-  consumer usages of the api cell and their referencing annotations into the project where it is invoked. The handler
-  `run_init` is the testable entry point; the click wrapper `init_cmd` carries no options and delegates to `run_init`
-  (CLI tests call `run_init` directly). The goga-project initialization is delegated in-process to `run_goga_init`
-  (public, in __all__) — the test seam.
-  Usages are discovered from the installed goga_tool_pybuggy.api package via importlib.resources (not from cwd).
-  Target is the consumer goga-project config <cwd>/.goga/config.yml under codemanifest.usages and
-  codemanifest.annotations — NOT .goga/tools/pybuggy/config.yml; this cell does not use the config cell or load_config.
-  Use relative imports inside the cell.
+  Top-level bootstrap command pybuggy init — initializes the goga-project (created when absent, recreated only on
+  confirmation), ships the consumer usages of the api cell into the project, AND interactively builds
+  .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation). The handler `run_init` is the
+  testable entry point; the click wrapper `init_cmd` delegates to `run_init`. The goga-project initialization is
+  delegated to `run_goga_init`; the interactive config build is delegated to `build_pybuggy_config` (testable seam for
+  the TTY survey), which delegates file emission to the pure `write_pybuggy_config`. The recreate decisions for both
+  configs live in `run_init` (click.confirm, default no); the builders themselves always (over)write. Usages are
+  discovered from the installed goga_tool_pybuggy.api package. Use relative imports inside the cell.
 
 ---
 
 "run_init() -> exit_code:int":
   location: init.py
   annotations: |
-    Handler for the init command: ensure the goga-project is initialized, then bootstrap the consumer usages of the api
-    cell into the project where the command is invoked.
+    Handler for the init command: ensure the goga-project is initialized, build the pybuggy tool config, then bootstrap
+    the consumer usages of the api cell into the project where the command is invoked.
 
-    `exit_code`: 0 on success; non-zero goga-init exit code propagated when goga init fails or is cancelled.
+    `exit_code`: 0 on success; non-zero goga-init/config-build exit code propagated on failure/cancel.
 
     Algorithm:
     1. Resolve the output root as the current working directory.
-    2. When <cwd>/.goga/config.yml does NOT exist (goga-project not yet initialized): call `run_goga_init`;
-       if it returns a non-zero exit code, return that code immediately (do NOT register usages or annotations).
-    3. Discover every .usages/*.md under the api cell (including its subcells such as asserts) from the installed
-       goga_tool_pybuggy.api package via importlib.resources; stem is the filename without .md.
-    4. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md, creating parent
-       directories and overwriting any existing file.
-    5. Build usage_keys as pybuggy-<stem> mapped to .goga/usages/cooks/pybuggy/<stem>.md; delegate the registration
-       to `register_usages` with <cwd>/.goga/config.yml and usage_keys, receiving the added usage keys.
-    6. Build annotation_lines as pybuggy-<stem> mapped to a referencing annotation line for each usage — the
-       hand-authored description for the known api/asserts stems, a bare backtick reference otherwise; delegate the
-       registration to `register_annotations` with <cwd>/.goga/config.yml and annotation_lines, receiving the added
-       annotation keys.
-    7. Log INFO for each added usage/annotation key and WARNING for each skipped one.
-    8. Return 0.
+    2. Goga-project config: when <cwd>/.goga/config.yml does NOT exist, call `run_goga_init`; when it DOES exist,
+       ask via `click.confirm` (default no) whether to re-run goga init and overwrite it, and only re-run on yes.
+       If non-zero, return it immediately.
+    3. Pybuggy tool config: when <cwd>/.goga/tools/pybuggy/config.yml does NOT exist, call `build_pybuggy_config`;
+       when it DOES exist, ask via `click.confirm` (default no) whether to rebuild it, and only rebuild on yes.
+       If non-zero (cancel/error) return it; on 0 (or a declined rebuild) continue. The recreate decision lives
+       here in the orchestrator — `build_pybuggy_config` itself always (over)writes without checking.
+    4. Discover every .usages/*.md under the api cell (incl. asserts) from the installed goga_tool_pybuggy.api package.
+    5. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md.
+    6. Register usage keys via `register_usages` with <cwd>/.goga/config.yml (idempotent, skip-existing).
+    7. Register annotation lines via `register_annotations` with <cwd>/.goga/config.yml (idempotent by backtick reference).
+    8. Log INFO for added, WARNING for skipped.
+    9. Return 0.
 
     Requirements:
-    - The goga-project is initialized at most once — when <cwd>/.goga/config.yml is absent; on already-initialized
-      projects the interactive goga init is skipped (idempotent, non-interactive on re-runs).
-    - Usages bootstrap is idempotent — repeated runs overwrite the copied .md files and skip already-registered keys.
-    - Annotations bootstrap is idempotent — repeated runs skip annotation lines whose backtick reference already
-      exists; the existing annotation text (e.g. the base convention annotations from goga init) is preserved.
-    - Discovery is recursive under goga_tool_pybuggy.api so future subcells are registered without editing the command.
-    - The command works from the installed wheel: importlib.resources resolves the installed goga_tool_pybuggy.api package.
+    - Each config (goga `.goga/config.yml` and pybuggy `.goga/tools/pybuggy/config.yml`) is created when absent and
+      only recreated on explicit `click.confirm` (default no) when present; declining a recreate skips that step so
+      a plain repeat run just re-copies usages and skips registered keys.
+    - The config-build step (`build_pybuggy_config`) always (over)writes the tool config when it runs — the recreate
+      gate is `run_init`'s, not the builder's.
+    - The usages/annotations bootstrap is idempotent.
 
     Constraints:
-    - Do not register pybuggy usages or annotations when goga init failed/was cancelled — propagate goga's exit code instead.
-    - Do not read usages from the current working directory — always from the installed goga_tool_pybuggy.api package.
+    - Do not register pybuggy usages/annotations when goga init failed/was cancelled — propagate goga's exit code.
     - Do not copy usages of internal development cells (config, spec, output, matchcrest, plugin, commands).
-    - Carry no options — files are overwritten, keys/annotations are skipped.
 
-    Use `run_goga_init` for the goga-project initialization.
-    Use `register_usages` for the codemanifest.usages registration.
-    Use `register_annotations` for the codemanifest.annotations registration.
-    Use `click` for mapping bootstrap failures to click.ClickException.
-    Use `conventions` for structured logging and testing.
+    Use `run_goga_init`, `build_pybuggy_config`, `register_usages`, `register_annotations`. Use `click` for error mapping. Use `conventions` for logging/testing.
+
+"build_pybuggy_config() -> exit_code:int":
+  location: init.py
+  annotations: |
+    Interactive testable-seam that builds <cwd>/.goga/tools/pybuggy/config.yml on every call — the contract test seam
+    (public, in __all__). Isolates all TTY prompts; callers/tests stub this routine via monkeypatch (like run_goga_init).
+
+    `exit_code`: 0 on success (file written/overwritten); non-zero on cancel/error.
+
+    Algorithm:
+    1. Resolve the config path as <cwd>/.goga/tools/pybuggy/config.yml.
+    2. Survey the scalar plugin keys from `PluginConfigKeys` (every member except HEADERS and LOADER): each prompt carries a
+       descriptive text stating what the field is for. BASE_URL is required (empty re-prompts — cannot be skipped); the
+       remaining scalars are optional (empty -> None/skipped).
+    3. Survey specs interactively via `click`: for each spec prompt name, type (swagger|openapi), location (required), and
+       optional git block (url, location, ref); construct a `SpecEntry` (with `GitEntry` when git given) keyed by name;
+       repeat until the user stops, but require AT LEAST ONE spec — the loop re-prompts for the first spec name until one
+       is entered (mirrors BASE_URL: a config without specs is invalid per `configuration`). Structure per
+       `configuration`.
+    4. Delegate emission to `write_pybuggy_config` with the config path, the scalar answers (member value -> value|None),
+       and the specs mapping. The destination is always (over)written — no existence check, no overwrite confirmation.
+    5. Return 0. On click.Abort return non-zero; on other Exception log + echo + return non-zero (never raises).
+
+    Requirements:
+    - Interactive (TTY via click); tests stub this routine, never the real prompts.
+    - Every interactive prompt states what the field is for (description mirrors the ApiPlugin option semantics).
+    - BASE_URL mandatory and a Jinja2 template; write_pybuggy_config always emits it as a literal block scalar with a
+      'required, Jinja2 template' comment.
+    - At least one spec is required — the survey cannot complete with zero specs (a config without specs is invalid).
+    - Returns a code and never raises on cancellation/failure.
+
+    Constraints:
+    - Always (over)write the tool config — no existence check and no overwrite confirmation; the file is regenerated on every call.
+    - Do not survey HEADERS or LOADER — emitted as commented examples by write_pybuggy_config.
+    - Do not duplicate plugin key names — iterate `PluginConfigKeys`.
+
+    Use `click` for prompts. Use `PluginConfigKeys` for the scalar key set. Use `SpecEntry` and `GitEntry` for specs.
+    Use `write_pybuggy_config` for emission. Use `conventions` for logging/type hints/testing.
+
+"write_pybuggy_config(path: Path, scalar_values: dict[str, str | None], specs: dict[str, SpecEntry])":
+  location: init.py
+  annotations: |
+    Pure round-trip emitter of .goga/tools/pybuggy/config.yml from collected answers — active values plus commented
+    records for skipped optional scalars and the complex headers/loader sections, and the active specs mapping. No TTY.
+
+    `path`: target file path (<cwd>/.goga/tools/pybuggy/config.yml).
+    `scalar_values`: mapping of `PluginConfigKeys` scalar member value -> answered value (str) or None (skipped).
+    `specs`: mapping of spec name -> `SpecEntry`.
+
+    Algorithm:
+    1. Configure ruamel YAML for round-trip (preserve quotes, key order, comments) and raise its ``best_width``
+       (``yaml.width``) so long plain scalars — e.g. the git ``url`` — are not line-folded onto a continuation line;
+       build a fresh CommentedMap.
+    2. Iterate scalar members of `PluginConfigKeys` (all except HEADERS, LOADER) in canonical order; for each: value
+       present -> active key:value — numeric members (timeout/assert_delay -> float, retries/assert_timeout -> int) are
+       coerced to their `ApiPlugin` option type so the scalar is a number, not a quoted string (BASE_URL -> literal block
+       scalar ``|`` always, never a plain scalar); None -> commented "# key:" line with a one-line explanation.
+    3. Emit HEADERS as a commented multi-line example (a "# headers:" block, sample entry, dict note).
+    4. Emit LOADER as a commented multi-line example (a "# loader:" block, packages/modules structure, note).
+    5. Emit specs mapping as active YAML: name: { type, location, git: { url, location, ref } when present } per
+       `SpecEntry`/`GitEntry` shape (see `configuration`). When `GitEntry.ref` is None, `ref` is documented as a standalone
+       `# ref:` line on its own indented line after `location` (the post-value comment slot ``items['location'][2]`` —
+       the slot ruamel's own loader uses for trailing comments; the eol/``after`` slots are dropped on the last key of a
+       block mapping) instead of an empty active key.
+    6. Ensure parent dir of `path` exists; dump the document.
+
+    Requirements:
+    - The emitted document is valid for the config schema (see `configuration`): a specs mapping where each entry carries
+      required type/location; scalar plugin keys ignored by Config (extra=ignore), so active/commented presence does not
+      break the config cell loader.
+    - The specs mapping is always non-empty (`build_pybuggy_config` enforces ≥1 spec) — never emit an empty or absent
+      specs section (a config without specs is invalid).
+    - Commented records use a leading "#" and a one-line explanation.
+    - BASE_URL is always a literal block scalar and carries a 'required, Jinja2 template' marker on its own line above
+      the key.
+    - Output deterministic for the same inputs.
+
+    Constraints:
+    - Do not survey/prompt — pure (TTY-free); interactivity lives in build_pybuggy_config.
+    - Do not read/merge an existing file — build from scratch and overwrite `path` on every call (build_pybuggy_config neither checks for nor confirms an existing file).
+    - Do not use pyyaml — ruamel.yaml round-trip only.
+
+    Use `ruamel-yaml` for CommentedMap, commented-record emission, dump. Use `PluginConfigKeys` for canonical scalar key
+    set/order. Use `SpecEntry`/`GitEntry` for specs shape. Use `configuration` from Imports for schema compatibility.
+    Use `conventions` for type hints/relative imports.
 
 "run_goga_init() -> exit_code:int":
   location: init.py
@@ -201,8 +290,9 @@ Annotations: |
 Author: Goga
 CreatedAt: 27/07/26
 Description: |
-  Top-level init command handler — initializes the goga-project in-process via goga init (when not yet initialized),
-  then bootstraps the consumer usages of the api cell into the project where it is invoked: discovers .usages/*.md from
-  the installed goga_tool_pybuggy.api package, copies them under .goga/usages/cooks/pybuggy/, and registers them in
-  .goga/config.yml under codemanifest.usages; appends a referencing annotation line per usage under
-  codemanifest.annotations; idempotent.
+  Top-level init command handler — initializes the goga-project in-process via goga init (created when absent,
+  recreated only on confirmation), then bootstraps the consumer usages of the api cell into the project where it is
+  invoked: discovers .usages/*.md from the installed goga_tool_pybuggy.api package, copies them under
+  .goga/usages/cooks/pybuggy/, and registers them in .goga/config.yml under codemanifest.usages; appends a referencing
+  annotation line per usage under codemanifest.annotations; idempotent. Also interactively builds
+  .goga/tools/pybuggy/config.yml (plugin options + specs) — built when absent, rebuilt only on confirmation.

@@ -9,7 +9,12 @@ import click
 from goga.init import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
 from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.error import CommentMark
 from ruamel.yaml.scalarstring import LiteralScalarString
+from ruamel.yaml.tokens import CommentToken
+
+from ...config import GitEntry, SpecEntry
+from ...plugin import PluginConfigKeys
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +216,347 @@ def register_annotations(config_path: Path, annotation_lines: dict[str, str]) ->
     return added_keys
 
 
+# Commented example blocks for the complex ``headers``/``loader`` plugin members. These members
+# cannot be captured as plain scalars by the interactive build, so their shape is emitted as a
+# ``# ``-prefixed example (pinned to the next active key via the ruamel ``before`` comment) instead
+# of an active key — documenting the full option surface without producing schema keys (``Config``
+# ignores extra scalars).
+_HEADERS_BLOCK = (
+    "headers: example (skipped complex member)\n"
+    "  X-Example: value\n"
+    "  default request headers dict"
+)
+_LOADER_BLOCK = (
+    "loader: example (skipped complex member)\n"
+    "  packages:\n"
+    "    - api\n"
+    "  modules: []"
+)
+
+# Complex plugin members never captured as scalars; emitted as the commented example blocks above.
+_COMPLEX_MEMBERS = frozenset({PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER})
+
+# Numeric plugin members emitted as YAML numbers, matching their ``ApiPlugin`` option types, instead
+# of the plain string captured by the interactive prompt. All other scalar members stay plain
+# strings. An empty answer (``None``) still becomes a skipped commented record.
+_NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
+    PluginConfigKeys.TIMEOUT: float,
+    PluginConfigKeys.RETRIES: int,
+    PluginConfigKeys.ASSERT_TIMEOUT: int,
+    PluginConfigKeys.ASSERT_DELAY: float,
+}
+
+
+# Column of the ``url``/``location``/``ref`` keys inside a rendered ``git`` block. The git block is
+# always nested three mappings deep (``specs -> <name> -> git``) and ruamel's default indent is 2,
+# so its child keys sit at column 6. The commented ``# ref:`` line (when ``ref`` is None) must be
+# indented to this same column to line up with the active keys.
+_GIT_CHILD_INDENT = 6
+
+
+def _git_entry_to_map(git: GitEntry) -> CommentedMap:
+    """Render a ``GitEntry`` as a round-trip ``CommentedMap`` preserving field order.
+
+    ``url``/``location`` are always active keys. ``ref`` is active when set; when ``None`` it is
+    emitted as a commented record (``# ref:``) on its own line instead of an empty active key, so the
+    option stays documented without producing a schema key (``GitEntry`` defaults ``ref`` to
+    ``None``). ruamel drops the ``after`` comment on the last key of a block mapping on emit, but the
+    post-value comment slot (``items[key][2]`` — the slot its own loader uses for trailing comments)
+    survives, so the commented ``ref`` is attached there on ``location`` — the field immediately
+    preceding it — keeping it at the position where ``ref`` would otherwise appear, on its own line.
+
+    Args:
+        git: The remote git source to render.
+
+    Returns:
+        A ``CommentedMap`` with ``url``/``location`` (and ``ref`` when set) in declaration order.
+    """
+    g = CommentedMap()
+    g["url"] = git.url
+    g["location"] = git.location
+    if git.ref is not None:
+        g["ref"] = git.ref
+    else:
+        indent = " " * _GIT_CHILD_INDENT
+        token = CommentToken(f"\n{indent}# ref:\n", CommentMark(_GIT_CHILD_INDENT))
+        g.ca.items.setdefault("location", [None, None, None, None])[2] = token
+    return g
+
+
+def write_pybuggy_config(
+    path: Path, scalar_values: dict[str, str | None], specs: dict[str, SpecEntry]
+) -> None:
+    """Emit ``.goga/tools/pybuggy/config.yml`` from answered scalars and specs.
+
+    Pure, TTY-free, deterministic round-trip emitter. Active scalar values
+    (``scalar_values[member.value]`` not None) are written as ``key: value`` — numeric members
+    (``timeout``/``retries``/``assert_timeout``/``assert_delay``) are coerced to their ``ApiPlugin``
+    option type (``float``/``int``) so the scalar is a number, not a quoted string; skipped optional
+    scalars (``None``) and the complex ``HEADERS``/``LOADER`` members are emitted as commented
+    records (``# key:``) pinned to the next active key via the ruamel ``before`` comment, so they
+    document the full option surface without becoming schema keys (``Config`` ignores extra scalars
+    via ``extra="ignore"``). ``base_url`` is always a Jinja2 template, so it is always emitted as a
+    literal block scalar with the clip indicator (``|``) — a long plain scalar would be line-wrapped
+    by ruamel and mangle the template. A trailing newline is appended so ruamel emits ``|`` rather
+    than ``|-`` (harmless: ``render_base_url`` strips all whitespace); the ``# required, Jinja2
+    template`` marker sits on its own line above the key. ``specs`` is emitted as an active section
+    per the ``SpecEntry``/``GitEntry`` form and acts as the terminal anchor for any trailing
+    commented buffer.
+
+    The canonical key order is the ``PluginConfigKeys`` declaration order (no hardcoded keys); the
+    ``HEADERS``/``LOADER`` members are filtered out of the scalar walk.
+
+    Args:
+        path: Destination config path; the parent directory is created when missing.
+        scalar_values: Mapping of ``PluginConfigKeys.<member>.value`` to the answered string, or
+            ``None`` for a skipped optional scalar.
+        specs: Ordered mapping of spec name to ``SpecEntry`` (always non-empty by caller contract).
+
+    Raises:
+        ValueError: If a numeric member's answer cannot coerce to its target type.
+        YAMLError: Forwarded unchanged from ruamel if raised during emission (not expected).
+    """
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    # ruamel's default ``best_width`` (80) folds long plain scalars — e.g. a git SSH clone URL — onto
+    # a continuation line, breaking ``url: <value>`` across two lines. Raise the width so plain
+    # scalars (the git ``url``) stay on one line; block scalars (``base_url``) are unaffected.
+    yaml.width = 4096
+
+    doc = CommentedMap()
+    pending: list[str] = []
+
+    def _flush(key: str) -> None:
+        if pending:
+            doc.yaml_set_comment_before_after_key(key, before="\n".join(pending))
+            pending.clear()
+
+    for member in PluginConfigKeys:
+        if member in _COMPLEX_MEMBERS:
+            pending.append(_HEADERS_BLOCK if member is PluginConfigKeys.HEADERS else _LOADER_BLOCK)
+            continue
+
+        value = scalar_values.get(member.value)
+        if value is None:
+            pending.append(f"{member.value}: (skipped optional scalar)")
+            continue
+
+        # base_url is always a Jinja2 template that must survive round-trip verbatim, so it is
+        # always emitted as a literal block scalar (``|``): a long plain scalar would be line-wrapped
+        # by ruamel and mangle the template, and a multi-line template must keep its line breaks. The
+        # ``# required, Jinja2 template`` marker sits on its own line above the key (a same-line
+        # comment lands awkwardly after the block). Other scalars stay plain.
+        if member is PluginConfigKeys.BASE_URL:
+            # Append a trailing newline so ruamel emits the clip indicator (``|``) instead of the
+            # strip indicator (``|-``); render_base_url strips all whitespace, so the added newline
+            # is harmless and the template still renders to the same URL.
+            doc[member.value] = LiteralScalarString(value + "\n")
+            _flush(member.value)
+            doc.yaml_set_comment_before_after_key(
+                PluginConfigKeys.BASE_URL.value, before="required, Jinja2 template"
+            )
+        else:
+            # Numeric members (timeout/retries/assert_timeout/assert_delay) are coerced to their
+            # ``ApiPlugin`` option type so the emitted scalar is a number, not a quoted string — a
+            # non-numeric answer raises ValueError (surfaced by build_pybuggy_config as exit code 1).
+            target_type = _NUMERIC_MEMBERS.get(member)
+            doc[member.value] = target_type(value) if target_type is not None else value
+            _flush(member.value)
+
+    specs_map = CommentedMap()
+    for name, entry in specs.items():
+        spec_map = CommentedMap()
+        spec_map["type"] = entry.type
+        spec_map["location"] = entry.location
+        if entry.git is not None:
+            spec_map["git"] = _git_entry_to_map(entry.git)
+        specs_map[name] = spec_map
+
+    doc["specs"] = specs_map
+    _flush("specs")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    yaml.dump(doc, path)
+
+
+# Human-readable prompt text for each optional scalar plugin key — mirrors the
+# ``ApiPlugin`` option docstrings so the user knows what every field is for.
+# ``BASE_URL`` is collected separately as a (possibly multi-line) Jinja2 template;
+# ``HEADERS``/``LOADER`` are complex members and never surveyed here.
+_SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
+    PluginConfigKeys.TIMEOUT: (
+        "timeout — request timeout in seconds for HTTP calls (optional). Enter to skip"
+    ),
+    PluginConfigKeys.DATA_KEY: (
+        "data_key — response body key treated as the success payload (optional). Enter to skip"
+    ),
+    PluginConfigKeys.ERROR_KEY: (
+        "error_key — response body key treated as the error payload (optional). Enter to skip"
+    ),
+    PluginConfigKeys.RETRIES: (
+        "retries — flaky rerun count for failing tests across the suite (optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_TIMEOUT: (
+        "assert_timeout — baseline polling timeout in seconds for retrying assertions "
+        "(optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_DELAY: (
+        "assert_delay — seconds between assertion polling attempts (optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_FIELD_CLASS: (
+        'assert_field_class — dotted "module:Class" of a custom AssertField subclass '
+        "(optional). Enter to skip"
+    ),
+    PluginConfigKeys.ASSERT_RESPONSE_CLASS: (
+        'assert_response_class — dotted "module:Class" of a custom Expected subclass '
+        "(optional). Enter to skip"
+    ),
+}
+
+
+def _ask_scalar_values() -> dict[str, str | None]:
+    """Interactively collect the scalar ``PluginConfigKeys`` (skipping complex members).
+
+    ``base_url`` is required and re-prompted when empty; the remaining scalars are optional and an
+    empty answer maps to ``None`` (a skipped commented record in the emitted config). Each prompt
+    carries a descriptive text stating what the field is for. The canonical order is the
+    ``PluginConfigKeys`` declaration order; ``HEADERS``/``LOADER`` are skipped (complex).
+
+    Returns:
+        A mapping of ``PluginConfigKeys.<member>.value`` to the answered string or ``None``.
+
+    Raises:
+        click.Abort: Forwarded unchanged from any cancelled ``click`` prompt.
+    """
+    scalar_values: dict[str, str | None] = {}
+    for member in PluginConfigKeys:
+        if member in _COMPLEX_MEMBERS:
+            continue
+        if member is PluginConfigKeys.BASE_URL:
+            while not (
+                val := click.prompt(
+                    "base_url — service base URL as a Jinja2 template (required)",
+                    default="",
+                    show_default=False,
+                ).strip()
+            ):
+                click.echo("base_url is required")
+            scalar_values[member.value] = val
+        else:
+            val = click.prompt(_SCALAR_PROMPTS[member], default="", show_default=False).strip()
+            scalar_values[member.value] = val or None
+    return scalar_values
+
+
+def _ask_spec() -> SpecEntry:
+    """Interactively collect one ``SpecEntry`` (its name is validated by the caller).
+
+    ``type`` is restricted to ``swagger``/``openapi`` via ``click.Choice``; ``location`` is required
+    (re-prompted when empty); the git source is optional and confirmed first.
+
+    Returns:
+        The collected ``SpecEntry``.
+
+    Raises:
+        click.Abort: Forwarded unchanged from any cancelled ``click`` prompt.
+    """
+    t = click.prompt("spec type — format of the spec file", type=click.Choice(["swagger", "openapi"]))
+    location = click.prompt(
+        "location — path from the project root to the spec file",
+        default="",
+        show_default=False,
+    ).strip()
+    while not location:
+        location = click.prompt(
+            "location — path from the project root to the spec file (required)",
+            default="",
+            show_default=False,
+        ).strip()
+    git = None
+    if click.confirm("Add a git source for this spec?", default=False):
+        g_url = click.prompt(
+            "git url — clone URL of the repository holding the spec",
+            default="",
+            show_default=False,
+        ).strip()
+        while not g_url:
+            g_url = click.prompt(
+                "git url — clone URL of the repository holding the spec (required)",
+                default="",
+                show_default=False,
+            ).strip()
+        g_loc = click.prompt(
+            "git location — path inside the repository to the spec file",
+            default="",
+            show_default=False,
+        ).strip()
+        while not g_loc:
+            g_loc = click.prompt(
+                "git location — path inside the repository to the spec file (required)",
+                default="",
+                show_default=False,
+            ).strip()
+        g_ref = click.prompt(
+            "git ref — branch or tag to clone (optional, defaults to the remote default branch)",
+            default="",
+        ).strip() or None
+        git = GitEntry(url=g_url, location=g_loc, ref=g_ref)
+    return SpecEntry(type=t, location=location, git=git)
+
+
+def build_pybuggy_config() -> int:
+    """Interactively build ``.goga/tools/pybuggy/config.yml`` from prompted answers.
+
+    Testable-seam target: prompts the scalar ``PluginConfigKeys`` (skipping the complex
+    ``HEADERS``/``LOADER`` members) and at least one spec, then delegates emission to
+    :func:`write_pybuggy_config`. The destination ``<cwd>/.goga/tools/pybuggy/config.yml`` is always
+    (over)written — no existence check and no overwrite confirmation — so every run regenerates it.
+    ``base_url`` is required (re-prompted when empty); the remaining scalars are optional (empty →
+    ``None``, i.e. a skipped commented record). The first spec name is required (at least one spec
+    is mandatory); subsequent prompts accept an empty name to finish.
+
+    Mirrors :func:`run_goga_init`: it returns an exit code and never raises — a ``click.Abort`` (user
+    cancellation) or any other ``Exception`` is logged and echoed, returning ``1``. ``run_init``
+    relies on this never-raises contract (it calls this step outside its own try/except).
+
+    Returns:
+        0 on success; 1 on cancellation or failure.
+    """
+    config_path = Path.cwd() / ".goga" / "tools" / "pybuggy" / "config.yml"
+    try:
+        scalar_values = _ask_scalar_values()
+
+        specs: dict[str, SpecEntry] = {}
+        first = True
+        while True:
+            name = click.prompt(
+                "spec name — unique name for this spec (the list/info commands use it as a key)"
+                + ("" if first else " (empty to finish)"),
+                default="",
+                show_default=False,
+            ).strip()
+            if first:
+                while not name:
+                    name = click.prompt(
+                        "spec name — unique name for this spec (required)",
+                        default="",
+                        show_default=False,
+                    ).strip()
+            elif not name:
+                break
+            specs[name] = _ask_spec()
+            first = False
+
+        write_pybuggy_config(config_path, scalar_values, specs)
+        return 0
+    except click.Abort:
+        return 1
+    except Exception as exc:
+        logger.error("config build failed", extra={"error": str(exc)})
+        click.echo(f"Error: {exc}", err=True)
+        return 1
+
+
 def run_goga_init() -> int:
     """Initialize the goga-project in-process, tailored for a Python project.
 
@@ -265,30 +611,107 @@ def run_goga_init() -> int:
         return 1
 
 
-def run_init() -> int:
-    """Initialize the goga-project (when not yet initialized) and bootstrap the api usages.
+def _should_rebuild(path: Path, prompt: str) -> bool:
+    """Decide whether to (re)build the config at ``path`` during ``init``.
 
-    When ``<cwd>/.goga/config.yml`` is absent, the interactive goga-project initialization is run
-    in-process via ``run_goga_init``; a non-zero exit code is returned immediately (no usages are
-    registered). After that, every ``.usages/*.md`` under the installed ``goga_tool_pybuggy.api`` package
-    (including its subcells such as ``asserts``) is copied to
-    ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md`` and the ``pybuggy-<stem>`` keys are registered in
-    ``<cwd>/.goga/config.yml`` under ``codemanifest.usages``. A referencing annotation line is also
-    appended under ``codemanifest.annotations`` for each registered usage (the existing annotation
-    text is preserved). Idempotent: repeated runs overwrite the copied files and skip already-
-    registered keys and already-referenced annotations, and goga init is skipped on
-    already-initialized projects.
+    Builds unconditionally when the file is absent (nothing to recreate); when it exists, asks the user via
+    ``click.confirm`` (default ``no``) and rebuilds only on an explicit ``yes``. Isolating this decision keeps
+    :func:`run_init` under the cyclomatic-complexity cap.
+
+    Args:
+        path: The config file whose existence gates the rebuild.
+        prompt: The confirmation question shown when ``path`` already exists.
 
     Returns:
-        0 on success; a non-zero goga-init exit code when goga init fails or is cancelled.
+        ``True`` when the config should be (re)built; ``False`` when it exists and the user declined.
+    """
+    return not path.exists() or click.confirm(prompt, default=False)
+
+
+def _log_registration(
+    usage_keys: dict[str, str],
+    added_usage_keys: list[str],
+    annotation_lines: dict[str, str],
+    added_annotation_keys: list[str],
+) -> None:
+    """Log INFO for newly-registered usages/annotations and WARNING for already-present (skipped) ones.
+
+    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. A key counts as added when it
+    appears in the corresponding ``added_*`` list returned by :func:`register_usages`/:func:`register_annotations`.
+
+    Args:
+        usage_keys: Full mapping of ``pybuggy-<stem>`` to the copied usage path.
+        added_usage_keys: Keys actually added by :func:`register_usages` (pre-existing ones excluded).
+        annotation_lines: Full mapping of ``pybuggy-<stem>`` to its annotation line.
+        added_annotation_keys: Keys whose annotation line was actually appended by :func:`register_annotations`.
+    """
+    for key, path in usage_keys.items():
+        if key in added_usage_keys:
+            logger.info("usage registered", extra={"key": key, "path": path})
+        else:
+            logger.warning("usage already registered, skipped", extra={"key": key})
+    for key in annotation_lines:
+        if key in added_annotation_keys:
+            logger.info("annotation registered", extra={"key": key})
+        else:
+            logger.warning("annotation already registered, skipped", extra={"key": key})
+
+
+def run_init() -> int:
+    """Initialize the goga-project, build the pybuggy tool config, then bootstrap the api usages.
+
+    Algorithm (9 steps):
+
+    1. Resolve the output root as the current working directory.
+    2. Goga-project config: when ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive
+       goga-project initialization in-process via :func:`run_goga_init`; when it DOES exist, ask
+       (``click.confirm``, default ``no``) whether to re-run goga init and overwrite it, and only
+       re-run on ``yes``. A non-zero exit code is returned immediately (no usages are registered).
+    3. Pybuggy tool config: when ``<cwd>/.goga/tools/pybuggy/config.yml`` does NOT exist, build it
+       via :func:`build_pybuggy_config`; when it DOES exist, ask (``click.confirm``, default ``no``)
+       whether to rebuild it, and only rebuild on ``yes``. A non-zero exit code is returned
+       immediately. :func:`build_pybuggy_config` itself neither checks for nor confirms an existing
+       file (always overwrites) — the recreate decision lives here, in the orchestrator.
+    4. Discover every ``.usages/*.md`` under the installed ``goga_tool_pybuggy.api`` package
+       (including its subcells such as ``asserts``).
+    5. Copy each discovered file to ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md``.
+    6. Register the ``pybuggy-<stem>`` keys in ``<cwd>/.goga/config.yml`` under
+       ``codemanifest.usages`` via :func:`register_usages` (idempotent, skip-existing).
+    7. Append a referencing annotation line per registered usage under ``codemanifest.annotations``
+       via :func:`register_annotations` (idempotent by backtick reference, existing text preserved).
+    8. Log INFO for added keys/annotations and WARNING for skipped ones.
+    9. Return 0.
+
+    Each config is created when absent and only recreated on explicit confirmation when present, so a
+    plain repeat run (both confirms declined) just re-copies the usages and skips already-registered
+    keys/annotations — idempotent. Steps 2 and 3 are called outside this routine's own try/except —
+    they rely on :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code
+    on cancellation/failure).
+
+    Returns:
+        0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
 
     Raises:
         click.ClickException: On a file-write, YAML, or navigation failure during the bootstrap.
     """
     cwd = Path.cwd()
+    goga_config = cwd / ".goga" / "config.yml"
+    pybuggy_config = cwd / ".goga" / "tools" / "pybuggy" / "config.yml"
 
-    if not (cwd / ".goga" / "config.yml").exists():
+    # Goga-project config: create when absent; recreate only on explicit confirmation (overwriting it
+    # can discard user-customized codemanifest entries beyond pybuggy's own).
+    if _should_rebuild(
+        goga_config, ".goga/config.yml exists — re-run goga init and overwrite it?"
+    ):
         rc = run_goga_init()
+        if rc != 0:
+            return rc
+
+    # Pybuggy tool config: build when absent; rebuild only on explicit confirmation.
+    if _should_rebuild(
+        pybuggy_config, ".goga/tools/pybuggy/config.yml exists — rebuild it from the survey?"
+    ):
+        rc = build_pybuggy_config()
         if rc != 0:
             return rc
 
@@ -308,17 +731,7 @@ def run_init() -> int:
     except (OSError, YAMLError, ValueError) as e:
         raise click.ClickException(str(e)) from e
 
-    for key, path in usage_keys.items():
-        if key in added_usage_keys:
-            logger.info("usage registered", extra={"key": key, "path": path})
-        else:
-            logger.warning("usage already registered, skipped", extra={"key": key})
-
-    for key in annotation_lines:
-        if key in added_annotation_keys:
-            logger.info("annotation registered", extra={"key": key})
-        else:
-            logger.warning("annotation already registered, skipped", extra={"key": key})
+    _log_registration(usage_keys, added_usage_keys, annotation_lines, added_annotation_keys)
 
     return 0
 
@@ -326,5 +739,5 @@ def run_init() -> int:
 @click.command("init")
 @click.pass_context
 def init_cmd(ctx: click.Context) -> None:
-    """Initialize the goga-project (when not yet initialized), then bootstrap the api cell's consumer-usages."""
+    """Initialize the goga-project, build .goga/tools/pybuggy/config.yml, then bootstrap the api usages."""
     ctx.exit(run_init())

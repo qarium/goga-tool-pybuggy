@@ -51,7 +51,7 @@ Annotations: |
     Use `conventions` for pydantic model rules.
 
     Constraints:
-    - `request`/`response`/`query_params` hold already-resolved schemas (Prance inlined refs — see `swax-openapi`).
+    - `request`/`response`/`query_params` hold already-resolved schemas (Prance inlined refs — see `swax-openapi`), nullable-normalized to JSON-Schema union types by `extract_endpoints`.
   properties:
     "id -> str": |
       Stable identifier derived via `build_endpoint_id` from the endpoint's method and path. Computed field — not a constructor input.
@@ -84,12 +84,13 @@ Annotations: |
     Algorithm:
     1. Read spec["paths"].
     2. For each path-item, for each HTTP method present in (get, post, put, delete, patch, options, head), take the operation.
-    3. Build an `Endpoint` from the operation: request-body schema (primary JSON content), response schemas, query parameters, description.
+    3. Build an `Endpoint` from the operation: request-body schema (primary JSON content), response schemas, query parameters, description — normalizing every extracted schema from the OpenAPI nullable keyword to the JSON-Schema union form (see Requirements).
     4. Compute each `Endpoint` id via `build_endpoint_id`.
 
     Requirements:
     - Skip non-method keys in path-items (parameters, summary).
     - Path-item parameters are inherited by all operations — merge with operation parameters when extracting query params.
+    - Each extracted schema (request, response, query) is nullable-normalized at the OpenAPI → JSON-Schema boundary: OpenAPI 3.0 "nullable: true" becomes the JSON-Schema union form (a type list including "null") and the nullable key is dropped, recursing through properties, items, additionalProperties, and anyOf/oneOf/allOf. Required because the runtime jsonschema validator ignores nullable, so an un-normalized fragment rejects null.
 
     Constraints:
     - Pure logic over `spec` — no I/O, no $ref resolution.

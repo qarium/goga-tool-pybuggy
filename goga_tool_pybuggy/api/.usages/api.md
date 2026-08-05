@@ -8,8 +8,11 @@ Runtime ячейки `goga_tool_pybuggy/api` выполняет HTTP-запро�
 подробный референс API: `Api`, `Endpoint`, `ResponseWrapper`, `Expected`,
 `AssertField`, `Auth`.
 
-pybuggy поставляет **только классы**. Экземпляр `Api` собирает сам потребитель в
-своём `conftest.py` и отдаёт его в фикстуре `api`.
+pybuggy поставляет **только классы**. Экземпляр `Api` собирает **pytest-плагин**
+`goga_tool_pybuggy.plugin` из опций конфига и отдаёт его в фикстуре `api`;
+сгенерированные endpoint-фикстуры регистрируются тем же плагином. Потребителю
+достаточно подключить плагин в `conftest.py` и задать опции в
+`.goga/tools/pybuggy/config.yml` — см. «Подключение плагина».
 
 ---
 
@@ -60,8 +63,8 @@ Api(
 | `headers` | Заголовки по умолчанию, сливаются в каждый запрос (call-level побеждает) |
 | `cookies` | Cookies по умолчанию |
 | `timeout` | Сетевой таймаут (передаётся в `resq.Session`, не переотправляется на запрос) |
-| `data_key` | Ключ тела «успех»: фолбэк для `Endpoint` без своего `data_key` |
-| `error_key` | Ключ тела «ошибка»: фолбэк для `Endpoint` без своего `error_key` |
+| `data_key` | Ключ тела «успех» (напр. `"data"`): фолбэк для `Endpoint` без своего `data_key`; **определяет корень field-ассертов и авто-чека на позитивном пути** — задавайте обязательно, иначе проверки смотрят мимо конверта |
+| `error_key` | Ключ тела «ошибка» (напр. `"error"`): фолбэк для `Endpoint` без своего `error_key`; **определяет корень field-ассертов и авто-чека на негативном пути** — задавайте обязательно |
 | `assert_timeout` | Бейзлайн polling-таймаута ассертов (отличен от сетевого `timeout`); уходит в каждый `AssertConfig` |
 | `assert_delay` | Бейзлайн паузы между polling-попытками; уходит в каждый `AssertConfig` |
 | `assert_field_class` | Dotted `module:Class` кастомного подкласса `AssertField` |
@@ -147,44 +150,52 @@ caller-словарь), вынимает `auth`/`use_autocheck`, резолви�
 
 ---
 
-## Шаблон: фикстура `api` (собирает потребитель)
+## Подключение плагина
+
+pybuggy — это pytest-плагин (`goga_tool_pybuggy.plugin`). Он сам собирает `Api` из
+опций конфига и предоставляет функцию-scope фикстуру `api`, а также регистрирует
+все сгенерированные endpoint-фикстуры. **Плагин не саморегистрируется**: строки
+`pytest_plugins = ["goga_tool_pybuggy.plugin"]` недостаточно. Потребитель подключает
+его одним вызовом `install()` в корневом `conftest.py`:
 
 ```python
 # conftest.py тестового проекта
-from collections.abc import Iterator
+from goga_tool_pybuggy.plugin import install
 
-import pytest
-from goga_tool_pybuggy.api import Api
+install()
+```
 
+`install()` на старте собирает `pytest_plugins` через `PackageLoader("api")` (по
+умолчанию), поэтому все сгенерированные фикстуры из дерева `api/<spec>/<id>/api.py`
+становятся доступны в тестах по имени, **без явного импорта**. Чтобы отключить
+авто-обнаружение, передайте `install(loaders=[])`.
 
-@pytest.fixture(scope="session")
-def api() -> Iterator[Api]:
+Опции `Api` (`base_url`, `headers`, `timeout`, `data_key`, `error_key`, `retries`,
+`assert_timeout`, `assert_delay`, `assert_field_class`, `assert_response_class`)
+плагин читает из конфига `.goga/tools/pybuggy/config.yml` (с фолбэками на env/CLI).
+Тело фикстуры `api` эквивалентно:
+
+```python
+@pytest.fixture
+def api(self) -> Iterator[Api]:
     api = Api(
-        base_url="https://api.example.com",
-        data_key="data",
-        error_key="error",
+        base_url=self.base_url,           # из config (Jinja-шаблон, рендерится один раз)
+        headers=self.headers,
+        timeout=self.timeout,
+        data_key=self.data_key,           # config: data_key
+        error_key=self.error_key,         # config: error_key
+        assert_timeout=self.assert_timeout,
+        assert_delay=self.assert_delay,
+        assert_field_class=self.assert_field_class,
+        assert_response_class=self.assert_response_class,
     )
     yield api
     api.close()
 ```
 
-Скоуп — на усмотрение потребителя (`session`/`function`). `data_key`/`error_key`
-здесь — defaults для всех endpoint-ов; конкретный `Endpoint` может переопределить
-их своими. Фикстура-генератор вызывает `api.close()` после теста (на `session`-скоупе
-— один раз в конце), закрывая пул соединений.
-
-Для polling/кастомных классов добавьте assert-опции уровня `Api`:
-
-```python
-api = Api(
-    base_url="https://api.example.com",
-    data_key="data",
-    error_key="error",
-    assert_timeout=5,        # бейзлайн polling-таймаута (сек.)
-    assert_delay=0.2,        # пауза между попытками (сек.)
-    assert_field_class="myproj.asserts:StrictAssertField",
-)
-```
+**Писать свою `api`-фикстуру не нужно** — плагин её уже предоставляет; меняйте
+поведение через опции конфига, а не через дублирование фикстуры. `retries` (если
+`> 0`) ортогонален `api`: плагин маркирует все собранные тесты `pytest.mark.flaky`.
 
 ---
 
@@ -232,11 +243,34 @@ def test_initiate(post_clients_calls_initiate: Endpoint):
 def test_initiate_error(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate.error(json=Request(order_id=-1)) as response:
         response.expected.has_status_code(400)
+        response.expected("message").not_empty()
 ```
 
 `.error(...)` — негативный путь: статус и json-schema в авто-чеке **не
 проверяются**, поэтому статус нужно проверить явно. **Negative-путь авто-чека:**
-`data_key` отсутствует → `error_key` присутствует.
+`data_key` отсутствует → `error_key` присутствует. field-пути резолвятся под
+`error_key` (напр. `response.expected("message")` → `body["error"]["message"]`).
+
+Если тело невалидно по схеме (нет обязательного поля, неверный тип, пустое тело,
+битый JSON), модель `Request` не построится — обходите pydantic: сырой `dict`
+(`json={...}`), `data="{"` или вызов `.error()` без аргументов (см. «Параметры запроса»):
+
+```python
+# нет обязательного поля — dict, минуя pydantic
+with post_clients_calls_initiate.error(json={"name": "x"}) as response:
+    response.expected.has_status_code(400)
+    response.expected("status_code").equal_to(400)
+
+# пустое тело
+with post_clients_calls_initiate.error() as response:
+    response.expected.has_status_code(400)
+
+# битый JSON — raw data + явный Content-Type
+with post_clients_calls_initiate.error(
+    data="{", headers={"Content-Type": "application/json"}
+) as response:
+    response.expected.has_status_code(400)
+```
 
 ---
 
@@ -272,8 +306,15 @@ def test_initiate(post_clients_calls_initiate: Endpoint):
 
 В `endpoint(json=...)` / `endpoint.error(...=...)` передаются аргументы resq-глагола:
 
-- `params=` — pydantic `BaseModel` (сериализуется через `model_dump`) или `dict`.
-- `json=` — pydantic `BaseModel` (сериализуется) или `dict`.
+- `params=` — pydantic `BaseModel` (сериализуется через `model_dump`) или `dict` (query-параметры).
+- `json=` — pydantic `BaseModel` (сериализуется) или `dict`. Для запросов, невалидных по
+  схеме (нет обязательного поля, неверный тип значения), **передавайте сырой `dict`**, а
+  не модель — иначе pydantic выбросит `ValidationError` ещё до отправки и SUT не будет
+  протестирован.
+- `data=` — raw-тело (строка/байты), отправляется как есть, минуя pydantic-сериализацию.
+  Применяется для проверки обработки битого JSON (напр. `data="{"`). Для корректного
+  Content-Type передавайте его в `headers=`.
+- без `json=`/`data=` — запрос уходит без тела (пустое тело); проверяет обработку пустого запроса.
 - path-параметры — ключи в `params` с префиксом `:` (например `:id`) подставляются
   в `url_path` и **не** уходят в query.
 - `auth=` — call-level аутентификация; принимает `AuthBase`, объект-протокол `Auth`

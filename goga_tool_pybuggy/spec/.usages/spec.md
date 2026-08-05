@@ -29,6 +29,8 @@ for ep in endpoints:
     ep.query_params  # {name: schema}
 ```
 
+Схемы в `request`, `response`, `query_params` уже **nullable-нормализованы** для JSON-Schema: OpenAPI `nullable: true` переписан в union-форму (`type` со списком, включающим `"null"`), ключ `nullable` удалён. Валидатор `jsonschema` игнорирует OpenAPI `nullable`, поэтому нормализация выполнена на границе разбора — потребителю не нужно нормализовать схемы повторно.
+
 ## Идентификатор эндпоинта
 
 `build_endpoint_id(method, path)` — чистая функция; `Endpoint.id` вычисляется из неё. Детерминирован: одинаковые метод+путь → одинаковый id; коллизии обрабатываются на уровне команды `info`.

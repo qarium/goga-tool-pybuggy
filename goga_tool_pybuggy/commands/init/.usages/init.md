@@ -2,10 +2,10 @@
 
 ## Предметная область
 
-Команда `pybuggy init` под капотом **инициализирует goga-проект** (если он ещё не создан) и затем доставляет
-consumer-usages ячейки `api` (и её подклеток) в проект, где она вызвана, чтобы goga-агент потребителя знал, как
-пользоваться goga_tool_pybuggy. Аудитория — интегратор, подключающий pybuggy в свой проект (`pip install pybuggy`), и goga-агент
-потребителя.
+Команда `pybuggy init` под капотом **инициализирует goga-проект** (создаёт при отсутствии `.goga/config.yml`; при
+наличии — спрашивает, пересоздавать ли) и затем доставляет consumer-usages ячейки `api` (и её подклеток) в проект, где
+она вызвана, чтобы goga-агент потребителя знал, как пользоваться goga_tool_pybuggy. Аудитория — интегратор,
+подключающий pybuggy в свой проект (`pip install pybuggy`), и goga-агент потребителя.
 
 Инициализация goga-проекта выполняется in-process пакетом `goga` (per-field методы `goga.init.Questionnaire` +
 `FileGenerator.generate`; `InitLogic` не используется): интерактивный опрос + генерация `.goga/config.yml`
@@ -15,6 +15,33 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 `codemanifest.annotations` ссылающейся строкой на каждый usage (`` `pybuggy-api` `` / `` `pybuggy-asserts` `` с кратким
 описанием назначения); существующий текст аннотаций сохраняется. Источник usages — установленный пакет (не cwd);
 поведение идемпотентно.
+
+---
+
+## Построение .goga/tools/pybuggy/config.yml
+
+Помимо инициализации goga-проекта и bootstrap usages, `pybuggy init` интерактивно строит конфигурацию инструмента
+`.goga/tools/pybuggy/config.yml` (плагинные опции + секция `specs`): при отсутствии файла — сразу, при наличии — после
+подтверждения (см. «Перезапись» в `.usages/config-build.md`).
+
+Что опрашивается (интерактивный шаг, изолированный в `build_pybuggy_config`):
+- Скалярные ключи плагина: `base_url` (обязательный — Jinja2-шаблон URL; пустой ввод переспрашивается и не может быть
+  пропущен), `timeout`, `data_key`, `error_key`, `retries`, `assert_timeout`, `assert_delay`, `assert_field_class`,
+  `assert_response_class` — каждый по одному; необязательные можно пропустить (Enter → пропуск).
+- `headers` и `loader` НЕ опрашиваются — записываются закомментированными примерами.
+- `specs`: для каждой spec последовательно опрашиваются имя, `type` (`swagger`|`openapi`), `location` (обязательно) и
+  опциональный git-блок (`url`, `location`, `ref`); поддерживается несколько specs. Требуется **минимум одна** spec —
+  конфиг без specs невалиден (первое имя spec переспрашивается, пока не введено, как `base_url`).
+
+Перезапись: если `.goga/tools/pybuggy/config.yml` **отсутствует** — он строится без вопросов; если **существует** —
+`run_init` спрашивает `click.confirm` (по умолчанию `no`), пересобирать ли его, и пересобирает только при `yes`. При
+отказе шаг пропускается, остальной `init` продолжается (exit 0). Решение о пересоздании живёт в оркестраторе `run_init`;
+сам `build_pybuggy_config` (и программный вызов напрямую) всегда перезаписывает файл без проверок.
+
+Эмиссия (`write_pybuggy_config`, чистая, без TTY): активные значения пишутся как `key: value`; пропущенные необязательные
+скаляры, а также `headers` и `loader` — закомментированными записями (`# key:`) с пояснением; `specs` — активным YAML.
+Сгенерированный файл валиден для config-ячейки (`load_config`/`Config`): присутствует `specs` с обязательными полями
+`SpecEntry`; скалярные плагинные ключи игнорируются `Config` (extra=ignore).
 
 ---
 
@@ -45,22 +72,26 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 
 ## Шаблон: запуск в уже инициализированном goga-проекте
 
-Если `.goga/config.yml` уже существует — опросник goga **не запускается**; сразу round-trip регистрация usages
-(существующие ключи/комментарии сохранены):
+Если `.goga/config.yml` уже существует — `run_init` спрашивает `click.confirm` (по умолчанию `no`), пересоздавать ли
+goga-проект (перезапись `.goga/config.yml`; пользовательские codemanifest-записи сверх pybuggy могут быть потеряны).
+При отказе опросник goga **не запускается**; сразу round-trip регистрация usages (существующие ключи/комментарии
+сохранены). Аналогично для `.goga/tools/pybuggy/config.yml`: при наличии спрашивается, пересобирать ли его:
 
       # .goga/config.yml до запуска (с пользовательскими ключами)
       codemanifest:
         usages:
           conventions: .goga/usages/conventions.md   # не затирается
-      # pybuggy init → добавляет pybuggy-api, pybuggy-asserts; conventions и комментарий на месте
+      # pybuggy init → спрашивает пересоздание goga/pybuggy конфигов; при отказе добавляет pybuggy-api,
+      # pybuggy-asserts; conventions и комментарий на месте
 
 ---
 
 ## Идемпотентность
 
-Повторный `pybuggy init` в уже инициализированном проекте: goga-init пропускается, скопированные `.md` перезаписываются
-(актуальные cell-usages пакета), уже зарегистрированные ключи и уже ссылающиеся аннотации пропускаются. Флаги
-`--force`/`--dry-run` не предусмотрены.
+Повторный `pybuggy init` в уже инициализированном проекте: `run_init` спрашивает, пересоздавать ли goga-конфиг и
+pybuggy-конфиг (`click.confirm`, по умолчанию `no`); при отказе обоих — goga-init и сборка pybuggy-конфига
+пропускаются, скопированные `.md` перезаписываются (актуальные cell-usages пакета), уже зарегистрированные ключи и уже
+ссылающиеся аннотации пропускаются. Флаги `--force`/`--dry-run` не предусмотрены.
 
 ---
 
@@ -84,6 +115,8 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
           monkeypatch.chdir(tmp_path)
           # заглушить интерактивный goga init, чтобы тесты не зависели от TTY:
           monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+          # заглушить интерактивное построение .goga/tools/pybuggy/config.yml (шаг run_init №3):
+          monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
           assert run_init() == 0
           assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
@@ -95,6 +128,9 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 
 Для прямой регистрации usages без discovery/копирования — `register_usages` (контракт не изменился); для дописывания
 ссылающихся аннотаций в `codemanifest.annotations` — `register_annotations` (round-trip, идемпотентно по бэктик-ссылке).
+Интерактивное построение `.goga/tools/pybuggy/config.yml` изолировано в `build_pybuggy_config` (testable-seam, в `__all__`;
+возвращает exit code, не бросает — стабится monkeypatch по образцу `run_goga_init`); чистую эмиссию YAML тестируют напрямую
+через `write_pybuggy_config` (без TTY): передают `scalar_values` (с пропусками) и `specs`, проверяют результат.
 
 ---
 
@@ -106,6 +142,8 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
   `pip install pybuggy`, а не только из checkout.
 - Discovery рекурсивен по `.usages/*.md` под ячейкой `api` — будущие подклетки подключаются без правки команды.
 - Копирует только usages ячейки `api`; внутренние ячейки разработки (`config`/`spec`/`output`/...) не копируются.
-- goga-init запускается только при отсутствии `.goga/config.yml` (эвристика «инициализирован»).
-- Цель — goga-project-конфиг `.goga/config.yml` (блоки `codemanifest.usages` и `codemanifest.annotations`),
-  НЕ `.goga/tools/pybuggy/config.yml`.
+- goga-init запускается при отсутствии `.goga/config.yml` (эвристика «не инициализирован») либо при согласии на
+  пересоздание (`click.confirm`, по умолчанию `no`), когда файл существует.
+- Цели записи — goga-project-конфиг `.goga/config.yml` (блоки `codemanifest.usages` и `codemanifest.annotations`)
+  и `.goga/tools/pybuggy/config.yml` (плагинные опции + specs; строится при отсутствии или подтверждённом пересоздании;
+  см. раздел «Построение .goga/tools/pybuggy/config.yml»).

@@ -1,0 +1,59 @@
+name: PybuggyItFeature
+description: "Pybuggy integration-test feature lifecycle: requirements → testcases → cells → apply"
+---
+
+- name: propose
+  title: "Collect feature requirements"
+  communication: true
+  prompt: |
+    Collect detailed requirements for the integration testing of the feature
+    described in $ARGUMENTS and save the artifact to `docs/pybuggy/feature-requirements.md`.
+
+    Run the `goga-tool-pybuggy-it-feature-propose` skill.
+
+    Halt if the feature description is empty or ambiguous and cannot be clarified.
+  skills:
+    - goga-tool-pybuggy-it-feature-propose
+
+- name: testcases
+  title: "Generate integration test cases"
+  communication: true
+  prompt: |
+    Read `docs/pybuggy/feature-requirements.md` and generate detailed integration
+    test cases (Flow/Positive/Negative) with real request data and response-contract
+    checks. Save them to `docs/pybuggy/feature-testcases.md`.
+
+    Run the `goga-tool-pybuggy-it-feature-testcases` skill.
+
+    Halt if `docs/pybuggy/feature-requirements.md` is missing or empty.
+  skills:
+    - goga-tool-pybuggy-it-feature-testcases
+
+- name: cells
+  title: "Design test-cell architecture"
+  communication: true
+  prompt: |
+    Read `docs/pybuggy/feature-testcases.md` and build the test-cell architecture
+    plan — a full CODEMANIFEST per endpoint cell with a Routine per test case.
+    Save the plan to `docs/pybuggy/feature-cells.md`.
+
+    Run the `goga-tool-pybuggy-it-feature-cells` skill. Honor its WAIT-gates: ask
+    the user at the cell-map, contracts, and plan-verification gates.
+
+    Halt if `docs/pybuggy/feature-testcases.md` is missing or empty.
+  skills:
+    - goga-tool-pybuggy-it-feature-cells
+
+- name: apply
+  title: "Materialize the test-cell plan"
+  prompt: |
+    Read `docs/pybuggy/feature-cells.md` and materialize the plan: write CODEMANIFEST
+    files into `tests/<spec>/<id>/` (DSL only — no test code, no `__init__.py`),
+    then run `goga lint` and `goga schema` to validate.
+
+    Run the `goga-tool-pybuggy-it-feature-apply` skill.
+
+    Halt if `docs/pybuggy/feature-cells.md` is missing, empty, or fails plan
+    validation.
+  skills:
+    - goga-tool-pybuggy-it-feature-apply

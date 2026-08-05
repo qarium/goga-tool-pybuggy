@@ -70,6 +70,59 @@ yaml.dump(data, path)
 
 ---
 
+## Эмиссия закомментированных записей (создание с нуля)
+
+Когда конфиг собирается из ответов, часть полей — пропущенные необязательные скаляры и сложные секции (`headers`-dict,
+`loader`-section, `git`-block) — нужно записать **закомментированными** примерами (`# key:`), а не активными ключами.
+Round-trip API `ruamel.yaml` умеет это через комментарии, привязанные к следующему активному ключу: комментарий НЕ
+становится ключом (при round-trip `load` он отсутствует в `keys()`).
+
+```python
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
+
+yaml = YAML()
+yaml.preserve_quotes = True
+
+doc = CommentedMap()
+# только АКТИВНЫЕ ключи; пропущенные поля как ключи НЕ добавляем
+doc["base_url"] = "https://{{ host }}/api"
+doc["data_key"] = "data"
+
+# (1) однострочная закомментированная запись ПЕРЕД следующим активным ключом:
+doc.yaml_set_comment_before_after_key("data_key", before="timeout: (skipped optional scalar)")
+#     ->  "# timeout: (skipped optional scalar)" строкой выше data_key
+
+# (2) многострочный закомментированный блок (сложная секция) — "\n"-joined текст, каждая строка получает префикс "# ":
+doc.yaml_set_comment_before_after_key(
+    "specs",
+    before="headers: example (skipped complex member)\nX-Example: value\ndefault headers dict",
+)
+#     ->  "# headers: example (skipped complex member)"
+#         "# X-Example: value"
+#         "# default headers dict"  строками выше specs
+
+doc["specs"] = CommentedMap()  # обязательная непустая секция — якорь для предшествующих комментариев
+
+# (3) trailing-комментарий к значению активного ключа:
+doc.yaml_add_eol_comment("required, Jinja2 template", "base_url")
+#     ->  "base_url: https://{{ host }}/api  # required, Jinja2 template"
+
+yaml.dump(doc, path)
+```
+
+- `yaml_set_comment_before_after_key(key, before=...)` — строки `# ...` **перед** ключом `key`; `before` — одна строка
+  (однострочный комментарий) либо `\n`-joined текст (многострочный блок, каждая строка получает префикс `# `).
+- `yaml_add_eol_comment(text, key)` — trailing-комментарий `# text` в конце строки значения ключа `key`.
+- Порядок детерминирован: `CommentedMap` сохраняет порядок вставки активных ключей; комментарий привязывается к
+  следующему за ним активному ключу.
+- Комментарий не становится ключом: round-trip `yaml.load` вернёт только активные ключи (закомментированные записи
+  отсутствуют в `keys()`), т.е. они игнорируются валидатором схемы (extra=ignore).
+- Ограничение: comment-before крепится к **следующему** активному ключу — после последней закомментированной записи
+  обязан быть активный ключ (например, обязательная непустая секция `specs`), иначе комментарий не выведется.
+
+---
+
 ## Тестирование
 
 - Файл I/O — через `tmp_path`; исходный YAML готовь фикстурой.

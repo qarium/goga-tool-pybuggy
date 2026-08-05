@@ -9,12 +9,15 @@ import click.testing
 import pytest
 import yaml
 from goga_tool_pybuggy.commands.init import (
+    build_pybuggy_config,
     init_cmd,
     register_annotations,
     register_usages,
     run_goga_init,
     run_init,
+    write_pybuggy_config,
 )
+from goga_tool_pybuggy.config import GitEntry, SpecEntry
 from ruamel.yaml import YAMLError
 
 _USAGE_KEYS = {
@@ -106,6 +109,7 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     monkeypatch.chdir(tmp_path)
     run_goga_init_stub = mock.Mock(return_value=0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_stub)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
     assert run_init() == 0
 
@@ -130,6 +134,7 @@ def test_run_init_recursive_discovery_picks_subcell(
     """run_init should discover the asserts subcell of api recursively."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
     run_init()
 
@@ -139,13 +144,15 @@ def test_run_init_recursive_discovery_picks_subcell(
 def test_run_init_in_initialized_project_skips_goga_init(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """On an already-initialized project run_init skips run_goga_init and only registers usages."""
+    """On an already-initialized project run_init asks to recreate goga config; declining skips run_goga_init."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
     monkeypatch.chdir(tmp_path)
     run_goga_init_spy = mock.Mock(return_value=0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline goga recreate
 
     assert run_init() == 0
 
@@ -172,13 +179,15 @@ def test_run_init_propagates_goga_cancel_without_registering(
 def test_run_init_idempotent_second_run_no_diff(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A second run_init overwrites copied files and skips registered keys — no config diff."""
+    """A second run_init (both recreates declined) overwrites copied files and skips keys — no diff."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
     monkeypatch.chdir(tmp_path)
     run_goga_init_spy = mock.Mock(return_value=0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline both recreates
 
     run_init()
     before = config.read_text()
@@ -190,6 +199,66 @@ def test_run_init_idempotent_second_run_no_diff(
     assert before == after
 
 
+def test_run_init_recreates_goga_config_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When .goga/config.yml exists and the user confirms, run_init re-runs run_goga_init (overwrites)."""
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
+    monkeypatch.chdir(tmp_path)
+    run_goga_init_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))  # accept goga recreate
+
+    assert run_init() == 0
+
+    assert run_goga_init_spy.call_count == 1
+
+
+def test_run_init_rebuilds_pybuggy_config_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the pybuggy tool config exists and the user confirms, run_init rebuilds it."""
+    (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
+    (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    build_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
+    # decline goga recreate, accept pybuggy rebuild
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, True]))
+
+    assert run_init() == 0
+
+    assert build_spy.call_count == 1
+
+
+def test_run_init_skips_pybuggy_rebuild_on_decline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the pybuggy tool config exists and the user declines, run_init skips build_pybuggy_config."""
+    (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
+    (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    build_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
+    # decline both recreates
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
+
+    assert run_init() == 0
+
+    assert build_spy.call_count == 0
+
+
 def test_run_init_maps_bootstrap_failure_to_click_exception(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -198,12 +267,34 @@ def test_run_init_maps_bootstrap_failure_to_click_exception(
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("codemanifest:\n  usages: {}\n")
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline goga recreate
 
     with (
         mock.patch("goga_tool_pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")),
         pytest.raises(click.ClickException),
     ):
         run_init()
+
+
+def test_run_init_propagates_config_build_failure_without_registering(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero build_pybuggy_config exit code is returned without registering any usages.
+
+    Step 3 short-circuits run_init on a non-zero config-build code: no usages are discovered/copied and
+    register_usages is never called (scenario C — early return before the discovery block).
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
+    register_spy = mock.Mock(wraps=register_usages)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.register_usages", register_spy)
+
+    assert run_init() == 1
+
+    assert register_spy.call_count == 0
+    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
 
 # run_goga_init contract tests ------------------------------------------------
@@ -526,3 +617,579 @@ def test_annotation_for_unknown_stem_uses_bare_backtick() -> None:
     from goga_tool_pybuggy.commands.init.init import _annotation_for
 
     assert _annotation_for("future-cell") == "`pybuggy-future-cell`"
+
+
+# write_pybuggy_config contract tests -----------------------------------------
+
+
+def test_write_pybuggy_config_importable_from_facade() -> None:
+    """write_pybuggy_config should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import write_pybuggy_config as imported
+
+    assert imported is write_pybuggy_config
+
+
+def test_write_pybuggy_config_is_public_in_facade() -> None:
+    """write_pybuggy_config is exposed on the facade __all__ (public contract)."""
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+
+    assert "write_pybuggy_config" in facade_all
+
+
+def test_write_pybuggy_config_signature() -> None:
+    """write_pybuggy_config has signature (path, scalar_values, specs)."""
+    params = write_pybuggy_config.__code__.co_varnames[: write_pybuggy_config.__code__.co_argcount]
+
+    assert params == ("path", "scalar_values", "specs")
+
+
+# build_pybuggy_config contract tests -----------------------------------------
+
+
+def test_build_pybuggy_config_in_all_public_and_returns_int() -> None:
+    """build_pybuggy_config is importable from the facade, in __all__, and takes no args."""
+    from goga_tool_pybuggy.commands.init import build_pybuggy_config as imported
+
+    assert imported is build_pybuggy_config
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+
+    assert "build_pybuggy_config" in facade_all
+    assert build_pybuggy_config.__code__.co_argcount == 0
+
+
+# write_pybuggy_config logic tests --------------------------------------------
+
+# The 9 scalar plugin members (enum minus the complex HEADERS/LOADER), in declaration order.
+_ALL_SCALAR_KEYS = [
+    "base_url",
+    "timeout",
+    "data_key",
+    "error_key",
+    "retries",
+    "assert_timeout",
+    "assert_delay",
+    "assert_field_class",
+    "assert_response_class",
+]
+
+
+def _spec_entry(git: bool = False) -> SpecEntry:
+    """Build a deterministic SpecEntry, optionally with a git source."""
+    if git:
+        return SpecEntry(
+            type="openapi",
+            location="specs/api.yaml",
+            git=GitEntry(url="https://example.com/specs.git", location="api.yaml", ref="main"),
+        )
+    return SpecEntry(type="openapi", location="specs/api.yaml")
+
+
+def test_write_pybuggy_config_all_scalars_answered_emits_active_and_commented_complex(
+    tmp_path: Path,
+) -> None:
+    """All 9 scalars answered + specs: complex headers/loader still commented, scalars active.
+
+    Numeric scalars (``timeout``/``retries``/``assert_timeout``/``assert_delay``) are emitted as
+    numbers matching their ``ApiPlugin`` option types; the remaining string scalars stay strings.
+    """
+    scalar_values = {key: f"v-{key}" for key in _ALL_SCALAR_KEYS}
+    scalar_values["base_url"] = "https://{{ host }}/api"
+    # numeric members must carry valid numbers for their ApiPlugin option types (int/float)
+    scalar_values["timeout"] = "30"
+    scalar_values["retries"] = "2"
+    scalar_values["assert_timeout"] = "10"
+    scalar_values["assert_delay"] = "0.5"
+    config = tmp_path / "config.yml"
+
+    write_pybuggy_config(config, scalar_values, {"api": _spec_entry()})
+
+    text = config.read_text()
+    assert "base_url:" in text
+    assert "# required, Jinja2 template" in text  # eol comment on base_url
+    assert "# headers:" in text  # complex member still emitted as a commented example
+    assert "# loader:" in text
+    assert "specs:" in text  # active specs section
+
+    cfg = yaml.safe_load(text)
+    assert set(cfg) == set(_ALL_SCALAR_KEYS) | {"specs"}
+    # numeric scalars emitted as numbers, not quoted strings
+    assert isinstance(cfg["timeout"], float)
+    assert cfg["timeout"] == 30.0
+    assert isinstance(cfg["retries"], int)
+    assert cfg["retries"] == 2
+    assert isinstance(cfg["assert_timeout"], int)
+    assert cfg["assert_timeout"] == 10
+    assert isinstance(cfg["assert_delay"], float)
+    assert cfg["assert_delay"] == 0.5
+    # the remaining answered scalars stay plain strings
+    assert isinstance(cfg["data_key"], str)
+    assert cfg["data_key"] == "v-data_key"
+
+    from goga_tool_pybuggy.config import load_config
+
+    load_config(config)  # validates against Config (ignores scalar plugin keys)
+
+
+def test_write_pybuggy_config_skipped_scalars_become_commented_records(tmp_path: Path) -> None:
+    """Only base_url answered: the 8 optional scalars become '# <skipped>: (skipped ...)' records."""
+    config = tmp_path / "config.yml"
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
+
+    text = config.read_text()
+    optional_keys = [k for k in _ALL_SCALAR_KEYS if k != "base_url"]
+    for key in optional_keys:
+        assert f"# {key}: (skipped optional scalar)" in text
+    assert "# headers:" in text
+    assert "# loader:" in text
+    assert text.index("# loader:") < text.index("specs:")  # trailing buffer pinned before specs
+
+    cfg = yaml.safe_load(text)
+    assert set(cfg) == {"base_url", "specs"}
+
+
+def test_write_pybuggy_config_spec_with_git_emits_git_block(tmp_path: Path) -> None:
+    """A SpecEntry carrying a GitEntry emits an active git block round-tripping through load_config."""
+    config = tmp_path / "config.yml"
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry(git=True)})
+
+    text = config.read_text()
+    assert "git:" in text
+    assert "url: https://example.com/specs.git" in text
+    assert "location: api.yaml" in text
+    assert "ref: main" in text
+
+    from goga_tool_pybuggy.config import load_config
+
+    cfg = load_config(config)
+    assert cfg.specs["api"].git is not None
+    assert cfg.specs["api"].git.url == "https://example.com/specs.git"
+    assert cfg.specs["api"].git.location == "api.yaml"
+    assert cfg.specs["api"].git.ref == "main"
+
+
+def test_write_pybuggy_config_spec_git_ref_none_comments_ref(tmp_path: Path) -> None:
+    """A git source without a ref emits no active ``ref`` key; ref is documented as ``# ref:``.
+
+    The commented ``ref`` is placed on its own indented line after ``location`` (the post-value
+    comment slot — the slot ruamel's own loader uses for trailing comments; the eol/``after`` slots
+    are dropped on the last key of a block mapping). It is NOT an end-of-line comment on
+    ``location``, and no empty active ``ref:`` key is produced. The file round-trips through
+    ``load_config`` with ``git.ref`` resolving to ``None``.
+    """
+    config = tmp_path / "config.yml"
+    specs = {
+        "api": SpecEntry(
+            type="openapi",
+            location="specs/api.yaml",
+            git=GitEntry(url="https://example.com/specs.git", location="api.yaml", ref=None),
+        )
+    }
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
+
+    text = config.read_text()
+    assert "location: api.yaml  # ref:" not in text  # not an end-of-line comment on location
+    assert "location: api.yaml\n      # ref:\n" in text  # standalone indented line after location
+    cfg = yaml.safe_load(text)
+    assert "ref" not in cfg["specs"]["api"]["git"]  # no active ref key
+
+    from goga_tool_pybuggy.config import load_config
+
+    parsed = load_config(config)
+    assert parsed.specs["api"].git is not None
+    assert parsed.specs["api"].git.ref is None
+
+
+def test_write_pybuggy_config_long_git_url_not_wrapped(tmp_path: Path) -> None:
+    """A long git clone URL stays on one line (best_width raised so ruamel does not fold it)."""
+    config = tmp_path / "config.yml"
+    url = "git@gitlab.wildberries.ru:taxi/taxi/qa/platform/golang/services/traffic/insts/mock.git"
+    specs = {
+        "api": SpecEntry(
+            type="openapi",
+            location="specs/api.yaml",
+            git=GitEntry(url=url, location="api.yaml", ref="main"),
+        )
+    }
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
+
+    text = config.read_text()
+    assert f"url: {url}\n" in text  # url value on the same line as the key, not folded to a new line
+
+    from goga_tool_pybuggy.config import load_config
+
+    assert load_config(config).specs["api"].git.url == url
+
+
+def test_write_pybuggy_config_is_deterministic(tmp_path: Path) -> None:
+    """Two calls with identical inputs and order produce byte-identical output."""
+    scalar_values = {"base_url": "https://{{ host }}/api", "timeout": "30", "data_key": "data"}
+    specs = {"api": _spec_entry(), "admin": _spec_entry(git=True)}
+    one = tmp_path / "one.yml"
+    two = tmp_path / "two.yml"
+
+    write_pybuggy_config(one, scalar_values, specs)
+    write_pybuggy_config(two, scalar_values, specs)
+
+    assert one.read_text() == two.read_text()
+
+
+def test_write_pybuggy_config_creates_parent_dir(tmp_path: Path) -> None:
+    """The destination parent directory tree is created when missing; load_config then passes."""
+    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    assert not config.parent.exists()
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
+
+    assert config.exists()
+    assert config.parent.is_dir()
+
+    from goga_tool_pybuggy.config import load_config
+
+    load_config(config)
+
+
+def test_write_pybuggy_config_base_url_jinja_template_block_scalar(tmp_path: Path) -> None:
+    """A Jinja2 base_url is emitted as a literal block scalar with the {{ }} preserved verbatim."""
+    config = tmp_path / "config.yml"
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
+
+    text = config.read_text()
+    assert "base_url: |" in text  # clip indicator
+    assert "base_url: |-" not in text  # no strip dash
+    assert "{{ host }}" in text  # template preserved
+    cfg = yaml.safe_load(text)
+    assert cfg["base_url"].rstrip("\n") == "https://{{ host }}/api"  # round-trip (trailing \n is the clip marker)
+
+
+def test_write_pybuggy_config_multiline_base_url_emits_block_scalar(tmp_path: Path) -> None:
+    """A multi-line base_url template is emitted as a literal block scalar (``|``), losslessly."""
+    config = tmp_path / "config.yml"
+    base_url = (
+        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock\n"
+        '{% if match_re("^feature-.*$", service_version) %}-{{ service_version }}\n'
+        "{% endif %}"
+    )
+
+    write_pybuggy_config(config, {"base_url": base_url}, {"api": _spec_entry()})
+
+    text = config.read_text()
+    assert "base_url: |" in text  # clip indicator
+    assert "base_url: |-" not in text  # no strip dash
+    assert "# required, Jinja2 template" in text  # marker kept (own line above the key)
+    # each template line preserved verbatim, indented under the block
+    assert "  http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock" in text
+
+    cfg = yaml.safe_load(text)
+    assert cfg["base_url"].rstrip("\n") == base_url  # round-trip (trailing \n is the clip marker)
+
+    from goga_tool_pybuggy.config import load_config
+
+    load_config(config)  # validates against Config (ignores scalar plugin keys)
+
+
+def test_write_pybuggy_config_long_single_line_base_url_not_wrapped(tmp_path: Path) -> None:
+    """A long single-line base_url stays on one block-scalar line (ruamel does not line-wrap it)."""
+    config = tmp_path / "config.yml"
+    base_url = (
+        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock"
+        '{% if match_re("^feature-.*$", service_version) %}-{{ service_version }}'
+        "{% endif %}"
+    )
+
+    write_pybuggy_config(config, {"base_url": base_url}, {"api": _spec_entry()})
+
+    text = config.read_text()
+    assert "base_url: |" in text  # clip indicator
+    assert "base_url: |-" not in text  # no strip dash
+    # the whole template sits on a single indented block line — not wrapped across several
+    assert f"  {base_url}" in text
+
+    cfg = yaml.safe_load(text)
+    assert cfg["base_url"].rstrip("\n") == base_url  # round-trip, unwrapped (trailing \n is the clip marker)
+
+
+def test_write_pybuggy_config_multiple_specs_preserve_order(tmp_path: Path) -> None:
+    """Multiple specs are emitted in insertion order."""
+    config = tmp_path / "config.yml"
+    specs = {"api": _spec_entry(), "admin": _spec_entry(git=True)}
+
+    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
+
+    text = config.read_text()
+    assert text.index("api:") < text.index("admin:")
+
+
+# build_pybuggy_config logic tests --------------------------------------------
+
+
+def test_build_pybuggy_config_overwrites_existing_without_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An existing tool config is always overwritten — no existence check, no overwrite confirmation."""
+    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text("base_url: stale\nspecs: {}\n")  # pre-existing content to replace
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git declined; never an overwrite prompt
+    monkeypatch.setattr(
+        click,
+        "prompt",
+        mock.Mock(
+            side_effect=[
+                "https://{{ host }}/api",  # base_url (required)
+                *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+                "api",  # first spec name (required)
+                "openapi",  # type (click.Choice)
+                "specs/api.yaml",  # location (required)
+                "",  # second spec name (empty to finish) -> break
+            ]
+        ),
+    )
+
+    assert build_pybuggy_config() == 0
+
+    text = config.read_text()
+    assert "stale" not in text  # previous content replaced
+    assert "base_url: |" in text  # regenerated from the prompted answers
+
+
+def test_build_pybuggy_config_returns_nonzero_on_abort(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A click.Abort during prompting returns non-zero without raising (scenario C).
+
+    With the overwrite confirmation removed, cancellation surfaces from the interactive prompts
+    (here the first ``base_url`` prompt); it is never raised — ``build_pybuggy_config`` returns a
+    code.
+    """
+    monkeypatch.chdir(tmp_path)  # no existing config
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git source declined
+    monkeypatch.setattr(click, "prompt", mock.Mock(side_effect=click.Abort()))  # abort at first prompt
+
+    rc = build_pybuggy_config()
+
+    assert rc != 0  # never raises; cancellation surfaces as a non-zero code
+
+
+def test_build_pybuggy_config_returns_nonzero_on_write_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure inside write_pybuggy_config is logged/echoed and returns non-zero without raising."""
+    monkeypatch.chdir(tmp_path)  # no existing config → overwrite confirm skipped
+    # git confirm answered 'no' so no extra prompts are consumed inside _ask_spec
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+    monkeypatch.setattr(
+        click,
+        "prompt",
+        mock.Mock(
+            side_effect=[
+                "https://{{ host }}/api",  # base_url (required)
+                "",  # timeout -> None
+                "",  # data_key -> None
+                "",  # error_key -> None
+                "",  # retries -> None
+                "",  # assert_timeout -> None
+                "",  # assert_delay -> None
+                "",  # assert_field_class -> None
+                "",  # assert_response_class -> None
+                "api",  # first spec name (required)
+                "openapi",  # type (click.Choice)
+                "specs/api.yaml",  # location (required)
+                "",  # second spec name (empty to finish) -> break
+            ]
+        ),
+    )
+    monkeypatch.setattr(
+        "goga_tool_pybuggy.commands.init.init.write_pybuggy_config",
+        mock.Mock(side_effect=RuntimeError("boom")),
+    )
+    logger = mock.Mock()
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.logger", logger)
+    echo = mock.Mock()
+    monkeypatch.setattr(click, "echo", echo)
+
+    rc = build_pybuggy_config()
+
+    assert rc != 0  # failure surfaces as non-zero, never raises
+    logger.error.assert_called_once()
+    echo.assert_called_once()
+    assert "boom" in echo.call_args.args[0]
+
+
+# The 8 optional scalar plugin members (everything except base_url, HEADERS, LOADER), in declaration
+# order. Empty answers map to ``None`` (a skipped commented record).
+_OPTIONAL_SCALAR_EMPTIES = [""] * 8
+
+
+def _prompt_texts(prompt_mock: mock.Mock) -> list[str]:
+    """Collect the first positional arg (the prompt text) of every prompt_mock call."""
+    return [c.args[0] for c in prompt_mock.call_args_list if c.args]
+
+
+def test_build_pybuggy_config_reprompts_empty_required_base_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty base_url is re-prompted (echoing 'base_url is required') until a non-empty value is given."""
+    monkeypatch.chdir(tmp_path)  # no existing config -> overwrite confirm skipped
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git source declined
+    prompt = mock.Mock(
+        side_effect=[
+            "",  # base_url empty -> re-prompt
+            "https://{{ host }}/api",  # base_url valid
+            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            "api",  # first spec name
+            "openapi",  # type
+            "specs/api.yaml",  # location
+            "",  # second spec name -> finish
+        ]
+    )
+    monkeypatch.setattr(click, "prompt", prompt)
+    echo = mock.Mock()
+    monkeypatch.setattr(click, "echo", echo)
+
+    assert build_pybuggy_config() == 0
+
+    # the re-prompt body executed: the 'is required' message was echoed
+    echoed = " ".join(c.args[0] for c in echo.call_args_list if c.args)
+    assert "base_url is required" in echoed
+    # and the valid (not empty) base_url landed in the emitted config
+    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    raw = yaml.safe_load(config.read_text())
+    assert raw["base_url"].rstrip("\n") == "https://{{ host }}/api"  # trailing \n is the clip marker
+
+
+def test_build_pybuggy_config_reprompts_empty_required_location(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty spec location is re-prompted via 'location (required)' until a non-empty value is given."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+    prompt = mock.Mock(
+        side_effect=[
+            "https://{{ host }}/api",  # base_url
+            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            "api",  # first spec name
+            "openapi",  # type
+            "",  # location empty -> re-prompt
+            "specs/api.yaml",  # location valid
+            "",  # second spec name -> finish
+        ]
+    )
+    monkeypatch.setattr(click, "prompt", prompt)
+
+    assert build_pybuggy_config() == 0
+
+    # the re-prompt fired: the descriptive '(required)' prompt variant was invoked
+    assert "location — path from the project root to the spec file (required)" in _prompt_texts(prompt)
+    from goga_tool_pybuggy.config import load_config
+
+    cfg = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml")
+    assert cfg.specs["api"].location == "specs/api.yaml"
+
+
+def test_build_pybuggy_config_reprompts_empty_required_first_spec_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An empty first spec name is re-prompted via 'spec name (required)' until a non-empty value is given."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+    prompt = mock.Mock(
+        side_effect=[
+            "https://{{ host }}/api",  # base_url
+            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            "",  # first spec name empty -> re-prompt
+            "api",  # first spec name valid
+            "openapi",  # type
+            "specs/api.yaml",  # location
+            "",  # second spec name -> finish
+        ]
+    )
+    monkeypatch.setattr(click, "prompt", prompt)
+
+    assert build_pybuggy_config() == 0
+
+    assert "spec name — unique name for this spec (required)" in _prompt_texts(prompt)
+    from goga_tool_pybuggy.config import load_config
+
+    cfg = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml")
+    assert "api" in cfg.specs
+
+
+def test_build_pybuggy_config_reprompts_whitespace_git_url_and_location(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Whitespace-only git url/location are re-prompted until non-empty (mirrors the required location)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))  # git source added
+    prompt = mock.Mock(
+        side_effect=[
+            "https://{{ host }}/api",  # base_url
+            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            "api",  # first spec name
+            "openapi",  # type
+            "specs/api.yaml",  # location
+            "   ",  # git url whitespace -> re-prompt
+            "https://example.com/specs.git",  # git url valid
+            "  ",  # git location whitespace -> re-prompt
+            "api.yaml",  # git location valid
+            "",  # git ref (optional) -> None
+            "",  # second spec name -> finish
+        ]
+    )
+    monkeypatch.setattr(click, "prompt", prompt)
+
+    assert build_pybuggy_config() == 0
+
+    texts = _prompt_texts(prompt)
+    assert "git url — clone URL of the repository holding the spec (required)" in texts
+    assert "git location — path inside the repository to the spec file (required)" in texts
+    from goga_tool_pybuggy.config import load_config
+
+    git = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").specs["api"].git
+    assert git is not None
+    assert git.url == "https://example.com/specs.git"
+    assert git.location == "api.yaml"
+    assert git.ref is None  # empty ref coerced to None
+
+
+def test_build_pybuggy_config_base_url_emitted_as_block_scalar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A single-line base_url is emitted as a | block scalar (not a wrapped plain scalar)."""
+    monkeypatch.chdir(tmp_path)  # no existing config -> overwrite confirm skipped
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # no git source
+    base_url = (
+        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock"
+        '{% if service_version is match_re("^feature-.*$") %}-{{ service_version }}'
+        "{% endif %}"
+    )
+    monkeypatch.setattr(
+        click,
+        "prompt",
+        mock.Mock(
+            side_effect=[
+                base_url,  # base_url (required)
+                *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+                "api",  # first spec name
+                "openapi",  # type
+                "specs/api.yaml",  # location
+                "",  # second spec name -> finish
+            ]
+        ),
+    )
+
+    assert build_pybuggy_config() == 0
+
+    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    text = config.read_text()
+    assert "base_url: |" in text
+    assert "base_url: |-" not in text
+    assert f"  {base_url}" in text  # one indented block line — not wrapped
+    raw = yaml.safe_load(text)
+    assert raw["base_url"].rstrip("\n") == base_url
+
