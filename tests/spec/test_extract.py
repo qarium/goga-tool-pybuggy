@@ -605,3 +605,129 @@ def test_extract_endpoints_swagger_inherits_shared_path_item_parameters() -> Non
     ep = endpoints[0]
 
     assert ep.query_params == {"shared": {"type": "string"}, "op": {"type": "integer"}}
+
+
+# --- Integration tests (Task 3): format equivalence + invalid-spec + path-less ---
+
+
+def test_extract_endpoints_equivalent_operations_same_normalized_shape() -> None:
+    """Equivalent Swagger 2.0 and OpenAPI 3.x operations yield the same Endpoint shape.
+
+    The format-equivalence contract invariant: ``extract_endpoints`` routes by the
+    detected version, but both formats reduce to the same normalized JSON-Schema
+    shape (no nullable here, so normalization is a no-op). One GET + one POST are
+    declared on the same path so the result order is fixed by ``HTTP_METHODS``
+    (``get`` before ``post``).
+    """
+    swagger_spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/r/{id}": {
+                "get": {
+                    "parameters": [{"name": "verbose", "in": "query", "type": "boolean"}],
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"id": {"type": "string"}},
+                            },
+                        }
+                    },
+                },
+                "post": {
+                    "parameters": [
+                        {
+                            "name": "body",
+                            "in": "body",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"name": {"type": "string"}},
+                            },
+                        }
+                    ],
+                    "responses": {"201": {"description": "created", "schema": {"type": "object"}}},
+                },
+            }
+        },
+    }
+    openapi_spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/r/{id}": {
+                "get": {
+                    "parameters": [{"name": "verbose", "in": "query", "schema": {"type": "boolean"}}],
+                    "responses": {
+                        "200": {
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {"id": {"type": "string"}},
+                                    }
+                                }
+                            }
+                        }
+                    },
+                },
+                "post": {
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {"name": {"type": "string"}},
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "201": {"content": {"application/json": {"schema": {"type": "object"}}}}
+                    },
+                },
+            }
+        },
+    }
+
+    sw = extract_endpoints(swagger_spec)
+    oa = extract_endpoints(openapi_spec)
+
+    assert len(sw) == len(oa) == 2
+
+    # GET row (index 0): no request body, 200 object-with-id, verbose boolean query.
+    assert sw[0].request == oa[0].request == {}
+    assert sw[0].response == oa[0].response == {
+        "200": {"type": "object", "properties": {"id": {"type": "string"}}}
+    }
+    assert sw[0].query_params == oa[0].query_params == {"verbose": {"type": "boolean"}}
+
+    # POST row (index 1): object-with-name request, 201 object response, no query.
+    assert sw[1].request == oa[1].request == {
+        "type": "object",
+        "properties": {"name": {"type": "string"}},
+    }
+    assert sw[1].response == oa[1].response == {"201": {"type": "object"}}
+    assert sw[1].query_params == oa[1].query_params == {}
+
+    # The format-equivalence contract invariant: identical endpoint ids across formats.
+    assert [e.id for e in sw] == [e.id for e in oa]
+
+
+def test_extract_endpoints_invalid_spec_raises_value_error() -> None:
+    """extract_endpoints propagates ValueError from detect_spec_version without swallowing.
+
+    A spec with paths but no top-level version key is invalid; the version error
+    must surface unchanged (Constraints bullet 3 — no swallowing).
+    """
+    with pytest.raises(ValueError, match="declares neither"):
+        extract_endpoints({"paths": {"/x": {"get": {"responses": {}}}}})
+
+
+def test_extract_endpoints_swagger_empty_paths_returns_empty_list() -> None:
+    """A valid Swagger spec with no paths returns an empty list (no ValueError).
+
+    Path-lessness is ``extract_endpoints``' concern, not the version detector's:
+    a Swagger spec with a top-level ``swagger`` key but no ``paths`` detects the
+    version normally and yields no endpoints.
+    """
+    assert extract_endpoints({"swagger": "2.0", "info": {"title": "T", "version": "1"}}) == []

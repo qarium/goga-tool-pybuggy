@@ -480,11 +480,11 @@ extract_endpoints(spec)
 `/r/{id}` with `in: query` `verbose: boolean` + `responses[200]` object-with-`id`; POST:
 `in: body`/`requestBody` object-with-`name` + `responses[201]` object).
 
-- [ ] Create/extend tests in `tests/spec/test_extract.py`.
-- [ ] `test_extract_endpoints_equivalent_operations_same_normalized_shape` — `sw = extract_endpoints(swagger_spec)`, `oa = extract_endpoints(openapi_spec)`; assert `len(sw) == len(oa) == 2`; GET row: `sw[0].request == oa[0].request == {}`, `sw[0].response == oa[0].response == {"200":{"type":"object","properties":{"id":{"type":"string"}}}}`, `sw[0].query_params == oa[0].query_params == {"verbose":{"type":"boolean"}}`; POST row: `sw[1].request == oa[1].request == {"type":"object","properties":{"name":{"type":"string"}}}`, `sw[1].response == oa[1].response == {"201":{"type":"object"}}`, `sw[1].query_params == oa[1].query_params == {}`; assert `[e.id for e in sw] == [e.id for e in oa]` (the format-equivalence contract invariant).
-- [ ] `test_extract_endpoints_invalid_spec_raises_value_error` (negative) — `with pytest.raises(ValueError): extract_endpoints({"paths": {"/x": {"get": {"responses": {}}}}})` (paths present, no version key) — verifies `extract_endpoints` propagates `ValueError` without swallowing.
-- [ ] `test_extract_endpoints_swagger_empty_paths_returns_empty_list` (edge) — `assert extract_endpoints({"swagger": "2.0", "info": {"title": "T", "version": "1"}}) == []` (valid Swagger, no `paths` → does not raise).
-- [ ] Run validation: `pytest tests/spec/test_extract.py -x` — all tests green; `pytest tests/spec/ -x` — full cell suite green.
+- [x] Create/extend tests in `tests/spec/test_extract.py`.
+- [x] `test_extract_endpoints_equivalent_operations_same_normalized_shape` — `sw = extract_endpoints(swagger_spec)`, `oa = extract_endpoints(openapi_spec)`; assert `len(sw) == len(oa) == 2`; GET row: `sw[0].request == oa[0].request == {}`, `sw[0].response == oa[0].response == {"200":{"type":"object","properties":{"id":{"type":"string"}}}}`, `sw[0].query_params == oa[0].query_params == {"verbose":{"type":"boolean"}}`; POST row: `sw[1].request == oa[1].request == {"type":"object","properties":{"name":{"type":"string"}}}`, `sw[1].response == oa[1].response == {"201":{"type":"object"}}`, `sw[1].query_params == oa[1].query_params == {}`; assert `[e.id for e in sw] == [e.id for e in oa]` (the format-equivalence contract invariant).
+- [x] `test_extract_endpoints_invalid_spec_raises_value_error` (negative) — `with pytest.raises(ValueError): extract_endpoints({"paths": {"/x": {"get": {"responses": {}}}}})` (paths present, no version key) — verifies `extract_endpoints` propagates `ValueError` without swallowing.
+- [x] `test_extract_endpoints_swagger_empty_paths_returns_empty_list` (edge) — `assert extract_endpoints({"swagger": "2.0", "info": {"title": "T", "version": "1"}}) == []` (valid Swagger, no `paths` → does not raise).
+- [x] Run validation: `pytest tests/spec/test_extract.py -x` — all tests green; `pytest tests/spec/ -x` — full cell suite green.
 
 ---
 
@@ -501,16 +501,16 @@ extract_endpoints(spec)
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location` (`detect_spec_version`, `extract_endpoints`, `_normalize_nullable`, `_TYPE_FIELDS` in `extract.py`).
-- [ ] Every contract entity is accessible from the facade (`detect_spec_version` added to `__all__`, 4 → 5).
-- [ ] `extract_endpoints` API shape matches the declared contract (signature unchanged: `(spec: dict[str, Any]) -> list[Endpoint]`).
-- [ ] Descriptions are reflected in behavior (version routing, format-specific field paths, `x-nullable` normalization, format equivalence, `ValueError` propagation).
-- [ ] Contract dependencies are met (`Endpoint` constructor kwargs; `detect_spec_version` input from `extract_endpoints`).
-- [ ] Re-exports are accessible from the facade (`detect_spec_version` importable).
-- [ ] Every coding task followed the TDD workflow (contract tests → code → verification → logic tests → debugging → re-verification → lint).
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding task.
-- [ ] Integration tests exist where cross-entity/cross-format scenarios require them (format equivalence, invalid-spec propagation).
-- [ ] No package boundary was expanded (single cell; no new cells/packages; no `click` import in `extract.py`).
-- [ ] `CODEMANIFEST` files were not modified (contract is read-only).
-- [ ] All validation commands pass (`pytest tests/spec/ -x`, `ruff check`, facade import, `goga lint` baseline only).
-- [ ] Every Usages entry is mentioned in at least one task (`conventions`, `swax-openapi`, `click`).
+- [x] Every contract entity is implemented in the correct `location` (`detect_spec_version`, `extract_endpoints`, `_normalize_nullable`, `_TYPE_FIELDS` in `extract.py`).
+- [x] Every contract entity is accessible from the facade (`detect_spec_version` added to `__all__`, 4 → 5).
+- [x] `extract_endpoints` API shape matches the declared contract (signature unchanged: `(spec: dict[str, Any]) -> list[Endpoint]`).
+- [x] Descriptions are reflected in behavior (version routing, format-specific field paths, `x-nullable` normalization, format equivalence, `ValueError` propagation).
+- [x] Contract dependencies are met (`Endpoint` constructor kwargs; `detect_spec_version` input from `extract_endpoints`).
+- [x] Re-exports are accessible from the facade (`detect_spec_version` importable).
+- [x] Every coding task followed the TDD workflow (contract tests → code → verification → logic tests → debugging → re-verification → lint).
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding task.
+- [x] Integration tests exist where cross-entity/cross-format scenarios require them (format equivalence, invalid-spec propagation).
+- [x] No package boundary was expanded (single cell; no new cells/packages; no `click` import in `extract.py`).
+- [x] `CODEMANIFEST` files were not modified (contract is read-only).
+- [x] All validation commands pass (`pytest tests/spec/ -x`, `ruff check`, facade import, `goga lint` baseline only).
+- [x] Every Usages entry is mentioned in at least one task (`conventions`, `swax-openapi`, `click`).
