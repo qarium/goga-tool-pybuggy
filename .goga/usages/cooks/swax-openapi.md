@@ -7,7 +7,7 @@
 Публичный API (фасад `swax.openapi`):
 - `parse_spec(spec_path: Path) -> dict` — полностью разыменованная спека (Prance инлайнит `$ref`).
 - `discover_specs(root: Path) -> list[Path]` — дешёвое перечисление файлов спек в каталоге.
-- `extract_paths` / `extract_schemas` — **не используем** (см. предупреждение ниже).
+- `extract_paths` / `extract_schemas` — **не используем** (см. ниже).
 - `SpecParseError` — доменная ошибка разбора.
 
 ---
@@ -24,7 +24,6 @@
 
 ```python
 from pathlib import Path
-
 from swax.openapi import parse_spec
 
 def load_spec(spec_location: str, project_root: Path) -> dict:
@@ -38,16 +37,35 @@ def load_spec(spec_location: str, project_root: Path) -> dict:
 
 ---
 
+## Определение версии спецификации
+
+Формат определяется **по содержимому спеки**, а не по декларативному полю конфига `SpecEntry.type`. Этим управляет `detect_spec_version` из cell `spec`.
+
+```python
+def detect_spec_version(spec: dict) -> str:
+    # Swagger 2.0: top-level "swagger": "2.0"; OpenAPI 3.x: top-level "openapi": "3.x"
+    if "swagger" in spec:
+        return "swagger"
+    if "openapi" in spec:
+        return "openapi"
+    raise ValueError("spec declares neither a swagger nor an openapi version")
+```
+
+Соглашения потребителя:
+- Проверка по наличию top-level ключа `swagger` (Swagger 2.0) против `openapi` (OpenAPI 3.x).
+- Спека без top-level ключа `swagger` или `openapi` некорректна — выбрасывается ValueError (валидная спека обязана объявить версию).
+- Не использовать `SpecEntry.type` для выбора пути извлечения.
+
+---
+
 ## Экстракция эндпоинтов (своя, поверх parsed spec)
 
-Операции живут в `spec["paths"][path][method]`, где `method` — `get`/`post`/`put`/`delete`/`patch`/`options`/`head`. Схемы уже инлайнированы Prance, поэтому `$ref` нигде не разрешаем.
+Операции живут в `spec["paths"][path][method]`, где `method` — `get`/`post`/`put`/`delete`/`patch`/`options`/`head`. Схемы уже инлайнированы Prance, поэтому `$ref` нигде не разрешаем. Поля операции извлекаются по структуре, выбранной `detect_spec_version`; оба формата приводятся к идентичной нормализованной форме.
 
 ```python
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
 
-
 def iter_operations(spec: dict):
-    """Yield (method, path, operation_dict) for every declared operation."""
     for path, item in spec.get("paths", {}).items():
         for method in HTTP_METHODS:
             operation = item.get(method)
@@ -56,37 +74,56 @@ def iter_operations(spec: dict):
 ```
 
 Соглашения потребителя:
-- Ключи-не-методы (`parameters`, `summary` на уровне path-item) пропускаем — берём только HTTP-методы.
-- Параметры на уровне path-item (`item["parameters"]`) наследуются всеми операциями; при необходимости мерджим с `operation["parameters"]`.
+- Ключи-не-методы (`parameters`, `summary` на уровне path-item) пропускаем.
+- Параметры path-item (`item["parameters"]`) наследуются всеми операциями; мерджим с `operation["parameters"]`.
 
-### Поля операции для модели эндпоинта `pybuggy`
+### Поля операции — OpenAPI 3.x
 
 ```python
-def extract_request_schema(operation: dict) -> dict:
-    """Resolved request body schema (primary JSON content type) or {}."""
+def extract_request_schema_openapi(operation: dict) -> dict:
     content = operation.get("requestBody", {}).get("content", {})
     return content.get("application/json", {}).get("schema", {})
 
+def extract_response_schemas_openapi(operation: dict) -> dict:
+    return {
+        code: resp.get("content", {}).get("application/json", {}).get("schema", {})
+        for code, resp in operation.get("responses", {}).items()
+    }
 
-def extract_response_schemas(operation: dict) -> dict:
-    """{status_code: resolved_schema} for each response (primary JSON content)."""
-    responses = {}
-    for code, response in operation.get("responses", {}).items():
-        content = response.get("content", {})
-        responses[code] = content.get("application/json", {}).get("schema", {})
-    return responses
-
-
-def extract_query_params(operation: dict) -> dict:
-    """{param_name: schema} for query parameters only."""
-    params = operation.get("parameters", [])
-    return {p["name"]: p.get("schema", {}) for p in params if p.get("in") == "query"}
+def extract_query_params_openapi(operation: dict) -> dict:
+    return {p["name"]: p.get("schema", {}) for p in operation.get("parameters", []) if p.get("in") == "query"}
 ```
 
-Соглашения потребителя:
-- `Request` / `Response` / `QueryParams` в выводе `info` — это уже **развёрнутые** схемы (Prance всё инлайнил).
+### Поля операции — Swagger 2.0
+
+В Swagger 2.0 структура иная: request body задаётся параметром `in: body` с корневым `schema`; response — `responses[code].schema` напрямую без обёртки `content`; поля типа инлайнятся в сам параметр (нет вложенного `schema`); nullable обозначается `x-nullable`.
+
+```python
+def extract_request_schema_swagger(operation: dict) -> dict:
+    for p in operation.get("parameters", []):
+        if p.get("in") == "body":
+            return p.get("schema", {})
+    return {}
+
+def extract_response_schemas_swagger(operation: dict) -> dict:
+    return {code: resp.get("schema", {}) for code, resp in operation.get("responses", {}).items()}
+
+_TYPE_FIELDS = ("type", "format", "items", "enum", "default", "description", "x-nullable")
+# `x-nullable` включён намеренно: иначе ключевое слово удаляется фильтрацией полей до
+# nullable-нормализации и nullability query-параметра теряется (см. cell spec / design review).
+def extract_query_params_swagger(operation: dict) -> dict:
+    result = {}
+    for p in operation.get("parameters", []):
+        if p.get("in") == "query":
+            result[p["name"]] = {k: v for k, v in p.items() if k in _TYPE_FIELDS}
+    return result
+```
+
+Соглашения потребителя (оба формата):
+- `Request` / `Response` / `QueryParams` в выводе `info` — уже **развёрнутые** схемы (Prance всё инлайнил).
 - Primary content-type — `application/json`; при его отсутствии поля пусты (`{}`).
 - `Description` = `operation.get("description", "")`.
+- Оба формата приводятся к идентичной нормализованной форме перед попаданием в `Endpoint` (nullable-нормализация выполняется внутри cell `spec`).
 
 ---
 
@@ -94,9 +131,7 @@ def extract_query_params(operation: dict) -> dict:
 
 ```python
 import click
-
 from swax.openapi import SpecParseError, parse_spec
-
 
 def safe_parse(spec_path: Path) -> dict:
     try:
@@ -109,6 +144,5 @@ def safe_parse(spec_path: Path) -> dict:
 
 ## Тестирование
 
-- Разбор/экстракцию (`parse_spec` + `iter_operations`/`extract_*`) тестировать на фикстурах-спеках в `tmp_path` (без моков — чистая логика поверх dict).
-- Реальную работу Prance можно не мокать: спеки-фикстуры small и детерминированы.
-- См. также `.goga/usages/conventions.md` (раздел Testing).
+- Разбор/экстракцию тестировать на фикстурах-спеках в `tmp_path` (без моков — чистая логика поверх dict).
+- Swagger 2.0 и OpenAPI 3.x кейсы — inline-спеки как dict, с утверждением эквивалентности нормализованных схем при одинаковой семантике операций.

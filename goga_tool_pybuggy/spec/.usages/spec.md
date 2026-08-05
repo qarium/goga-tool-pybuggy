@@ -2,7 +2,7 @@
 
 ## Предметная область
 
-Шаблоны потребления cell `goga_tool_pybuggy/spec`: разбор spec-файла в dict и извлечение эндпоинтов (метод+путь + развёрнутые схемы). Аудитория — команды `list`/`info`.
+Шаблоны потребления cell `goga_tool_pybuggy/spec`: разбор spec-файла в dict и извлечение эндпоинтов (метод+путь + развёрнутые схемы) для спецификаций **Swagger 2.0 и OpenAPI 3.x**. Формат определяется автоматически по содержимому спеки. Аудитория — команды `list`/`info`/`generate` и cell `output`.
 
 ## Разбор spec-файла
 
@@ -13,6 +13,16 @@ spec = load_spec(spec_path)  # pathlib.Path; $ref уже инлайнирова�
 ```
 
 При ошибке разбора `load_spec` бросает `click.ClickException` (маппинг `SpecParseError` из swax).
+
+## Определение версии
+
+```python
+from goga_tool_pybuggy.spec import detect_spec_version
+
+version = detect_spec_version(spec)  # "swagger" (Swagger 2.0) | "openapi" (OpenAPI 3.x)
+```
+
+Версия определяется по наличию top-level ключа `swagger` против `openapi`, а не по декларативному `SpecEntry.type`. Спека без обоих ключей некорректна — `detect_spec_version` выбрасывает `ValueError`. Выбор пути извлечения управляется этой версией внутри `extract_endpoints` — потребителю обычно не нужно вызывать `detect_spec_version` вручную.
 
 ## Извлечение эндпоинтов
 
@@ -29,7 +39,11 @@ for ep in endpoints:
     ep.query_params  # {name: schema}
 ```
 
-Схемы в `request`, `response`, `query_params` уже **nullable-нормализованы** для JSON-Schema: OpenAPI `nullable: true` переписан в union-форму (`type` со списком, включающим `"null"`), ключ `nullable` удалён. Валидатор `jsonschema` игнорирует OpenAPI `nullable`, поэтому нормализация выполнена на границе разбора — потребителю не нужно нормализовать схемы повторно.
+Семантика по форматам одинакова на выходе: для OpenAPI 3.x request/response/query извлекаются из структуры `requestBody`/`responses[code].content`/`parameters[].schema`; для Swagger 2.0 — из параметра `in: body`/`responses[code].schema`/инлайн-полей параметра `in: query`. Оба формата дают одну и ту же нормализованную модель `Endpoint` при одинаковой семантике операций.
+
+## Nullable-нормализация
+
+Схемы в `request`, `response`, `query_params` уже **nullable-нормализованы** для JSON-Schema: OpenAPI `nullable: true` и Swagger `x-nullable: true` переписаны в union-форму (`type` со списком, включающим `"null"`, с anyOf-фолбэком при невозможности разместить union в одном `type`), ключи `nullable`/`x-nullable` удалены. Валидатор `jsonschema` игнорирует оба ключевых слова, поэтому нормализация выполнена на границе разбора — потребителю не нужно нормализовать схемы повторно.
 
 ## Идентификатор эндпоинта
 
