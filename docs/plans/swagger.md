@@ -246,20 +246,20 @@ local — it is the contract's invalid-spec signal.
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If
 implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)** — declare this is Task 1: `detect_spec_version` routine + facade re-export.
-- [ ] **Contract tests** in `tests/spec/test_extract.py` (expected to fail at this stage — routine + re-export not yet present):
-  - [ ] `test_detect_spec_version_import_from_facade` — assert `from goga_tool_pybuggy.spec import detect_spec_version as facade; assert facade is extract.detect_spec_version` (locks the facade re-export required by `.usages/spec.md`).
-  - [ ] `test_detect_spec_version_signature` — `import inspect`; assert `list(inspect.signature(detect_spec_version).parameters) == ["spec"]` and return annotation resolves to `str`.
-- [ ] **Code**: add Routine `detect_spec_version(spec: dict[str, Any]) -> str` to `goga_tool_pybuggy/spec/extract.py` — implement the Algorithm above verbatim: `if "swagger" in spec: return "swagger"`; `elif "openapi" in spec: return "openapi"`; `else: raise ValueError(...)`. Add a Google docstring (`Args`/`Returns`/`Raises`).
-- [ ] **Code (facade re-export)**: in `goga_tool_pybuggy/spec/__init__.py` add `from .extract import detect_spec_version` and extend `__all__` to the alphabetical 5-element list `["Endpoint", "build_endpoint_id", "detect_spec_version", "extract_endpoints", "load_spec"]`; update the module docstring's export sentence to include `detect_spec_version`.
-- [ ] **Interface verification**: `python -c "from goga_tool_pybuggy.spec import detect_spec_version; import inspect; assert list(inspect.signature(detect_spec_version).parameters)==['spec']"` — import resolves from the facade and signature matches.
-- [ ] **Logic tests** in `tests/spec/test_extract.py` (positive + negative + edge):
-  - [ ] `test_detect_spec_version_swagger` — `assert detect_spec_version({"swagger": "2.0", "paths": {}}) == "swagger"`.
-  - [ ] `test_detect_spec_version_openapi` — `assert detect_spec_version({"openapi": "3.1.0", "paths": {}}) == "openapi"`.
-  - [ ] `test_detect_spec_version_neither_key_raises_value_error` (negative) — `with pytest.raises(ValueError): detect_spec_version({"info": {"title": "T"}, "paths": {}})` and `with pytest.raises(ValueError): detect_spec_version({})`.
-- [ ] **Debugging**: `pytest tests/spec/test_extract.py -k detect_spec_version -x` — fix implementation code (not test code) until all `detect_spec_version` tests pass; confirm the **existing** `test_extract.py` tests still pass (`pytest tests/spec/test_extract.py -x`) since `extract_endpoints` is untouched.
-- [ ] **Contract re-verification**: `detect_spec_version` is importable from `goga_tool_pybuggy.spec`, signature is `(spec: dict[str, Any]) -> str`, behavior matches the CODEMANIFEST annotation; `extract_endpoints` behavior unchanged (existing tests green).
-- [ ] **Lint**: `ruff check goga_tool_pybuggy/spec/` and `ruff check tests/spec/` — fix formatting; apply decomposition if necessary.
+- [x] **STEP 0 (DECLARATION)** — declare this is Task 1: `detect_spec_version` routine + facade re-export.
+- [x] **Contract tests** in `tests/spec/test_extract.py` (expected to fail at this stage — routine + re-export not yet present):
+  - [x] `test_detect_spec_version_import_from_facade` — assert `from goga_tool_pybuggy.spec import detect_spec_version as facade; assert facade is extract.detect_spec_version` (locks the facade re-export required by `.usages/spec.md`).
+  - [x] `test_detect_spec_version_signature` — `import inspect`; assert `list(inspect.signature(detect_spec_version).parameters) == ["spec"]` and return annotation resolves to `str`.
+- [x] **Code**: add Routine `detect_spec_version(spec: dict[str, Any]) -> str` to `goga_tool_pybuggy/spec/extract.py` — implement the Algorithm above verbatim: `if "swagger" in spec: return "swagger"`; `elif "openapi" in spec: return "openapi"`; `else: raise ValueError(...)`. Add a Google docstring (`Args`/`Returns`/`Raises`).
+- [x] **Code (facade re-export)**: in `goga_tool_pybuggy/spec/__init__.py` add `from .extract import detect_spec_version` and extend `__all__` to the alphabetical 5-element list `["Endpoint", "build_endpoint_id", "detect_spec_version", "extract_endpoints", "load_spec"]`; update the module docstring's export sentence to include `detect_spec_version`.
+- [x] **Interface verification**: `python -c "from goga_tool_pybuggy.spec import detect_spec_version; import inspect; assert list(inspect.signature(detect_spec_version).parameters)==['spec']"` — import resolves from the facade and signature matches.
+- [x] **Logic tests** in `tests/spec/test_extract.py` (positive + negative + edge):
+  - [x] `test_detect_spec_version_swagger` — `assert detect_spec_version({"swagger": "2.0", "paths": {}}) == "swagger"`.
+  - [x] `test_detect_spec_version_openapi` — `assert detect_spec_version({"openapi": "3.1.0", "paths": {}}) == "openapi"`.
+  - [x] `test_detect_spec_version_neither_key_raises_value_error` (negative) — `with pytest.raises(ValueError): detect_spec_version({"info": {"title": "T"}, "paths": {}})` and `with pytest.raises(ValueError): detect_spec_version({})`.
+- [x] **Debugging**: `pytest tests/spec/test_extract.py -k detect_spec_version -x` — fix implementation code (not test code) until all `detect_spec_version` tests pass; confirm the **existing** `test_extract.py` tests still pass (`pytest tests/spec/test_extract.py -x`) since `extract_endpoints` is untouched.
+- [x] **Contract re-verification**: `detect_spec_version` is importable from `goga_tool_pybuggy.spec`, signature is `(spec: dict[str, Any]) -> str`, behavior matches the CODEMANIFEST annotation; `extract_endpoints` behavior unchanged (existing tests green).
+- [x] **Lint**: `ruff check goga_tool_pybuggy/spec/` and `ruff check tests/spec/` — fix formatting; apply decomposition if necessary.
 
 ### Task 2: Swagger 2.0 support in `extract_endpoints` (version routing + format extractors + `_TYPE_FIELDS` + `_normalize_nullable` `x-nullable` extension) (TDD coding)
 

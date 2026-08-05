@@ -1,6 +1,63 @@
 """Contract and logic tests for extract_endpoints routine."""
 
-from goga_tool_pybuggy.spec import Endpoint, build_endpoint_id, extract_endpoints
+import pytest
+from goga_tool_pybuggy import spec as spec_module
+from goga_tool_pybuggy.spec import (
+    Endpoint,
+    build_endpoint_id,
+    detect_spec_version,
+    extract_endpoints,
+)
+
+
+def test_detect_spec_version_import_from_facade() -> None:
+    """Test detect_spec_version is re-exported from the spec facade."""
+    from goga_tool_pybuggy.spec import detect_spec_version as facade
+
+    # The facade symbol must be the exact routine defined in extract.py.
+    assert facade is detect_spec_version
+
+    # Re-export obligation: declared in the facade __all__.
+    assert "detect_spec_version" in spec_module.__all__
+
+
+def test_detect_spec_version_signature() -> None:
+    """Test detect_spec_version has signature (spec: dict[str, Any]) -> str."""
+    import inspect
+
+    sig = inspect.signature(detect_spec_version)
+    params = list(sig.parameters.keys())
+
+    assert params == ["spec"], f"Expected single parameter 'spec', got {params}"
+    assert sig.return_annotation is str, (
+        f"Expected return annotation str, got {sig.return_annotation}"
+    )
+
+
+def test_detect_spec_version_swagger() -> None:
+    """Test detect_spec_version returns 'swagger' for a Swagger 2.0 spec."""
+    assert detect_spec_version({"swagger": "2.0", "paths": {}}) == "swagger"
+
+
+def test_detect_spec_version_openapi() -> None:
+    """Test detect_spec_version returns 'openapi' for an OpenAPI 3.x spec."""
+    assert detect_spec_version({"openapi": "3.1.0", "paths": {}}) == "openapi"
+
+
+def test_detect_spec_version_both_keys_swagger_wins() -> None:
+    """Test a malformed spec carrying both keys resolves to 'swagger' (checked first)."""
+    assert detect_spec_version({"swagger": "2.0", "openapi": "3.0.0"}) == "swagger"
+
+
+def test_detect_spec_version_neither_key_raises_value_error() -> None:
+    """Test detect_spec_version raises ValueError when neither version key is present."""
+    # A spec with content but no version key is invalid.
+    with pytest.raises(ValueError, match="declares neither"):
+        detect_spec_version({"info": {"title": "T"}, "paths": {}})
+
+    # An empty dict is likewise invalid.
+    with pytest.raises(ValueError, match="declares neither"):
+        detect_spec_version({})
 
 
 def test_extract_endpoints_import_from_facade() -> None:

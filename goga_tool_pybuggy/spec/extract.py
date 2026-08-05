@@ -1,10 +1,38 @@
-"""Extract endpoints from OpenAPI spec."""
+"""Extract endpoints from OpenAPI/Swagger specs."""
 
 from typing import Any
 
 from .endpoint import Endpoint
 
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
+
+
+def detect_spec_version(spec: dict[str, Any]) -> str:
+    """Classify a parsed spec by its content as ``"swagger"`` or ``"openapi"``.
+
+    The format is determined from the spec's **content** — the presence of a
+    top-level ``swagger`` key (Swagger 2.0) or ``openapi`` key (OpenAPI 3.x) —
+    independently of any declarative config type field. A spec declaring neither
+    top-level key contradicts both specifications and is invalid.
+
+    Pure function — no I/O, no parsing.
+
+    Args:
+        spec: the dereferenced spec dict (output of ``load_spec``).
+
+    Returns:
+        ``"swagger"`` if a top-level ``swagger`` key is present, else
+        ``"openapi"`` if a top-level ``openapi`` key is present.
+
+    Raises:
+        ValueError: if the spec declares neither a ``swagger`` nor an
+            ``openapi`` version key.
+    """
+    if "swagger" in spec:
+        return "swagger"
+    if "openapi" in spec:
+        return "openapi"
+    raise ValueError("spec declares neither a swagger nor an openapi version")
 
 
 def _normalize_nullable(node: Any) -> Any:
