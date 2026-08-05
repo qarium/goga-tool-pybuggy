@@ -42,6 +42,30 @@ description: Главный навигационный скилл pybuggy — в
 - **`goga-tool-pybuggy-it-cookbook`** — принципы применения DSL `goga-cell` для проектирования именно
   **тестовых** cells (Routine-only, без Imports, базовые Usages/Annotations из конфига).
 
+### Диспатч-скиллы тестовой генерации (после `apply`)
+
+Оборачивают goga-скиллы `goga-design` / `goga-plan` **тестовым препромптом** — чтобы фаза design→plan
+относилась к CODEMANIFEST тест-cells как к источнику истины, а ralphex-план **запускал тесты**
+(чинит проблему «`goga build` пишет тесты, но не запускает их»). Вызываются вручную после `apply`.
+
+| Скилл                                       | Что делает                                                                                                                     | Оборачивает   |
+|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|---------------|
+| `goga-tool-pybuggy-it-feature-design`       | Дизайн-док материализации тестов из CODEMANIFEST тест-cells; закрепляет `pytest` как валидацию                                | `goga-design` |
+| `goga-tool-pybuggy-it-feature-plan`         | ralphex-план генерации **и запуска** тестов; гарантирует `pytest` в Validation Commands и исполнимые Task-чекбоксы           | `goga-plan`   |
+
+### Ревью-скиллы
+
+Верифицируют тестовые артефакты всех фаз: propose → testcases → cells → design/plan.
+
+| Скилл                                                | Что проверяет                                                                          |
+|------------------------------------------------------|----------------------------------------------------------------------------------------|
+| `goga-tool-pybuggy-it-feature-review`                | Диспетчер: роутит по пути таргет-файла (`docs/pybuggy\|design\|plans`) в нужный ревью-скилл |
+| `goga-tool-pybuggy-it-feature-propose-review`        | Требования `feature-requirements.md`: 9 секций, реалистичность эндпоинтов/контрактов/путей, positive/negative, без кода |
+| `goga-tool-pybuggy-it-feature-testcases-review`      | Тест-кейсы `feature-testcases.md`: трассируемость к требованиям, данные↔Request, покрытие Flow/Positive/Negative, без кода |
+| `goga-tool-pybuggy-it-feature-cells-review`          | План cells `feature-cells.md`: CODEMANIFEST по DSL, Routine-per-case, без Imports, coverage-gate (кейс→Routine 1:1) |
+| `goga-tool-pybuggy-it-feature-design-review`         | Дизайн-док тестов (Routine↔`test_*.py`, pytest-валидация)                              |
+| `goga-tool-pybuggy-it-feature-plan-review`           | ralphex-план: критическое — `pytest` присутствует и исполним                           |
+
 ---
 
 ## Behavior
@@ -54,6 +78,9 @@ description: Главный навигационный скилл pybuggy — в
    - «написать тест-кейсы / описать сценарии» → `goga-tool-pybuggy-it-feature-testcases`;
    - «спроектировать cells / CODEMANIFEST» → `goga-tool-pybuggy-it-feature-cells`;
    - «создать cells / материализовать план» → `goga-tool-pybuggy-it-feature-apply`;
+   - «дизайн тестов / спроектировать генерацию тестов» → `goga-tool-pybuggy-it-feature-design`;
+   - «собрать план тестов / ralphex-план / заставить сборку запускать тесты» → `goga-tool-pybuggy-it-feature-plan`;
+   - «проверить тестовый артефакт / ревью propose|testcases|cells|design|plan» → `goga-tool-pybuggy-it-feature-review`;
    - «как вызвать API / как проверить ответ» → `goga-tool-pybuggy-it-usage`;
    - «правила DSL для тестовых cells» → `goga-tool-pybuggy-it-cookbook`.
 3. Для запуска пайплайна используй **Skill tool** с главным скиллом пайплайна. Не запускай sub-скиллы в обход
