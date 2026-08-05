@@ -6,6 +6,20 @@ from .endpoint import Endpoint
 
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
 
+# Whitelist of inlined type fields used to filter Swagger 2.0 query params.
+# `x-nullable` is intentionally included so the Swagger nullable keyword reaches
+# `_normalize_nullable`; without it the keyword is dropped before normalization
+# and the query param's nullability is silently lost (review fix).
+_TYPE_FIELDS = (
+    "type",
+    "format",
+    "items",
+    "enum",
+    "default",
+    "description",
+    "x-nullable",
+)
+
 
 def detect_spec_version(spec: dict[str, Any]) -> str:
     """Classify a parsed spec by its content as ``"swagger"`` or ``"openapi"``.
@@ -35,18 +49,98 @@ def detect_spec_version(spec: dict[str, Any]) -> str:
     raise ValueError("spec declares neither a swagger nor an openapi version")
 
 
+def _extract_request(operation: dict[str, Any], version: str) -> dict[str, Any]:
+    """Extract the request-body schema from an operation in a format-aware way.
+
+    OpenAPI 3.x reads the schema from ``requestBody.content.application/json``;
+    Swagger 2.0 reads it from the ``in: body`` parameter's root ``schema``.
+
+    Args:
+        operation: a single operation dict (``paths[path][method]``).
+        version: the detected spec version (``"openapi"`` or ``"swagger"``).
+
+    Returns:
+        The resolved request schema, or ``{}`` when absent.
+    """
+    if version == "openapi":
+        return (
+            operation.get("requestBody", {})
+            .get("content", {})
+            .get("application/json", {})
+            .get("schema", {})
+        )
+    for param in operation.get("parameters", []):
+        if param.get("in") == "body":
+            return param.get("schema", {})
+    return {}
+
+
+def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any]:
+    """Extract response schemas from an operation in a format-aware way.
+
+    OpenAPI 3.x unwraps ``content.application/json.schema``; Swagger 2.0 reads
+    ``schema`` directly (no ``content`` wrapper).
+
+    Args:
+        operation: a single operation dict (``paths[path][method]``).
+        version: the detected spec version (``"openapi"`` or ``"swagger"``).
+
+    Returns:
+        ``{status_code: schema}`` for each declared response.
+    """
+    responses = operation.get("responses", {})
+    if version == "openapi":
+        return {
+            code: resp.get("content", {}).get("application/json", {}).get("schema", {})
+            for code, resp in responses.items()
+        }
+    return {code: resp.get("schema", {}) for code, resp in responses.items()}
+
+
+def _extract_query_params(
+    all_params: list[dict[str, Any]], version: str
+) -> dict[str, Any]:
+    """Extract query-parameter schemas in a format-aware way.
+
+    OpenAPI 3.x reads each query param's nested ``schema``; Swagger 2.0 reads the
+    inlined type fields, filtered by ``_TYPE_FIELDS`` (which keeps
+    ``x-nullable`` so it reaches ``_normalize_nullable``).
+
+    Args:
+        all_params: merged path-item + operation parameters.
+        version: the detected spec version (``"openapi"`` or ``"swagger"``).
+
+    Returns:
+        ``{param_name: schema}`` for each named query parameter.
+    """
+    result: dict[str, Any] = {}
+    for param in all_params:
+        if param.get("in") != "query":
+            continue
+        name = param.get("name")
+        if not name:
+            # Skip parameters without names (malformed spec)
+            continue
+        if version == "openapi":
+            result[name] = param.get("schema", {})
+        else:  # swagger — inlined type fields
+            result[name] = {k: v for k, v in param.items() if k in _TYPE_FIELDS}
+    return result
+
+
 def _normalize_nullable(node: Any) -> Any:
-    """Rewrite OpenAPI 3.0 ``nullable: true`` into JSON-Schema union types.
+    """Rewrite OpenAPI/Swagger nullability into JSON-Schema union types.
 
-    ``nullable`` is an OpenAPI 3.0 extension, not part of JSON Schema; the
-    ``jsonschema`` validator used at runtime ignores it, so a schema fragment with
-    ``{"type": "object", "nullable": true}`` rejects a ``null`` value. This rewrites
-    every nullable fragment to the JSON-Schema equivalent — ``{"type": [<types...>,
-    "null"]}`` — and drops the ``nullable`` key, recursing through ``properties``,
-    ``items``, ``additionalProperties`` and the ``anyOf``/``oneOf``/``allOf``
-    composition arrays. Non-container fragments are returned unchanged.
+    ``nullable`` (OpenAPI 3.0) and ``x-nullable`` (Swagger 2.0) are extensions,
+    not part of JSON Schema; the ``jsonschema`` validator used at runtime ignores
+    both, so a schema fragment with ``{"type": "object", "nullable": true}``
+    rejects a ``null`` value. This rewrites every nullable fragment to the
+    JSON-Schema equivalent — ``{"type": [<types...>, "null"]}`` — and drops the
+    originating key, recursing through ``properties``, ``items``,
+    ``additionalProperties`` and the ``anyOf``/``oneOf``/``allOf`` composition
+    arrays. Non-container fragments are returned unchanged.
 
-    Applied at the OpenAPI → internal JSON-Schema boundary so every consumer of
+    Applied at the spec → internal JSON-Schema boundary so every consumer of
     ``Endpoint`` (generate, info, list, …) sees one consistent schema shape.
 
     Args:
@@ -58,7 +152,12 @@ def _normalize_nullable(node: Any) -> Any:
     if isinstance(node, dict):
         result = {key: _normalize_nullable(value) for key, value in node.items()}
 
-        if "nullable" in result and result.pop("nullable") is True:
+        # Both originating keys are dropped unconditionally; the union is formed
+        # when either carries a truthy value. A `false` value drops the key
+        # without forming a union.
+        nullable_val = result.pop("nullable", None)
+        x_nullable_val = result.pop("x-nullable", None)
+        if nullable_val is True or x_nullable_val is True:
             existing = result.get("type")
             if isinstance(existing, str):
                 result["type"] = [existing, "null"]
@@ -80,30 +179,36 @@ def _normalize_nullable(node: Any) -> Any:
 
 
 def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
-    """Extract endpoint information from an OpenAPI spec dictionary.
+    """Extract endpoint information from an OpenAPI or Swagger spec dictionary.
 
-    Iterates through spec["paths"], extracting operations for each HTTP method.
-    Path-item parameters are inherited by all operations.
+    Detects the spec format via :func:`detect_spec_version` and routes field
+    extraction accordingly, then normalizes every extracted schema to the
+    JSON-Schema union nullable form. Iterates ``spec["paths"]``, extracting
+    operations for each HTTP method; path-item parameters are inherited by all
+    operations.
 
     Args:
-        spec: Parsed OpenAPI spec dict with resolved $ref (from swax).
+        spec: Parsed OpenAPI/Swagger spec dict with resolved $ref (from swax).
 
     Returns:
         List of Endpoint objects, one per operation found in the spec.
-        Returns empty list if spec has no "paths" key.
+        Returns an empty list if the spec has no "paths" key.
+
+    Raises:
+        ValueError: if the spec declares neither a ``swagger`` nor an ``openapi``
+            version (propagated from :func:`detect_spec_version`).
 
     Examples:
-        >>> spec = {"paths": {"/clients/{id}": {"get": {...}}}}
+        >>> spec = {"openapi": "3.0.0", "paths": {"/clients/{id}": {"get": {}}}}
         >>> endpoints = extract_endpoints(spec)
         >>> len(endpoints)
         1
     """
+    version = detect_spec_version(spec)
     result: list[Endpoint] = []
 
-    # Step 1: Read spec["paths"]
     paths = spec.get("paths", {})
 
-    # Step 2: For each path-item, for each HTTP method
     for path, path_item in paths.items():
         # Skip malformed path-items (e.g. null) — no operations to extract
         if not isinstance(path_item, dict):
@@ -117,40 +222,22 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
             if operation is None:
                 continue
 
-            # Step 3: Build an Endpoint from the operation
-
             # Merge shared params with operation params
             all_params = [*shared_params, *operation.get("parameters", [])]
 
-            # Extract request schema (primary JSON content)
-            request_body = operation.get("requestBody", {})
-            request_content = request_body.get("content", {})
-            json_content = request_content.get("application/json", {})
-            request = _normalize_nullable(json_content.get("schema", {}))
+            # Route field extraction by the detected version, then normalize
+            request = _normalize_nullable(_extract_request(operation, version))
+            response = {
+                code: _normalize_nullable(schema)
+                for code, schema in _extract_responses(operation, version).items()
+            }
+            query_params = {
+                name: _normalize_nullable(schema)
+                for name, schema in _extract_query_params(all_params, version).items()
+            }
 
-            # Extract response schemas
-            responses = operation.get("responses", {})
-            response: dict[str, Any] = {}
-            for code, resp in responses.items():
-                resp_content = resp.get("content", {})
-                json_content = resp_content.get("application/json", {})
-                response[code] = _normalize_nullable(json_content.get("schema", {}))
-
-            # Extract query parameters
-            query_params: dict[str, Any] = {}
-            for param in all_params:
-                if param.get("in") == "query":
-                    name = param.get("name")
-                    if not name:
-                        # Skip parameters without names (malformed spec)
-                        continue
-                    schema = param.get("schema", {})
-                    query_params[name] = _normalize_nullable(schema)
-
-            # Extract description
             description = operation.get("description", "")
 
-            # Build Endpoint with kw_only fields
             endpoint = Endpoint(
                 method=method,
                 path=path,

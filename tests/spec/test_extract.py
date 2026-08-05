@@ -85,6 +85,7 @@ def test_extract_endpoints_signature() -> None:
 def test_extract_endpoints_builds_endpoint_per_operation() -> None:
     """Test extract_endpoints builds endpoint per operation with correct field extraction."""
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/clients/{id}": {
                 "get": {
@@ -120,6 +121,7 @@ def test_extract_endpoints_builds_endpoint_per_operation() -> None:
 def test_extract_endpoints_skips_non_method_keys() -> None:
     """Test extract_endpoints skips non-method keys like 'parameters' and 'summary'."""
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/items": {
                 "summary": "Items endpoint",
@@ -147,6 +149,7 @@ def test_extract_endpoints_empty_paths_returns_empty_list() -> None:
 def test_extract_endpoints_skips_non_dict_path_item() -> None:
     """Test extract_endpoints skips malformed (non-dict/null) path-items without crashing."""
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/null": None,
             "/valid": {"get": {"responses": {"200": {"content": {"application/json": {"schema": {}}}}}}},
@@ -163,6 +166,7 @@ def test_extract_endpoints_skips_non_dict_path_item() -> None:
 def test_extract_endpoints_no_application_json_returns_empty_fields() -> None:
     """Test extract_endpoints returns empty schemas when no application/json content."""
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/data": {
                 "post": {
@@ -183,6 +187,7 @@ def test_extract_endpoints_no_application_json_returns_empty_fields() -> None:
 def test_extract_endpoints_inherits_shared_path_item_parameters() -> None:
     """Test extract_endpoints inherits shared parameters from path-item level."""
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/clients/{id}": {
                 "parameters": [{"name": "shared_param", "in": "query", "schema": {"type": "string"}}],
@@ -207,7 +212,8 @@ def test_extract_endpoints_inherits_shared_path_item_parameters() -> None:
 def test_extract_endpoints_description_default_empty_string() -> None:
     """Test extract_endpoints uses empty string when description is missing."""
     spec = {
-        "paths": {"/nodescription": {"get": {"responses": {"200": {"content": {"application/json": {"schema": {}}}}}}}}
+        "openapi": "3.0.0",
+        "paths": {"/nodescription": {"get": {"responses": {"200": {"content": {"application/json": {"schema": {}}}}}}}},
     }
 
     endpoints = extract_endpoints(spec)
@@ -219,6 +225,7 @@ def test_extract_endpoints_description_default_empty_string() -> None:
 def test_extract_endpoints_with_description() -> None:
     """Test extract_endpoints extracts description when present."""
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/withdesc": {
                 "get": {
@@ -245,6 +252,7 @@ def test_extract_endpoints_rewrites_openapi_nullable_to_jsonschema_union() -> No
     request/response/query schemas (incl. array items).
     """
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/nullable": {
                 "post": {
@@ -317,6 +325,7 @@ def test_extract_endpoints_normalizes_nullable_without_type_via_anyof() -> None:
     ``[{"type": "null"}]``).
     """
     spec = {
+        "openapi": "3.0.0",
         "paths": {
             "/nullable-anyof": {
                 "post": {
@@ -376,3 +385,223 @@ def test_extract_endpoints_normalizes_nullable_without_type_via_anyof() -> None:
             "meta": {"anyOf": [{"type": "string"}, {"type": "null"}]},
         },
     }
+
+
+# --- Swagger 2.0 support (Task 2) --------------------------------------------
+
+
+def test_extract_endpoints_swagger_body_request() -> None:
+    """Test Swagger 2.0 POST: body schema → request, responses[code].schema → response, inlined query."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/clients": {
+                "post": {
+                    "parameters": [
+                        {"name": "limit", "in": "query", "type": "integer"},
+                        {
+                            "name": "body",
+                            "in": "body",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"name": {"type": "string"}},
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "201": {"description": "created", "schema": {"type": "object"}}
+                    },
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    ep = endpoints[0]
+
+    assert ep.request == {"type": "object", "properties": {"name": {"type": "string"}}}
+    assert ep.response == {"201": {"type": "object"}}
+    assert ep.query_params == {"limit": {"type": "integer"}}
+    assert ep.id == build_endpoint_id("post", "/clients")
+
+
+def test_extract_endpoints_swagger_query_inlined_fields() -> None:
+    """Test Swagger query params keep only the canonical _TYPE_FIELDS (drop required/extra)."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/things": {
+                "get": {
+                    "parameters": [
+                        {
+                            "name": "color",
+                            "in": "query",
+                            "type": "string",
+                            "format": "hex",
+                            "enum": ["red", "green"],
+                            "default": "red",
+                            "description": "pick a color",
+                            "required": True,
+                            "collectionFormat": "multi",
+                        }
+                    ],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    ep = endpoints[0]
+
+    assert ep.query_params["color"] == {
+        "type": "string",
+        "format": "hex",
+        "enum": ["red", "green"],
+        "default": "red",
+        "description": "pick a color",
+    }
+
+
+def test_extract_endpoints_rewrites_swagger_x_nullable_to_jsonschema_union() -> None:
+    """Test Swagger x-nullable: true is normalized to a JSON-Schema union (review-fix regression).
+
+    ``x-nullable`` must survive ``_TYPE_FIELDS`` filtering on the Swagger query
+    param and reach ``_normalize_nullable`` on every extracted schema, becoming a
+    ``type`` union including ``"null"`` with the originating key dropped.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/xnullable": {
+                "post": {
+                    "parameters": [
+                        {"name": "tag", "in": "query", "type": "integer", "x-nullable": True},
+                        {
+                            "name": "body",
+                            "in": "body",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"ref": {"type": "string", "x-nullable": True}},
+                            },
+                        },
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "ok",
+                            "schema": {
+                                "type": "object",
+                                "properties": {"err": {"type": "object", "x-nullable": True}},
+                            },
+                        }
+                    },
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    ep = endpoints[0]
+
+    assert ep.request == {
+        "type": "object",
+        "properties": {"ref": {"type": ["string", "null"]}},
+    }
+    assert ep.query_params["tag"] == {"type": ["integer", "null"]}
+    assert ep.response["200"] == {
+        "type": "object",
+        "properties": {"err": {"type": ["object", "null"]}},
+    }
+
+
+def test_extract_endpoints_nullable_false_drops_key_without_union() -> None:
+    """Test nullable:false / x-nullable:false drops the key without forming a union."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/nf": {
+                "post": {
+                    "requestBody": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "a": {"type": "string", "nullable": False},
+                                        "b": {"type": "integer", "x-nullable": False},
+                                    },
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {"content": {"application/json": {"schema": {}}}}
+                    },
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    ep = endpoints[0]
+
+    assert ep.request == {
+        "type": "object",
+        "properties": {"a": {"type": "string"}, "b": {"type": "integer"}},
+    }
+    assert "nullable" not in ep.request["properties"]["a"]
+    assert "x-nullable" not in ep.request["properties"]["b"]
+
+
+def test_extract_endpoints_swagger_no_body_parameter_request_empty() -> None:
+    """Test Swagger POST with no in: body param yields an empty request and empty response schema."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/nobody": {
+                "post": {
+                    "parameters": [{"name": "limit", "in": "query", "type": "integer"}],
+                    "responses": {"201": {"description": "created"}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    ep = endpoints[0]
+
+    assert ep.request == {}
+    assert ep.response == {"201": {}}
+
+
+def test_extract_endpoints_swagger_inherits_shared_path_item_parameters() -> None:
+    """Test Swagger inherits shared path-item query params alongside operation-level ones."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/things/{id}": {
+                "parameters": [{"name": "shared", "in": "query", "type": "string"}],
+                "get": {
+                    "parameters": [{"name": "op", "in": "query", "type": "integer"}],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                },
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert len(endpoints) == 1
+    ep = endpoints[0]
+
+    assert ep.query_params == {"shared": {"type": "string"}, "op": {"type": "integer"}}
