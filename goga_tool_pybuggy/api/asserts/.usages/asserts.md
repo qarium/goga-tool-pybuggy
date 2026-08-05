@@ -103,18 +103,24 @@ from goga_tool_pybuggy.api.asserts import AssertField  # для type-hint'а
 ### Field-level вход
 
 ```python
-field = response.expected("items")              # dotted-путь
-field = response.expected("$.items[*]")          # jsonpath
-field = response.expected(index=0)               # без search — целиком по корню
+field = response.expected("items")              # dotted-путь под data_key
+field = response.expected("$.items[*]")          # jsonpath под data_key
+field = response.expected()                      # целиком значение под data_key (массив/объект)
 ```
 
 `Expected.__call__(search=None, *, index=None, hook=None, in_array=False)`:
 
-- `search` — dotted-путь (`a.b.c`) под корнем `data_key`/`error_key`, либо jsonpath
-  (`$.a.b[*]`), либо `None` (всё корневое тело);
+- `search` — dotted-путь (`a.b.c`) **или** jsonpath (`$.a.b[*]`), разрешаемые под
+  корневым ключом: на позитивном пути — `data_key`, на негативном — `error_key`.
+  `None` — значение под этим ключом целиком (не «всё тело ответа»); без
+  `data_key`/`error_key` корнем служит само тело ответа;
 - `index` — опц. индекс списка после поиска;
 - `hook` — опц. callable, применяется к разрешённому значению (не-callable → `TypeError`);
 - `in_array` — трактовать значение как список для поэлементных `any`.
+
+**Важно про jsonpath**: `$` отсчитывается **от значения корневого ключа**, а не от
+тела ответа. При `data_key="data"` выражение `$.items[*]` → `body["data"]["items"]`,
+а `$[0].name` → `body["data"][0]["name"]`. Это единое правило для dotted и jsonpath.
 
 Возвращает `AssertField` для цепочек.
 
@@ -138,7 +144,8 @@ Field-level ассерт над разрешённым значением пол
 есть дополнительные параметры.
 
 Путь разрешается контекстом: на позитивном пути — под `data_key`, на негативном —
-под `error_key`; без ключей — относительно тела целиком.
+под `error_key`; без ключей — относительно тела целиком. Это относится **и к dotted,
+и к jsonpath**: jsonpath вычисляется после префиксирования корневым ключом.
 
 ### Вхождение и содержание
 
@@ -260,11 +267,25 @@ with response.expected("ok").not_raise_exc() as value:
 - **in_array:** флаг уровня поля (через `Expected.__call__(in_array=True)` или при
   drill-down). С `in_array=True` значение трактуется как список, и `any=True`
   проверяет элементы по отдельности (совпадение хотя бы одного).
+- **Все элементы массива** (jsonpath с `[*]` возвращает список значений): чтобы
+  проверить, что **каждый** элемент входит в допустимое множество, примените
+  `is_in`/`is_subset` над списком. Это «все удовлетворяют», в отличие от `any=True`
+  («хотя бы один»).
+- **Пустой результат jsonpath** (в т.ч. `$[*]` по пустому массиву) бросает
+  `AssertionError` («No results»). Для проверки пустоты используйте `has_length(0)`
+  по корню, а не jsonpath.
 
 ```python
 response.expected("items", in_array=True).equal_to(2, any=True)   # хотя бы один == 2
 response.expected("items")(index=0).equal_to(1)                   # drill по индексу
 response.expected("name")(hook=str.upper).equal_to("ABC")         # hook перед сравнением
+
+# data_key — массив: непустота / конкретный элемент
+response.expected().has_length_greater(0)                          # значение под data_key (массив) непусто
+response.expected("$[0].name").equal_to("abc")                    # data[0].name
+
+# все элементы: data[*].status — список; is_subset гарантирует, что каждый входит в множество
+response.expected("$[*].status").is_subset(["active", "idle"])    # каждый status ∈ множество
 ```
 
 ---
