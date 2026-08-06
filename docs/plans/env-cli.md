@@ -355,17 +355,17 @@ Modify `goga_tool_pybuggy/cli.py` to implement contract `main()` **Algorithm ste
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this is Task 3 — `--env-file` eager option + `_load_env_callback` on `main` (`cli.py`).
-- [ ] **Contract tests** (new file `tests/test_cli_env.py`; expected to fail at this stage): `main` is importable and is a click command/group (`isinstance(main, click.BaseCommand)`); `main` has an `--env-file` option in its params (e.g. `"env_file"` in `main.params` names, or `"--env-file"` in `main.get_help_option(...)`); `_load_env_callback` exists in `goga_tool_pybuggy.cli`.
-- [ ] **Code**: add the relative import `from .env import EnvContext, load_env` to `cli.py`.
-- [ ] **Code**: define `_load_env_callback(ctx, _param, value)` (`ctx.obj = load_env(value); return value`) and decorate `main` with `@click.option("--env-file", "env_file", default=None, callback=_load_env_callback, is_eager=True, help=...)`. Add the `env_file: str | None` parameter to `main`. Leave `endpoint_group` and command registration unchanged.
-- [ ] **Interface verification**: run `pytest tests/test_cli_env.py -v` for the contract tests above; additionally run the pre-existing `pytest tests/test_cli.py -v` to confirm command registration is intact (no regression).
-- [ ] **Logic tests** (append to `tests/test_cli_env.py`):
+- [x] **STEP 0 (DECLARATION)**: declare this is Task 3 — `--env-file` eager option + `_load_env_callback` on `main` (`cli.py`).
+- [x] **Contract tests** (new file `tests/test_cli_env.py`; expected to fail at this stage): `main` is importable and is a click command/group (`isinstance(main, click.BaseCommand)`); `main` has an `--env-file` option in its params (e.g. `"env_file"` in `main.params` names, or `"--env-file"` in `main.get_help_option(...)`); `_load_env_callback` exists in `goga_tool_pybuggy.cli`.
+- [x] **Code**: add the relative import `from .env import load_env` to `cli.py` (`EnvContext` omitted — it is unused in `cli.py`, so ruff F401 would flag it; `ctx.obj` is still an `EnvContext` at runtime via `load_env`'s return value).
+- [x] **Code**: define `_load_env_callback(ctx, _param, value)` (`ctx.obj = load_env(value); return value`) and decorate `main` with `@click.option("--env-file", "env_file", default=None, callback=_load_env_callback, is_eager=True, help=...)`. Add the `env_file: str | None` parameter to `main`. Leave `endpoint_group` and command registration unchanged.
+- [x] **Interface verification**: run `pytest tests/test_cli_env.py -v` for the contract tests above; additionally run the pre-existing `pytest tests/test_cli.py -v` to confirm command registration is intact (no regression).
+- [x] **Logic tests** (append to `tests/test_cli_env.py`):
   - **T13 — `test_env_file_callback_sets_ctx_obj`** (Direct handler call — preferred): `tmp_path/.env` with `PYBUGGY_REF=v2`; `monkeypatch.chdir(tmp_path)`; build a fake ctx (`types.SimpleNamespace(obj=None)`); call `_load_env_callback(ctx, param=None, value=str(tmp_path / ".env"))` directly; assert `isinstance(ctx.obj, EnvContext)`, `ctx.obj.values["PYBUGGY_REF"]=="v2"`, `os.environ["PYBUGGY_REF"]=="v2"`, and the return value equals the input `value`.
   - **T14 — `test_env_file_option_must_precede_subcommand`** (CLI-parsing behavior — `CliRunner` justified): with a `click.testing.CliRunner` and isolated env, invoke `runner.invoke(main, ["endpoint", "pull", "--env-file", "x.env"])` (option AFTER the subcommand); assert `result.exit_code == 2` and the output contains "No such option".
-- [ ] **Debugging**: run `pytest tests/test_cli_env.py -v` — fix implementation code until all tests pass (do NOT fix test code).
-- [ ] **Contract re-verification**: confirm `main` is still the package entry point (`from goga_tool_pybuggy import main`); confirm `endpoint`/`init` registration unchanged (the pre-existing `tests/test_cli.py` assertions still pass); confirm `_load_env_callback` stores an `EnvContext` on `ctx.obj` and passes `value` through.
-- [ ] **Lint**: `ruff check goga_tool_pybuggy/cli.py` and `ruff format goga_tool_pybuggy/cli.py` — fix formatting/decompose if necessary.
+- [x] **Debugging**: run `pytest tests/test_cli_env.py -v` — fix implementation code until all tests pass (do NOT fix test code).
+- [x] **Contract re-verification**: confirm `main` is still the package entry point (`from goga_tool_pybuggy import main`); confirm `endpoint`/`init` registration unchanged (the pre-existing `tests/test_cli.py` assertions still pass); confirm `_load_env_callback` stores an `EnvContext` on `ctx.obj` and passes `value` through.
+- [x] **Lint**: `ruff check goga_tool_pybuggy/cli.py` and `ruff format goga_tool_pybuggy/cli.py` — fix formatting/decompose if necessary.
 
 ### Task 4: Integration tests for the env-cli runtime coupling (integration — ROOT ↔ pull)
 
@@ -399,16 +399,16 @@ Verify the cross-entity / cross-cell runtime coupling that the env-cli feature d
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location`: `EnvContext`, `load_env` in `goga_tool_pybuggy/env.py`; `main` eager-callback in `goga_tool_pybuggy/cli.py`; `run_pull` Algorithm 4b behavior in `goga_tool_pybuggy/commands/pull/pull.py`.
+- [x] Every contract entity is implemented in the correct `location`: `EnvContext`, `load_env` in `goga_tool_pybuggy/env.py`; `main` eager-callback in `goga_tool_pybuggy/cli.py`; `run_pull` Algorithm 4b behavior in `goga_tool_pybuggy/commands/pull/pull.py`.
 - [x] Every feature entity is accessible from the facade: `EnvContext`, `load_env`, `main` importable from `goga_tool_pybuggy` (`__all__` updated).
 - [x] Properties and methods match the declared API: `EnvContext.env_path -> str | None`, `EnvContext.values -> dict[str, str]`; `load_env(env_file: Optional[str]) -> EnvContext`; `run_pull(spec_name, ref=None)` signature unchanged.
-- [ ] Descriptions are reflected in behavior: `override=False` invariant; silent implicit absent `.env`; bare-key `None → ""` coercion; directory-as-`--env-file` → `ClickException`; `--env-file` must precede the subcommand (exit 2); `PYBUGGY_REF` precedence `per-spec → global → PYBUGGY_REF → git.ref → None` with empty-string fall-through.
+- [x] Descriptions are reflected in behavior: `override=False` invariant; silent implicit absent `.env`; bare-key `None → ""` coercion; directory-as-`--env-file` → `ClickException`; `--env-file` must precede the subcommand (exit 2); `PYBUGGY_REF` precedence `per-spec → global → PYBUGGY_REF → git.ref → None` with empty-string fall-through.
 - [x] Contract dependencies are met: `load_env`/`EnvContext` from `env.py`; `click`, `python-dotenv`, `pydantic` from `pyproject.toml`; `os.environ` runtime bridge (no new `Imports`).
 - [x] Re-exports are accessible from the facade: `install` still importable from `goga_tool_pybuggy` (unchanged); `EnvContext`/`load_env` importable as first-class facade members.
-- [ ] Every coding task (Tasks 1–3) followed the TDD workflow (contract tests → code → interface verification → logic tests → debugging → contract re-verification → lint).
+- [x] Every coding task (Tasks 1–3) followed the TDD workflow (contract tests → code → interface verification → logic tests → debugging → contract re-verification → lint).
 - [ ] Contract tests and logic tests cover facade, API, and behavior within each coding task (T1–T14); integration tests (Task 4: T12, T15) cover the cross-entity / cross-cell runtime coupling.
 - [ ] Integration tests exist for the cross-cell scenario (ROOT ↔ pull via `PYBUGGY_REF`).
-- [ ] No package boundary was expanded (no new cells, no new `Imports` edges, no new `.usages/` files).
-- [ ] `CODEMANIFEST` and `.usages/` files were not modified (contract is read-only — already materialized and audited).
+- [x] No package boundary was expanded (no new cells, no new `Imports` edges, no new `.usages/` files).
+- [x] `CODEMANIFEST` and `.usages/` files were not modified (contract is read-only — already materialized and audited).
 - [ ] All validation commands pass (`pytest tests/ -x`, `ruff check`, `ruff format`, facade import).
 - [ ] Every Usages entry is referenced in at least one task: `conventions` (Tasks 1–4), `click` (Tasks 2–4), `python-dotenv` (Task 2), `gitpython` (Task 4, mocked).
