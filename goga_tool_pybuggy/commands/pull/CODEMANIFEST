@@ -34,16 +34,18 @@ Annotations: |
     3. Normalize the ref override into a global ref and a per-spec map: plain-string items become the global ref, (name, ref) items populate the per-spec map; None items are skipped. A per-spec name absent from the configuration raises click.ClickException.
     4. For each selected entry:
        a. If the entry git field is None, skip it silently (local-only spec).
-       b. Otherwise resolve the effective ref: per-spec override for this name wins, else the global ref, else the `GitEntry` ref, else None. Shallow-clone the `GitEntry` url into a temp dir (depth=1) at the effective ref (None means the remote default branch), copy the `GitEntry` location -> project-root / `SpecEntry` location, overwriting existing files (idempotent).
+       b. Otherwise resolve the effective ref: per-spec override for this name wins, else the global ref, else PYBUGGY_REF from os.environ (when set), else the `GitEntry` ref, else None. Shallow-clone the `GitEntry` url into a temp dir (depth=1) at the effective ref (None means the remote default branch), copy the `GitEntry` location -> project-root / `SpecEntry` location, overwriting existing files (idempotent).
     5. On clone failure or missing repo path, raise click.ClickException with a clear message.
 
     Requirements:
     - Idempotent — repeated runs overwrite the target files.
     - `SpecEntry` location is project-root-relative; create parent dirs as needed.
+    - PYBUGGY_REF is read from os.environ; populated by the root CLI group before the command runs; its presence is optional (absent ⇒ fall through to the next precedence level).
 
     Constraints:
     - Treat the repo as read-only — no commit/push.
     - Do not embed tokens in clone URLs — rely on git credential helpers (see `gitpython`).
+    - PYBUGGY_REF never overrides a per-spec or explicit global --ref; it sits strictly between the global ref and the configured git.ref.
 
     Use `gitpython` for the clone+copy pattern and error mapping.
     Use `configuration` from Imports for config access.
