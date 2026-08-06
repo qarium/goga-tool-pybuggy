@@ -283,12 +283,12 @@ Create `goga_tool_pybuggy/env.py` with two new contract entities — `EnvContext
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this is Task 2 — create `env.py` (`EnvContext` + `load_env`) and expose on the ROOT facade.
-- [ ] **Contract tests** (new file `tests/test_env.py`; expected to fail at this stage): `EnvContext` importable from the facade (`from goga_tool_pybuggy import EnvContext`); `EnvContext` is a `pydantic.BaseModel` subclass; `load_env` importable from the facade (`from goga_tool_pybuggy import load_env`); `load_env` is callable with one positional arg and returns an `EnvContext` (`inspect.signature` → one parameter `env_file`).
-- [ ] **Code**: create `goga_tool_pybuggy/env.py` with the `EnvContext` model and the `load_env` routine exactly as specified above (resolve via `is_file()`, bare-key `None → ""` coercion, `load_dotenv(..., override=False)`, `ClickException` on explicit missing **or non-regular** file).
-- [ ] **Code**: modify `goga_tool_pybuggy/__init__.py` — add `from .env import EnvContext, load_env` and include `"EnvContext"`, `"load_env"` in `__all__` (alphabetical, as above).
-- [ ] **Interface verification**: run `pytest tests/test_env.py -v` for the contract tests above and `python -c "from goga_tool_pybuggy import EnvContext, load_env; import inspect; assert inspect.signature(load_env).parameters.get('env_file') is not None"` — facade import + shape must pass.
-- [ ] **Logic tests** (append to `tests/test_env.py`; isolate env + cwd via `monkeypatch`):
+- [x] **STEP 0 (DECLARATION)**: declare this is Task 2 — create `env.py` (`EnvContext` + `load_env`) and expose on the ROOT facade.
+- [x] **Contract tests** (new file `tests/test_env.py`; expected to fail at this stage): `EnvContext` importable from the facade (`from goga_tool_pybuggy import EnvContext`); `EnvContext` is a `pydantic.BaseModel` subclass; `load_env` importable from the facade (`from goga_tool_pybuggy import load_env`); `load_env` is callable with one positional arg and returns an `EnvContext` (`inspect.signature` → one parameter `env_file`).
+- [x] **Code**: create `goga_tool_pybuggy/env.py` with the `EnvContext` model and the `load_env` routine exactly as specified above (resolve via `is_file()`, bare-key `None → ""` coercion, `load_dotenv(..., override=False)`, `ClickException` on explicit missing **or non-regular** file).
+- [x] **Code**: modify `goga_tool_pybuggy/__init__.py` — add `from .env import EnvContext, load_env` and include `"EnvContext"`, `"load_env"` in `__all__` (alphabetical, as above).
+- [x] **Interface verification**: run `pytest tests/test_env.py -v` for the contract tests above and `python -c "from goga_tool_pybuggy import EnvContext, load_env; import inspect; assert inspect.signature(load_env).parameters.get('env_file') is not None"` — facade import + shape must pass.
+- [x] **Logic tests** (append to `tests/test_env.py`; isolate env + cwd via `monkeypatch`):
   - **T6 — `test_env_context_defaults`** (Edge — model): call `EnvContext()`; assert `env_path is None`, `values == {}`, and `ctx.model_config.get("kw_only") is True` (constructor is kw-only).
   - **T1 — `test_load_env_explicit_file_applies_and_returns_context`** (Positive): `tmp_path/.env` with `PYBUGGY_REF=v2\nDEBUG=1`; `monkeypatch.delenv` for both; `monkeypatch.chdir(tmp_path)`; call `load_env(str(tmp_path / ".env"))`; assert `ctx.env_path.endswith(".env")`, `ctx.values == {"PYBUGGY_REF":"v2","DEBUG":"1"}`, `os.environ["PYBUGGY_REF"]=="v2"`, `os.environ["DEBUG"]=="1"`.
   - **T2 — `test_load_env_explicit_missing_file_raises_clickexception`** (Negative): `pytest.raises(click.ClickException)` on `load_env(str(tmp_path / "nope.env"))`; message contains "env file not found".
@@ -296,9 +296,9 @@ Create `goga_tool_pybuggy/env.py` with two new contract entities — `EnvContext
   - **T4 — `test_load_env_does_not_override_existing_env_var`** (Edge — override=False): `tmp_path/.env` with `PYBUGGY_REF=fromfile`; `monkeypatch.setenv("PYBUGGY_REF","fromshell")`; `monkeypatch.chdir(tmp_path)`; call `load_env(None)`; assert `ctx.values == {"PYBUGGY_REF":"fromfile"}` AND `os.environ["PYBUGGY_REF"]=="fromshell"` (not overwritten).
   - **T5 — `test_load_env_key_without_value_coerced_to_empty`** (Edge — `KEY=` and bare key): `tmp_path/.env` with `EMPTY=\nBARE\nFULL=x` (`EMPTY=` with `=` empty value; `BARE` bare key); `monkeypatch.chdir(tmp_path)`; call `load_env(None)`; assert `ctx.values["EMPTY"]==""` (direct `''`), `ctx.values["BARE"]==""` (via `None→""` coercion), `ctx.values["FULL"]=="x"`; all values are `str` (no `None`).
   - **T5b — `test_load_env_explicit_directory_raises_clickexception`** (Negative — directory as `--env-file`): `tmp_path/subdir/` (existing dir); `monkeypatch.chdir(tmp_path)`; `pytest.raises(click.ClickException)` on `load_env(str(tmp_path / "subdir"))`; message contains "not a regular file" (raised before `dotenv_values`/`load_dotenv`).
-- [ ] **Debugging**: run `pytest tests/test_env.py -v` — fix implementation code until all tests pass (do NOT fix test code).
-- [ ] **Contract re-verification**: confirm `EnvContext` is pydantic with `kw_only=True`, defaults `env_path=None`/`values={}`; confirm `load_env` returns `EnvContext` for both explicit and implicit paths; confirm `load_env` does **not** read `PYBUGGY_REF` specifically (generic loading only — constraint).
-- [ ] **Lint**: `ruff check goga_tool_pybuggy/env.py goga_tool_pybuggy/__init__.py` and `ruff format goga_tool_pybuggy/env.py goga_tool_pybuggy/__init__.py` — fix formatting/decompose if necessary.
+- [x] **Debugging**: run `pytest tests/test_env.py -v` — fix implementation code until all tests pass (do NOT fix test code).
+- [x] **Contract re-verification**: confirm `EnvContext` is pydantic with `kw_only=True`, defaults `env_path=None`/`values={}`; confirm `load_env` returns `EnvContext` for both explicit and implicit paths; confirm `load_env` does **not** read `PYBUGGY_REF` specifically (generic loading only — constraint).
+- [x] **Lint**: `ruff check goga_tool_pybuggy/env.py goga_tool_pybuggy/__init__.py` and `ruff format goga_tool_pybuggy/env.py goga_tool_pybuggy/__init__.py` — fix formatting/decompose if necessary.
 
 ### Task 3: `--env-file` eager option + eager-callback on `main` (TDD coding — ROOT cell)
 
@@ -400,11 +400,11 @@ Verify the cross-entity / cross-cell runtime coupling that the env-cli feature d
 ## Completion Criteria
 
 - [ ] Every contract entity is implemented in the correct `location`: `EnvContext`, `load_env` in `goga_tool_pybuggy/env.py`; `main` eager-callback in `goga_tool_pybuggy/cli.py`; `run_pull` Algorithm 4b behavior in `goga_tool_pybuggy/commands/pull/pull.py`.
-- [ ] Every feature entity is accessible from the facade: `EnvContext`, `load_env`, `main` importable from `goga_tool_pybuggy` (`__all__` updated).
-- [ ] Properties and methods match the declared API: `EnvContext.env_path -> str | None`, `EnvContext.values -> dict[str, str]`; `load_env(env_file: Optional[str]) -> EnvContext`; `run_pull(spec_name, ref=None)` signature unchanged.
+- [x] Every feature entity is accessible from the facade: `EnvContext`, `load_env`, `main` importable from `goga_tool_pybuggy` (`__all__` updated).
+- [x] Properties and methods match the declared API: `EnvContext.env_path -> str | None`, `EnvContext.values -> dict[str, str]`; `load_env(env_file: Optional[str]) -> EnvContext`; `run_pull(spec_name, ref=None)` signature unchanged.
 - [ ] Descriptions are reflected in behavior: `override=False` invariant; silent implicit absent `.env`; bare-key `None → ""` coercion; directory-as-`--env-file` → `ClickException`; `--env-file` must precede the subcommand (exit 2); `PYBUGGY_REF` precedence `per-spec → global → PYBUGGY_REF → git.ref → None` with empty-string fall-through.
-- [ ] Contract dependencies are met: `load_env`/`EnvContext` from `env.py`; `click`, `python-dotenv`, `pydantic` from `pyproject.toml`; `os.environ` runtime bridge (no new `Imports`).
-- [ ] Re-exports are accessible from the facade: `install` still importable from `goga_tool_pybuggy` (unchanged); `EnvContext`/`load_env` importable as first-class facade members.
+- [x] Contract dependencies are met: `load_env`/`EnvContext` from `env.py`; `click`, `python-dotenv`, `pydantic` from `pyproject.toml`; `os.environ` runtime bridge (no new `Imports`).
+- [x] Re-exports are accessible from the facade: `install` still importable from `goga_tool_pybuggy` (unchanged); `EnvContext`/`load_env` importable as first-class facade members.
 - [ ] Every coding task (Tasks 1–3) followed the TDD workflow (contract tests → code → interface verification → logic tests → debugging → contract re-verification → lint).
 - [ ] Contract tests and logic tests cover facade, API, and behavior within each coding task (T1–T14); integration tests (Task 4: T12, T15) cover the cross-entity / cross-cell runtime coupling.
 - [ ] Integration tests exist for the cross-cell scenario (ROOT ↔ pull via `PYBUGGY_REF`).
