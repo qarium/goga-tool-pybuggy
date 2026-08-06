@@ -603,6 +603,51 @@ def test_run_pull_global_ref_as_str_still_works(
     assert seen["https://example.com/repo2.git"] == "v7"
 
 
+# _effective_ref precedence tests (PYBUGGY_REF env level)
+
+
+def test_effective_ref_uses_pybuggy_ref_when_no_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PYBUGGY_REF fills the gap between the global ref and git.ref."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+    assert _effective_ref("client", git_ref="main", global_ref=None, per_spec={}) == "v2"
+
+
+def test_effective_ref_global_ref_overrides_pybuggy_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit global --ref beats PYBUGGY_REF."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+    assert _effective_ref("client", git_ref="main", global_ref="v3", per_spec={}) == "v3"
+
+
+def test_effective_ref_per_spec_overrides_pybuggy_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A per-spec ref is top priority over PYBUGGY_REF."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+    assert _effective_ref("client", git_ref="main", global_ref=None, per_spec={"client": "v1"}) == "v1"
+
+
+def test_effective_ref_pybuggy_ref_overrides_git_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    """PYBUGGY_REF overrides the configured git.ref (not fall through to it)."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+    result = _effective_ref("client", git_ref="main", global_ref=None, per_spec={})
+    assert result == "v2"
+    assert result != "main"
+
+
+def test_effective_ref_empty_pybuggy_ref_falls_through(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty PYBUGGY_REF is treated as unset (truthiness) and falls through to git.ref."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    monkeypatch.setenv("PYBUGGY_REF", "")
+    assert _effective_ref("client", git_ref="main", global_ref=None, per_spec={}) == "main"
+
+
 # SmartParam parsing tests
 
 

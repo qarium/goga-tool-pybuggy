@@ -177,20 +177,20 @@ Modify `goga_tool_pybuggy/commands/pull/pull.py` to implement contract `run_pull
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this is Task 1 — `PYBUGGY_REF` precedence in `_effective_ref` (`pull.py`).
-- [ ] **Contract tests**: verify the pull contract surface is intact — `run_pull` is importable from the facade `goga_tool_pybuggy.commands.pull` and its signature `(spec_name, ref=None)` is unchanged. (The existing `test_run_pull_importable_from_facade` and `test_run_pull_signature` in `tests/commands/pull/test_pull.py` already cover this — confirm they still pass after the edit; no new contract test is required because the contract surface of `run_pull` did not change.)
-- [ ] **Code**: add `import os` to the existing imports of `goga_tool_pybuggy/commands/pull/pull.py`.
-- [ ] **Code**: in `_effective_ref`, insert the `PYBUGGY_REF` level between the `global_ref` check and the `return git_ref` — `pybuggy_ref = os.environ.get("PYBUGGY_REF")`; `if pybuggy_ref: return pybuggy_ref`. Update the docstring to the 4-level precedence `per-spec → global → PYBUGGY_REF → git.ref`.
-- [ ] **Interface verification**: run `pytest tests/commands/pull/test_pull.py::test_run_pull_importable_from_facade tests/commands/pull/test_pull.py::test_run_pull_signature -v` — both must pass (contract surface intact).
-- [ ] **Logic tests** (append to `tests/commands/pull/test_pull.py`; import the helper directly: `from goga_tool_pybuggy.commands.pull.pull import _effective_ref`; isolate env via `monkeypatch`):
+- [x] **STEP 0 (DECLARATION)**: declare this is Task 1 — `PYBUGGY_REF` precedence in `_effective_ref` (`pull.py`).
+- [x] **Contract tests**: verify the pull contract surface is intact — `run_pull` is importable from the facade `goga_tool_pybuggy.commands.pull` and its signature `(spec_name, ref=None)` is unchanged. (The existing `test_run_pull_importable_from_facade` and `test_run_pull_signature` in `tests/commands/pull/test_pull.py` already cover this — confirm they still pass after the edit; no new contract test is required because the contract surface of `run_pull` did not change.)
+- [x] **Code**: add `import os` to the existing imports of `goga_tool_pybuggy/commands/pull/pull.py`.
+- [x] **Code**: in `_effective_ref`, insert the `PYBUGGY_REF` level between the `global_ref` check and the `return git_ref` — `pybuggy_ref = os.environ.get("PYBUGGY_REF")`; `if pybuggy_ref: return pybuggy_ref`. Update the docstring to the 4-level precedence `per-spec → global → PYBUGGY_REF → git.ref`.
+- [x] **Interface verification**: run `pytest tests/commands/pull/test_pull.py::test_run_pull_importable_from_facade tests/commands/pull/test_pull.py::test_run_pull_signature -v` — both must pass (contract surface intact).
+- [x] **Logic tests** (append to `tests/commands/pull/test_pull.py`; import the helper directly: `from goga_tool_pybuggy.commands.pull.pull import _effective_ref`; isolate env via `monkeypatch`):
   - **T7 — `test_effective_ref_uses_pybuggy_ref_when_no_override`** (Positive): Setup `monkeypatch.setenv("PYBUGGY_REF","v2")`; call `_effective_ref("client", git_ref="main", global_ref=None, per_spec={})`; assert result `"v2"`. (Base scenario: `PYBUGGY_REF` fills the gap between global ref and git.ref.)
   - **T8 — `test_effective_ref_global_ref_overrides_pybuggy_ref`** (Precedence): Setup `monkeypatch.setenv("PYBUGGY_REF","v2")`; call with `global_ref="v3"`; assert `"v3"` (NOT `"v2"`) — explicit global `--ref` beats `PYBUGGY_REF`.
   - **T9 — `test_effective_ref_per_spec_overrides_pybuggy_ref`** (Precedence): Setup `monkeypatch.setenv("PYBUGGY_REF","v2")`; call with `per_spec={"client":"v1"}`; assert `"v1"` — per-spec is top priority.
   - **T10 — `test_effective_ref_pybuggy_ref_overrides_git_ref`** (Precedence): Setup `monkeypatch.setenv("PYBUGGY_REF","v2")`; call with `git_ref="main"`, `global_ref=None`, `per_spec={}`; assert `"v2"` (NOT `"main"`) — key semantics of the new level.
   - **T11 — `test_effective_ref_empty_pybuggy_ref_falls_through`** (Edge): Setup `monkeypatch.setenv("PYBUGGY_REF","")`; call with `git_ref="main"`, `global_ref=None`, `per_spec={}`; assert `"main"` — empty `PYBUGGY_REF` is treated as unset (truthiness).
-- [ ] **Debugging**: run `pytest tests/commands/pull/test_pull.py -v` — fix implementation code until all tests pass (do NOT fix test code).
-- [ ] **Contract re-verification**: confirm `_effective_ref` still returns the prior-level result when `PYBUGGY_REF` is unset (no regression for the pre-existing 3-level behavior); confirm the `run_pull` call site is unchanged.
-- [ ] **Lint**: `ruff check goga_tool_pybuggy/commands/pull/pull.py` and `ruff format goga_tool_pybuggy/commands/pull/pull.py` — fix formatting/decompose if necessary.
+- [x] **Debugging**: run `pytest tests/commands/pull/test_pull.py -v` — fix implementation code until all tests pass (do NOT fix test code).
+- [x] **Contract re-verification**: confirm `_effective_ref` still returns the prior-level result when `PYBUGGY_REF` is unset (no regression for the pre-existing 3-level behavior); confirm the `run_pull` call site is unchanged.
+- [x] **Lint**: `ruff check goga_tool_pybuggy/commands/pull/pull.py` and `ruff format goga_tool_pybuggy/commands/pull/pull.py` — fix formatting/decompose if necessary. (ruff check passes; the only `ruff format` flags are pre-existing multi-line defs already present at HEAD under ruff 0.16.1 — none introduced by this change.)
 
 ### Task 2: Create `env.py` (`EnvContext` + `load_env`) and expose on the facade (TDD coding — ROOT cell)
 

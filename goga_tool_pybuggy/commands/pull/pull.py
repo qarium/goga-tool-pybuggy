@@ -1,5 +1,6 @@
 """pull command handler - clone specs from git repositories."""
 
+import os
 import shutil
 import tempfile
 import urllib.parse
@@ -119,7 +120,10 @@ def _effective_ref(
 ) -> Optional[str]:
     """Resolve the effective ref for a single spec.
 
-    Per-spec override wins, then the global override, then the config ``git.ref``.
+    Precedence (highest to lowest): per-spec override, global override,
+    ``PYBUGGY_REF`` from ``os.environ``, then the config ``git.ref``. A
+    ``PYBUGGY_REF`` that is absent or empty is treated as unset and falls
+    through to ``git.ref``.
 
     Args:
         name: Spec name to resolve the ref for.
@@ -135,6 +139,10 @@ def _effective_ref(
 
     if global_ref is not None:
         return global_ref
+
+    pybuggy_ref = os.environ.get("PYBUGGY_REF")
+    if pybuggy_ref:
+        return pybuggy_ref
 
     return git_ref
 
