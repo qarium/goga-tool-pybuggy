@@ -648,6 +648,31 @@ def test_effective_ref_empty_pybuggy_ref_falls_through(monkeypatch: pytest.Monke
     assert _effective_ref("client", git_ref="main", global_ref=None, per_spec={}) == "main"
 
 
+# Integration: run_pull reads PYBUGGY_REF from os.environ (ROOT ↔ pull coupling)
+
+
+def test_run_pull_reads_pybuggy_ref_from_environ(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_pull reads PYBUGGY_REF from os.environ and passes it as the clone ref.
+
+    Integration coverage for the runtime coupling the env-cli feature depends on: with
+    no CLI ``--ref`` and no configured ``git.ref``, the ``PYBUGGY_REF`` written to
+    ``os.environ`` (by ``load_env`` at the ROOT) is resolved by ``_effective_ref`` and
+    handed to ``clone_repo``. Only the git-clone boundary is mocked.
+    """
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+    _write_client_config(tmp_path, monkeypatch, ref=None)
+    clone_root = _fake_clone_root(tmp_path)
+
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+        mock_clone.return_value.__enter__.return_value = str(clone_root)
+        run_pull("client")
+
+    assert mock_clone.call_count == 1
+    args, _ = mock_clone.call_args
+    # clone_repo(url, ref) — positional ref is the effective ref from PYBUGGY_REF.
+    assert args[1] == "v2"
+
+
 # SmartParam parsing tests
 
 

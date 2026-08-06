@@ -84,3 +84,59 @@ def test_env_file_option_must_precede_subcommand(monkeypatch: pytest.MonkeyPatch
 
     assert result.exit_code == 2
     assert "No such option" in result.output
+
+
+# Integration: end-to-end ROOT→pull runtime coupling via PYBUGGY_REF (no Imports edge)
+
+
+def test_load_env_then_run_pull_env_coupling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """load_env writes PYBUGGY_REF to os.environ, then run_pull reads it into the clone ref.
+
+    Proves the feature's foundation — the loose ``os.environ`` bridge between the ROOT
+    cell (``load_env`` applies the ``.env`` with ``override=False``) and the pull cell
+    (``run_pull`` reads ``PYBUGGY_REF`` via ``_effective_ref``) with no ``Imports`` edge
+    between them. Only the git-clone boundary is mocked.
+    """
+    from unittest.mock import patch
+
+    from goga_tool_pybuggy import load_env
+    from goga_tool_pybuggy.commands.pull import run_pull
+
+    config_path_attr = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("PYBUGGY_REF=v2\n")
+    monkeypatch.delenv("PYBUGGY_REF", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        """
+specs:
+  client:
+    type: openapi
+    location: .specs/client.yaml
+    git:
+      url: https://example.com/repo.git
+      location: specs/client.yaml
+"""
+    )
+    monkeypatch.setattr(config_path_attr, config_path)
+
+    clone_root = tmp_path / "clone"
+    (clone_root / "specs").mkdir(parents=True)
+    (clone_root / "specs" / "client.yaml").write_text("spec content")
+
+    # ROOT side: load_env applies the .env to os.environ.
+    load_env(str(env_file))
+    assert os.environ["PYBUGGY_REF"] == "v2"
+
+    # Pull side: run_pull resolves PYBUGGY_REF from os.environ and clones with it.
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+        mock_clone.return_value.__enter__.return_value = str(clone_root)
+        run_pull("client")
+
+    assert mock_clone.call_count == 1
+    args, _ = mock_clone.call_args
+    # clone_repo(url, ref) — positional ref is the effective ref bridged via os.environ.
+    assert args[1] == "v2"
