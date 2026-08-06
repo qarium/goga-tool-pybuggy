@@ -38,6 +38,7 @@ def test_build_endpoint_id_signature() -> None:
         ("POST", "/v1/API/{name}", "v1_api_name_post"),
         ("GET", "/clients/startup", "clients_startup_get"),
         ("DELETE", "/clients/profile", "clients_profile_delete"),
+        ("GET", "/clients/payment-details", "clients_payment_details_get"),
     ],
 )
 def test_build_endpoint_id_acceptance_cases(method: str, path: str, expected: str) -> None:
@@ -66,3 +67,28 @@ def test_build_endpoint_id_lowercases_method_already_lowercase() -> None:
 def test_build_endpoint_id_path_without_parameters() -> None:
     """Test build_endpoint_id with path that has no parameters."""
     assert build_endpoint_id("PUT", "/api/v1/users") == "api_v1_users_put"
+
+
+def test_build_endpoint_id_normalizes_hyphens() -> None:
+    """Hyphens in the path are normalized to underscores so the id stays a valid identifier.
+
+    The id is consumed as a pytest fixture name and as a package directory by
+    `generate`; a surviving hyphen would render the generated module syntactically
+    invalid and abort generation (ruff exit 2).
+    """
+    assert build_endpoint_id("POST", "/payment-details/{id}") == "payment_details_id_post"
+    assert "-" not in build_endpoint_id("GET", "/a-b/c-d")
+
+
+def test_build_endpoint_id_is_valid_python_identifier() -> None:
+    """Every produced id must be a syntactically valid Python identifier."""
+    import keyword
+
+    for method, path in [
+        ("GET", "/clients/payment-details"),
+        ("POST", "/api/v1/billing-invoices/{invoice-id}"),
+        ("DELETE", "/x-y/z"),
+    ]:
+        identifier = build_endpoint_id(method, path)
+        assert identifier.isidentifier(), f"not an identifier: {identifier!r}"
+        assert not keyword.iskeyword(identifier), f"keyword id: {identifier!r}"

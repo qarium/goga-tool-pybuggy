@@ -29,10 +29,11 @@ Annotations: |
     2. Remove "{" and "}" from `path` (keep the parameter name).
     3. Lowercase the result.
     4. Replace every "/" with "_".
-    5. Append "_" + method.lower().
+    5. Replace every "-" with "_" (paths may carry hyphens; the id is consumed as a pytest fixture name and as a package directory by `generate`, so it must stay a valid Python identifier).
+    6. Append "_" + method.lower().
 
     Requirements:
-    - Verified on: POST /v1/API/{name} -> v1_api_name_post; GET /clients/startup -> clients_startup_get; DELETE /clients/profile -> clients_profile_delete.
+    - Verified on: POST /v1/API/{name} -> v1_api_name_post; GET /clients/startup -> clients_startup_get; DELETE /clients/profile -> clients_profile_delete; GET /clients/payment-details -> clients_payment_details_get.
 
     Constraints:
     - Pure function — no I/O, no parsing.
