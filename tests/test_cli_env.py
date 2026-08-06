@@ -26,11 +26,14 @@ def test_main_is_click_command() -> None:
 
 
 def test_main_has_env_file_option() -> None:
-    """main should declare an --env-file option (param named env_file)."""
-    from goga_tool_pybuggy import main
+    """main should declare an --env-file option wired to _load_env_callback (env_file param)."""
+    from goga_tool_pybuggy import cli, main
 
-    param_names = {p.name for p in main.params}
-    assert "env_file" in param_names
+    env_file_param = next((p for p in main.params if p.name == "env_file"), None)
+    assert env_file_param is not None
+    # The eager callback must actually be registered on the option — not merely exist in
+    # the module — otherwise env loading silently never fires through click's dispatch.
+    assert env_file_param.callback is cli._load_env_callback
 
 
 def test_env_file_option_is_eager() -> None:
@@ -84,6 +87,37 @@ def test_env_file_option_must_precede_subcommand(monkeypatch: pytest.MonkeyPatch
 
     assert result.exit_code == 2
     assert "No such option" in result.output
+
+
+def test_main_env_file_applied_before_subcommand(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Driving main through click applies --env-file before the subcommand runs.
+
+    Positive coverage of the click dispatch boundary (the eager callback firing in a real
+    ``runner.invoke``): ``PYBUGGY_REF`` from the .env lands in ``os.environ`` before the
+    ``pull`` subcommand's handler runs. Without ``callback=_load_env_callback`` wired on
+    the option, this fails (env never loads) — the one-line regression the direct-call
+    tests cannot catch.
+    """
+    from goga_tool_pybuggy import main
+
+    env_file = tmp_path / ".env"
+    env_file.write_text("PYBUGGY_REF=v2\n")
+    monkeypatch.delenv("PYBUGGY_REF", raising=False)
+    monkeypatch.chdir(tmp_path)
+
+    # Avoid a real git clone: the handler reads os.environ, which is what we assert on.
+    seen: dict = {}
+
+    def fake_run_pull(spec_name, ref=None):
+        seen["pybuggy_ref"] = os.environ.get("PYBUGGY_REF")
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.pull.pull.run_pull", fake_run_pull)
+
+    result = CliRunner().invoke(main, ["--env-file", str(env_file), "endpoint", "pull"])
+
+    assert result.exit_code == 0, result.output
+    assert os.environ["PYBUGGY_REF"] == "v2"
+    assert seen["pybuggy_ref"] == "v2"
 
 
 # Integration: end-to-end ROOT→pull runtime coupling via PYBUGGY_REF (no Imports edge)
