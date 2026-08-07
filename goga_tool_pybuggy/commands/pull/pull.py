@@ -1,6 +1,5 @@
 """pull command handler - clone specs from git repositories."""
 
-import os
 import shutil
 import tempfile
 import urllib.parse
@@ -121,9 +120,9 @@ def _effective_ref(
     """Resolve the effective ref for a single spec.
 
     Precedence (highest to lowest): per-spec override, global override,
-    ``PYBUGGY_REF`` from ``os.environ``, then the config ``git.ref``. A
-    ``PYBUGGY_REF`` that is absent or empty is treated as unset and falls
-    through to ``git.ref``.
+    then the config ``git.ref``. ``PYBUGGY_REF`` is no longer read here —
+    it feeds the global ref as the ``--ref`` envvar (resolved by click in
+    ``pull_cmd``), so it reaches this function via ``global_ref``.
 
     Args:
         name: Spec name to resolve the ref for.
@@ -139,10 +138,6 @@ def _effective_ref(
 
     if global_ref is not None:
         return global_ref
-
-    pybuggy_ref = os.environ.get("PYBUGGY_REF")
-    if pybuggy_ref:
-        return pybuggy_ref
 
     return git_ref
 
@@ -266,6 +261,8 @@ class SmartParam(click.ParamType):
     type=SmartParam(),
     multiple=True,
     default=(),
+    envvar="PYBUGGY_REF",
+    show_envvar=True,
     help="Git ref (branch/tag); 'NAME:REF' overrides the ref for a single spec",
 )
 def pull_cmd(spec_name: Optional[str], ref: tuple = ()) -> None:
