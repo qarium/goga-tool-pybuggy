@@ -45,10 +45,10 @@ Annotations: |
     Algorithm:
     1. Resolve the output root as the current working directory.
     2. Goga-project config: when <cwd>/.goga/config.yml does NOT exist, call `run_goga_init`; when it DOES exist,
-       ask via `click.confirm` (default no) whether to re-run goga init and overwrite it, and only re-run on yes.
+       ask via click.confirm (default no) whether to re-run goga init and overwrite it, and only re-run on yes.
        If non-zero, return it immediately.
     3. Pybuggy tool config: when <cwd>/.goga/tools/pybuggy/config.yml does NOT exist, call `build_pybuggy_config`;
-       when it DOES exist, ask via `click.confirm` (default no) whether to rebuild it, and only rebuild on yes.
+       when it DOES exist, ask via click.confirm (default no) whether to rebuild it, and only rebuild on yes.
        If non-zero (cancel/error) return it; on 0 (or a declined rebuild) continue. The recreate decision lives
        here in the orchestrator — `build_pybuggy_config` itself always (over)writes without checking.
     4. Discover every .usages/*.md under the api cell (incl. asserts) from the installed goga_tool_pybuggy.api package.
@@ -59,8 +59,8 @@ Annotations: |
     9. Return 0.
 
     Requirements:
-    - Each config (goga `.goga/config.yml` and pybuggy `.goga/tools/pybuggy/config.yml`) is created when absent and
-      only recreated on explicit `click.confirm` (default no) when present; declining a recreate skips that step so
+    - Each config (goga .goga/config.yml and pybuggy .goga/tools/pybuggy/config.yml) is created when absent and
+      only recreated on explicit click.confirm (default no) when present; declining a recreate skips that step so
       a plain repeat run just re-copies usages and skips registered keys.
     - The config-build step (`build_pybuggy_config`) always (over)writes the tool config when it runs — the recreate
       gate is `run_init`'s, not the builder's.
@@ -126,13 +126,13 @@ Annotations: |
        build a fresh CommentedMap.
     2. Iterate scalar members of `PluginConfigKeys` (all except HEADERS, LOADER) in canonical order; for each: value
        present -> active key:value — numeric members (timeout/assert_delay -> float, retries/assert_timeout -> int) are
-       coerced to their `ApiPlugin` option type so the scalar is a number, not a quoted string (BASE_URL -> literal block
+       coerced to their ApiPlugin option type so the scalar is a number, not a quoted string (BASE_URL -> literal block
        scalar ``|`` always, never a plain scalar); None -> commented "# key:" line with a one-line explanation.
     3. Emit HEADERS as a commented multi-line example (a "# headers:" block, sample entry, dict note).
     4. Emit LOADER as a commented multi-line example (a "# loader:" block, packages/modules structure, note).
     5. Emit specs mapping as active YAML: name: { type, location, git: { url, location, ref } when present } per
-       `SpecEntry`/`GitEntry` shape (see `configuration`). When `GitEntry.ref` is None, `ref` is documented as a standalone
-       `# ref:` line on its own indented line after `location` (the post-value comment slot ``items['location'][2]`` —
+       `SpecEntry`/`GitEntry` shape (see `configuration`). When GitEntry.ref is None, ref is documented as a standalone
+       # ref: line on its own indented line after location (the post-value comment slot ``items['location'][2]`` —
        the slot ruamel's own loader uses for trailing comments; the eol/``after`` slots are dropped on the last key of a
        block mapping) instead of an empty active key.
     6. Ensure parent dir of `path` exists; dump the document.

@@ -119,7 +119,10 @@ def _effective_ref(
 ) -> Optional[str]:
     """Resolve the effective ref for a single spec.
 
-    Per-spec override wins, then the global override, then the config ``git.ref``.
+    Precedence (highest to lowest): per-spec override, global override,
+    then the config ``git.ref``. ``PYBUGGY_REF`` is no longer read here —
+    it feeds the global ref as the ``--ref`` envvar (resolved by click in
+    ``pull_cmd``), so it reaches this function via ``global_ref``.
 
     Args:
         name: Spec name to resolve the ref for.
@@ -258,6 +261,8 @@ class SmartParam(click.ParamType):
     type=SmartParam(),
     multiple=True,
     default=(),
+    envvar="PYBUGGY_REF",
+    show_envvar=True,
     help="Git ref (branch/tag); 'NAME:REF' overrides the ref for a single spec",
 )
 def pull_cmd(spec_name: Optional[str], ref: tuple = ()) -> None:

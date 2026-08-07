@@ -9,7 +9,10 @@ def build_endpoint_id(method: str, path: str) -> str:
     2. Removing "{" and "}" from the path (keeping parameter names)
     3. Lowercasing the result
     4. Replacing every "/" with "_"
-    5. Appending "_" + method.lower()
+    5. Replacing every "-" with "_" (paths may carry hyphens; the id must be a
+       valid Python identifier — it is used as a pytest fixture name and as a
+       package directory name by `generate`)
+    6. Appending "_" + method.lower()
 
     Args:
         method: HTTP method (e.g., "GET", "POST", "DELETE").
@@ -25,6 +28,8 @@ def build_endpoint_id(method: str, path: str) -> str:
         'clients_startup_get'
         >>> build_endpoint_id("DELETE", "/clients/profile")
         'clients_profile_delete'
+        >>> build_endpoint_id("GET", "/clients/payment-details")
+        'clients_payment_details_get'
     """
     # Step 1: Drop a single leading "/" from path
     p = path[1:] if path.startswith("/") else path
@@ -38,7 +43,11 @@ def build_endpoint_id(method: str, path: str) -> str:
     # Step 4: Replace every "/" with "_"
     p = p.replace("/", "_")
 
-    # Step 5: Append "_" + method.lower()
+    # Step 5: Replace every "-" with "_" — the id is consumed as a pytest
+    # fixture name and a package directory, so it must stay a valid identifier.
+    p = p.replace("-", "_")
+
+    # Step 6: Append "_" + method.lower()
     result = p + "_" + method.lower()
 
     return result

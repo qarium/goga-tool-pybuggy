@@ -603,6 +603,144 @@ def test_run_pull_global_ref_as_str_still_works(
     assert seen["https://example.com/repo2.git"] == "v7"
 
 
+# _effective_ref precedence tests.
+#
+# PYBUGGY_REF is no longer read here — it is bound to ``--ref`` via click's envvar and
+# reaches ``_effective_ref`` through ``global_ref`` (see the pull_cmd envvar tests below).
+# These tests cover the pure precedence: per-spec > global > git.ref > None.
+
+
+def test_effective_ref_per_spec_wins() -> None:
+    """A per-spec ref overrides both the global ref and git.ref."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    assert _effective_ref("client", git_ref="main", global_ref="v3", per_spec={"client": "v1"}) == "v1"
+
+
+def test_effective_ref_global_wins_over_git_ref() -> None:
+    """A global ref overrides the configured git.ref."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    assert _effective_ref("client", git_ref="main", global_ref="v3", per_spec={}) == "v3"
+
+
+def test_effective_ref_falls_back_to_git_ref() -> None:
+    """With no per-spec or global override, the configured git.ref is used."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    assert _effective_ref("client", git_ref="main", global_ref=None, per_spec={}) == "main"
+
+
+def test_effective_ref_none_when_no_ref() -> None:
+    """With no override and no git.ref, the effective ref is None (remote default branch)."""
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    assert _effective_ref("client", git_ref=None, global_ref=None, per_spec={}) is None
+
+
+def test_effective_ref_ignores_pybuggy_ref_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_effective_ref no longer reads PYBUGGY_REF (now resolved at the click layer).
+
+    Regression guard for the redesign: setting PYBUGGY_REF must NOT influence
+    ``_effective_ref`` — it falls through to ``git.ref``.
+    """
+    from goga_tool_pybuggy.commands.pull.pull import _effective_ref
+
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+    assert _effective_ref("client", git_ref="main", global_ref=None, per_spec={}) == "main"
+
+
+# PYBUGGY_REF is bound to --ref via click's envvar (resolved at the click layer).
+
+
+def test_pull_cmd_reads_pybuggy_ref_from_envvar(monkeypatch: pytest.MonkeyPatch) -> None:
+    """pull_cmd resolves PYBUGGY_REF into the --ref tuple via click's envvar."""
+    from click.testing import CliRunner
+    from goga_tool_pybuggy.commands.pull import pull_cmd
+
+    captured: dict = {}
+
+    def fake_run(spec_name, ref):
+        captured["ref"] = ref
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.pull.pull.run_pull", fake_run)
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+
+    result = CliRunner().invoke(pull_cmd, [])
+
+    assert result.exit_code == 0, result.output
+    assert captured["ref"] == ("v2",)
+
+
+def test_pull_cmd_explicit_ref_overrides_pybuggy_ref_envvar(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicit --ref overrides PYBUGGY_REF entirely (click envvar semantics)."""
+    from click.testing import CliRunner
+    from goga_tool_pybuggy.commands.pull import pull_cmd
+
+    captured: dict = {}
+
+    def fake_run(spec_name, ref):
+        captured["ref"] = ref
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.pull.pull.run_pull", fake_run)
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+
+    result = CliRunner().invoke(pull_cmd, ["--ref", "X"])
+
+    assert result.exit_code == 0, result.output
+    assert captured["ref"] == ("X",)
+
+
+def test_pull_cmd_empty_pybuggy_ref_envvar_is_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty PYBUGGY_REF is treated as unset (no --ref override)."""
+    from click.testing import CliRunner
+    from goga_tool_pybuggy.commands.pull import pull_cmd
+
+    captured: dict = {}
+
+    def fake_run(spec_name, ref):
+        captured["ref"] = ref
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.pull.pull.run_pull", fake_run)
+    monkeypatch.setenv("PYBUGGY_REF", "")
+
+    result = CliRunner().invoke(pull_cmd, [])
+
+    assert result.exit_code == 0, result.output
+    assert captured["ref"] == ()
+
+
+# Integration: PYBUGGY_REF (via the --ref envvar) flows into the clone ref (CLI level).
+
+
+def test_pull_cmd_pybuggy_ref_envvar_used_as_clone_ref(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """PYBUGGY_REF, read via the --ref envvar, becomes the clone ref.
+
+    End-to-end at the click layer: with no ``--ref`` and no configured ``git.ref``, the
+    ``PYBUGGY_REF`` set in the environment is resolved by click's envvar into the
+    ``--ref`` tuple and reaches ``clone_repo`` as the effective ref. Only the git-clone
+    boundary is mocked.
+    """
+    from click.testing import CliRunner
+    from goga_tool_pybuggy.commands.pull import pull_cmd
+
+    monkeypatch.setenv("PYBUGGY_REF", "v2")
+    _write_client_config(tmp_path, monkeypatch, ref=None)
+    clone_root = _fake_clone_root(tmp_path)
+
+    with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
+        mock_clone.return_value.__enter__.return_value = str(clone_root)
+        result = CliRunner().invoke(pull_cmd, ["--spec", "client"])
+
+    assert result.exit_code == 0, result.output
+    assert mock_clone.call_count == 1
+    args, _ = mock_clone.call_args
+    # clone_repo(url, ref) — positional ref is the effective ref from PYBUGGY_REF.
+    assert args[1] == "v2"
+
+
 # SmartParam parsing tests
 
 

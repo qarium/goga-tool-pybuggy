@@ -15,12 +15,14 @@ Imports:
 Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
+  python-dotenv: .goga/usages/cooks/python-dotenv.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the root group, the endpoint subgroup, command registration, and the top-level init command.
+  Use `click` for the root group, the endpoint subgroup, command registration, the top-level init command, and the global --env-file option with its eager-callback.
+  Use `python-dotenv` for loading the .env file into os.environ with override=False.
 
-  This cell is the package composition root: it owns the root group `main` and assembles the full CLI.
+  This cell is the package composition root: it owns the root group `main`, loads the .env environment before any subcommand runs, and assembles the full CLI.
   Use relative imports inside the cell.
 
 ---
@@ -28,25 +30,76 @@ Annotations: |
 "main()":
   location: cli.py
   annotations: |
-    Root Click group of the pybuggy CLI; exposes the endpoint subgroup with the pull/list/info/generate commands
-    and the top-level init command.
+    Root Click group of the pybuggy CLI; exposes the global --env-file option, the endpoint subgroup with the pull/list/info/generate commands, and the top-level init command.
 
     Algorithm:
     1. Define the `main` root group via `click`.
-    2. Define the endpoint subgroup via `click`.
-    3. Register `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd` on the endpoint subgroup.
-    4. Attach the endpoint subgroup to `main`.
-    5. Register `init_cmd` on `main` directly (top-level — not under the endpoint subgroup).
-    6. Export `main` via __all__.
+    2. Attach the global --env-file option to `main` (eager — evaluated before any subcommand).
+    3. In the eager-callback: call `load_env` (passing the --env-file value) and store the returned `EnvContext` on ctx.obj.
+    4. Define the endpoint subgroup via `click`.
+    5. Register `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd` on the endpoint subgroup.
+    6. Attach the endpoint subgroup to `main`.
+    7. Register `init_cmd` on `main` directly (top-level — not under the endpoint subgroup).
+    8. Export `main` via __all__.
 
     Requirements:
+    - The global --env-file flag is parsed at the group level, so it MUST precede the subcommand (e.g. pybuggy --env-file ./my.env endpoint pull); placing it after the subcommand is a click usage error.
+    - The env is loaded and ctx.obj is set before any subcommand is invoked.
     - Assembly runs at package import (in __init__.py), before any subcommand is invoked.
     - The package entry point resolves to this `main` (pyproject: pybuggy = "goga_tool_pybuggy:main").
     - python -m goga_tool_pybuggy runs via __main__.py (from goga_tool_pybuggy import main; main()).
 
-    Use `click` for the group and subgroup.
+    Constraints:
+    - Do not introduce a --config option; config loading stays per-command via load_config.
+    - --env-file is the only global option added by this feature.
 
-->install: {}
+    Use `click` for the group, subgroup, and the --env-file eager-callback.
+    Use `python-dotenv` for the .env loading performed by `load_env`.
+
+"load_env(env_file: str | None) -> ctx: EnvContext":
+  location: env.py
+  annotations: |
+    Resolve the env-file, load its key→value pairs into os.environ (override=False), and return an `EnvContext` carrying the resolved path and the loaded values.
+
+    `env_file`: explicit path from --env-file, or None (implicit .env in CWD).
+    `ctx`: the `EnvContext` stored on ctx.obj by `main`.
+
+    Algorithm:
+    1. Resolve the path: if `env_file` is not None, treat it as explicit — it MUST exist, otherwise raise click.ClickException; if `env_file` is None, use .env in the CWD and, when it is absent, load nothing (silent, no error).
+    2. When a resolved file exists, parse it into values (key→value) and apply it to os.environ with override=False (already-set variables are never overwritten) via `python-dotenv`.
+    3. Return an `EnvContext` with the resolved path (or None) and the loaded key→value values.
+
+    Requirements:
+    - override=False — already-set environment variables are never overwritten.
+    - An explicit --env-file must point at a readable regular file; a missing file or a non-regular file (e.g. a directory) raises click.ClickException.
+    - An implicit .env that is absent or not a regular file in the CWD is silent (no error, empty values, env_path None).
+    - env loading happens before any subcommand runs.
+
+    Constraints:
+    - Do not read PYBUGGY_REF or any other specific variable here — loading is generic; consumers read os.environ themselves (directly, or via click's envvar on their options, e.g. pull's --ref).
+
+    Use `python-dotenv` for .env parsing and os.environ application.
+    Use `conventions` for code writing rules and testing.
+
+"EnvContext(env_path: str | None, values: dict[str, str])":
+  location: env.py
+  annotations: |
+    Context-object stored on click ctx.obj by `main`; carries the resolved env-file path and the loaded key→value pairs.
+
+    `env_path`: resolved env-file path; None when no file was loaded (silent absent implicit .env).
+    `values`: loaded key→value pairs from the env-file.
+
+    Requirements:
+    - pydantic model with kw_only=True (all data models are pydantic per `conventions`); defaults env_path=None, values={}.
+    - Exposed on the ROOT facade via __all__ (available to consumers/tests).
+
+    Constraints:
+    - Pure data carrier — no behavior beyond the two properties.
+  properties:
+    "env_path -> str | None": |
+      Resolved env-file path; None when no file was loaded.
+    "values -> dict[str, str]": |
+      Loaded key→value pairs from the env-file.
 
 "retries(max_runs: int, *, min_passes: int | None, delay: int | float | None) -> decorator: Callable":
   location: tools.py
@@ -71,10 +124,12 @@ Annotations: |
 
     Use `conventions` for code writing rules and testing.
 
+->install: {}
+
 ---
 
 Author: Goga
 CreatedAt: 08/07/26
 Description: |
   Package composition root — owns the root CLI group main, assembles the endpoint subgroup
-  (pull/list/info/generate), and registers the top-level `init` command.
+  (pull/list/info/generate), registers the top-level `init` command, and loads the .env environment before any command runs.
