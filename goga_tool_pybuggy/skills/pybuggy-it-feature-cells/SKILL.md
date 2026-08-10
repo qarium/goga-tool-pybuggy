@@ -33,7 +33,7 @@ goga-cell DSL.
 
 - Каждая фаза ДОЛЖНА выдать полный выход до начала следующей.
 - Каждая фаза — независимая атомарная операция через **Skill tool**.
-- WAIT-gate: фазы 3, 4, 6 требуют approval пользователя (один вопрос за сообщение, 2–4 варианта).
+- WAIT-gate: фазы 3, 4, 5, 7 требуют approval пользователя (один вопрос за сообщение, 2–4 варианта).
 
 ### Phase 1. Intake
 
@@ -65,14 +65,23 @@ goga-cell DSL.
 - WAIT: approval каждой CODEMANIFEST
 - STOP if: DSL-ошибка не устранена; approval denied
 
-### Phase 5. Plan Assembly
+### Phase 5. Libs (WAIT)
+
+- Invoke: `goga-tool-pybuggy-it-feature-cells-libs`
+- Reads: [CELLS_INTAKE], [CELL_MAP_REPORT], [CONTRACTS_REPORT], `docs/pybuggy/feature-requirements.md` (§10)
+- Output: [LIBS_REPORT] — usage-файлы библиотек (`.goga/usages/cooks/<ключ>.md`) + cell-специфичные usages
+  для endpoint-cells, которые их используют (поверх базового блока). **SKIP/no-op**, если библиотек в §10 нет.
+- WAIT: approval каждой библиотеки и подключения
+- STOP if: DSL-ошибка не устранена; approval denied
+
+### Phase 6. Plan Assembly
 
 - Invoke: `goga-tool-pybuggy-it-feature-cells-plan-assembly`
-- Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE]
-- Output: [CELLS_PLAN] — сохраняется в `docs/pybuggy/feature-cells.md`
+- Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE], [LIBS_REPORT]
+- Output: [CELLS_PLAN] — сохраняется в `docs/pybuggy/feature-cells.md` (endpoint-cells + cell-спец. usages)
 - STOP if: план неполон; непокрытый кейс
 
-### Phase 6. Plan Verification (WAIT финал)
+### Phase 7. Plan Verification (WAIT финал)
 
 - Invoke: `goga-tool-pybuggy-it-feature-cells-plan-verification`
 - Reads: `docs/pybuggy/feature-cells.md`, [CELLS_INTAKE]
@@ -91,7 +100,6 @@ goga-cell DSL.
 
 - писать код реализации — план содержит только DSL-артефакты CODEMANIFEST
 - описывать тесты иначе чем Routine (без Entity/methods/properties)
-- заводить `Imports` в тестовых cells (фикстура — не cell)
 - обходить STOP-условие или пропускать WAIT-gate
 - оставлять секции выхода пустыми
 - выдумывать данные/контракты — только из тест-кейсов и DSL

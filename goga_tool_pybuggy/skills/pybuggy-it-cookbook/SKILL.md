@@ -7,7 +7,7 @@ description: Принципы применения DSL goga-cell для прое
 ## Purpose
 
 Принципы применения DSL `goga-cell` при проектировании **тестовых** cells. Это адаптация `goga-cookbook`,
-оставляющая только релевантное для тестов: тесты описываются как `Routine`, без `Imports`, с базовыми
+оставляющая только релевантное для тестов: тесты описываются как `Routine` с базовыми
 `Usages`/`Annotations` из конфига проекта.
 
 Этот скилл вызывается другими скиллами для контекста проектирования тестовых cells.
@@ -44,12 +44,35 @@ tests/<spec>/<endpoint-id>/
 
 ### Header
 
-`Usages` и `Annotations` берутся из `.goga/config.yml` (через `goga-codemanifest-base`) и едины для всех
-тестовых cells:
+**Базовый блок** `Usages` и `Annotations` берётся из `.goga/config.yml` (через `goga-codemanifest-base`) и
+**един для всех endpoint-cells**:
 
 - `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (пути в `.goga/usages/`).
 - `Annotations`: инструкции вида `Use \`pybuggy-api\` for ...`, `Use \`pybuggy-asserts\` for ...`.
-- Без `Imports`.
+
+Поверх базового блока cell может иметь **cell-специфичные usages** — см. раздел «Cell-специфичные usages
+(библиотеки)» ниже.
+
+### Cell-специфичные usages (библиотеки)
+
+Endpoint-cell, использующая пользовательскую библиотеку (фабрики данных, моки, утилиты — из §10 требований),
+получает **поверх базового блока** cell-специфичный usage:
+
+```yaml
+Usages:
+  conventions: .goga/usages/conventions.md          # базовый блок — идентичен во всех cells
+  pybuggy-api: .goga/usages/cooks/pybuggy/api.md
+  pybuggy-asserts: .goga/usages/cooks/pybuggy/asserts.md
+  faker: .goga/usages/cooks/faker.md                # cell-специфичный (только где используется)
+```
+
+- Ключ — короткое имя из §10; путь `.goga/usages/cooks/<ключ>.md` (файл создаёт `apply` в целевом проекте).
+- В Annotations добавляется ``Use `<ключ>` for <подготовка данных/моки/утилиты>``.
+- Базовый блок при этом **не меняется**. Cell-специфичный usage есть только в cell, использующих библиотеку, —
+  его наличие в одних cells и отсутствие в других **не** расхождение.
+- coverage-gate и Routine-per-case **не затрагиваются** (lib-usages — Header/Annotations, не Routine).
+- Проектирует подключения sub-скилл `goga-tool-pybuggy-it-feature-cells-libs`; контракты с базовым Header
+  собирает `contracts` (без `Use \`<ключ>\`` — ссылку добавляет libs, иначе backtick не разрешится).
 
 ### Body — Routine
 

@@ -20,19 +20,23 @@ cells, полный CODEMANIFEST каждой cell, карту покрытия 
 
 ### Step 1. Загрузить контекст
 
-1. [CONTRACTS_REPORT] — утверждённые CODEMANIFEST всех cells.
+1. [CONTRACTS_REPORT] — утверждённые CODEMANIFEST всех endpoint-cells.
 2. [CELL_MAP_REPORT] — cells, Routine, маппинг кейсов.
 3. [CELLS_INTAKE] — фича, версия/env.
+4. [LIBS_REPORT] — usage-файлы пользовательских библиотек + cell-специфичные usages для endpoint-cells
+   (если библиотек нет — отчёт пуст/no-op).
 
 ### Step 2. Implementation Order
 
-Упорядочить cells. Тестовые cells независимы (листья, без `Imports`), поэтому порядок — по `spec`/`endpoint-id`.
-Для каждой cell указать rationale («нет Imports», «лист»).
+Endpoint-cells `tests/<spec>/<id>/` — порядок по `spec`/`endpoint-id`. Для каждой cell указать rationale:
+«лист, тесты эндпоинта».
 
 ### Step 3. Artifacts
 
-Для каждой cell в порядке создания привести полный CODEMANIFEST в DSL (из [CONTRACTS_REPORT]). Cell-level
-`.usages/` отсутствуют.
+Привести полный CODEMANIFEST каждой endpoint-cell в порядке создания (из [CONTRACTS_REPORT]). Cell-level
+`.usages/` у endpoint-cells отсутствуют. Наложить **поверх базового Header** cell-специфичные usages библиотек
+из [LIBS_REPORT]: запись `<ключ>:` в `Usages` + ``Use `<ключ>` …`` в `Annotations` затронутых Routine. Если
+[LIBS_REPORT] пуст — cell-спец. usages не добавляются (это нормальный исход для фич без библиотек).
 
 ### Step 4. Coverage Map
 
@@ -79,7 +83,7 @@ STOP if:
 
 ## Implementation Order
 
-[Упорядоченный список cells tests/<spec>/<id>/ с rationale]
+[Упорядоченный список endpoint-cells tests/<spec>/<id>/ с rationale]
 
 ## Artifacts
 
@@ -87,7 +91,11 @@ STOP if:
 
 [Полный CODEMANIFEST в DSL]
 
-[Повторить для каждой cell]
+[Повторить для каждой endpoint-cell]
+
+## Lib usages
+
+[На каждую пользовательскую библиотеку: ключ | .goga/usages/cooks/<ключ>.md | статус (существует / будет создан на apply) + таблица «cell → подключённые lib-usages». «нет библиотек» — если [LIBS_REPORT] пуст.]
 
 ## Coverage Map
 

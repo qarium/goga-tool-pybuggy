@@ -28,8 +28,9 @@ description: Загрузка контекста проектирования �
 
 ### Step 2. Зафиксировать базовый блок Header
 
-Из `goga-codemanifest-base` взять единый для всех тестовых cells блок `Usages` (`conventions`, `pybuggy-api`,
-`pybuggy-asserts`) + `Annotations`. Без `Imports`.
+Из `goga-codemanifest-base` взять единый **базовый** блок `Usages` (`conventions`, `pybuggy-api`,
+`pybuggy-asserts`) + `Annotations` — общий для всех endpoint-cells. Cell-специфичные usages библиотек
+поверх базового блока добавляет фаза `libs` (здесь их не проектировать).
 
 ### Step 3. Зафиксировать языковые правила python
 

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-it-feature-cells-review
-description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine-per-case, без Entities/Imports, базовые Usages/Annotations, строгая структура аннотаций, coverage-gate (кейс→Routine 1:1), семантическая достаточность аннотаций для генерации теста
+description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine-per-case (endpoint-cells), без Entities, базовые Usages/Annotations, cell-спец. usages библиотек, строгая структура аннотаций, coverage-gate (кейс→Routine 1:1), семантическая достаточность аннотаций для генерации теста
 ---
 # Pybuggy IT Feature Cells Review
 
@@ -9,16 +9,17 @@ description: Верификация архитектурного плана те
 Ты — ревьюер архитектурного плана тестовых cells. Верифицируешь `docs/pybuggy/feature-cells.md` —
 выход пайплайна `goga-tool-pybuggy-it-feature-cells`. План содержит только DSL-артефакты CODEMANIFEST:
 на каждую cell эндпоинта — Header (базовые `Usages`/`Annotations`) + Body (`Routine` по одному на
-тест-кейс) + Footer. Тестовые cells — это Routine-only листья без `Imports`, поэтому размерности
+тест-кейс) + Footer. Endpoint-cells — Routine-only листья, поэтому размерности
 графа типов, mutations, embeddings и кросс-cell связности здесь структурно неприменимы — ревью
 фокусируется на DSL-валидности, тест-конформности, coverage и достаточности аннотаций.
 
 ## Mission
 
 Независимо проверить план: каждая CODEMANIFEST корректна по `goga-cell` DSL; тесты описаны **только**
-как `Routine` (без `Entity`/`methods`/`properties`); `Imports` отсутствуют; базовые `Usages`/
-`Annotations` на месте и идентичны; аннотации Routine следуют строгой структуре; **каждый тест-кейс
-покрыт ровно одним Routine**. Найти расхождения, сообщить, исправить (с одобрения пользователя).
+как `Routine` (без `Entity`/`methods`/`properties`); базовые `Usages`/
+`Annotations` на месте и идентичны в endpoint-cells (поверх базового блока допустимы cell-спец. usages
+библиотек); аннотации Routine следуют строгой структуре; **каждый тест-кейс покрыт ровно одним Routine**.
+Найти расхождения, сообщить, исправить (с одобрения пользователя).
 
 ## Relationship to other skills
 
@@ -45,7 +46,7 @@ description: Верификация архитектурного плана те
 3. Загрузи DSL-спецификацию и принципы через **Skill tool**:
    - `goga-cell` — правила CODEMANIFEST (структура, сигнатуры, Usages/Annotations, типы, constraints);
    - `goga-tool-pybuggy-it-cookbook` — принципы тестовых cells (Routine-per-case, строгий порядок
-     аннотаций Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`, без `Imports`);
+     аннотаций Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`);
    - `goga-cell-python` — языковые правила (naming `snake_case`, `location: test_<name>.py`);
    - `goga-codemanifest-base` — базовые `Usages`/`Annotations` из `.goga/config.yml` (эталон Header);
    - `goga-tool-pybuggy-it-usage` — референс pybuggy (`Endpoint`, фикстура `<method>_<id>`).
@@ -65,29 +66,30 @@ description: Верификация архитектурного плана те
    `Verification Checklist`. Отсутствующая секция — **Critical**; пустая/плейсхолдер — **High**.
 2. **Только DSL, без кода** — план содержит только артефакты CODEMANIFEST; любой код реализации
    (python/импорт/`def`/`class`) — **Critical**.
-3. **Implementation Order** перечисляет все cells (`tests/<spec>/<id>/`) с rationale («лист, нет
-   Imports»). Пропущенная cell или отсутствие rationale — **Medium** (пропущенная cell — **High**).
+3. **Implementation Order** перечисляет все endpoint-cells `tests/<spec>/<id>/` — с rationale («лист, тесты
+   эндпоинта»). Пропущенная cell или отсутствие rationale — **Medium** (пропущенная cell — **High**).
 
 ---
 
 ### Phase 3. CODEMANIFEST Validity per Cell
 
-Для **каждой** cell из `Artifacts`:
+Для **каждой** endpoint-cell из `Artifacts`:
 
 1. **Структура** — `Header → --- → Body → --- → Footer`; case-sensitive ключи. Нарушение — **Critical**.
 2. **Header — базовый блок** — `Usages` (`conventions`, `pybuggy-api`, `pybuggy-asserts`) +
-   `Annotations` из конфига (через `goga-codemanifest-base`), перенесённые as-is. Отсутствие базового
-   usage/annotation — **High**; искажение базового текста — **High**.
-3. **Header — без `Imports`** — `Imports` в тестовой cell — **Critical** (фикстура — не cell).
-4. **Базовый блок идентичен во всех cells** — `Usages`/`Annotations` совпадают дословно. Расхождение
-   между cells — **High**.
-5. **Body — только Routine** — нет `Entity`, нет `methods`/`properties`. Наличие `Entity` или
-   `methods`/`properties` — **Critical** (нарушение инварианта тестовых cells).
-6. **Сигнатура Routine** — `test_<name>(<fixture>: Endpoint)` **без output** (тест ничего не
-   возвращает). Отклонение формата — **High**; наличие output — **Critical**.
-7. **`location`** — `test_<name>.py` без подъёма/спуска по директориям (`../`, `…/`). Нарушение —
-   **High**.
-8. **Footer** — `Author: Goga`, `CreatedAt` (день/месяц/год), `Description` (зачем cell). Отсутствие —
+   `Annotations` из конфига (через `goga-codemanifest-base`), перенесённые as-is. Поверх базового блока
+   endpoint-cell может иметь **cell-специфичные usages** библиотек (`<ключ>: .goga/usages/cooks/<ключ>.md`;
+   backtick `` `<ключ>` `` должен разрешаться в контексте cell). Отсутствие базового usage/annotation — **High**;
+   искажение базового текста — **High**.
+3. **Базовый блок идентичен во всех endpoint-cells** — **базовые** `Usages`/`Annotations` совпадают дословно.
+   Поверх базового блока допустимы cell-специфичные usages библиотек (из [LIBS_REPORT]) — эти отличия нормальны,
+   **не** расхождение. Расхождение **базового** блока между endpoint-cells — **High**.
+4. **Body — только Routine** — нет `Entity`, нет `methods`/`properties`. Наличие `Entity` или
+   `methods`/`properties` — **Critical**.
+5. **Сигнатура Routine** — `test_<name>(<fixture>: Endpoint)` **без output**. Отклонение формата — **High**;
+   наличие output у теста — **Critical**.
+6. **`location`** — `test_<name>.py` без подъёма/спуска по директориям (`../`, `…/`). Нарушение — **High**.
+7. **Footer** — `Author: Goga`, `CreatedAt` (день/месяц/год), `Description` (зачем cell). Отсутствие —
    **Medium**; `Author` не `Goga` — **Medium**.
 
 ---
@@ -117,19 +119,17 @@ description: Верификация архитектурного плана те
 
 ### Phase 5. Coverage Gate
 
-**Цель:** каждый кейс из `feature-testcases.md` превращён ровно в один Routine; нет потерь и нет
-мусора. Это ядро ревью.
+**Цель:** каждый кейс из `feature-testcases.md` превращён ровно в один Routine; нет потерь и нет мусора.
 
 1. **Кейс → Routine 1:1** — каждый кейс эталона имеет ровно один соответствующий Routine в плане.
    Потерянный кейс — **Critical**.
 2. **Нет orphan-Routine** — каждый Routine восходит к кейсу; Routine без кейса — **High**.
 3. **Имена Routine уникальны в пределах cell** — дубль имени — **High**.
-4. **Гранулярность cell** — одна cell на эндпоинт (`tests/<spec>/<endpoint-id>/`). Несколько
+4. **Гранулярность cell** — одна endpoint-cell на эндпоинт (`tests/<spec>/<endpoint-id>/`). Несколько
    эндпоинтов в одной cell или дробление одного эндпоинта — **High**.
 5. **Coverage Map** — таблица `кейс (id, тип) | Routine | cell` полна и согласована с фактическим
-   содержанием плана (каждая строка подтверждается реальным Routine в реальной cell). Расхождение —
-   **High**.
-6. **cell ↔ фикстура ↔ эндпоинт** — путь cell `tests/<spec>/<endpoint-id>/`, имя фикстуры
+   содержанием плана (каждая строка подтверждается реальным Routine в реальной cell). Расхождение — **High**.
+6. **cell ↔ фикстура ↔ эндпоинт** — путь endpoint-cell `tests/<spec>/<endpoint-id>/`, имя фикстуры
    `<method>_<id>` и эндпоинт кейса согласованы. Несоответствие — **High**.
 
 ---
@@ -137,7 +137,7 @@ description: Верификация архитектурного плана те
 ### Phase 6. Semantic Sufficiency
 
 Проверить **точность контракта и достаточность аннотаций** каждой Routine (размерности графа типов /
-mutations / embeddings / кросс-cell связности — N/A для Routine-only листьев без Imports; фиксируй это
+mutations / embeddings / кросс-cell связности — N/A для Routine-only листьев; фиксируй это
 явно, а не как пропуски):
 
 1. **Достаточность для генерации** — аннотация Routine даёт достаточно, чтобы реализовать
@@ -200,8 +200,8 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 
 ### NEVER
 
-- ревьюить план как прод-архитектуру (Entity/Imports/граф типов) — только тестовые cells
-- принимать `Imports`/`Entity`/`methods`/`properties`/output в Routine — это инвариант тестовых cells
+- ревьюить план как прод-архитектуру (Entity/граф типов) — только тестовые cells
+- принимать `Entity`/`methods`/`properties`/output в Routine — это инвариант тестовых cells
 - править upstream-артефакты или сгенерированные фикстуры/схемы
 - считать находкой N/A-размерности (граф типов, mutations, embeddings) для Routine-only листьев —
   отмечай как структурно неприменимые
@@ -211,7 +211,8 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 - валидировать каждую CODEMANIFEST по `goga-cell` DSL вручную (с опциональной кросс-проверкой
   `goga lint`, не принимая ложные path-ошибки за дефекты)
 - сверять coverage: кейс → Routine 1:1, без потерь и orphan'ов
-- требовать строгий порядок аннотаций и идентичный базовый блок во всех cells
+- требовать строгий порядок аннотаций и идентичный **базовый** блок во всех cells (поверх допустимы
+  cell-спец. usages библиотек — `goga-tool-pybuggy-it-cookbook`, раздел «Cell-специфичные usages»)
 - предъявлять каждую находку по одной с выбором Apply/Alternative/Skip
 
 ---
@@ -224,8 +225,8 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 2. Загружены ли `goga-cell`, `goga-tool-pybuggy-it-cookbook`, `goga-cell-python`,
    `goga-codemanifest-base`, `goga-tool-pybuggy-it-usage`?
 3. Проверена ли структура плана (все секции, отсутствие кода)?
-4. Проверена ли каждая CODEMANIFEST (структура, базовый Header без Imports, идентичность блока,
-   Routine-only, сигнатура, location, Footer)?
+4. Проверена ли каждая CODEMANIFEST (структура, базовый Header, идентичность **базового** блока в
+   endpoint-cells + допустимые cell-спец. usages библиотек, Routine-only, сигнатура, location, Footer)?
 5. Проверена ли структура аннотаций каждой Routine (строгий порядок, фикстура, Steps, Use,
    backtick-ссылки)?
 6. Пройден ли coverage-gate (кейс→Routine 1:1, уникальность имён, cell↔фикстура↔эндпоинт, Coverage

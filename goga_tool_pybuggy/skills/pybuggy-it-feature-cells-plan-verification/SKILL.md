@@ -29,8 +29,11 @@ description: Финальная верификация плана тестовы
 По `goga-cell` проверить для каждой cell:
 
 1. Структура: Header → `---` → Body → `---` → Footer; case-sensitive ключи.
-2. Header: `Usages` (`conventions`, `pybuggy-api`, `pybuggy-asserts`) + `Annotations` из конфига; нет `Imports`.
-3. Body: Routine без `methods`/`properties`; сигнатура `test_<name>(<fixture>: Endpoint)` без output;
+2. Header (endpoint-cell): базовый блок `Usages` (`conventions`, `pybuggy-api`, `pybuggy-asserts`) +
+   `Annotations` из конфига; поверх него допустимы **cell-специфичные usages** библиотек
+   (`<ключ>: .goga/usages/cooks/<ключ>.md` — материализуются `apply`; backtick `` `<ключ>` `` разрешается в
+   контексте cell).
+3. Body: Routine без `methods`/`properties`; сигнатура `test_<name>(<fixture>: Endpoint)` без output,
    `location: test_<name>.py`.
 4. Backtick-ссылки разрешаются в контексте CODEMANIFEST.
 5. Footer: `Author: Goga`, `CreatedAt`, `Description`.
@@ -45,7 +48,9 @@ description: Финальная верификация плана тестовы
 
 ### Step 4. Базовый блок
 
-Убедиться, что базовые `Usages`/`Annotations` присутствуют и идентичны во всех cells (из конфига).
+Убедиться, что **базовые** `Usages`/`Annotations` присутствуют и идентичны во всех endpoint-cells (из конфига).
+Поверх базового блока допустимы **cell-специфичные usages** библиотек (из [LIBS_REPORT]) — их наличие в одних
+cell и отсутствие в других **не** расхождение.
 
 ### Step 5. Исправить несоответствия
 
