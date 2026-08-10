@@ -17,8 +17,7 @@ pytest гарантированно выполняет до сбора и зап
 
 Создать `conftest.py` в **корне целевого проекта** (там, где запускается pytest), который:
 1. загружает `.env` через `dotenv.load_dotenv` (с `override=False`) **до** подключения плагина;
-2. подключает плагин pybuggy — `pytest_plugins = ["goga_tool_pybuggy.plugin"]` **плюс** явный вызов
-   `goga_tool_pybuggy.plugin.install()`.
+2. подключает плагин pybuggy — **единственным** вызовом `goga_tool_pybuggy.plugin.install()`.
 
 ## Context Initialization
 
@@ -26,7 +25,7 @@ pytest гарантированно выполняет до сбора и зап
 
 - **`goga-tool-pybuggy-api-usage`** — референс runtime pybuggy (как подключается плагин).
 - **`.goga/usages/cooks/pluginator.md`** и **`.goga/usages/cooks/python-dotenv.md`** — паттерны установки
-  плагина (`install()` + `pytest_plugins`) и семантика `load_dotenv` (`override=False`).
+  плагина (`install()` — единственный способ включения) и семантика `load_dotenv` (`override=False`).
 
 ## Pre-flight
 
@@ -56,12 +55,7 @@ pytest гарантированно выполняет до сбора и зап
 """
 from dotenv import load_dotenv
 
-# (1) .env — ДО плагина: опции плагина (QA_BASE_URL, QA_API_TIMEOUT, ...) резолвятся из os.environ.
-load_dotenv()  # неявный .env из CWD; override=False — переменные shell/CI не перезаписываются
-
-# (2) Плагин pybuggy: pytest_plugins + явный install().
-#     Одного pytest_plugins НЕ достаточно — install() не вызывается на верхнем уровне модуля плагина.
-pytest_plugins = ["goga_tool_pybuggy.plugin"]
+load_dotenv()
 
 import goga_tool_pybuggy.plugin
 
@@ -80,7 +74,7 @@ goga_tool_pybuggy.plugin.install()
 ### Phase 4. Финальный отчёт
 
 1. Путь к созданному/обновлённому `conftest.py`.
-2. Что включено (load_dotenv + pytest_plugins + install).
+2. Что включено (load_dotenv + install()).
 3. Статус проверки (`import conftest` / `pytest --collect-only`).
 
 ## Invariants
@@ -89,7 +83,7 @@ goga_tool_pybuggy.plugin.install()
 
 - перезаписывать существующий `conftest.py` без подтверждения пользователя
 - менять порядок: `load_dotenv` **всегда до** `install()` (опции плагина резолвятся из `os.environ`)
-- опускать явный `install()` — одного `pytest_plugins` недостаточно
+- опускать `install()` — import-time auto-wiring у плагина нет; без `install()` плагин не включится
 - использовать `override=True` в `load_dotenv` (CI/оператор теряют возможность фиксировать окружение)
 - создавать `conftest.py` в репо самой тулзы pybuggy (только в целевом проекте)
 
