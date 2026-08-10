@@ -2,6 +2,7 @@
 
 import importlib.resources
 import logging
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -557,6 +558,64 @@ def build_pybuggy_config() -> int:
         return 1
 
 
+# Mandatory Dockerfile path. goga's ``ask_dockerfile_path`` is optional (the user may decline and
+# skip Dockerfile creation); pybuggy mandates the Dockerfile — it is always created at this path and
+# the top-level ``dockerfile`` field is always emitted into ``.goga/config.yml``. The value matches
+# goga's own prompt default so the on-disk result is what the user would have accepted anyway.
+_DOCKERFILE_PATH = ".goga/Dockerfile"
+
+
+# Distribution (PyPI) name of pybuggy — matches ``[project].name`` in pyproject.toml. The generated
+# Dockerfile pins the running pybuggy to its current version, read from the installed package
+# metadata, so the consumer's test container carries the same pybuggy that generated it.
+_PYBUGGY_DIST = "goga-tool-pybuggy"
+
+
+def install_pybuggy(dockerfile_path: Path, *, package_version: str | None = None) -> str | None:
+    """Append the pybuggy-install ``RUN`` line to the goga-generated Dockerfile.
+
+    goga ``FileGenerator.generate`` writes the Dockerfile as ``FROM {image}\\n``; this routine
+    appends ``RUN pip install goga-tool-pybuggy=={version}`` so the consumer's image carries the
+    pybuggy version that generated it. The current version is resolved from the installed package
+    metadata via ``importlib.metadata``.
+
+    No-op when ``dockerfile_path`` does not exist (e.g. ``FileGenerator`` is mocked in tests, so the
+    goga step wrote no file). Idempotent — skips when the install line is already present. When the
+    version cannot be resolved (``PackageNotFoundError`` — a broken/absent install), logs a WARNING
+    and skips rather than emitting a misleading or unresolvable pin.
+
+    Args:
+        dockerfile_path: Path to the Dockerfile created by goga ``FileGenerator`` (cwd-relative,
+            matching ``_DOCKERFILE_PATH``).
+        package_version: Version override used instead of the installed metadata (testing). When
+            ``None``, the version is resolved from ``importlib.metadata``.
+
+    Returns:
+        The appended ``RUN`` line text, or ``None`` when nothing was appended (file absent, the line
+        already present, or the version unknown).
+    """
+    if not dockerfile_path.exists():
+        return None
+
+    try:
+        ver = package_version if package_version is not None else metadata.version(_PYBUGGY_DIST)
+    except metadata.PackageNotFoundError:
+        logger.warning("pybuggy version unknown, skipping Dockerfile install line")
+        return None
+
+    line = f"RUN pip install {_PYBUGGY_DIST}=={ver}\n"
+    content = dockerfile_path.read_text(encoding="utf-8")
+    if line in content:
+        return None
+
+    if content and not content.endswith("\n"):
+        content += "\n"
+
+    dockerfile_path.write_text(content + line, encoding="utf-8")
+    logger.info("pybuggy install line added to Dockerfile", extra={"version": ver})
+    return line
+
+
 def run_goga_init() -> int:
     """Initialize the goga-project in-process, tailored for a Python project.
 
@@ -565,6 +624,11 @@ def run_goga_init() -> int:
     the Docker image is selected from the python-only set via ``ask_image("python")``. The
     collected answers are assembled into a ``GogaConfigAnswers`` and file generation is delegated
     to ``FileGenerator().generate(InitAnswers(...))``.
+
+    The Dockerfile is mandatory: ``dockerfile_path`` is hardcoded to ``_DOCKERFILE_PATH``
+    (``.goga/Dockerfile``) instead of goga's optional ``ask_dockerfile_path`` (which may return
+    ``None`` and skip creation), so ``FileGenerator`` always creates the Dockerfile and always emits
+    the top-level ``dockerfile`` field into ``.goga/config.yml``.
 
     Interactive (TTY prompts via click); callers and tests stub this routine via monkeypatch.
 
@@ -584,7 +648,9 @@ def run_goga_init() -> int:
         codemanifest_annotations = questionnaire.ask_codemanifest_annotations(annotations_prefill)
         agent = questionnaire.ask_agent()
         image = questionnaire.ask_image(language)
-        dockerfile_path = questionnaire.ask_dockerfile_path()
+        # Dockerfile is mandatory — hardcoded path instead of goga's optional ``ask_dockerfile_path``
+        # (which can return None and skip creation); ``FileGenerator`` always creates it from here.
+        dockerfile_path = _DOCKERFILE_PATH
         env = questionnaire.ask_env(agent)
         pipeline_agent = questionnaire.ask_pipeline_agent(agent)
         pipeline_env = questionnaire.ask_pipeline_env(pipeline_agent)
@@ -602,6 +668,8 @@ def run_goga_init() -> int:
         )
 
         generator.generate(InitAnswers(goga_config=config))
+        # Pin the running pybuggy version in the Dockerfile goga just generated.
+        install_pybuggy(Path(_DOCKERFILE_PATH))
         return 0
     except click.Abort:
         return 1

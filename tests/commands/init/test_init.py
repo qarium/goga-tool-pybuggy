@@ -11,6 +11,7 @@ import yaml
 from goga_tool_pybuggy.commands.init import (
     build_pybuggy_config,
     init_cmd,
+    install_pybuggy,
     register_annotations,
     register_usages,
     run_goga_init,
@@ -334,7 +335,8 @@ def _stub_questionnaire(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     questionnaire.ask_codemanifest_annotations.return_value = "annotations"
     questionnaire.ask_agent.return_value = "coder"
     questionnaire.ask_image.return_value = "qarium/goga-python-3.12:1.1"
-    questionnaire.ask_dockerfile_path.return_value = "Dockerfile"
+    # ask_dockerfile_path is intentionally NOT stubbed here — run_goga_init hardcodes the
+    # mandatory Dockerfile path and never calls ask_dockerfile_path.
     questionnaire.ask_env.return_value = {"KEY": "v"}
     questionnaire.ask_pipeline_agent.return_value = "pcoder"
     questionnaire.ask_pipeline_env.return_value = {"PKEY": "pv"}
@@ -362,7 +364,13 @@ def test_run_goga_init_hardcodes_python_and_calls_ask_image_python(
 
 
 def test_run_goga_init_assembles_goga_config_answers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_goga_init assembles GogaConfigAnswers from the per-field answers and feeds InitAnswers."""
+    """run_goga_init assembles GogaConfigAnswers from the per-field answers and feeds InitAnswers.
+
+    ``dockerfile_path`` is the hardcoded mandatory path (``_DOCKERFILE_PATH``), not the return
+    value of goga's optional ``ask_dockerfile_path`` (which is never called).
+    """
+    from goga_tool_pybuggy.commands.init.init import _DOCKERFILE_PATH
+
     questionnaire = _stub_questionnaire(monkeypatch)
     generator = mock.Mock()
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
@@ -380,12 +388,33 @@ def test_run_goga_init_assembles_goga_config_answers(monkeypatch: pytest.MonkeyP
         pipeline_agent=questionnaire.ask_pipeline_agent.return_value,
         pipeline_env=questionnaire.ask_pipeline_env.return_value,
         env=questionnaire.ask_env.return_value,
-        dockerfile_path=questionnaire.ask_dockerfile_path.return_value,
+        dockerfile_path=_DOCKERFILE_PATH,
         codemanifest_usages=questionnaire.ask_codemanifest_usages.return_value,
         codemanifest_annotations=questionnaire.ask_codemanifest_annotations.return_value,
     )
     answers_spy.assert_called_once_with(goga_config=config_spy.return_value)
     generator.generate.assert_called_once_with(answers_spy.return_value)
+
+
+def test_run_goga_init_hardcodes_mandatory_dockerfile_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_goga_init makes the Dockerfile mandatory.
+
+    The Dockerfile path is the hardcoded ``_DOCKERFILE_PATH`` (never ``None``, so ``FileGenerator``
+    always creates the Dockerfile and always emits the top-level ``dockerfile`` config field), and
+    goga's optional ``ask_dockerfile_path`` is never called.
+    """
+    from goga_tool_pybuggy.commands.init.init import _DOCKERFILE_PATH
+
+    questionnaire = _stub_questionnaire(monkeypatch)
+    generator = mock.Mock()
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+
+    assert run_goga_init() == 0
+
+    questionnaire.ask_dockerfile_path.assert_not_called()
+    answers = generator.generate.call_args.args[0]
+    assert answers.goga_config.dockerfile_path == _DOCKERFILE_PATH
+    assert answers.goga_config.dockerfile_path is not None
 
 
 def test_run_goga_init_returns_1_on_abort(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -439,6 +468,135 @@ def test_run_goga_init_threads_answers_into_downstream_prompts(monkeypatch: pyte
     questionnaire.ask_env.assert_called_once_with(agent)
     questionnaire.ask_pipeline_agent.assert_called_once_with(agent)
     questionnaire.ask_pipeline_env.assert_called_once_with(questionnaire.ask_pipeline_agent.return_value)
+
+
+def test_run_goga_init_calls_install_pybuggy_after_generate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_goga_init pins the running pybuggy version by calling install_pybuggy after generate."""
+    from goga_tool_pybuggy.commands.init.init import _DOCKERFILE_PATH
+
+    _stub_questionnaire(monkeypatch)
+    generator = mock.Mock()
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+    install_spy = mock.Mock(return_value=None)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.install_pybuggy", install_spy)
+
+    assert run_goga_init() == 0
+
+    generator.generate.assert_called_once()
+    install_spy.assert_called_once_with(Path(_DOCKERFILE_PATH))
+
+
+# install_pybuggy contract tests ---------------------------------------------
+
+
+def test_install_pybuggy_importable_from_facade() -> None:
+    """install_pybuggy should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import install_pybuggy as imported
+
+    assert imported is install_pybuggy
+
+
+def test_install_pybuggy_is_public_in_facade() -> None:
+    """install_pybuggy is exposed on the facade __all__ (public test seam)."""
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+
+    assert "install_pybuggy" in facade_all
+
+
+def test_install_pybuggy_signature() -> None:
+    """install_pybuggy takes a dockerfile path plus a keyword-only package_version override."""
+    import inspect
+
+    sig = inspect.signature(install_pybuggy)
+
+    assert list(sig.parameters) == ["dockerfile_path", "package_version"]
+    assert sig.parameters["package_version"].kind == inspect.Parameter.KEYWORD_ONLY
+    assert sig.parameters["package_version"].default is None
+
+
+# install_pybuggy logic tests ------------------------------------------------
+
+
+def test_install_pybuggy_appends_current_version_line(tmp_path: Path) -> None:
+    """install_pybuggy appends a RUN line pinning the running pybuggy version to the Dockerfile."""
+    from importlib import metadata
+
+    from goga_tool_pybuggy.commands.init.init import _PYBUGGY_DIST
+
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM qarium/goga-python-3.12:1.1\n", encoding="utf-8")
+
+    returned = install_pybuggy(dockerfile)
+
+    expected = f"RUN pip install {_PYBUGGY_DIST}=={metadata.version(_PYBUGGY_DIST)}\n"
+    assert returned == expected
+
+    text = dockerfile.read_text(encoding="utf-8")
+    assert text.startswith("FROM qarium/goga-python-3.12:1.1\n")
+    assert text.endswith(expected)
+
+
+def test_install_pybuggy_uses_version_override(tmp_path: Path) -> None:
+    """package_version override pins to the given version instead of the installed metadata."""
+    from goga_tool_pybuggy.commands.init.init import _PYBUGGY_DIST
+
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM image:tag\n", encoding="utf-8")
+
+    returned = install_pybuggy(dockerfile, package_version="1.2.3")
+
+    assert returned == f"RUN pip install {_PYBUGGY_DIST}==1.2.3\n"
+    assert f"{_PYBUGGY_DIST}==1.2.3" in dockerfile.read_text(encoding="utf-8")
+
+
+def test_install_pybuggy_noop_when_file_absent(tmp_path: Path) -> None:
+    """install_pybuggy is a no-op (None, nothing written) when the Dockerfile does not exist."""
+    dockerfile = tmp_path / "Dockerfile"
+
+    assert install_pybuggy(dockerfile) is None
+    assert not dockerfile.exists()
+
+
+def test_install_pybuggy_skips_when_version_unknown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When the version cannot be resolved, install_pybuggy warns and leaves the file unchanged."""
+    from importlib import metadata
+
+    dockerfile = tmp_path / "Dockerfile"
+    original = "FROM image:tag\n"
+    dockerfile.write_text(original, encoding="utf-8")
+    monkeypatch.setattr(metadata, "version", mock.Mock(side_effect=metadata.PackageNotFoundError()))
+
+    assert install_pybuggy(dockerfile) is None
+    assert dockerfile.read_text(encoding="utf-8") == original
+
+
+def test_install_pybuggy_is_idempotent(tmp_path: Path) -> None:
+    """install_pybuggy appends the line once even when called repeatedly on the same file."""
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM image:tag\n", encoding="utf-8")
+
+    first = install_pybuggy(dockerfile, package_version="1.0.0")
+    second = install_pybuggy(dockerfile, package_version="1.0.0")
+
+    assert first is not None
+    assert second is None
+    assert dockerfile.read_text(encoding="utf-8").count("pip install") == 1
+
+
+def test_install_pybuggy_ensures_newline_separator(tmp_path: Path) -> None:
+    """install_pybuggy inserts a newline before the RUN line when the file lacks a trailing one."""
+    from goga_tool_pybuggy.commands.init.init import _PYBUGGY_DIST
+
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text("FROM image:tag", encoding="utf-8")  # no trailing newline
+
+    install_pybuggy(dockerfile, package_version="9.9.9")
+
+    assert dockerfile.read_text(encoding="utf-8") == (
+        f"FROM image:tag\nRUN pip install {_PYBUGGY_DIST}==9.9.9\n"
+    )
 
 
 def test_register_usages_creates_block_when_file_absent(tmp_path: Path) -> None:

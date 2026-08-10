@@ -22,6 +22,7 @@
     (для `python` — `qarium/goga-python-3.10:1.1` … `qarium/goga-python-3.14:1.1`); **default — последний**;
     принимает произвольный ввод.
   - `ask_dockerfile_path() -> str | None` — путь к Dockerfile (default `.goga/Dockerfile`) или None (пропуск).
+    **pybuggy НЕ вызывает** — Dockerfile обязателен, `dockerfile_path` хардкодится как `.goga/Dockerfile`.
   - `ask_env(agent: str) -> dict | None`.
   - `ask_pipeline_agent(agent: str) -> str`.
   - `ask_pipeline_env(pipeline_agent: str) -> dict | None`.
@@ -46,7 +47,8 @@
 
 - `.goga/config.yml` — полный goga-конфиг (language, image, dockerfile, build, pipeline, codemanifest).
 - `.goga/usages/conventions.md` — если `codemanifest_usages` содержит `"conventions"` (скачивается через requests).
-- `Dockerfile` (или по заданному пути) — опционально, `FROM {image}`.
+- `Dockerfile` (по пути `dockerfile_path`) — `FROM {image}`; создаётся когда `dockerfile_path` задан (со стороны pybuggy
+  он передаётся всегда — Dockerfile обязателен).
 
 ## Шаблон: in-process вызов (per-field сборка)
 
@@ -62,7 +64,7 @@
       codemanifest_annotations = questionnaire.ask_codemanifest_annotations(annotations_prefill)
       agent = questionnaire.ask_agent()
       image = questionnaire.ask_image(language)        # python-only набор: 3.10–3.14
-      dockerfile_path = questionnaire.ask_dockerfile_path()
+      dockerfile_path = ".goga/Dockerfile"             # хардкод — Dockerfile обязателен; ask_dockerfile_path НЕ вызывается
       env = questionnaire.ask_env(agent)
       pipeline_agent = questionnaire.ask_pipeline_agent(agent)
       pipeline_env = questionnaire.ask_pipeline_env(pipeline_agent)

@@ -9,7 +9,7 @@
 
 Инициализация goga-проекта выполняется in-process пакетом `goga` (per-field методы `goga.init.Questionnaire` +
 `FileGenerator.generate`; `InitLogic` не используется): интерактивный опрос + генерация `.goga/config.yml`
-(language/build/pipeline/codemanifest), `.goga/usages/conventions.md`, опционально Dockerfile. Затем команда копирует
+(language/build/pipeline/codemanifest), `.goga/usages/conventions.md`, обязательно Dockerfile (`.goga/Dockerfile`, в который после генерации дописывается установка `pybuggy` текущей версии — `RUN pip install goga-tool-pybuggy==<current version>`). Затем команда копирует
 cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регистрирует их
 в `.goga/config.yml` под `codemanifest.usages` ключами `pybuggy-api`/`pybuggy-asserts`, а также дополняет
 `codemanifest.annotations` ссылающейся строкой на каждый usage (`` `pybuggy-api` `` / `` `pybuggy-asserts` `` с кратким
@@ -64,8 +64,10 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
       pybuggy init        # → опросник goga, затем регистрация pybuggy usages
 
 Результат:
-- `.goga/config.yml` — полный goga-конфиг + блок `codemanifest.usages` с `pybuggy-api`/`pybuggy-asserts` + блок
-  `codemanifest.annotations` со ссылающимися строками.
+- `.goga/config.yml` — полный goga-конфиг (включая top-level поле `dockerfile`) + блок `codemanifest.usages` с
+  `pybuggy-api`/`pybuggy-asserts` + блок `codemanifest.annotations` со ссылающимися строками.
+- `.goga/Dockerfile` — обязательный Dockerfile: `FROM {image}` + `RUN pip install goga-tool-pybuggy==<current version>`
+  (пин работающего pybuggy; дописывается после генерации goga), всегда создаётся при goga-init.
 - `.goga/usages/cooks/pybuggy/api.md`, `.goga/usages/cooks/pybuggy/asserts.md`.
 
 ---
@@ -138,6 +140,10 @@ pybuggy-конфиг (`click.confirm`, по умолчанию `no`); при о�
 
 - Требует установленный пакет `goga` (зависимость pybuggy) — для in-process инициализации goga-проекта.
 - Пишет в `<cwd>/.goga/` (создаёт `.goga/usages/cooks/pybuggy/`, `.goga/config.yml`).
+- Дописывает в сгенерированный `.goga/Dockerfile` строку `RUN pip install goga-tool-pybuggy==<current version>` — версия
+  берётся из метаданных установленного пакета (`importlib.metadata`), чтобы тест-образ потребителя совпадал с pybuggy,
+  которым он сгенерирован. В dev-checkout версия — setuptools-scm dev-снапшот (напр. `0.1.dev38+g…`), который не
+  резолвится с PyPI при `docker build`; для релизных установок (`pip install goga-tool-pybuggy`) пин корректен.
 - Читает usages из **установленного** пакета `goga_tool_pybuggy.api` (`importlib.resources`), не из cwd — работает после
   `pip install pybuggy`, а не только из checkout.
 - Discovery рекурсивен по `.usages/*.md` под ячейкой `api` — будущие подклетки подключаются без правки команды.

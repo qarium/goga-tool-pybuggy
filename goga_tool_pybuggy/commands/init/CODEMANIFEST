@@ -165,7 +165,11 @@ Annotations: |
     Unlike goga's universal InitLogic flow (which prompts for the language via ask_language), this routine drives the
     per-field Questionnaire methods individually, hardcodes language="python" (pybuggy is a Python project), selects the
     Docker image from the python-only set (ask_image("python")), assembles a GogaConfigAnswers, and delegates file
-    generation to FileGenerator().generate(InitAnswers(...)). InitLogic is NOT used.
+    generation to FileGenerator().generate(InitAnswers(...)). InitLogic is NOT used. The Dockerfile is mandatory:
+    dockerfile_path is hardcoded to ".goga/Dockerfile" (goga's optional ask_dockerfile_path is NOT called), so
+    FileGenerator always creates the Dockerfile and always emits the top-level dockerfile field into .goga/config.yml.
+    After generation, `install_pybuggy` appends a `RUN pip install goga-tool-pybuggy=={version}` line to the Dockerfile,
+    pinning the running pybuggy version so the consumer's test image matches the pybuggy that generated it.
 
     `exit_code`: 0 on success; 1 on user cancellation (click.Abort) or generation failure (the routine returns a code
     and never raises, so run_init — which calls it outside its own try/except — relies on this).
@@ -179,30 +183,75 @@ Annotations: |
        - codemanifest_annotations  = questionnaire.ask_codemanifest_annotations(annotations_prefill)
        - agent           = questionnaire.ask_agent()
        - image           = questionnaire.ask_image(language)        # python-only set: 3.10–3.14
-       - dockerfile_path = questionnaire.ask_dockerfile_path()
+       - dockerfile_path = ".goga/Dockerfile"                       # hardcoded mandatory path; ask_dockerfile_path
+                                                                     # is NOT called — the Dockerfile cannot be skipped
        - env             = questionnaire.ask_env(agent)
        - pipeline_agent  = questionnaire.ask_pipeline_agent(agent)
        - pipeline_env    = questionnaire.ask_pipeline_env(pipeline_agent)
     4. Assemble GogaConfigAnswers(language="python", agent=..., image=..., pipeline_agent=..., pipeline_env=...,
        env=..., dockerfile_path=..., codemanifest_usages=..., codemanifest_annotations=...).
-    5. generator.generate(InitAnswers(goga_config=config)); return 0 on success.
-    6. On click.Abort (user cancel) return 1; on other Exception log + echo + return 1 (replicates InitLogic.run()'s
-       handling, which is no longer available since InitLogic is bypassed).
+    5. generator.generate(InitAnswers(goga_config=config)) — goga writes `.goga/config.yml` and the Dockerfile
+       (`FROM {image}` with a trailing newline).
+    6. Call `install_pybuggy(Path(_DOCKERFILE_PATH))` to append `RUN pip install goga-tool-pybuggy=={version}` (the
+       running pybuggy version) to the Dockerfile goga just wrote; return 0 on success.
+    7. On click.Abort (user cancel) return 1; on other Exception (incl. an I/O failure raised by `install_pybuggy`)
+       log + echo + return 1 (replicates InitLogic.run()'s handling, which is no longer available since InitLogic is bypassed).
 
     Requirements:
     - Interactive (TTY prompts via click) — callers and tests stub this routine via monkeypatch to avoid prompts.
     - Returns a code and never raises on cancellation/failure so the caller can propagate it cleanly.
+    - The Dockerfile is mandatory: dockerfile_path is hardcoded to ".goga/Dockerfile" (never None), so FileGenerator
+      always creates the Dockerfile and always emits the top-level dockerfile field into .goga/config.yml.
+    - After generation the Dockerfile also carries `RUN pip install goga-tool-pybuggy=={version}` (the running pybuggy
+      version) appended by `install_pybuggy`.
 
     Constraints:
     - Do NOT call ask_language — language is hardcoded to "python" (pybuggy is a Python project).
+    - Do NOT call ask_dockerfile_path — the Dockerfile is mandatory; dockerfile_path is hardcoded to ".goga/Dockerfile"
+      (ask_dockerfile_path can return None and skip creation).
     - Do NOT use InitLogic / ask / ask_goga_config — orchestrate the per-field methods manually to fix the language and
       restrict the image set.
-    - Do NOT duplicate goga's prompt/generation logic — only orchestrate the existing ask_* methods and FileGenerator.generate.
+    - Do NOT duplicate goga's prompt/generation logic — only orchestrate the existing ask_* methods (except
+      ask_dockerfile_path, hardcoded) and FileGenerator.generate.
+    - Do NOT modify goga `FileGenerator` — the pybuggy install line is appended post-generation by `install_pybuggy`.
     - Do NOT propagate an exception on cancellation/failure — return a code (run_init relies on this).
 
     Use `goga` from Usages for the per-field Questionnaire methods + FileGenerator.generate contract.
     Use `click` for click.Abort handling.
     Use `conventions` for type hints and structured logging on failure.
+
+"install_pybuggy(dockerfile_path: Path, package_version: str | None) -> line:str | None":
+  location: init.py
+  annotations: |
+    Append the pybuggy-install ``RUN`` line to the goga-generated Dockerfile, pinning the running pybuggy version so the
+    consumer's test image carries the same pybuggy that generated it. Pure file augmentation of the Dockerfile written by
+    goga `FileGenerator` (`FROM {image}`); no goga code is modified.
+
+    `dockerfile_path`: path to the Dockerfile created by goga `FileGenerator` (cwd-relative, matching `_DOCKERFILE_PATH`).
+    `package_version`: keyword-only version override (testing); when None, resolved from installed package metadata via importlib.metadata.
+    `line`: the appended `RUN pip install goga-tool-pybuggy=={version}` text; None when nothing was appended.
+
+    Algorithm:
+    1. No-op (return None) when `dockerfile_path` does not exist — goga may not have written it (e.g. `FileGenerator`
+       mocked in tests); never create the file here.
+    2. Resolve the version: `package_version` when given, otherwise `importlib.metadata.version` of the pybuggy
+       distribution. On `PackageNotFoundError`, log WARNING and return None (no misleading or unresolvable pin).
+    3. Build the line `RUN pip install goga-tool-pybuggy=={version}`; when it is already in the file content, return
+       None (idempotent).
+    4. Ensure the existing content ends with a newline, append the line, write the file back; log INFO with the version;
+       return the line.
+
+    Requirements:
+    - The distribution name is `goga-tool-pybuggy` (the PyPI/pip name; matches `[project].name`) — never `pybuggy`.
+    - The goga-written `FROM {image}` line is preserved; only the install line is appended.
+    - Idempotent within a single Dockerfile: a repeated call (no regeneration in between) appends nothing.
+
+    Constraints:
+    - Do not create the Dockerfile when absent — only augment an existing one.
+    - Do not pin a version when it cannot be resolved (skip; no unpinned fallback).
+    - An I/O error during read/write propagates to the caller (`run_goga_init` traps it and returns a code).
+
+    Use `conventions` for code writing rules, structured logging, and testing.
 
 "register_usages(config_path: Path, usage_keys: dict[str, str]) -> added_keys: list[str]":
   location: init.py
@@ -295,4 +344,6 @@ Description: |
   invoked: discovers .usages/*.md from the installed goga_tool_pybuggy.api package, copies them under
   .goga/usages/cooks/pybuggy/, and registers them in .goga/config.yml under codemanifest.usages; appends a referencing
   annotation line per usage under codemanifest.annotations; idempotent. Also interactively builds
-  .goga/tools/pybuggy/config.yml (plugin options + specs) — built when absent, rebuilt only on confirmation.
+  .goga/tools/pybuggy/config.yml (plugin options + specs) — built when absent, rebuilt only on confirmation. The
+  generated .goga/Dockerfile is pinned to the running pybuggy version via install_pybuggy (RUN pip install
+  goga-tool-pybuggy==<current version>) appended after goga generates it.
