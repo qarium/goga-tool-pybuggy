@@ -25,8 +25,8 @@ Only the minimal fixture profile (``base_url``, ``headers``, ``timeout``,
 ``data_key``, ``error_key``) plus the assert-polling/pluggable-class options
 (``assert_timeout``/``assert_delay``/``assert_field_class``/
 ``assert_response_class``) is fed to ``Api`` — no auth, no cookies. The
-fixture yields the ``Api`` and closes it afterwards (``Api.close()``) to release
-the underlying resq session's connection pool. ``retries`` is orthogonal to the
+fixture yields the ``Api`` and closes it afterwards (``Api.close()``, delegating to
+the underlying resq.Session's public close()). ``retries`` is orthogonal to the
 ``api`` fixture: when resolved to a
 positive int, the ``pytest_collection_modifyitems`` hook stamps every collected
 item without an existing flaky marker with ``pytest.mark.flaky(max_runs=retries)``.
@@ -282,8 +282,8 @@ class ApiPlugin:
 
         Minimal profile only: ``base_url``/``headers``/``timeout``/
         ``data_key``/``error_key`` — no auth, no cookies. Yields the ``Api`` for
-        the test, then closes it afterwards to release the underlying resq
-        session's connection pool. ``base_url`` is the value rendered once in
+        the test, then closes it afterwards via ``Api.close()`` (delegating to the
+        underlying resq.Session's public close()). ``base_url`` is the value rendered once in
         ``configure()`` (stored back on ``self.base_url``).
 
         Yields:

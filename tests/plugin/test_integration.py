@@ -66,9 +66,14 @@ import resq
 if not hasattr(resq, "Session"):
 
     class _Session:
-        def __init__(self, base_url, timeout=None):
+        def __init__(self, base_url, adapter, timeout=None):
             self.base_url = base_url
+            self.adapter = adapter
             self.timeout = timeout
+
+        def close(self):
+            # No-op stand-in for resq.Session.close() (sync mode is a no-op).
+            pass
 
     resq.Session = _Session
 

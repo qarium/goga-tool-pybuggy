@@ -64,7 +64,7 @@ class Api:
         assert_field_class: str | None = None,
         assert_response_class: str | None = None,
     ) -> None:
-        self._client = resq.Session(base_url, timeout=timeout)
+        self._client = resq.Session(base_url, "requests", timeout=timeout)
         self._auth = auth
         self._headers = headers or {}
         self._cookies = cookies
@@ -165,15 +165,16 @@ class Api:
         return verb(url_path, **kwargs)
 
     def close(self) -> None:
-        """Close the underlying resq session's connection pool.
+        """Close the composed resq.Session via its public ``close()``.
 
-        Tears down the held ``requests.Session`` (the sync connection pool) of
-        the composed ``resq.Session``. ``resq.Session`` exposes no public sync
-        ``close()``, so the held session is reached directly — pybuggy never
-        issues async requests, so the lazily-created ``httpx`` client is never
-        created and is left untouched. Called by the ``api`` fixture teardown.
+        Delegates to ``resq.Session.close()``. In sync mode (the only mode
+        pybuggy uses — ``adapter="requests"``) that close is a no-op by resq's
+        design: the held ``requests.Session`` is released by garbage collection,
+        not closed here. pybuggy never issues async requests, so the lazily
+        created ``httpx`` client is never created and is left untouched. Called
+        by the ``api`` fixture teardown.
         """
-        self._client._session.close()
+        self._client.close()
 
     @staticmethod
     def _resolve_params(params: Any, use_aliases: bool) -> dict[str, Any]:

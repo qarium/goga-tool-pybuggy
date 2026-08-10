@@ -88,9 +88,9 @@ Annotations: |
 
       Use `resq` for the verb set and the base_url+path concatenation.
     "close()": |
-      Tear down the composed resq.Session by closing its held requests.Session — the sync connection pool. pybuggy never issues async requests, so the lazily-created httpx client is never created and is left untouched. Called by the api fixture teardown.
+      Close the composed resq.Session by delegating to its public close(). In sync mode (the only mode pybuggy uses — adapter="requests") that close is a no-op by resq's design: the held requests.Session is released by garbage collection, not closed here. pybuggy never issues async requests, so the lazily-created httpx client is never created and is left untouched. Called by the api fixture teardown.
 
-      Use `resq` for the Session/Client composition holding the requests.Session.
+      Use `resq` for the Session/Client close contract.
       Use `conventions` for type hints.
 
 "Endpoint(api: Api, url_path: str, method: str, status: int | None = 200, use_autocheck: bool = True, data_key: str | None = None, error_key: str | None = None)":

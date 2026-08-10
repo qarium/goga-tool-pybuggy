@@ -92,8 +92,9 @@ Api(
   подставляет `:name` path-параметры, инжектит auth/headers/cookies с call-приоритетом,
   диспатчит на resq-глагол (`get/post/put/delete/patch/head/options`). Никогда не
   пробрасывает `timeout`/`delay`/polling-опции.
-- `close()` — закрывает пул соединений (`requests.Session`) под капотом `Api`;
-  вызывается в teardown фикстуры `api`. httpx-клиент не создаётся (pybuggy синхронный).
+- `close()` — делегирует в публичный `resq.Session.close()` под капотом `Api`; вызывается в
+  teardown фикстуры `api`. В sync-режиме это no-op по дизайну resq: пул `requests.Session`
+  освобождается сборщиком мусора. httpx-клиент не создаётся (pybuggy синхронный).
 
 ---
 

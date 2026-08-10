@@ -86,6 +86,12 @@ class TestApi:
 
         assert api.base_url == "https://x"
 
+    def test_composes_sync_resq_session(self) -> None:
+        """Api composes a resq.Session in sync mode (adapter='requests')."""
+        api = Api(base_url="https://x")
+
+        assert api._client.adapter == "requests"
+
 
 class TestApiProperties:
     """Logic tests for the stored-field properties and defaults."""
@@ -171,11 +177,11 @@ class TestApiProperties:
 class TestApiClose:
     """Contract + behavior tests for `Api.close()`.
 
-    `close()` tears down the composed `resq.Session` by closing its held
-    `requests.Session` (the sync connection pool). `resq.Session` exposes no
-    public sync `close()`, so `Api` reaches the held session directly — these
-    tests pin that contract: `close` is callable and delegates to
-    `resq.Session._session.close()`.
+    `close()` delegates to the composed `resq.Session`'s public `close()`. In
+    sync mode (the only mode pybuggy uses — `adapter="requests"`) that close is
+    a no-op by resq's design: the held `requests.Session` is released by garbage
+    collection. These tests pin that contract: `close` is callable, delegates to
+    the public `resq.Session.close()`, and is idempotent.
     """
 
     def test_close_is_callable_method(self) -> None:
@@ -185,13 +191,13 @@ class TestApiClose:
         assert callable(api.close)
 
     def test_close_delegates_to_resq_session(self) -> None:
-        """close() closes the held requests.Session of the resq.Session."""
+        """close() delegates to the public resq.Session.close()."""
         api = Api(base_url="https://x")
 
-        with mock.patch.object(api._client._session, "close") as session_close:
+        with mock.patch.object(api._client, "close") as client_close:
             api.close()
 
-        session_close.assert_called_once_with()
+        client_close.assert_called_once_with()
 
     def test_close_is_idempotent(self) -> None:
         """close() may be called more than once without raising."""

@@ -32,7 +32,7 @@ Annotations: |
   - `ApiPlugin` overrides BasePlugin.__init__ to accept context (and optional loaders) and to register discovered plugins synchronously.
   - `install` defaults loaders to [PackageLoader('api', required=False)] when omitted, so the generated api/ fixture tree is discovered out of the box; override with install(loaders=[...]), the loader config section (PluginConfigKeys.LOADER), or disable with install(loaders=[]).
   - Minimal fixture profile: base_url, headers, timeout, data_key, error_key, plus the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) — no auth, no cookies.
-  - The api fixture is a generator (yield + teardown): after the test it calls api.close() to release the underlying resq session's connection pool.
+  - The api fixture is a generator (yield + teardown): after the test it calls api.close() to close the Api (delegating to the underlying resq.Session's public close()).
   - base_url template rendering is eager: it runs once in configure at pytest configphase, so a missing required base_url surfaces there (not on fixture invocation). The api fixture reads self.base_url, which configure overwrote with the rendered value (configure always runs before any fixture invocation).
   - CLI placeholders in the base_url template require the consumer to register the matching options (e.g. --env) via pytest_addoption in conftest — pytest rejects unregistered options. Only options the user actually typed enter the rendering context; the full resolved option namespace is intentionally NOT used, to avoid leaking internal/plugin options.
   - Rendering is single-engine: every base_url template is rendered with Jinja2 (a required dependency); a plain URL without Jinja placeholders renders to itself.
@@ -113,7 +113,7 @@ Annotations: |
       Algorithm:
       1. Construct `Api` with base_url = self.base_url (the value rendered once in configure and stored back onto the option), headers, timeout, data_key, error_key, and the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) read from this plugin's resolved options.
       2. Yield the `Api` to the test.
-      3. After the test, call api.close() to release the underlying resq session's connection pool.
+      3. After the test, call api.close() to close the Api (delegates to the underlying resq.Session's public close()).
 
       Constraints:
       - Do not configure auth or cookies — minimal profile.
