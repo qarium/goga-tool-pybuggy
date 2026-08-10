@@ -1,0 +1,143 @@
+---
+name: goga-tool-pybuggy-api-cookbook
+description: Принципы применения DSL goga-cell для проектирования тестовых cells
+---
+# Pybuggy API Cookbook
+
+## Purpose
+
+Принципы применения DSL `goga-cell` при проектировании **тестовых** cells. Это адаптация `goga-cookbook`,
+оставляющая только релевантное для тестов: тесты описываются как `Routine` с базовыми
+`Usages`/`Annotations` из конфига проекта.
+
+Этот скилл вызывается другими скиллами для контекста проектирования тестовых cells.
+
+## Behavior
+
+Применяй принципы в контексте вызывающего скилла. Не пересказывай `goga-cookbook` целиком и не описывай, как
+устроены другие скиллы — используй принципы для проектных решений по тестовым cells.
+
+---
+
+# Принципы проектирования тестовых cells
+
+## Контекст
+
+Тесты — отдельный проект, использующий pybuggy как фреймворк. Каждая тестовая cell — это папка тестов
+эндпоинта, созданная `pybuggy generate`:
+
+```
+tests/<spec>/<endpoint-id>/
+└── CODEMANIFEST
+```
+
+Гранулярность фиксирована: **один эндпоинт — одна cell**. Решения «когда создавать cell» и «насколько крупной
+быть cell» здесь не применяются — cell уже определена генерацией.
+
+## CODEMANIFEST тестовой cell
+
+### Порядок дизайна
+
+1. **Header** — базовые `Usages` + `Annotations` (контракт работает в контексте базовых практик проекта).
+2. **Body** — `Routine` на каждый тест-кейс.
+3. **Footer** — `Author`, `CreatedAt`, `Description`.
+
+### Header
+
+**Базовый блок** `Usages` и `Annotations` берётся из `.goga/config.yml` (через `goga-codemanifest-base`) и
+**един для всех endpoint-cells**:
+
+- `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (пути в `.goga/usages/`).
+- `Annotations`: инструкции вида `Use \`pybuggy-api\` for ...`, `Use \`pybuggy-asserts\` for ...`.
+
+Поверх базового блока cell может иметь **cell-специфичные usages** — см. раздел «Cell-специфичные usages
+(библиотеки)» ниже.
+
+### Cell-специфичные usages (библиотеки)
+
+Endpoint-cell, использующая пользовательскую библиотеку (фабрики данных, моки, утилиты — из §10 требований),
+получает **поверх базового блока** cell-специфичный usage:
+
+```yaml
+Usages:
+  conventions: .goga/usages/conventions.md          # базовый блок — идентичен во всех cells
+  pybuggy-api: .goga/usages/cooks/pybuggy/api.md
+  pybuggy-asserts: .goga/usages/cooks/pybuggy/asserts.md
+  faker: .goga/usages/cooks/faker.md                # cell-специфичный (только где используется)
+```
+
+- Ключ — короткое имя из §10; путь `.goga/usages/cooks/<ключ>.md` (файл создаёт `apply` в целевом проекте).
+- В Annotations добавляется ``Use `<ключ>` for <подготовка данных/моки/утилиты>``.
+- Базовый блок при этом **не меняется**. Cell-специфичный usage есть только в cell, использующих библиотеку, —
+  его наличие в одних cells и отсутствие в других **не** расхождение.
+- coverage-gate и Routine-per-case **не затрагиваются** (lib-usages — Header/Annotations, не Routine).
+- Проектирует подключения sub-скилл `goga-tool-pybuggy-api-feature-cells-libs`; контракты с базовым Header
+  собирает `contracts` (без `Use \`<ключ>\`` — ссылку добавляет libs, иначе backtick не разрешится).
+
+### Body — Routine
+
+Тест — это `Routine` (без `methods`/`properties`), по одному на тест-кейс:
+
+```yaml
+"test_<name>(<fixture>: Endpoint)":
+  location: test_<name>.py
+  annotations: |
+    ...
+```
+
+- Сигнатура: `test_<name>(<fixture>: Endpoint)` — без output (тест ничего не возвращает).
+- `<fixture>` — сгенерированная фикстура `api/<spec>/<id>/api.py` (имя `<method>_<id>`).
+- Naming `snake_case`, `location: test_<name>.py` (правила `goga-cell-python`).
+
+### Footer
+
+- `Author` — всегда `Goga`.
+- `CreatedAt` — день/месяц/год.
+- `Description` — зачем эта cell (тесты какого эндпоинта/фичи).
+
+## Standard аннотаций Routine
+
+Аннотация Routine должна быть достаточна для реализации без уточнений. Для тестов используется **строгая
+структура** из упорядоченных разделов. Порядок разделов фиксирован:
+**Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`**.
+
+**1. Purpose — без лейбла.** Что проверяет Routine (из `title`/описания тест-кейса). Первый абзац аннотации.
+
+**2. `Precondition:` — фикстуры и предусловия.** Маркированный список (`- `): каждая параметр-фикстура с
+описанием сгенерированного артефакта (`api/<spec>/<id>/api.py`, имя `<method>_<id>`, METHOD /path, роль —
+основной SUT или верификация), а также общие предусловия (тип параметров `Endpoint` из pybuggy runtime,
+состояние системы/данные ДО теста из кейса). Backtick на имя фикстуры обязателен.
+
+**3. `Data:` — данные, создаваемые внутри теста.** Маркированный список внутренних данных теста: переменные,
+ключи, вычисляемые значения (напр. `test_id`), не привязанные к одному вызову. Конкретные значения вызовов
+(`request`/`response`) остаются внутри `Steps`. Секция опускается, если таких данных нет.
+
+**4. `Steps:` — пронумерованные шаги теста.** Шаги из тест-кейса (Действие / Данные / Ожидание). Логика, не
+код — действия выражаются через ссылки на Usages и фикстуру, без pytest-кода. Пронумерованный список (`1. `).
+
+**5. References и `Use …`.** В конце аннотации — Usages-ссылки: ``Use `pybuggy-api` for <вызов
+эндпоинта>``, ``Use `pybuggy-asserts` for <проверки>``. Backtick-ссылки на параметр-фикстуру и практики
+(`pybuggy-api`, `pybuggy-asserts`, `conventions`) должны разрешаться в контексте CODEMANIFEST.
+
+**Не используется** для тестов: `Requirements:`/`Constraints:` (переносятся из кейса в `Precondition:`/`Data:`
+по мере необходимости); `Algorithm:` заменён на `Steps:`.
+
+Пример:
+
+```yaml
+"test_create_order_returns_201(create_order: Endpoint)":
+  location: test_create_order_returns_201.py
+  annotations: |
+    Проверяет успешное создание заказа — статус 201 и наличие id в ответе.
+    Precondition:
+    - `create_order`: сгенерированная фикстура api/orders/create_order/api.py (POST /orders), основной SUT.
+    - Параметр-фикстура имеет тип `Endpoint` (runtime pybuggy) — передаётся в тест как готовый callable-маршрут.
+    Data:
+    - `order_id` генерируется сервисом в ответе создания и используется в проверках.
+    Steps:
+    1. Вызвать эндпоинт с валидным телом заказа (request={item:"A", qty:2}).
+    2. Проверить статус 201 и поле id в ответе.
+
+    Use `pybuggy-api` for вызова эндпоинта
+    Use `pybuggy-asserts` for проверок ответа
+```
