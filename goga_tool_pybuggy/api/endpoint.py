@@ -1,7 +1,8 @@
 """Callable route over an ``Api`` for the `goga_tool_pybuggy.api` cell.
 
-``Endpoint`` binds an ``Api`` client, an HTTP verb, and a route path into a
-callable that issues a single request per call and returns a ``ResponseWrapper``.
+``Endpoint`` binds an ``Api`` client, an HTTP verb, a route path, and an optional
+adapter override into a callable that issues a single request per call and
+returns a ``ResponseWrapper``.
 
 ``__call__`` (positive path) and ``error`` (negative path) both delegate to
 ``_call``, the shared internal routine. ``_call`` resolves a call-level
@@ -9,8 +10,9 @@ authenticator, combining it with the stored ``Api`` auth via ``CombineAuth`` /
 ``AuthWrapper`` in the precedence order ``AuthBase`` → ``Auth`` protocol →
 callable → ``TypeError``. It copies the caller's kwargs without mutating them,
 pops the call-level ``auth``/``use_autocheck``, resolves the data/error keys with
-fallback to the ``Api``-level keys, issues the request through ``api.request``,
-and wraps the raw response.
+fallback to the ``Api``-level keys, injects the effective adapter (this
+``Endpoint``'s override falling back to the ``Api`` default), issues the request
+through ``api.request``, and wraps the raw response.
 """
 
 from __future__ import annotations
@@ -41,6 +43,8 @@ class Endpoint:
         use_autocheck: whether the lazy auto-check fires on first ``expected``.
         data_key: per-endpoint data key; falls back to ``api.data_key``.
         error_key: per-endpoint error key; falls back to ``api.error_key``.
+        adapter: per-endpoint resq adapter override forwarded to ``api.request``;
+            ``None`` falls back to the ``Api``-level default adapter.
     """
 
     def __init__(  # noqa: PLR0913
@@ -52,6 +56,7 @@ class Endpoint:
         use_autocheck: bool = True,
         data_key: str | None = None,
         error_key: str | None = None,
+        adapter: str | None = None,
     ) -> None:
         self.api = api
         self._url_path = url_path
@@ -60,6 +65,7 @@ class Endpoint:
         self.use_autocheck = use_autocheck
         self.data_key = data_key
         self.error_key = error_key
+        self._adapter = adapter
         caller_file = inspect.stack()[1].frame.f_globals.get("__file__")
         self.schemas_dir = Path(caller_file).parent / "schemas" if caller_file is not None else None
 
@@ -72,6 +78,11 @@ class Endpoint:
     def method(self) -> str:
         """HTTP verb forwarded to ``Api.request``."""
         return self._method
+
+    @property
+    def adapter(self) -> str | None:
+        """Per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default."""
+        return self._adapter
 
     def __call__(self, **kwargs: Any) -> ResponseWrapper:
         """Positive-path request; delegates to ``_call`` with is_negative=False.
@@ -128,10 +139,10 @@ class Endpoint:
     def _call(self, is_negative: bool, **kwargs: Any) -> ResponseWrapper:
         """Shared internal call routine for ``__call__`` and ``error``.
 
-        Resolves the call-level auth and the data/error keys, issues the request
-        via ``api.request``, and wraps the raw response. The caller's kwargs dict
-        is never mutated: a copy is made and ``auth``/``use_autocheck`` are popped
-        from it.
+        Resolves the call-level auth and the data/error keys, injects the
+        effective adapter, issues the request via ``api.request``, and wraps the
+        raw response. The caller's kwargs dict is never mutated: a copy is made
+        and ``auth``/``use_autocheck`` are popped from it.
 
         Args:
             is_negative: selects the negative ``ResponseWrapper`` path.
@@ -146,6 +157,7 @@ class Endpoint:
         autocheck = call_kwargs.pop("use_autocheck", self.use_autocheck)
         if call_auth is not None:
             call_kwargs["auth"] = self._resolve_call_auth(call_auth)
+        call_kwargs["adapter"] = self._adapter
         data_key = self.data_key if self.data_key is not None else self.api.data_key
         error_key = self.error_key if self.error_key is not None else self.api.error_key
         config = AssertConfig(

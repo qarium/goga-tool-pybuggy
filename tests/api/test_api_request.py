@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
 from goga_tool_pybuggy.api.api import Api
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -222,3 +223,43 @@ class TestRequestVerbDispatch:
         api.request("GET", "/p")
 
         assert api._client.get.call_count == 1  # type: ignore[attr-defined]
+
+
+class TestRequestAdapter:
+    """``adapter`` routing: popped and resolved to the matching cached session."""
+
+    def test_adapter_not_forwarded_to_verb(self) -> None:
+        """adapter is popped and never forwarded to the resq verb."""
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/p", adapter="requests", json={"a": 1})
+
+        assert "adapter" not in api._client.get.call_args.kwargs  # type: ignore[attr-defined]
+
+    def test_default_dispatches_on_composed_client(self) -> None:
+        """request with no adapter dispatches on the composed _client session."""
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/p")
+
+        api._client.get.assert_called_once()  # type: ignore[attr-defined]
+
+    def test_explicit_default_adapter_dispatches_on_composed_client(self) -> None:
+        """request with the default adapter resolves _get_session and uses _client."""
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        with mock.patch.object(api, "_get_session", wraps=api._get_session) as gs:
+            api.request("GET", "/p", adapter="requests")
+
+        gs.assert_called_once_with("requests")
+        api._client.get.assert_called_once()  # type: ignore[attr-defined]
+
+    def test_httpx_adapter_rejected(self) -> None:
+        """request with the async 'httpx' adapter raises ValueError (sync-only)."""
+        api = _api()
+
+        with pytest.raises(ValueError, match="httpx"):
+            api.request("GET", "/p", adapter="httpx")

@@ -18,13 +18,20 @@ from resq.http import Response    # тип ответа для аннотаци�
 ## Session — клиент с base_url
 
 `Session` — «persistent»-флавор: один `requests.Session`, переиспользуемый между sync-вызовами
-(пул соединений, cookies). Конструктор принимает только `base_url` и сетевой `timeout`:
+(пул соединений, cookies). Режим sync/async задаётся **по экземпляру** обязательным аргументом
+`adapter` (не по глаголу):
 
 ```python
-session = resq.Session("https://api.example.com", timeout=10.0)
+session = resq.Session("https://api.example.com", "requests", timeout=10.0)
 ```
 
-- `Session(base_url: str, timeout: float | None = None)`.
+- `Session(base_url: str, adapter: str, timeout: float | None = None)`.
+- `adapter` — обязательный селектор режима, 2-й позиционный: `"requests"` = sync, `"httpx"` = async;
+  неизвестное значение → `ValueError`. pybuggy делает `adapter` конфигурируемым на `Api` (по умолчанию
+  `"requests"`) с optional per-endpoint переопределением на `Endpoint`, но sync-рантайм pybuggy
+  поддерживает только `"requests"` — `"httpx"` (async) отвергается `Api._validate_adapter` до появления
+  async-стека. `Api` строит и кэширует по одной `resq.Session` на каждое используемое имя адаптера.
+- `timeout` — сетевой таймаут (3-й позиционный); `None` отключает.
 - `base_url` доступен как свойство `session.base_url` (строка; resq хранит её как есть).
 - resq сам склеивает `base_url` + `path` (нормализует base до закрывающего `/` через `urljoin`).
 
@@ -44,6 +51,23 @@ polling-окну resq — для одиночного запроса pybuggy и�
 уходит в `requests.Session.request` (params, json, headers, cookies, auth, …).
 
 Глагол выбирается динамически: `getattr(session, method.lower())`.
+
+### Жизненный цикл и close()
+
+`Session` предоставляет **публичный** `close()` и sync context manager (`__enter__`/`__exit__`).
+В sync-режиме (`adapter="requests"`) `close()` — **no-op по дизайну resq**: удерживаемый
+`requests.Session` освобождается сборщиком мусора, а не закрывается явно (контракт resq:
+«Do NOT close the requests.Session held by the `Session` flavor»). `Api.close()` делегирует
+в этот публичный `session.close()`.
+
+```python
+session = resq.Session("https://api.example.com", "requests")
+session.close()  # sync: no-op (пул requests.Session — на GC)
+
+# либо sync context manager:
+with resq.Session("https://api.example.com", "requests") as s:
+    s.get("/path")
+```
 
 ---
 
@@ -74,11 +98,3 @@ class TokenAuth(AuthBase):
 У `resq.http.Response` **нет** свойства `.request` (`PreparedRequest`) — не использовать.
 Обёртка `ResponseWrapper` в pybuggy **не проксирует** атрибуты `resq.http.Response`: доступ
 к сырому ответу — только через свойство `.response` (например, `wrapper.response.status_code`).
-
----
-
-## Что pybuggy НЕ использует
-
-- polling: `resq.poll`/`resq.apoll` и окно `timeout`/`delay` — одиночный запрос их не пробрасывает.
-- async-направление (`AsyncResponse`, `apoll`).
-- `Requests` (one-shot sync-клиент) — pybuggy работает через `Session`.

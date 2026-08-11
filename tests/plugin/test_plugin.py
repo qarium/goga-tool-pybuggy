@@ -255,10 +255,10 @@ class TestApiPluginLogic:
     def test_api_fixture_closes_api_on_teardown(self, tmp_path, monkeypatch):
         """Exhausting the generator runs the teardown — api.close() is called.
 
-        The fixture yields the Api, then closes it on teardown to release the
-        underlying resq session's connection pool. Driving the generator past
-        the yield (a second `next`) raises StopIteration and must have invoked
-        close() on the constructed Api exactly once.
+        The fixture yields the Api, then closes it on teardown via Api.close()
+        (delegating to the underlying resq.Session's public close()). Driving
+        the generator past the yield (a second `next`) raises StopIteration and
+        must have invoked close() on the constructed Api exactly once.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("QA_BASE_URL", "https://x.example")

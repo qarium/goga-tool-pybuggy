@@ -53,6 +53,7 @@ Api(
     assert_delay: int | float | None = None,
     assert_field_class: str | None = None,
     assert_response_class: str | None = None,
+    adapter: str = "requests",
 )
 ```
 
@@ -69,12 +70,14 @@ Api(
 | `assert_delay` | Бейзлайн паузы между polling-попытками; уходит в каждый `AssertConfig` |
 | `assert_field_class` | Dotted `module:Class` кастомного подкласса `AssertField` |
 | `assert_response_class` | Dotted `module:Class` кастомного подкласса `Expected` |
+| `adapter` | resq-адаптер по умолчанию, которым строится composed-сессия. Только `"requests"` (sync): `"httpx"` асинхронен в resq и отвергается до появления async-стека. Per-endpoint переопределение — через `Endpoint(adapter=...)` (см. ниже) |
 
 ### Свойства
 
 | Свойство | Тип | Доступ | Назначение |
 |----------|------|--------|------------|
 | `base_url` | `str` | RO | Базовый URL из `resq.Session` |
+| `adapter` | `str` | RO | resq-адаптер по умолчанию, зафиксированный в конструкторе (`"requests"` в sync-рантайме); запрос рутина к кэшированной сессии с match-адаптером |
 | `auth` | `AuthBase \| None` | **RW** | Хранимый auth (getter/setter) |
 | `headers` | `dict[str, str]` | RO | Заголовки по умолчанию (пустой dict, если не заданы) |
 | `cookies` | `SimpleCookie \| None` | RO | Cookies по умолчанию |
@@ -90,10 +93,14 @@ Api(
 - `request(method, url_path, **kwargs) -> resq.http.Response` — один HTTP-запрос:
   сериализует pydantic `params`/`json` (с опц. `by_alias` через `use_aliases`),
   подставляет `:name` path-параметры, инжектит auth/headers/cookies с call-приоритетом,
-  диспатчит на resq-глагол (`get/post/put/delete/patch/head/options`). Никогда не
-  пробрасывает `timeout`/`delay`/polling-опции.
-- `close()` — закрывает пул соединений (`requests.Session`) под капотом `Api`;
-  вызывается в teardown фикстуры `api`. httpx-клиент не создаётся (pybuggy синхронный).
+  резолвит эффективный адаптер (call-level `adapter` иначе `Api`-дефолт), выбирает
+  matching кэшированную сессию и диспатчит на resq-глагол
+  (`get/post/put/delete/patch/head/options`). Никогда не пробрасывает
+  `timeout`/`delay`/polling-опции и сам `adapter` в глагол.
+- `close()` — делегирует в публичный `resq.Session.close()` для composed-сессии и каждой
+  кэшированной override-сессии; вызывается в teardown фикстуры `api`. В sync-режиме это
+  no-op по дизайну resq: пул `requests.Session` освобождается сборщиком мусора. httpx-клиент
+  не создаётся (pybuggy синхронный).
 
 ---
 
@@ -110,6 +117,7 @@ Endpoint(
     use_autocheck: bool = True,
     data_key: str | None = None,
     error_key: str | None = None,
+    adapter: str | None = None,
 )
 ```
 
@@ -122,6 +130,7 @@ Endpoint(
 | `use_autocheck` | Запускает ленивый авто-чек при первом доступе к `response.expected` |
 | `data_key` | Per-endpoint success-ключ; `None` → фолбэк на `api.data_key` |
 | `error_key` | Per-endpoint error-ключ; `None` → фолбэк на `api.error_key` |
+| `adapter` | Per-endpoint resq-адаптер; передаётся в `api.request`. `None` → фолбэк на `Api`-дефолт. Только `"requests"` (sync) — `"httpx"` асинхронен и отвергается до async-стека |
 
 `schemas_dir` резолвится автоматически через frame-inspection (см. ниже).
 
@@ -131,10 +140,12 @@ Endpoint(
 - `endpoint.error(**kwargs) -> ResponseWrapper` — **негативный** путь (`is_negative=True`):
   статус и json-схема в авто-чеке не проверяются.
 - `url_path -> str`, `method -> str` — путь и глагол (RO).
+- `adapter -> str | None` — per-endpoint resq-адаптер (RO); `None` = фолбэк на `Api`-дефолт.
 
 Оба пути делегируют внутренний `_call`, который: копирует kwargs (не мутируя
-caller-словарь), вынимает `auth`/`use_autocheck`, резолвит data/error-key, собирает
-`AssertConfig` (с `assert_*` опциями из `Api`), делает запрос и оборачивает ответ.
+caller-словарь), вынимает `auth`/`use_autocheck`, инжектит свой `adapter`, резолвит
+data/error-key, собирает `AssertConfig` (с `assert_*` опциями из `Api`), делает запрос и
+оборачивает ответ.
 
 ---
 
@@ -362,6 +373,35 @@ endpoint(json=Request(id=1), params={":id": "42", "q": "x"}, auth=MyAuth())
 
 При отсутствии `schemas/` или файла под статус — авто-валидация тоже пропускается
 без ошибки.
+
+---
+
+## Адаптер resq (sync-only)
+
+`Api` владеет resq-адаптером: строит одну кэшированную `resq.Session` на каждое имя
+адаптера (дефолтная — composed-сессия `_client`) и рутина каждый запрос к сессии с
+matching-адаптером. Эффективный адаптер запроса = call-level `adapter` (из `Endpoint`)
+иначе `Api`-дефолт.
+
+В sync-рантайме поддержан только `"requests"`. `"httpx"` асинхронен в resq (глаголы
+возвращают корутины, обёртка `AsyncResponse`) и **отвергается** `ValueError` на
+конструкции `Api` и на запросе — пока в pybuggy не появится async-стек.
+
+```python
+# Дефолт для всей фикстуры api — через Api:
+@pytest.fixture(scope="function")
+def api() -> Api:
+    return Api(base_url="https://api.example.com", adapter="requests")
+
+# Per-endpoint переопределение — через Endpoint (None = фолбэк на Api-дефолт):
+@pytest.fixture(scope="function")
+def post___admin___api_v1_mocks_add(api: Api) -> Endpoint:
+    return Endpoint(api, "/__admin__/api_v1/mocks/add", method="POST", adapter="requests")
+```
+
+Генератор фикстур не эмитит `adapter` (он opt-in через дефолт) — допишите его руками,
+когда нужен явный/переопределённый адаптер. Для разных endpoint-ов можно задавать разные
+значения; `Api` закэширует по одной сессии на каждое уникальное имя адаптера.
 
 ---
 

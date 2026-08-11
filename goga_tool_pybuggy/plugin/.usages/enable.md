@@ -49,7 +49,7 @@ discovery, or `install(loaders=[])` to disable it.
   when the `flaky` package is installed in the consumer suite; a programmatic default can be passed as
   `install(default_retries=N)`.
 - **The `api` fixture** — function-scope, yields an `Api` built from the resolved options and closes it after the test
-  (calling `Api.close()` to release the underlying resq session's connection pool). Generated endpoint
+  (calling `Api.close()`, which delegates to the underlying resq.Session's public close()). Generated endpoint
   fixtures depend on it:
   ```python
   @pytest.fixture(scope="function")

@@ -86,6 +86,12 @@ class TestApi:
 
         assert api.base_url == "https://x"
 
+    def test_composes_sync_resq_session(self) -> None:
+        """Api composes a resq.Session in sync mode (adapter='requests')."""
+        api = Api(base_url="https://x")
+
+        assert api._client.adapter == "requests"
+
 
 class TestApiProperties:
     """Logic tests for the stored-field properties and defaults."""
@@ -168,14 +174,92 @@ class TestApiProperties:
         assert Api(base_url="https://x").cookies is None
 
 
+class TestApiAdapter:
+    """Contract + behavior tests for the resq adapter plumbing.
+
+    ``Api`` owns the adapter: it validates the name (sync-only — ``"requests"``),
+    builds the default session with it, and resolves per-request sessions via
+    ``_get_session``. The async ``"httpx"`` adapter is rejected until an async
+    stack lands.
+    """
+
+    def test_adapter_defaults_to_requests(self) -> None:
+        """Api defaults to the 'requests' (sync) adapter."""
+        api = Api(base_url="https://x")
+
+        assert api.adapter == "requests"
+
+    def test_adapter_stored_from_construction(self) -> None:
+        """Api exposes the adapter passed at construction."""
+        api = Api(base_url="https://x", adapter="requests")
+
+        assert api.adapter == "requests"
+
+    def test_adapter_is_read_only(self) -> None:
+        """adapter has no setter: assignment raises AttributeError."""
+        api = Api(base_url="https://x")
+
+        with pytest.raises(AttributeError):
+            api.adapter = "requests"
+
+    def test_default_session_built_with_adapter(self) -> None:
+        """The composed _client session carries the default adapter."""
+        api = Api(base_url="https://x")
+
+        assert api._client.adapter == "requests"
+
+    def test_httpx_adapter_rejected_at_construction(self) -> None:
+        """Constructing with the async 'httpx' adapter raises ValueError (sync-only)."""
+        with pytest.raises(ValueError, match="httpx"):
+            Api(base_url="https://x", adapter="httpx")
+
+    def test_unknown_adapter_rejected_at_construction(self) -> None:
+        """Constructing with an unknown adapter raises ValueError."""
+        with pytest.raises(ValueError, match="unsupported adapter"):
+            Api(base_url="https://x", adapter="grpc")
+
+    def test_get_session_returns_default_client_for_default_adapter(self) -> None:
+        """_get_session returns the composed _client for the default adapter."""
+        api = Api(base_url="https://x")
+
+        assert api._get_session("requests") is api._client
+
+    def test_get_session_rejects_httpx(self) -> None:
+        """_get_session rejects the async 'httpx' adapter (sync-only)."""
+        api = Api(base_url="https://x")
+
+        with pytest.raises(ValueError, match="httpx"):
+            api._get_session("httpx")
+
+    def test_get_session_builds_and_caches_override(self) -> None:
+        """_get_session builds (once) and caches a session for a non-default adapter.
+
+        Validation is bypassed and resq.Session is patched so an otherwise-forbidden
+        adapter name can exercise the build+cache path structurally.
+        """
+        api = Api(base_url="https://x", timeout=5.0)
+        fake_session = mock.Mock()
+
+        with mock.patch.object(api, "_validate_adapter"), mock.patch(
+            "goga_tool_pybuggy.api.api.resq.Session", return_value=fake_session
+        ) as session_cls:
+            first = api._get_session("other")
+            second = api._get_session("other")
+
+        assert first is fake_session
+        assert second is fake_session
+        session_cls.assert_called_once_with("https://x", "other", timeout=5.0)
+        assert api._sessions["other"] is fake_session
+
+
 class TestApiClose:
     """Contract + behavior tests for `Api.close()`.
 
-    `close()` tears down the composed `resq.Session` by closing its held
-    `requests.Session` (the sync connection pool). `resq.Session` exposes no
-    public sync `close()`, so `Api` reaches the held session directly — these
-    tests pin that contract: `close` is callable and delegates to
-    `resq.Session._session.close()`.
+    `close()` delegates to the composed `resq.Session`'s public `close()`. In
+    sync mode (the only mode pybuggy uses — `adapter="requests"`) that close is
+    a no-op by resq's design: the held `requests.Session` is released by garbage
+    collection. These tests pin that contract: `close` is callable, delegates to
+    the public `resq.Session.close()`, and is idempotent.
     """
 
     def test_close_is_callable_method(self) -> None:
@@ -185,13 +269,13 @@ class TestApiClose:
         assert callable(api.close)
 
     def test_close_delegates_to_resq_session(self) -> None:
-        """close() closes the held requests.Session of the resq.Session."""
+        """close() delegates to the public resq.Session.close()."""
         api = Api(base_url="https://x")
 
-        with mock.patch.object(api._client._session, "close") as session_close:
+        with mock.patch.object(api._client, "close") as client_close:
             api.close()
 
-        session_close.assert_called_once_with()
+        client_close.assert_called_once_with()
 
     def test_close_is_idempotent(self) -> None:
         """close() may be called more than once without raising."""
