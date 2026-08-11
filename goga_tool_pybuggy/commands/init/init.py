@@ -2,7 +2,6 @@
 
 import importlib.resources
 import logging
-from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -565,55 +564,42 @@ def build_pybuggy_config() -> int:
 _DOCKERFILE_PATH = ".goga/Dockerfile"
 
 
-# Distribution (PyPI) name of pybuggy — matches ``[project].name`` in pyproject.toml. The generated
-# Dockerfile pins the running pybuggy to its current version, read from the installed package
-# metadata, so the consumer's test container carries the same pybuggy that generated it.
-_PYBUGGY_DIST = "goga-tool-pybuggy"
+# Pybuggy install line appended to the goga-generated Dockerfile. The consumer installs pybuggy via
+# the ``goga`` installer (not pip), pinned to the hardcoded ``0.1.x`` version line.
+_INSTALL_LINE = "RUN goga install pybuggy -v 0.1.x\n"
 
 
-def install_pybuggy(dockerfile_path: Path, *, package_version: str | None = None) -> str | None:
+def install_pybuggy(dockerfile_path: Path) -> str | None:
     """Append the pybuggy-install ``RUN`` line to the goga-generated Dockerfile.
 
-    goga ``FileGenerator.generate`` writes the Dockerfile as ``FROM {image}\\n``; this routine
-    appends ``RUN pip install goga-tool-pybuggy=={version}`` so the consumer's image carries the
-    pybuggy version that generated it. The current version is resolved from the installed package
-    metadata via ``importlib.metadata``.
+    goga ``FileGenerator.generate`` writes the Dockerfile as ``FROM {image}\\n``; this routine appends
+    ``RUN goga install pybuggy -v 0.1.x`` so the consumer's test image installs pybuggy via the goga
+    installer, pinned to the hardcoded ``0.1.x`` version line.
 
     No-op when ``dockerfile_path`` does not exist (e.g. ``FileGenerator`` is mocked in tests, so the
-    goga step wrote no file). Idempotent — skips when the install line is already present. When the
-    version cannot be resolved (``PackageNotFoundError`` — a broken/absent install), logs a WARNING
-    and skips rather than emitting a misleading or unresolvable pin.
+    goga step wrote no file). Idempotent — skips when the install line is already present.
 
     Args:
         dockerfile_path: Path to the Dockerfile created by goga ``FileGenerator`` (cwd-relative,
             matching ``_DOCKERFILE_PATH``).
-        package_version: Version override used instead of the installed metadata (testing). When
-            ``None``, the version is resolved from ``importlib.metadata``.
 
     Returns:
-        The appended ``RUN`` line text, or ``None`` when nothing was appended (file absent, the line
-        already present, or the version unknown).
+        The appended ``RUN`` line text, or ``None`` when nothing was appended (file absent or the line
+        already present).
     """
     if not dockerfile_path.exists():
         return None
 
-    try:
-        ver = package_version if package_version is not None else metadata.version(_PYBUGGY_DIST)
-    except metadata.PackageNotFoundError:
-        logger.warning("pybuggy version unknown, skipping Dockerfile install line")
-        return None
-
-    line = f"RUN pip install {_PYBUGGY_DIST}=={ver}\n"
     content = dockerfile_path.read_text(encoding="utf-8")
-    if line in content:
+    if _INSTALL_LINE in content:
         return None
 
     if content and not content.endswith("\n"):
         content += "\n"
 
-    dockerfile_path.write_text(content + line, encoding="utf-8")
-    logger.info("pybuggy install line added to Dockerfile", extra={"version": ver})
-    return line
+    dockerfile_path.write_text(content + _INSTALL_LINE, encoding="utf-8")
+    logger.info("pybuggy install line added to Dockerfile")
+    return _INSTALL_LINE
 
 
 def run_goga_init() -> int:
@@ -668,7 +654,7 @@ def run_goga_init() -> int:
         )
 
         generator.generate(InitAnswers(goga_config=config))
-        # Pin the running pybuggy version in the Dockerfile goga just generated.
+        # Append the hardcoded pybuggy install line to the Dockerfile goga just generated.
         install_pybuggy(Path(_DOCKERFILE_PATH))
         return 0
     except click.Abort:

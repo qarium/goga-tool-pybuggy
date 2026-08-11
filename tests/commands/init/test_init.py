@@ -504,49 +504,30 @@ def test_install_pybuggy_is_public_in_facade() -> None:
 
 
 def test_install_pybuggy_signature() -> None:
-    """install_pybuggy takes a dockerfile path plus a keyword-only package_version override."""
+    """install_pybuggy takes only a dockerfile path (the install line is hardcoded, no version override)."""
     import inspect
 
     sig = inspect.signature(install_pybuggy)
 
-    assert list(sig.parameters) == ["dockerfile_path", "package_version"]
-    assert sig.parameters["package_version"].kind == inspect.Parameter.KEYWORD_ONLY
-    assert sig.parameters["package_version"].default is None
+    assert list(sig.parameters) == ["dockerfile_path"]
 
 
 # install_pybuggy logic tests ------------------------------------------------
 
 
-def test_install_pybuggy_appends_current_version_line(tmp_path: Path) -> None:
-    """install_pybuggy appends a RUN line pinning the running pybuggy version to the Dockerfile."""
-    from importlib import metadata
-
-    from goga_tool_pybuggy.commands.init.init import _PYBUGGY_DIST
-
+def test_install_pybuggy_appends_hardcoded_line(tmp_path: Path) -> None:
+    """install_pybuggy appends the hardcoded `RUN goga install pybuggy -v 0.1.x` line to the Dockerfile."""
     dockerfile = tmp_path / "Dockerfile"
     dockerfile.write_text("FROM qarium/goga-python-3.12:1.1\n", encoding="utf-8")
 
     returned = install_pybuggy(dockerfile)
 
-    expected = f"RUN pip install {_PYBUGGY_DIST}=={metadata.version(_PYBUGGY_DIST)}\n"
+    expected = "RUN goga install pybuggy -v 0.1.x\n"
     assert returned == expected
 
     text = dockerfile.read_text(encoding="utf-8")
     assert text.startswith("FROM qarium/goga-python-3.12:1.1\n")
     assert text.endswith(expected)
-
-
-def test_install_pybuggy_uses_version_override(tmp_path: Path) -> None:
-    """package_version override pins to the given version instead of the installed metadata."""
-    from goga_tool_pybuggy.commands.init.init import _PYBUGGY_DIST
-
-    dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM image:tag\n", encoding="utf-8")
-
-    returned = install_pybuggy(dockerfile, package_version="1.2.3")
-
-    assert returned == f"RUN pip install {_PYBUGGY_DIST}==1.2.3\n"
-    assert f"{_PYBUGGY_DIST}==1.2.3" in dockerfile.read_text(encoding="utf-8")
 
 
 def test_install_pybuggy_noop_when_file_absent(tmp_path: Path) -> None:
@@ -557,46 +538,27 @@ def test_install_pybuggy_noop_when_file_absent(tmp_path: Path) -> None:
     assert not dockerfile.exists()
 
 
-def test_install_pybuggy_skips_when_version_unknown(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """When the version cannot be resolved, install_pybuggy warns and leaves the file unchanged."""
-    from importlib import metadata
-
-    dockerfile = tmp_path / "Dockerfile"
-    original = "FROM image:tag\n"
-    dockerfile.write_text(original, encoding="utf-8")
-    monkeypatch.setattr(metadata, "version", mock.Mock(side_effect=metadata.PackageNotFoundError()))
-
-    assert install_pybuggy(dockerfile) is None
-    assert dockerfile.read_text(encoding="utf-8") == original
-
-
 def test_install_pybuggy_is_idempotent(tmp_path: Path) -> None:
     """install_pybuggy appends the line once even when called repeatedly on the same file."""
     dockerfile = tmp_path / "Dockerfile"
     dockerfile.write_text("FROM image:tag\n", encoding="utf-8")
 
-    first = install_pybuggy(dockerfile, package_version="1.0.0")
-    second = install_pybuggy(dockerfile, package_version="1.0.0")
+    first = install_pybuggy(dockerfile)
+    second = install_pybuggy(dockerfile)
 
     assert first is not None
     assert second is None
-    assert dockerfile.read_text(encoding="utf-8").count("pip install") == 1
+    assert dockerfile.read_text(encoding="utf-8").count("goga install") == 1
 
 
 def test_install_pybuggy_ensures_newline_separator(tmp_path: Path) -> None:
     """install_pybuggy inserts a newline before the RUN line when the file lacks a trailing one."""
-    from goga_tool_pybuggy.commands.init.init import _PYBUGGY_DIST
-
     dockerfile = tmp_path / "Dockerfile"
     dockerfile.write_text("FROM image:tag", encoding="utf-8")  # no trailing newline
 
-    install_pybuggy(dockerfile, package_version="9.9.9")
+    install_pybuggy(dockerfile)
 
-    assert dockerfile.read_text(encoding="utf-8") == (
-        f"FROM image:tag\nRUN pip install {_PYBUGGY_DIST}==9.9.9\n"
-    )
+    assert dockerfile.read_text(encoding="utf-8") == "FROM image:tag\nRUN goga install pybuggy -v 0.1.x\n"
 
 
 def test_register_usages_creates_block_when_file_absent(tmp_path: Path) -> None:
