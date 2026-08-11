@@ -41,7 +41,8 @@ Cell-специфичные usages библиотек добавляет фаз�
 
 1. Сигнатура: `test_<name>(<fixture>: Endpoint)`, `location: test_<name>.py`.
 2. `annotations` — собрать по строгой структуре из `goga-tool-pybuggy-api-cookbook` (порядок разделов
-   фиксирован: Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`):
+   фиксирован: Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`; **разделы разделяются пустой
+   строкой** — после Purpose и перед каждым из `Precondition:` / `Data:` / `Steps:` / `Use …`):
     - **Purpose** — что проверяет (из title/описания кейса), без лейбла. Первый абзац.
     - `Precondition:` — маркированный список: на каждую параметр-фикстуру — `` `<fixture>`: `` с описанием
       сгенерированной фикстуры `api/<spec>/<id>/api.py` (имя `<method>_<id>`, METHOD /path, роль — основной SUT

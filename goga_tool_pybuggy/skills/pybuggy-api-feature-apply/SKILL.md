@@ -56,7 +56,8 @@ DSL-артефакты** — без тест-кода и `__init__.py`.
    поверх базового блока допустимы cell-спец. usages библиотек (`<ключ>: .goga/usages/cooks/<ключ>.md`;
    backtick `` `<ключ>` `` разрешается).
 3. Body: Routine без `methods`/`properties`; сигнатура `test_<name>(<fixture>: Endpoint)` без output,
-   `location: test_<name>.py`.
+   `location: test_<name>.py`; аннотация — строгая структура Purpose → `Precondition:` → `Data:` → `Steps:`
+   → `Use …` с **пустой строкой между разделами**.
 4. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
 При ошибках — вывести список (cell + нарушение), рекомендовать вернуться в `pybuggy-api-feature-cells` для
