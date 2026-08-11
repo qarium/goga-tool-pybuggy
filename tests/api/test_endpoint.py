@@ -435,3 +435,60 @@ class TestCallKwargs:
             ep(json={"a": 1})
 
         assert m.call_args.args == ("POST", "/p")
+
+
+class TestEndpointAdapter:
+    """Logic tests for the per-endpoint ``adapter`` override plumbing."""
+
+    def test_adapter_defaults_to_none(self) -> None:
+        """Endpoint defaults adapter to None (fall back to the Api default)."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET")
+
+        assert ep.adapter is None
+
+    def test_adapter_stored_from_construction(self) -> None:
+        """Endpoint exposes the adapter passed at construction."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET", adapter="requests")
+
+        assert ep.adapter == "requests"
+
+    def test_adapter_is_read_only(self) -> None:
+        """adapter has no setter: assignment raises AttributeError."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET")
+
+        with pytest.raises(AttributeError):
+            ep.adapter = "requests"
+
+    def test_call_passes_adapter_to_api_request(self) -> None:
+        """_call injects the endpoint's adapter into the api.request kwargs."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET", adapter="requests")
+
+        with mock.patch.object(api, "request") as m:
+            ep(json={"a": 1})
+
+        assert m.call_args.kwargs["adapter"] == "requests"
+
+    def test_call_passes_none_adapter_when_unset(self) -> None:
+        """_call passes adapter=None (Api default fallback) when the endpoint has none."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET")
+
+        with mock.patch.object(api, "request") as m:
+            ep(json={"a": 1})
+
+        assert m.call_args.kwargs["adapter"] is None
+
+    def test_call_does_not_forward_adapter_to_caller_kwargs(self) -> None:
+        """The injected adapter lands in api.request, not the caller's kwargs."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET", adapter="requests")
+        caller_kwargs: dict[str, object] = {"json": {"a": 1}}
+
+        with mock.patch.object(api, "request"):
+            ep(**caller_kwargs)
+
+        assert "adapter" not in caller_kwargs

@@ -27,7 +27,10 @@ session = resq.Session("https://api.example.com", "requests", timeout=10.0)
 
 - `Session(base_url: str, adapter: str, timeout: float | None = None)`.
 - `adapter` — обязательный селектор режима, 2-й позиционный: `"requests"` = sync, `"httpx"` = async;
-  неизвестное значение → `ValueError`. pybuggy использует строго `"requests"`.
+  неизвестное значение → `ValueError`. pybuggy делает `adapter` конфигурируемым на `Api` (по умолчанию
+  `"requests"`) с optional per-endpoint переопределением на `Endpoint`, но sync-рантайм pybuggy
+  поддерживает только `"requests"` — `"httpx"` (async) отвергается `Api._validate_adapter` до появления
+  async-стека. `Api` строит и кэширует по одной `resq.Session` на каждое используемое имя адаптера.
 - `timeout` — сетевой таймаут (3-й позиционный); `None` отключает.
 - `base_url` доступен как свойство `session.base_url` (строка; resq хранит её как есть).
 - resq сам склеивает `base_url` + `path` (нормализует base до закрывающего `/` через `urljoin`).

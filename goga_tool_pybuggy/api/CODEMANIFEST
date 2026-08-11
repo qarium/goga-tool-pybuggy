@@ -18,6 +18,7 @@ Annotations: |
   HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expected` (response-level dispatcher and field-level entry), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling status/data_key/error_key/schemas_dir) — is imported from the `asserts` sub-cell; matchcrest is reached only through that sub-cell.
   Use `asserts` from Imports for `Expected`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expected` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own keys (falling back to the `Api`-level keys) plus status and schemas_dir.
   Sync-only. `Api` is a composition over resq.Session (not a subclass): auth/headers/cookies/data_key/error_key live on `Api` and are injected into each request.
+  `Api` owns the resq adapter: it builds one cached resq.Session per adapter name (the default session is the composed `_client`) and routes each request to the session matching the effective adapter. Only `adapter="requests"` (sync) is supported in the sync runtime; `adapter="httpx"` is async in resq (verbs return coroutines, wrapper is AsyncResponse) and is rejected by `Api._validate_adapter` until an async stack lands. `Endpoint` may carry a per-endpoint `adapter` override (None falls back to the `Api` default); the fixture generator omits it (opt-in via the default).
   The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from goga_tool_pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expected` are re-exported from `asserts` for type-hinting; `AssertConfig`, `CombineAuth`/`AuthWrapper` and the search contexts stay internal to the cell.
   Call-level auth on an `Endpoint` call accepts an AuthBase, an `Auth` protocol object (auth(request)), or a plain callable, and is combined with the stored `Api` auth via `CombineAuth`/`AuthWrapper`.
 
@@ -25,10 +26,10 @@ Annotations: |
 
 ---
 
-"Api(base_url: str, auth: AuthBase | None = None, headers: dict[str, str] | None = None, cookies: SimpleCookie | None = None, timeout: float | None = None, data_key: str | None = None, error_key: str | None = None, assert_timeout: int | float | None = None, assert_delay: int | float | None = None, assert_field_class: str | None = None, assert_response_class: str | None = None)":
+"Api(base_url: str, auth: AuthBase | None = None, headers: dict[str, str] | None = None, cookies: SimpleCookie | None = None, timeout: float | None = None, data_key: str | None = None, error_key: str | None = None, assert_timeout: int | float | None = None, assert_delay: int | float | None = None, assert_field_class: str | None = None, assert_response_class: str | None = None, adapter: str = \"requests\")":
   location: api.py
   annotations: |
-    HTTP client composing a resq.Session; stores per-process auth/headers/cookies and the data/error keys, and injects them into every request.
+    HTTP client composing a resq.Session; stores per-process auth/headers/cookies and the data/error keys, and injects them into every request. Owns the resq adapter: builds one cached resq.Session per adapter name and routes each request to the matching session.
 
     `base_url`: base URL passed to resq.Session; resq concatenates it with each request path.
     `auth`: optional requests AuthBase applied to every request unless overridden at call level.
@@ -41,12 +42,15 @@ Annotations: |
     `assert_delay`: baseline assert-polling delay; forwarded into each `AssertConfig` by Endpoint._call.
     assert_field_class: dotted module:Class path of a custom `AssertField` subclass; forwarded into each `AssertConfig`.
     assert_response_class: dotted module:Class path of a custom `Expected` subclass; forwarded into each `AssertConfig`.
+    `adapter`: default resq adapter name used to build the composed session. `"requests"` (sync) only — `"httpx"` is async in resq and is rejected by `_validate_adapter` until an async stack lands. Read-only via the `adapter` property; per-request override flows through `request`'s `adapter` kwarg (None falls back to this default).
 
     Use `resq` for the Session/base_url contract.
     Use `conventions` for type hints and relative imports.
   properties:
     "base_url -> str": |
       Base URL held by the underlying resq.Session.
+    "adapter -> str": |
+      Default resq adapter name fixed at construction (`"requests"` in the sync runtime); read-only. Each request routes to the cached session matching the effective adapter (call-level override falling back to this default).
     "auth -> AuthBase | None": |
       Stored auth. Read/write — getter returns the stored AuthBase; setter updates it.
     "headers -> dict[str, str]": |
@@ -67,7 +71,7 @@ Annotations: |
       Stored dotted path of a custom `Expected` subclass; read-only. Forwarded into each `AssertConfig`.
   methods:
     "request(method: str, url_path: str, ...kwargs: Any) -> response: resq.http.Response": |
-      Single HTTP request through the underlying resq.Session; serializes pydantic models, substitutes path params, injects defaults, and dispatches to the matching resq verb.
+      Single HTTP request through the resq.Session matching the effective adapter; serializes pydantic models, substitutes path params, injects defaults, resolves the adapter, and dispatches to the matching resq verb.
 
       `method`: HTTP verb name; lowercased and resolved to the resq.Session method (get/post/put/delete/patch/head/options).
       `url_path`: request path; resq concatenates it with base_url.
@@ -78,22 +82,23 @@ Annotations: |
       2. Serialize params and json: a pydantic model is serialized alias-controlled; a dict or None is kept as-is; missing params default to an empty mapping.
       3. Split path parameters (the ":name" keys) out of params, substitute them into url_path, and keep the rest as the query.
       4. Inject auth, headers, and cookies defaults with call-level precedence (call-level wins; stored values fill the gaps) without mutating a caller-owned dict.
-      5. Resolve the HTTP verb on the underlying session and dispatch the request with url_path and the remaining kwargs.
+      5. Resolve the effective adapter: the call-level `adapter` kwarg when present, otherwise the `Api` default; resolve the matching cached resq.Session (the composed `_client` for the default; built and cached on first use otherwise). Validate the adapter — reject `"httpx"` (async) and any non-`"requests"` name until an async stack lands.
+      6. Resolve the HTTP verb on that session and dispatch the request with url_path and the remaining kwargs.
 
       Requirements:
-      - Single request — never forward timeout/delay/polling options to the verb.
+      - Single request — never forward timeout/delay/polling options, nor the `adapter` kwarg, to the verb.
 
       Constraints:
       - Do not mutate a caller-owned dict in place.
 
       Use `resq` for the verb set and the base_url+path concatenation.
     "close()": |
-      Close the composed resq.Session by delegating to its public close(). In sync mode (the only mode pybuggy uses — adapter="requests") that close is a no-op by resq's design: the held requests.Session is released by garbage collection, not closed here. pybuggy never issues async requests, so the lazily-created httpx client is never created and is left untouched. Called by the api fixture teardown.
+      Close the composed resq.Session plus any cached override sessions by delegating to each one's public close(). In sync mode (the only mode pybuggy uses — adapter="requests") each close is a no-op by resq's design: the held requests.Session is released by garbage collection, not closed here. pybuggy never issues async requests, so the lazily-created httpx client is never created and is left untouched. Called by the api fixture teardown.
 
       Use `resq` for the Session/Client close contract.
       Use `conventions` for type hints.
 
-"Endpoint(api: Api, url_path: str, method: str, status: int | None = 200, use_autocheck: bool = True, data_key: str | None = None, error_key: str | None = None)":
+"Endpoint(api: Api, url_path: str, method: str, status: int | None = 200, use_autocheck: bool = True, data_key: str | None = None, error_key: str | None = None, adapter: str | None = None)":
   location: endpoint.py
   annotations: |
     Callable route over an `Api`; performs the HTTP request and returns a `ResponseWrapper`. The signature is fixed by the fixture generator and must stay compatible: Endpoint(api, url_path, method="POST", ...).
@@ -105,9 +110,10 @@ Annotations: |
     `use_autocheck`: whether the lazy auto-check fires on first access to response.expected.
     `data_key`: per-endpoint data key; when None, falls back to the `Api`-level data_key.
     `error_key`: per-endpoint error key; when None, falls back to the `Api`-level error_key.
+    `adapter`: per-endpoint resq adapter override forwarded to `api.request`; when None, falls back to the `Api`-level default adapter.
 
     Algorithm (construction):
-    1. Store api, url_path, method, use_autocheck, data_key, error_key.
+    1. Store api, url_path, method, use_autocheck, data_key, error_key, adapter.
     2. Normalize status: keep the value when it is an Enum, otherwise keep it as-is.
     3. Resolve schemas_dir to the schemas/ directory next to the fixture's source file (the caller frame supplies its path); None when the path is unavailable.
 
@@ -124,6 +130,8 @@ Annotations: |
       Route path passed to Api.request.
     "method -> str": |
       HTTP verb forwarded to Api.request.
+    "adapter -> str | None": |
+      Per-endpoint resq adapter override; None falls back to the `Api`-level default adapter. Injected into each `api.request` call so `Api` routes to the matching cached session.
   methods:
     "__call__(...kwargs: dict) -> response: ResponseWrapper": |
       Positive-path request: issues the call and returns a `ResponseWrapper` flagged as positive.
@@ -153,10 +161,11 @@ Annotations: |
       Algorithm:
       1. Copy kwargs; pop the optional call-level auth and use_autocheck (defaulting to this `Endpoint`'s use_autocheck) out of the copy — never mutate the caller's dict.
       2. Resolve call-level auth: when given, combine it with the stored api.auth via `CombineAuth`/`AuthWrapper` (an AuthBase is added directly; an `Auth`-protocol object or a plain callable is wrapped); raise on an unsupported auth type. When no call-level auth is given, leave kwargs untouched so the stored api.auth applies.
-      3. Resolve data_key: this `Endpoint`'s data_key when not None, otherwise api.data_key. Resolve error_key the same way against api.error_key.
-      4. Issue the request via api.request with the method, url_path, and the remaining kwargs.
-      5. Assemble an `AssertConfig` from this `Endpoint`'s status, the resolved data_key and error_key, schemas_dir, and the assert-polling / pluggable-class options read off api (assert_timeout/assert_delay/assert_field_class/assert_response_class).
-      6. Build and return a `ResponseWrapper` over the raw response, passing the `AssertConfig`, use_autocheck, and is_negative.
+      3. Inject this `Endpoint`'s `adapter` (override or None) into the kwargs copy so `Api.request` routes to the matching cached session (None falls back to the `Api` default).
+      4. Resolve data_key: this `Endpoint`'s data_key when not None, otherwise api.data_key. Resolve error_key the same way against api.error_key.
+      5. Issue the request via api.request with the method, url_path, and the remaining kwargs.
+      6. Assemble an `AssertConfig` from this `Endpoint`'s status, the resolved data_key and error_key, schemas_dir, and the assert-polling / pluggable-class options read off api (assert_timeout/assert_delay/assert_field_class/assert_response_class).
+      7. Build and return a `ResponseWrapper` over the raw response, passing the `AssertConfig`, use_autocheck, and is_negative.
 
       Constraints:
       - Do not mutate a caller-owned kwargs dict in place.
