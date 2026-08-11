@@ -38,7 +38,7 @@ dependencies = [
     "pytest-concurrency>=0.0.1,<0.1.0",
     "swax>=0.0.0,<0.1.0",
     "resq>=0.0.1,<0.1.0",
-    "pluginator>=0.1.0,<0.2.0",
+    "pluginator>=0.0.0,<0.0.10",
     "goga>=1.1.0,<1.2.0",
 ]
 
