@@ -168,8 +168,8 @@ Annotations: |
     generation to FileGenerator().generate(InitAnswers(...)). InitLogic is NOT used. The Dockerfile is mandatory:
     dockerfile_path is hardcoded to ".goga/Dockerfile" (goga's optional ask_dockerfile_path is NOT called), so
     FileGenerator always creates the Dockerfile and always emits the top-level dockerfile field into .goga/config.yml.
-    After generation, `install_pybuggy` appends a `RUN goga install pybuggy -v 0.1.x` line to the Dockerfile, installing
-    pybuggy via the goga installer pinned to the hardcoded `0.1.x` version line.
+    After generation, `install_pybuggy` appends a ``RUN goga install pybuggy -v 0.1.x`` line to the Dockerfile, installing
+    pybuggy via the goga installer pinned to the hardcoded ``0.1.x`` version line.
 
     `exit_code`: 0 on success; 1 on user cancellation (click.Abort) or generation failure (the routine returns a code
     and never raises, so run_init — which calls it outside its own try/except — relies on this).
@@ -192,7 +192,7 @@ Annotations: |
        env=..., dockerfile_path=..., codemanifest_usages=..., codemanifest_annotations=...).
     5. generator.generate(InitAnswers(goga_config=config)) — goga writes `.goga/config.yml` and the Dockerfile
        (`FROM {image}` with a trailing newline).
-    6. Call `install_pybuggy(Path(_DOCKERFILE_PATH))` to append `RUN goga install pybuggy -v 0.1.x` to the Dockerfile
+    6. Call `install_pybuggy(Path(_DOCKERFILE_PATH))` to append ``RUN goga install pybuggy -v 0.1.x`` to the Dockerfile
        goga just wrote; return 0 on success.
     7. On click.Abort (user cancel) return 1; on other Exception (incl. an I/O failure raised by `install_pybuggy`)
        log + echo + return 1 (replicates InitLogic.run()'s handling, which is no longer available since InitLogic is bypassed).
@@ -202,7 +202,7 @@ Annotations: |
     - Returns a code and never raises on cancellation/failure so the caller can propagate it cleanly.
     - The Dockerfile is mandatory: dockerfile_path is hardcoded to ".goga/Dockerfile" (never None), so FileGenerator
       always creates the Dockerfile and always emits the top-level dockerfile field into .goga/config.yml.
-    - After generation the Dockerfile also carries `RUN goga install pybuggy -v 0.1.x` appended by `install_pybuggy`.
+    - After generation the Dockerfile also carries ``RUN goga install pybuggy -v 0.1.x`` appended by `install_pybuggy`.
 
     Constraints:
     - Do NOT call ask_language — language is hardcoded to "python" (pybuggy is a Python project).
@@ -227,23 +227,23 @@ Annotations: |
     of the Dockerfile written by goga `FileGenerator` (`FROM {image}`); no goga code is modified.
 
     `dockerfile_path`: path to the Dockerfile created by goga `FileGenerator` (cwd-relative, matching `_DOCKERFILE_PATH`).
-    `line`: the appended `RUN goga install pybuggy -v 0.1.x` text; None when nothing was appended.
+    `line`: the appended ``RUN goga install pybuggy -v 0.1.x`` text; None when nothing was appended.
 
     Algorithm:
     1. No-op (return None) when `dockerfile_path` does not exist — goga may not have written it (e.g. `FileGenerator`
        mocked in tests); never create the file here.
-    2. When `_INSTALL_LINE` (`RUN goga install pybuggy -v 0.1.x`) is already in the file content, return None (idempotent).
-    3. Ensure the existing content ends with a newline, append `_INSTALL_LINE`, write the file back; log INFO; return the line.
+    2. When ``_INSTALL_LINE`` (``RUN goga install pybuggy -v 0.1.x``) is already in the file content, return None (idempotent).
+    3. Ensure the existing content ends with a newline, append ``_INSTALL_LINE``, write the file back; log INFO; return the line.
 
     Requirements:
-    - The install line is hardcoded `RUN goga install pybuggy -v 0.1.x` (goga installer, not pip); the version `0.1.x`
+    - The install line is hardcoded ``RUN goga install pybuggy -v 0.1.x`` (goga installer, not pip); the version ``0.1.x``
       is pinned and never resolved dynamically.
     - The goga-written `FROM {image}` line is preserved; only the install line is appended.
     - Idempotent within a single Dockerfile: a repeated call (no regeneration in between) appends nothing.
 
     Constraints:
     - Do not create the Dockerfile when absent — only augment an existing one.
-    - Do not resolve or vary the version — it is hardcoded `0.1.x`.
+    - Do not resolve or vary the version — it is hardcoded ``0.1.x``.
     - An I/O error during read/write propagates to the caller (`run_goga_init` traps it and returns a code).
 
     Use `conventions` for code writing rules, structured logging, and testing.
