@@ -17,20 +17,28 @@
   - `ask_base_convention() -> tuple[dict | None, str | None]` — пара (usages_prefill, annotations_prefill).
   - `ask_codemanifest_usages(prefill: dict | None = None) -> dict | None`.
   - `ask_codemanifest_annotations(prefill: str | None = None) -> str | None`.
-  - `ask_agent() -> str`.
-  - `ask_image(language: str) -> str` — Docker-образ; список подсказок ограничен `_IMAGE_MAP[language]`
-    (для `python` — `qarium/goga-python-3.10:1.1` … `qarium/goga-python-3.14:1.1`); **default — последний**;
-    принимает произвольный ввод.
+  - `ask_agent() -> str | None`.
+  - `ask_image(language: str) -> str` — pre-built Docker-образ для **PULL (случай без Dockerfile)**; список подсказок
+    ограничен `_IMAGE_MAP[language]` (для `python` — `qarium/goga-python-3.10:1.1` … `qarium/goga-python-3.14:1.1`),
+    **default — последний**, принимает произвольный ввод. **pybuggy НЕ вызывает** — Dockerfile обязателен.
+  - `ask_image_name(language: str) -> str` — **имя (tag) образа, собранного из Dockerfile** (top-level поле `image`,
+    используется `docker build -t`); свободный ввод с placeholder default `{language}-image:latest`. **pybuggy
+    вызывает** — даёт имя собранному образу.
+  - `ask_base_image(language: str) -> str` — **базовый образ для `FROM` в Dockerfile** (поле `dockerfile_base_image`);
+    список подсказок ограничен `_IMAGE_MAP[language]`, **default — последний**. **pybuggy вызывает** — даёт baseline
+    для Dockerfile; в `config.yml` НЕ пишется (только строка `FROM`).
   - `ask_dockerfile_path() -> str | None` — путь к Dockerfile (default `.goga/Dockerfile`) или None (пропуск).
     **pybuggy НЕ вызывает** — Dockerfile обязателен, `dockerfile_path` хардкодится как `.goga/Dockerfile`.
-  - `ask_env(agent: str) -> dict | None`.
-  - `ask_pipeline_agent(agent: str) -> str`.
-  - `ask_pipeline_env(pipeline_agent: str) -> dict | None`.
+  - `ask_env(agent: str | None) -> dict | None`.
+  - `ask_pipeline_agent() -> str | None` — **без аргументов**; опционален (confirm-gate, default None — НЕ наследует
+    build-агента).
+  - `ask_pipeline_env(pipeline_agent: str | None) -> dict | None`.
   - Оркестраторы `ask_goga_config() -> GogaConfigAnswers` и `ask() -> InitAnswers` (полный универсальный поток —
     **pybuggy НЕ использует**, т.к. они зовут `ask_language`).
 - `FileGenerator()` — генератор файлов проекта. Без аргументов конструктора.
   - `generate(answers: InitAnswers) -> None` — пишет `.goga/config.yml`; при `dockerfile_path` сначала создаёт Dockerfile
-    `FROM {image}`; при `codemanifest_usages` со ключом `"conventions"` скачивает конвенцию языка (requests) в
+    `FROM {dockerfile_base_image}` (базовый образ), а top-level `image` — имя собранного образа; при
+    `codemanifest_usages` со ключом `"conventions"` скачивает конвенцию языка (requests) в
     `.goga/usages/conventions.md`. Бросает `RuntimeError` при сбое скачивания (config.yml НЕ создаётся).
 - `InitLogic(questionnaire, generator).run() -> int` — оркестратор «полный универсальный поток»; **pybuggy НЕ
   использует** (требует `ask_language`). Приведён только как референс error-handling: ловит `click.Abort`→1,
@@ -38,17 +46,18 @@
 
 Контейнеры ответов (frozen dataclasses, `kw_only=True`):
 
-- `GogaConfigAnswers` — поля: `language: str`, `agent: str`, `image: str`, `pipeline_agent: str`,
+- `GogaConfigAnswers` — поля: `language: str`, `image: str`, `agent: str | None`, `pipeline_agent: str | None`,
   `pipeline_env: dict | None`, `env: dict | None`, `codemanifest_usages: dict | None`,
-  `codemanifest_annotations: str | None`, `dockerfile_path: str | None`.
+  `codemanifest_annotations: str | None`, `dockerfile_path: str | None`, `dockerfile_base_image: str | None`.
 - `InitAnswers` — поле `goga_config: GogaConfigAnswers`.
 
 ## Генерируемые файлы (side effects, в cwd)
 
 - `.goga/config.yml` — полный goga-конфиг (language, image, dockerfile, build, pipeline, codemanifest).
 - `.goga/usages/conventions.md` — если `codemanifest_usages` содержит `"conventions"` (скачивается через requests).
-- `Dockerfile` (по пути `dockerfile_path`) — `FROM {image}`; создаётся когда `dockerfile_path` задан (со стороны pybuggy
-  он передаётся всегда — Dockerfile обязателен).
+- `Dockerfile` (по пути `dockerfile_path`) — `FROM {dockerfile_base_image}`; создаётся когда `dockerfile_path` задан
+  (со стороны pybuggy он передаётся всегда — Dockerfile обязателен). После этого pybuggy дописывает
+  `RUN goga install pybuggy -v 0.1.x`.
 
 ## Шаблон: in-process вызов (per-field сборка)
 
@@ -63,16 +72,18 @@
       codemanifest_usages = questionnaire.ask_codemanifest_usages(usages_prefill)
       codemanifest_annotations = questionnaire.ask_codemanifest_annotations(annotations_prefill)
       agent = questionnaire.ask_agent()
-      image = questionnaire.ask_image(language)        # python-only набор: 3.10–3.14
+      image = questionnaire.ask_image_name(language)        # имя образа, собранного из Dockerfile (top-level image)
+      dockerfile_base_image = questionnaire.ask_base_image(language)  # FROM baseline для Dockerfile
       dockerfile_path = ".goga/Dockerfile"             # хардкод — Dockerfile обязателен; ask_dockerfile_path НЕ вызывается
       env = questionnaire.ask_env(agent)
-      pipeline_agent = questionnaire.ask_pipeline_agent(agent)
+      pipeline_agent = questionnaire.ask_pipeline_agent()   # без аргумента; опционален (default None)
       pipeline_env = questionnaire.ask_pipeline_env(pipeline_agent)
 
       config = GogaConfigAnswers(
           language=language,
           agent=agent,
           image=image,
+          dockerfile_base_image=dockerfile_base_image,
           pipeline_agent=pipeline_agent,
           pipeline_env=pipeline_env,
           env=env,
@@ -95,7 +106,8 @@
 - Возвращает **число, не бросает исключение** при отмене/сбое (`click.Abort`→1, прочая `Exception`→log+echo+1 —
   паритет со старым `InitLogic.run()`); диагностику вызывающая сторона печатает сама.
 - `InitLogic`/`ask`/`ask_goga_config` **не используются** — оркестрация per-field вручную фиксирует `language="python"`
-  и ограничивает набор образов.
+  и разделяет образ на имя собранного (`ask_image_name`) и `FROM` baseline (`ask_base_image`); `ask_image` (pre-built
+  pull, без Dockerfile) **не вызывается** — Dockerfile обязателен.
 - Это внешний пакет — подключается в CODEMANIFEST через `Usages`, **не** через `Imports` (Imports связывает только
   ячейки проекта); абсолютный импорт наверху модуля, third-party группа isort.
 

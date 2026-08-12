@@ -572,7 +572,8 @@ _INSTALL_LINE = "RUN goga install pybuggy -v 0.1.x\n"
 def install_pybuggy(dockerfile_path: Path) -> str | None:
     """Append the pybuggy-install ``RUN`` line to the goga-generated Dockerfile.
 
-    goga ``FileGenerator.generate`` writes the Dockerfile as ``FROM {image}\\n``; this routine appends
+    goga ``FileGenerator.generate`` writes the Dockerfile as ``FROM {dockerfile_base_image}\\n`` (the
+    FROM baseline, distinct from the top-level built ``image`` name); this routine appends
     ``RUN goga install pybuggy -v 0.1.x`` so the consumer's test image installs pybuggy via the goga
     installer, pinned to the hardcoded ``0.1.x`` version line.
 
@@ -606,15 +607,19 @@ def run_goga_init() -> int:
     """Initialize the goga-project in-process, tailored for a Python project.
 
     Drives the per-field ``Questionnaire`` methods individually (instead of goga's universal
-    ``InitLogic`` flow) so the language is fixed to ``"python"`` (pybuggy is a Python project) and
-    the Docker image is selected from the python-only set via ``ask_image("python")``. The
-    collected answers are assembled into a ``GogaConfigAnswers`` and file generation is delegated
-    to ``FileGenerator().generate(InitAnswers(...))``.
+    ``InitLogic`` flow) so the language is fixed to ``"python"`` (pybuggy is a Python project). The
+    Dockerfile is mandatory, so the image is split: ``ask_image_name("python")`` captures the name
+    of the image built from the Dockerfile (top-level ``image`` field), and ``ask_base_image("python")``
+    captures the ``FROM`` baseline (``dockerfile_base_image`` field). goga's pre-built-pull
+    ``ask_image`` is NOT used (that is the no-Dockerfile case). The collected answers are assembled
+    into a ``GogaConfigAnswers`` and file generation is delegated to
+    ``FileGenerator().generate(InitAnswers(...))``.
 
     The Dockerfile is mandatory: ``dockerfile_path`` is hardcoded to ``_DOCKERFILE_PATH``
     (``.goga/Dockerfile``) instead of goga's optional ``ask_dockerfile_path`` (which may return
-    ``None`` and skip creation), so ``FileGenerator`` always creates the Dockerfile and always emits
-    the top-level ``dockerfile`` field into ``.goga/config.yml``.
+    ``None`` and skip creation), so ``FileGenerator`` always creates the Dockerfile (``FROM
+    {dockerfile_base_image}``) and always emits the top-level ``dockerfile`` field into
+    ``.goga/config.yml``.
 
     Interactive (TTY prompts via click); callers and tests stub this routine via monkeypatch.
 
@@ -633,18 +638,22 @@ def run_goga_init() -> int:
         codemanifest_usages = questionnaire.ask_codemanifest_usages(usages_prefill)
         codemanifest_annotations = questionnaire.ask_codemanifest_annotations(annotations_prefill)
         agent = questionnaire.ask_agent()
-        image = questionnaire.ask_image(language)
-        # Dockerfile is mandatory — hardcoded path instead of goga's optional ``ask_dockerfile_path``
-        # (which can return None and skip creation); ``FileGenerator`` always creates it from here.
+        # Dockerfile is mandatory → ask for the built-image NAME (top-level `image`) and the FROM
+        # baseline separately; goga's ``ask_image`` (pre-built pull image) is the no-Dockerfile case.
+        image = questionnaire.ask_image_name(language)
+        dockerfile_base_image = questionnaire.ask_base_image(language)
+        # Hardcoded mandatory path instead of goga's optional ``ask_dockerfile_path`` (which can
+        # return None and skip creation); ``FileGenerator`` always creates it from here.
         dockerfile_path = _DOCKERFILE_PATH
         env = questionnaire.ask_env(agent)
-        pipeline_agent = questionnaire.ask_pipeline_agent(agent)
+        pipeline_agent = questionnaire.ask_pipeline_agent()
         pipeline_env = questionnaire.ask_pipeline_env(pipeline_agent)
 
         config = GogaConfigAnswers(
             language=language,
             agent=agent,
             image=image,
+            dockerfile_base_image=dockerfile_base_image,
             pipeline_agent=pipeline_agent,
             pipeline_env=pipeline_env,
             env=env,

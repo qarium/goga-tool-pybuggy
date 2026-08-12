@@ -326,7 +326,7 @@ def test_run_goga_init_signature() -> None:
 def _stub_questionnaire(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     """Install a mocked Questionnaire on init.py and return its instance.
 
-    The per-field ``ask_*`` methods return deterministic values; ``ask_image`` records its call
+    The per-field ``ask_*`` methods return deterministic values; ``ask_image_name`` records its call
     so it doubles as a spy for the language argument.
     """
     questionnaire = mock.Mock()
@@ -334,9 +334,10 @@ def _stub_questionnaire(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     questionnaire.ask_codemanifest_usages.return_value = {"conventions": "src"}
     questionnaire.ask_codemanifest_annotations.return_value = "annotations"
     questionnaire.ask_agent.return_value = "coder"
-    questionnaire.ask_image.return_value = "qarium/goga-python-3.12:1.1"
-    # ask_dockerfile_path is intentionally NOT stubbed here — run_goga_init hardcodes the
-    # mandatory Dockerfile path and never calls ask_dockerfile_path.
+    questionnaire.ask_image_name.return_value = "python-image:latest"
+    questionnaire.ask_base_image.return_value = "qarium/goga-python-3.12:1.1"
+    # ask_image (pre-built pull, no-Dockerfile case) and ask_dockerfile_path are intentionally NOT
+    # used — run_goga_init splits the image (name + FROM baseline) and hardcodes the mandatory path.
     questionnaire.ask_env.return_value = {"KEY": "v"}
     questionnaire.ask_pipeline_agent.return_value = "pcoder"
     questionnaire.ask_pipeline_env.return_value = {"PKEY": "pv"}
@@ -346,10 +347,10 @@ def _stub_questionnaire(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     return questionnaire
 
 
-def test_run_goga_init_hardcodes_python_and_calls_ask_image_python(
+def test_run_goga_init_hardcodes_python_and_calls_image_prompts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """run_goga_init hardcodes language='python', skips ask_language, calls ask_image('python')."""
+    """run_goga_init hardcodes language='python', skips ask_language, splits the image via name + base prompts."""
     questionnaire = _stub_questionnaire(monkeypatch)
     generator = mock.Mock()
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
@@ -357,7 +358,10 @@ def test_run_goga_init_hardcodes_python_and_calls_ask_image_python(
     assert run_goga_init() == 0
 
     questionnaire.ask_language.assert_not_called()
-    questionnaire.ask_image.assert_called_once_with("python")
+    # Dockerfile is mandatory → built-image NAME + FROM baseline, NOT the pre-built-pull ask_image.
+    questionnaire.ask_image_name.assert_called_once_with("python")
+    questionnaire.ask_base_image.assert_called_once_with("python")
+    questionnaire.ask_image.assert_not_called()
     generator.generate.assert_called_once()
     answers = generator.generate.call_args.args[0]
     assert answers.goga_config.language == "python"
@@ -384,7 +388,8 @@ def test_run_goga_init_assembles_goga_config_answers(monkeypatch: pytest.MonkeyP
     config_spy.assert_called_once_with(
         language="python",
         agent=questionnaire.ask_agent.return_value,
-        image=questionnaire.ask_image.return_value,
+        image=questionnaire.ask_image_name.return_value,
+        dockerfile_base_image=questionnaire.ask_base_image.return_value,
         pipeline_agent=questionnaire.ask_pipeline_agent.return_value,
         pipeline_env=questionnaire.ask_pipeline_env.return_value,
         env=questionnaire.ask_env.return_value,
@@ -466,7 +471,8 @@ def test_run_goga_init_threads_answers_into_downstream_prompts(monkeypatch: pyte
     questionnaire.ask_codemanifest_annotations.assert_called_once_with(annotations_prefill)
     agent = questionnaire.ask_agent.return_value
     questionnaire.ask_env.assert_called_once_with(agent)
-    questionnaire.ask_pipeline_agent.assert_called_once_with(agent)
+    # ask_pipeline_agent takes NO args in this goga version (it does not inherit the build agent).
+    questionnaire.ask_pipeline_agent.assert_called_once_with()
     questionnaire.ask_pipeline_env.assert_called_once_with(questionnaire.ask_pipeline_agent.return_value)
 
 

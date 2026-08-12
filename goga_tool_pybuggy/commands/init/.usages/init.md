@@ -66,7 +66,7 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 Результат:
 - `.goga/config.yml` — полный goga-конфиг (включая top-level поле `dockerfile`) + блок `codemanifest.usages` с
   `pybuggy-api`/`pybuggy-asserts` + блок `codemanifest.annotations` со ссылающимися строками.
-- `.goga/Dockerfile` — обязательный Dockerfile: `FROM {image}` + `RUN goga install pybuggy -v 0.1.x`
+- `.goga/Dockerfile` — обязательный Dockerfile: `FROM {dockerfile_base_image}` + `RUN goga install pybuggy -v 0.1.x`
   (установка pybuggy через goga-installer с захардкоженной версией `0.1.x`; дописывается после генерации goga),
   всегда создаётся при goga-init.
 - `.goga/usages/cooks/pybuggy/api.md`, `.goga/usages/cooks/pybuggy/asserts.md`.
