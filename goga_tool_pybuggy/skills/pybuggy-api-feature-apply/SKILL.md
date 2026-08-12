@@ -44,7 +44,7 @@ DSL-артефакты** — без тест-кода и `__init__.py`.
 3. **Lib usages** — usage-файлы библиотек (`.goga/usages/cooks/<ключ>.md`) + cell-спец. usages в endpoint-cells.
 4. **Verification checklist** — что проверить после.
 
-Классифицировать каждую endpoint-cell: папка `tests/<spec>/<id>/` существует (обычно от `pybuggy generate`) —
+Классифицировать каждую endpoint-cell: папка `tests/<spec>/<id>/` существует (обычно от `goga tool pybuggy generate`) —
 создать CODEMANIFEST внутри; отсутствует — отметить для создания директории.
 
 ### Phase 2. Валидация плана (до создания файлов)

@@ -35,10 +35,10 @@ description: Сбор реальных деталей эндпоинтов фи�
 
 Для каждого эндпоинта, где нет полных деталей:
 
-1. Выполнить: `pybuggy endpoint info <endpoint-id>`.
+1. Выполнить: `goga tool pybuggy endpoint info <endpoint-id>`.
 2. Распарсить JSON: `Method`, `Path` (`{param}`→`:param`), `Request` (тело), `Response` (`{status: schema}`),
    `QueryParams`, `Description`.
-3. Если нужен полный реестр эндпоинтов: `pybuggy endpoint list` → строки `* <endpoint-id> -> [METHOD] <path>`.
+3. Если нужен полный реестр эндпоинтов: `goga tool pybuggy endpoint list` → строки `* <endpoint-id> -> [METHOD] <path>`.
 
 ### Step 3. Зафиксировать контракты эндпоинтов
 

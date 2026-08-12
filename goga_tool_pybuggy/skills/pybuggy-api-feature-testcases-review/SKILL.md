@@ -58,8 +58,8 @@ propose — никаких догадок. Любой кейс, который �
    - Прочитай `api/<spec>/<endpoint-id>/api.py` — модель `Request` (поля, типы, обязательность;
      optional = `X | None = None`) и имя фикстуры `<method>_<id>`.
    - Прочитай `api/<spec>/<endpoint-id>/schemas/<status>.json` — схемы тел ответов по статусам.
-   - При отсутствии артефактов — `pybuggy endpoint info <endpoint-id>` (поля `Request`/`Response`/
-     `QueryParams`) и `pybuggy endpoint list` (реестр). Не запускай `pull`/`generate`.
+   - При отсутствии артефактов — `goga tool pybuggy endpoint info <endpoint-id>` (поля `Request`/`Response`/
+     `QueryParams`) и `goga tool pybuggy endpoint list` (реестр). Не запускай `pull`/`generate`.
 
 ---
 

@@ -18,7 +18,7 @@ description: Загрузка и предоставление документа
 ## Behavior
 
 1. Проверь директорию `.goga/usages/cooks/pybuggy/`. Если она отсутствует или пуста — cooks-файлы pybuggy не
-   загружены: сообщи, что нужно выполнить `pybuggy init` (он копирует usages-документацию pybuggy и
+   загружены: сообщи, что нужно выполнить `goga tool pybuggy init` (он копирует usages-документацию pybuggy и
    регистрирует её в `.goga/config.yml` под `pybuggy-<stem>`), и остановись.
 
 2. Перечисли все `*.md` в `.goga/usages/cooks/pybuggy/` (рекурсивно, если появятся поддиректории) и прочитай

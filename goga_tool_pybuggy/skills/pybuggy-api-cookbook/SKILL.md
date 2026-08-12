@@ -24,7 +24,7 @@ description: Принципы применения DSL goga-cell для прое
 ## Контекст
 
 Тесты — отдельный проект, использующий pybuggy как фреймворк. Каждая тестовая cell — это папка тестов
-эндпоинта, созданная `pybuggy generate`:
+эндпоинта, созданная `goga tool pybuggy generate`:
 
 ```
 tests/<spec>/<endpoint-id>/

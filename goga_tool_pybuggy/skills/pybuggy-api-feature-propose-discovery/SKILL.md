@@ -19,14 +19,14 @@ description: Обнаружение и фильтрация эндпоинтов
 
 ### Step 1. Скачать спецификации (pull)
 
-1. Выполнить: `pybuggy endpoint pull`.
+1. Выполнить: `goga tool pybuggy endpoint pull`.
 2. Спеки без блока `git:` (локальные) пропускаются со статусом WARNING — это нормально; зафиксировать статус каждой
    spec.
 3. Зафиксировать скачанные `specs` и их `location`.
 
 ### Step 2. Перечислить эндпоинты (list)
 
-1. Выполнить: `pybuggy endpoint list` (или с `-s/--spec`, если область уже ограничена одной spec).
+1. Выполнить: `goga tool pybuggy endpoint list` (или с `-s/--spec`, если область уже ограничена одной spec).
 2. Вывод — строки вида `* <endpoint-id> -> [METHOD] <path>`.
 3. Составить полный реестр эндпоинтов (endpoint-id, spec, method, path).
 
@@ -45,14 +45,14 @@ description: Обнаружение и фильтрация эндпоинтов
 
 Для каждого подтверждённого эндпоинта:
 
-1. Выполнить: `pybuggy endpoint info <endpoint-id>`.
+1. Выполнить: `goga tool pybuggy endpoint info <endpoint-id>`.
 2. Распарсить JSON: `Method`, `Path`, `Request`, `Response`, `QueryParams`, `Description`.
 3. Зафиксировать контракты: тело запроса (`Request`), коды и схемы ответов (`Response`), параметры (`QueryParams` /
    path-параметры), описание.
 
 ### Step 6. Сгенерировать артефакты (generate)
 
-1. Выполнить: `pybuggy endpoint generate <endpoint-id> [<endpoint-id> ...] -f`.
+1. Выполнить: `goga tool pybuggy endpoint generate <endpoint-id> [<endpoint-id> ...] -f`.
 2. Зафиксировать пути созданных артефактов:
     - фикстура: `api/<spec>/<endpoint-id>/api.py` (имя фикстуры, импортируемая модель `Request`);
     - схемы: `api/<spec>/<endpoint-id>/schemas/<status>.json`;

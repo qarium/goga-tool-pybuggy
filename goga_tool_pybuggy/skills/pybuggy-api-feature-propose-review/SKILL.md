@@ -51,9 +51,9 @@ description: Верификация тестовых требований docs/p
    понимать, что downstream-пайплайнам (`testcases`/`cells`) потребуется от требований: сценарии с
    severity, данные из модели `Request`, поля для asserts, статус-коды.
 4. Получи **ground truth** из живой спеки (без побочных эффектов — только чтение):
-   - Выполни `pybuggy endpoint list` — построй реестр всех эндпоинтов: `endpoint-id | spec | method |
+   - Выполни `goga tool pybuggy endpoint list` — построй реестр всех эндпоинтов: `endpoint-id | spec | method |
      path`.
-   - Для **каждого** эндпоинта, упомянутого в артефакте, выполни `pybuggy endpoint info <endpoint-id>`
+   - Для **каждого** эндпоинта, упомянутого в артефакте, выполни `goga tool pybuggy endpoint info <endpoint-id>`
      и распарсь JSON: `Method`, `Path`, `Request`, `Response`, `QueryParams`, `Description`.
 5. Проверь **существование сгенерированных артефактов** на диске (артефакт должен фиксировать их пути
    в секции 2): `api/<spec>/<id>/api.py`, `api/<spec>/<id>/schemas/<status>.json`, каталог
@@ -97,7 +97,7 @@ description: Верификация тестовых требований docs/p
 **Цель:** убедиться, что всё про эндпоинты и артефакты — правда, а не выдумка.
 
 1. **Существование эндпоинтов** — каждый `endpoint-id` из секции 2 присутствует в реестре
-   `pybuggy endpoint list`. Несуществующий идентификатор — **Critical** (фабрика тестов не сможет
+   `goga tool pybuggy endpoint list`. Несуществующий идентификатор — **Critical** (фабрика тестов не сможет
    сгенерировать фикстуру).
 2. **Точность метода и пути** — `method`/`path` в секции 2 совпадают с `endpoint info`. Расхождение —
    **High**.
@@ -220,7 +220,7 @@ description: Верификация тестовых требований docs/p
 
 1. Прочитан ли артефакт `docs/pybuggy/feature-requirements.md`?
 2. Загружены ли `goga-tool-pybuggy-api-usage` и `goga-tool-pybuggy-api-cookbook`?
-3. Получен ли ground truth через `pybuggy endpoint list` и `endpoint info` для каждого эндпоинта?
+3. Получен ли ground truth через `goga tool pybuggy endpoint list` и `endpoint info` для каждого эндпоинта?
 4. Проверены ли пути сгенерированных артефактов (`api.py`/`schemas`/`tests/`) на диске?
 5. Проверена ли структурная полнота (все 10 секций, без плейсхолдеров)?
 6. Проверена ли реалистичность эндпоинтов/методов/путей/схем?
