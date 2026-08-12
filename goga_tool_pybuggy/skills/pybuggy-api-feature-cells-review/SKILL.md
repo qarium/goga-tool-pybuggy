@@ -62,7 +62,7 @@ description: Верификация архитектурного плана те
 ### Phase 2. Plan Structure and No-Code
 
 1. **Обязательные секции плана** присутствуют и заполнены (без плейсхолдеров TBD/TODO/«…»):
-   `Путь к файлу`, `Тема`, `Контекст`, `Implementation Order`, `Artifacts`, `Coverage Map`,
+   `Тема`, `Контекст`, `Implementation Order`, `Artifacts`, `Coverage Map`,
    `Verification Checklist`. Отсутствующая секция — **Critical**; пустая/плейсхолдер — **High**.
 2. **Только DSL, без кода** — план содержит только артефакты CODEMANIFEST; любой код реализации
    (python/импорт/`def`/`class`) — **Critical**.
