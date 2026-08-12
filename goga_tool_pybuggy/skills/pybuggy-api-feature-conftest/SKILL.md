@@ -19,14 +19,6 @@ pytest гарантированно выполняет до сбора и зап
 1. загружает `.env` через `dotenv.load_dotenv` (с `override=False`) **до** подключения плагина;
 2. подключает плагин pybuggy — **единственным** вызовом `goga_tool_pybuggy.plugin.install()`.
 
-## Context Initialization
-
-Перед началом загрузи контекст через **Skill tool**:
-
-- **`goga-tool-pybuggy-api-usage`** — референс runtime pybuggy (как подключается плагин).
-- **`.goga/usages/cooks/pluginator.md`** и **`.goga/usages/cooks/python-dotenv.md`** — паттерны установки
-  плагина (`install()` — единственный способ включения) и семантика `load_dotenv` (`override=False`).
-
 ## Pre-flight
 
 1. Проверь наличие `conftest.py` в корне проекта. Если файл существует — **не перезаписывай без подтверждения**
