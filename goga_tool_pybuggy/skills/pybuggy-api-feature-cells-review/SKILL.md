@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-feature-cells-review
-description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine-per-case (endpoint-cells), без Entities, базовые Usages/Annotations, cell-спец. usages библиотек, строгая структура аннотаций, coverage-gate (кейс→Routine 1:1), семантическая достаточность аннотаций для генерации теста
+description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine под кейсы (endpoint-cells; 1 кейс = 1 Routine не обязательно), без Entities, базовые Usages/Annotations, cell-спец. usages библиотек, строгая структура аннотаций, coverage (кейс покрыт напрямую или вариантом Routine), семантическая достаточность аннотаций для генерации теста
 ---
 # Pybuggy API Feature Cells Review
 
@@ -8,8 +8,8 @@ description: Верификация архитектурного плана те
 
 Ты — ревьюер архитектурного плана тестовых cells. Верифицируешь `docs/pybuggy/feature-cells.md` —
 выход пайплайна `goga-tool-pybuggy-api-feature-cells`. План содержит только DSL-артефакты CODEMANIFEST:
-на каждую cell эндпоинта — Header (базовые `Usages`/`Annotations`) + Body (`Routine` по одному на
-тест-кейс) + Footer. Endpoint-cells — Routine-only листья, поэтому размерности
+на каждую cell эндпоинта — Header (базовые `Usages`/`Annotations`) + Body (`Routine` под
+тест-кейсы — один Routine может покрывать несколько кейсов) + Footer. Endpoint-cells — Routine-only листья, поэтому размерности
 графа типов, mutations, embeddings и кросс-cell связности здесь структурно неприменимы — ревью
 фокусируется на DSL-валидности, тест-конформности, coverage и достаточности аннотаций.
 
@@ -18,7 +18,7 @@ description: Верификация архитектурного плана те
 Независимо проверить план: каждая CODEMANIFEST корректна по `goga-cell` DSL; тесты описаны **только**
 как `Routine` (без `Entity`/`methods`/`properties`); базовые `Usages`/
 `Annotations` на месте и идентичны в endpoint-cells (поверх базового блока допустимы cell-спец. usages
-библиотек); аннотации Routine следуют строгой структуре; **каждый тест-кейс покрыт ровно одним Routine**.
+библиотек); аннотации Routine следуют строгой структуре; **каждый тест-кейс покрыт** (напрямую или как вариант/параметр Routine).
 Найти расхождения, сообщить, исправить (с одобрения пользователя).
 
 ## Relationship to other skills
@@ -30,7 +30,7 @@ description: Верификация архитектурного плана те
 ## Verifiable Artifact
 
 - `docs/pybuggy/feature-cells.md` — архитектурный план тестовых cells.
-- **Upstream** (для coverage-gate и контекста): `docs/pybuggy/feature-testcases.md` (эталонный набор
+- **Upstream** (для coverage и контекста): `docs/pybuggy/feature-testcases.md` (эталонный набор
   кейсов), `docs/pybuggy/feature-requirements.md` (контекст фичи).
 
 ---
@@ -45,13 +45,13 @@ description: Верификация архитектурного плана те
    сверять).
 3. Загрузи DSL-спецификацию и принципы через **Skill tool**:
    - `goga-cell` — правила CODEMANIFEST (структура, сигнатуры, Usages/Annotations, типы, constraints);
-   - `goga-tool-pybuggy-api-cookbook` — принципы тестовых cells (Routine-per-case, строгий порядок
+   - `goga-tool-pybuggy-api-cookbook` — принципы тестовых cells (Routine под кейсы — гранулярность произвольная, строгий порядок
      аннотаций Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`);
    - `goga-cell-python` — языковые правила (naming `snake_case`, `location: test_<name>.py`);
    - `goga-codemanifest-base` — базовые `Usages`/`Annotations` из `.goga/config.yml` (эталон Header);
    - `goga-tool-pybuggy-api-usage` — референс pybuggy (`Endpoint`, фикстура `<method>_<id>`).
 4. Построй эталонный набор кейсов из `feature-testcases.md`: `id | тип | endpoint-id` — для
-   coverage-gate в Phase 5.
+   coverage в Phase 5.
 
 > DSL валидируй вручную по `goga-cell`. `goga lint`/`goga schema` используй только как
 > дополнительную кросс-проверку: известны артефакты тулинга с ложными path-ошибками — не считай их
@@ -119,18 +119,19 @@ description: Верификация архитектурного плана те
 
 ---
 
-### Phase 5. Coverage Gate
+### Phase 5. Coverage (Покрытие и трассируемость)
 
-**Цель:** каждый кейс из `feature-testcases.md` превращён ровно в один Routine; нет потерь и нет мусора.
+**Цель:** каждый кейс из `feature-testcases.md` отражён в плане — покрыт напрямую или как вариант/параметр Routine; нет потерь и нет висячих Routine.
 
-1. **Кейс → Routine 1:1** — каждый кейс эталона имеет ровно один соответствующий Routine в плане.
-   Потерянный кейс — **Critical**.
-2. **Нет orphan-Routine** — каждый Routine восходит к кейсу; Routine без кейса — **High**.
+1. **Кейс покрыт** — каждый кейс эталона отражён в плане: напрямую или как вариант/параметр некоторого
+   Routine (один Routine может покрывать несколько кейсов). Потерянный кейс — **Critical**.
+2. **Нет висячих Routine** — каждый Routine восходит хотя бы к одному кейсу; Routine без кейса — **High**.
 3. **Имена Routine уникальны в пределах cell** — дубль имени — **High**.
 4. **Гранулярность cell** — одна endpoint-cell на эндпоинт (`tests/<spec>/<endpoint-id>/`). Несколько
    эндпоинтов в одной cell или дробление одного эндпоинта — **High**.
 5. **Coverage Map** — таблица `кейс (id, тип) | Routine | cell` полна и согласована с фактическим
-   содержанием плана (каждая строка подтверждается реальным Routine в реальной cell). Расхождение — **High**.
+   содержанием плана (каждая строка подтверждается реальным Routine в реальной cell; один Routine может
+   встречаться в нескольких строках — это норма). Расхождение — **High**.
 6. **cell ↔ фикстура ↔ эндпоинт** — путь endpoint-cell `tests/<spec>/<endpoint-id>/`, имя фикстуры
    `<method>_<id>` и эндпоинт кейса согласованы. Несоответствие — **High**.
 
@@ -178,7 +179,7 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 #### Step 3. Примени решение
 
 - **Apply**: обнови `feature-cells.md`, затем переверь, что фикс не внёс новых проблем (re-run
-  релевантных чеков, включая coverage-gate и идентичность базового блока). Кратко доложи результат.
+  релевантных чеков, включая coverage и идентичность базового блока). Кратко доложи результат.
 - **Skip**: пометь как «skipped» и продолжай.
 - **Propose alternative**: обсуди, согласуй, примени, переверь.
 
@@ -212,7 +213,7 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 
 - валидировать каждую CODEMANIFEST по `goga-cell` DSL вручную (с опциональной кросс-проверкой
   `goga lint`, не принимая ложные path-ошибки за дефекты)
-- сверять coverage: кейс → Routine 1:1, без потерь и orphan'ов
+- сверять coverage: каждый кейс покрыт (напрямую/вариантом Routine), без потерь и висячих Routine
 - требовать строгий порядок аннотаций и идентичный **базовый** блок во всех cells (поверх допустимы
   cell-спец. usages библиотек — `goga-tool-pybuggy-api-cookbook`, раздел «Cell-специфичные usages»)
 - предъявлять каждую находку по одной с выбором Apply/Alternative/Skip
@@ -231,7 +232,7 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
    endpoint-cells + допустимые cell-спец. usages библиотек, Routine-only, сигнатура, location, Footer)?
 5. Проверена ли структура аннотаций каждой Routine (строгий порядок, фикстура, Steps, Use,
    backtick-ссылки)?
-6. Пройден ли coverage-gate (кейс→Routine 1:1, уникальность имён, cell↔фикстура↔эндпоинт, Coverage
+6. Пройдена ли coverage-проверка (все кейсы покрыты напрямую или вариантом Routine, уникальность имён, cell↔фикстура↔эндпоинт, Coverage
    Map)?
 7. Проверена ли семантическая достаточность (достаточность для генерации, точность, трассируемость,
    failure-модель negative)?

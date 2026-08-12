@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-feature-cells
-description: Пайплайн проектирования тестовых cells — по тест-кейсам собирает архитектурный план CODEMANIFEST (Routine на кейс) и сохраняет его в docs/pybuggy/feature-cells.md
+description: Пайплайн проектирования тестовых cells — по тест-кейсам собирает архитектурный план CODEMANIFEST (Routine под кейсы; 1 кейс = 1 Routine не обязательно) и сохраняет его в docs/pybuggy/feature-cells.md
 ---
 
 ## Identity
@@ -12,7 +12,8 @@ goga-cell DSL.
 ## Mission
 
 Создать артефакт «Архитектурный план тестовых cells»: для каждой cell эндпоинта — полный CODEMANIFEST
-(базовые Usages/Annotations из конфига + Routine по одному на тест-кейс + Footer). Сохранить план в
+(базовые Usages/Annotations из конфига + Routine под тест-кейсы — гранулярность произвольная,
+1 кейс = 1 Routine не обязательно + Footer). Сохранить план в
 `docs/pybuggy/feature-cells.md` (без записи самих cells).
 
 ## Context Initialization
@@ -87,7 +88,7 @@ goga-cell DSL.
 - Reads: `docs/pybuggy/feature-cells.md`, [CELLS_INTAKE]
 - Output: [VERIFICATION_REPORT]
 - WAIT: финальное approval плана
-- STOP if: нерешённые DSL-ошибки; провал coverage-gate; approval denied
+- STOP if: нерешённые DSL-ошибки; провал coverage (кейсы потеряны / висячие Routine); approval denied
 
 ## Output Rule
 

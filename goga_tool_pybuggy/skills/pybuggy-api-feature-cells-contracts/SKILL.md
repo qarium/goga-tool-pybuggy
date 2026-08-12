@@ -6,7 +6,7 @@ description: Сборка CODEMANIFEST каждой тестовой cell и DSL
 ## Identity
 
 Ты отвечаешь за сборку полного CODEMANIFEST каждой тестовой cell: Header (базовые Usages + Annotations),
-Body (Routine по одному на тест-кейс) и Footer. Каждая cell проходит DSL-валидацию и утверждается
+Body (Routine под тест-кейсы — один Routine может покрывать несколько кейсов) и Footer. Каждая cell проходит DSL-валидацию и утверждается
 пользователем.
 
 ## Core Principle
@@ -35,9 +35,11 @@ Body (Routine по одному на тест-кейс) и Footer. Каждая 
 Cell-специфичные usages библиотек добавляет фаза `libs` (выполняется после `contracts`) — здесь их **не**
 добавлять и **не** писать ``Use `<ключ>` …`` (backtick не разрешится, пока нет usage-ключа в Header).
 
-### Step 3. Собрать Body — Routine на каждый кейс
+### Step 3. Собрать Body — Routine под кейсы
 
-Для каждой cell, на каждый Routine из [CELL_MAP_REPORT]:
+Для каждой cell, на каждый Routine из [CELL_MAP_REPORT] (один Routine может покрывать один или несколько
+кейсов): если Routine покрывает >1 кейса, вырази параметризацию в аннотации — перечисли варианты в `Data:`
+и/или `Steps`; имя Routine `test_<name>` и `location: test_<name>.py` остаются одни на Routine.
 
 1. Сигнатура: `test_<name>(<fixture>: Endpoint)`, `location: test_<name>.py`.
 2. `annotations` — собрать по строгой структуре из `goga-tool-pybuggy-api-cookbook` (порядок разделов

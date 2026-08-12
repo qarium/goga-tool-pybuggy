@@ -39,7 +39,8 @@ tests/<spec>/<endpoint-id>/
 ### Порядок дизайна
 
 1. **Header** — базовые `Usages` + `Annotations` (контракт работает в контексте базовых практик проекта).
-2. **Body** — `Routine` на каждый тест-кейс.
+2. **Body** — `Routine` под тест-кейсы: один Routine может покрывать один или несколько связанных кейсов
+   (в т.ч. параметризованно); 1 кейс = 1 Routine допустимо, но не обязательно.
 3. **Footer** — `Author`, `CreatedAt`, `Description`.
 
 ### Header
@@ -70,13 +71,14 @@ Usages:
 - В Annotations добавляется ``Use `<ключ>` for <подготовка данных/моки/утилиты>``.
 - Базовый блок при этом **не меняется**. Cell-специфичный usage есть только в cell, использующих библиотеку, —
   его наличие в одних cells и отсутствие в других **не** расхождение.
-- coverage-gate и Routine-per-case **не затрагиваются** (lib-usages — Header/Annotations, не Routine).
+- coverage (покрытие кейсов) и гранулярность Routine **не затрагиваются** (lib-usages — Header/Annotations, не Routine).
 - Проектирует подключения sub-скилл `goga-tool-pybuggy-api-feature-cells-libs`; контракты с базовым Header
   собирает `contracts` (без `Use \`<ключ>\`` — ссылку добавляет libs, иначе backtick не разрешится).
 
 ### Body — Routine
 
-Тест — это `Routine` (без `methods`/`properties`), по одному на тест-кейс:
+Тест — это `Routine` (без `methods`/`properties`); один Routine может покрывать один или несколько
+кейсов (параметризацией) — соответствие «1 кейс = 1 Routine» допустимо, но не обязательно:
 
 ```yaml
 "test_<name>(<fixture>: Endpoint)":
@@ -88,6 +90,9 @@ Usages:
 - Сигнатура: `test_<name>(<fixture>: Endpoint)` — без output (тест ничего не возвращает).
 - `<fixture>` — сгенерированная фикстура `api/<spec>/<id>/api.py` (имя `<method>_<id>`).
 - Naming `snake_case`, `location: test_<name>.py` (правила `goga-cell-python`).
+- Параметризация: если один Routine покрывает несколько кейсов, варианты (параметры) перечисляются в
+  аннотации — в `Data:` и/или `Steps`; сам `@pytest.mark.parametrize` раскрывается на стадии
+  design → plan → build. На один Routine — один `test_<name>.py` (несколько кейсов → один файл).
 
 ### Footer
 

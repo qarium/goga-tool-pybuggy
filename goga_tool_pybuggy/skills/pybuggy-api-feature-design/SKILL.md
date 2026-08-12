@@ -20,8 +20,8 @@ CODEMANIFEST тест-cells: какие `test_*.py` генерируются, к
 Перед вызовом goga-скилла зафиксируй и держи весь сеанс:
 
 - **Режим: ТЕСТИРОВАНИЕ.** Артефакт — тест-код `test_*.py`, **не** код приложения. Не проектируй прод-сущности.
-- **Источник истины:** CODEMANIFEST тест-cells в `tests/<spec>/<id>/`. Каждая Routine = один тест-кейс,
-  `location: test_<name>.py`. CODEMANIFEST — контракт только для чтения.
+- **Источник истины:** CODEMANIFEST тест-cells в `tests/<spec>/<id>/`. Каждая Routine = один тест-кейс
+  или несколько (параметризация); `location: test_<name>.py` — один файл на Routine. CODEMANIFEST — контракт только для чтения.
 - **Runtime/фикстуры:** pybuggy `Api`, `Endpoint`, `ResponseWrapper`, assert-слой из
   `.goga/usages/cooks/pybuggy/`. Грузи через скиллы `goga-tool-pybuggy-api-usage` и
   `goga-tool-pybuggy-api-cookbook`.

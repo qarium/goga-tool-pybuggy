@@ -40,8 +40,9 @@ Endpoint-cells `tests/<spec>/<id>/` — порядок по `spec`/`endpoint-id`
 
 ### Step 4. Coverage Map
 
-Построить карту: каждый тест-кейс (id, тип) → Routine → cell. Убедиться, что все кейсы из [CELLS_INTAKE]
-покрыты Routine (ни один не потерян).
+Построить карту: кейсы (id, тип) → Routine → cell (один Routine может покрывать несколько кейсов).
+Убедиться, что все кейсы из [CELLS_INTAKE] покрыты — напрямую или как вариант/параметр Routine
+(ни один не потерян).
 
 ### Step 5. Verification Checklist
 
@@ -99,7 +100,7 @@ STOP if:
 
 ## Coverage Map
 
-[Таблица: кейс (id, тип) | Routine | cell — все кейсы покрыты]
+[Таблица: кейс (id, тип) | Routine | cell — все кейсы покрыты напрямую или как вариант Routine; один Routine может встречаться в нескольких строках]
 
 ## Verification Checklist
 

@@ -87,9 +87,10 @@ description: "Pybuggy API-test feature lifecycle: propose → review → testcas
   communication: true
   prompt: |
     Review the test-cell architecture plan `docs/pybuggy/feature-cells.md`: every
-    CODEMANIFEST valid against the `goga-cell` DSL, Routine-per-case endpoint-cells (no
+    CODEMANIFEST valid against the `goga-cell` DSL, Routine-based endpoint-cells (no
     Entities), base Usages/Annotations plus cell-specific library usages, strict
-    annotation order, coverage gate (case→Routine 1:1), and semantic sufficiency for
+    annotation order, coverage (every case covered directly or as a Routine variant;
+    1 case = 1 Routine allowed but not required), and semantic sufficiency for
     test generation. Fix the findings with user approval.
 
     Run the `goga-tool-pybuggy-api-feature-cells-review` skill.
