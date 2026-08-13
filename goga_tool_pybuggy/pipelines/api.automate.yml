@@ -1,5 +1,5 @@
-name: PybuggyApiFeature
-description: "Pybuggy API-test feature lifecycle: propose → review → testcases → review → cells → review → apply → design → review → plan → review"
+name: PybuggyApiAutomate
+description: "Pybuggy API-test automate lifecycle: propose → review → testcases → review → cells → review → apply → design → review → plan → review"
 ---
 
 # Feature flow
