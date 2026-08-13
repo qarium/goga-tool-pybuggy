@@ -112,9 +112,15 @@ description: Верификация архитектурного плана те
 4. **`Steps:`** — пронумерованные шаги из кейса (Действие / Данные / Ожидание), выраженные через
    ссылки на Usages и фикстуру; **логика, не pytest-код**. Код в шагах — **Critical**; пропуск шагов
    кейса — **High**.
-5. **`Use …`** — присутствуют ``Use `pybuggy-api` for …`` и ``Use `pybuggy-asserts` for …``.
+5. **Тело запроса — модель `Request` (positive/flow):** для **positive** и **flow** Routine валидное
+   тело запроса в **`Steps`** описано через импортируемую модель `Request` из `api/<spec>/<id>/api.py`
+   (`json=Request(...)`, имя и вложенная структура — из этой `api.py`), а **не** сырой `dict`. `dict`
+   допустим **только** для negative-вариантов (нет обязательного поля / неверный тип / пустое тело /
+   битый JSON) с явной пометкой «минуя pydantic-модель». Валидное тело через `dict` (`{field: value}`)
+   — **High** (Steps материализуются в `test_*.py` дословно → теряется валидация запроса).
+6. **`Use …`** — присутствуют ``Use `pybuggy-api` for …`` и ``Use `pybuggy-asserts` for …``.
    Отсутствие — **High**.
-6. **Backtick-ссылки разрешаются** в контексте CODEMANIFEST: `` `<fixture> ``, `` `pybuggy-api` ``,
+7. **Backtick-ссылки разрешаются** в контексте CODEMANIFEST: `` `<fixture> ``, `` `pybuggy-api` ``,
    `` `pybuggy-asserts` ``, `` `conventions` ``. Неразрешимая ссылка — **High**.
 
 ---
@@ -222,6 +228,8 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 - сверять coverage: каждый кейс покрыт (напрямую/вариантом Routine), без потерь и висячих Routine
 - требовать строгий порядок аннотаций и идентичный **базовый** блок во всех cells (поверх допустимы
   cell-спец. usages библиотек — `goga-tool-pybuggy-api-cookbook`, раздел «Cell-специфичные usages»)
+- требовать модель `Request` для валидного тела positive/flow Routine (`dict` — только для negative,
+  минуя pydantic) — Steps материализуются в `test_*.py` дословно
 - предъявлять каждую находку по одной с выбором Apply/Alternative/Skip
 
 ---

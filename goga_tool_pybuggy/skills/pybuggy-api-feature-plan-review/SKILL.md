@@ -60,6 +60,11 @@ CODEMANIFEST, lint). Совмести с тестовыми чеками.
    падении теста — оставить тест падающим и перейти к следующей задаче, не блокируя билд; `pytest.skip`/skip-markers/`xfail`
    запрещены. Отсутствие инструкции в каком-либо Task = **Critical**. Наличие в плане `pytest.skip`/skip-markers/`xfail` =
    **Critical** (маскировка падения).
+7. **Тело запроса — модель `Request` (positive/flow):** для **positive** и **flow** тестов план (и его
+   Tasks) предписывает материализовать валидное тело через импортируемую модель `Request` из
+   `api/<spec>/<id>/api.py` (`json=Request(...)`, имя и вложенная структура — из этой `api.py`), а не
+   сырой `dict`. `dict` — **только** для negative (минуя pydantic). Валидное тело через `dict` — **High**
+   (план материализует `test_*.py` дословно → теряется валидация запроса).
 
 ### Phase 4. Report & Fix
 
@@ -84,3 +89,4 @@ CODEMANIFEST, lint). Совмести с тестовыми чеками.
 - требовать `pytest` в `## Validation Commands` и исполнимый Task-чекбокс
 - требовать CRITICAL failing-test policy в **каждом** Task
 - сверять Routine ↔ `location` ↔ `test_*.py`
+- требовать модель `Request` для валидного тела positive/flow тестов (`dict` — только для negative)

@@ -25,6 +25,10 @@ CODEMANIFEST тест-cells: какие `test_*.py` генерируются, к
 - **Runtime/фикстуры:** pybuggy `Api`, `Endpoint`, `ResponseWrapper`, assert-слой из
   `.goga/usages/cooks/pybuggy/`. Грузи через скиллы `goga-tool-pybuggy-api-usage` и
   `goga-tool-pybuggy-api-cookbook`.
+- **Тело запроса — модель `Request`:** валидное тело запроса (positive/flow) материализуй через импортируемую
+  модель `Request` из фикстуры `api/<spec>/<id>/api.py` (`json=Request(...)`, имя и вложенная структура — из этой
+  `api.py`); сырой `dict` — **только** для negative-вариантов (минуя pydantic). Не используй `dict` для валидного
+  тела — `Steps` CODEMANIFEST материализуются дословно, и `dict` теряет валидацию запроса.
 - **Ограничения:** Routine-only cells, без Entities, без нового прод-кода, без новых `__init__.py`.
 - **Валидация:** инструмент проверки — `pytest` (для плана). В дизайне зафиксируй, что валидация = запуск тестов.
 
@@ -37,7 +41,8 @@ CODEMANIFEST тест-cells: какие `test_*.py` генерируются, к
 2. Загрузи контекст тестов через **Skill tool**: `goga-tool-pybuggy-api-usage` и `goga-tool-pybuggy-api-cookbook`.
 3. Вызови через **Skill tool** `goga-design`, передав `<feature>` как аргумент и явно сопроводив посылкой тестового
    режима (фраза-маркер: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells; deliverable
-   is `test_*.py`, never production code»).
+   is `test_*.py`, never production code; valid request body MUST use the `Request` model imported from the
+   fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic»).
 4. `goga-design` сам диспатчит в `goga-design-by-changes` — не вызывай его в обход.
 5. После завершения проверь, что `docs/design/<feature>.md` описывает генерацию тестов и упоминает `pytest` как
    валидацию. Если нет — дополни в тестовом ключе.
