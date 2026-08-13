@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-feature-plan-review
-description: Верификация тестового ralphex-плана docs/plans/<feature>.md — критическое свойство: pytest присутствует в Validation Commands и как исполнимый Task-чекбокс, чтобы goga build реально запускал тесты
+description: Верификация тестового ralphex-плана docs/plans/<feature>.md
 ---
 # Pybuggy API Feature Plan Review
 
@@ -25,6 +25,11 @@ ralphex (`task.txt`, STEP 2): *«Run the test and lint commands specified in the
 `pytest` в `## Validation Commands` или помечает запуск тестов как «manual/skipped/not automatable», ralphex
 пропустит выполнение тестов — тесты будут написаны, но не запущены. Этот ревью ловит именно это.
 
+Дополнительно план кодифицирует **failing-test policy**: каждый Task предписывает при неудаляющемся падении
+теста перейти к следующей задаче, не блокируя билд, и **запрещает** маскировать падение через
+`pytest.skip`/skip-markers/`xfail` — падение должно остаться видимым. Жёсткого «all must pass» в плане быть
+не должно (иначе один неудаляющийся тест блокирует весь билд).
+
 ## Phases
 
 ### Phase 1. Load Context
@@ -44,12 +49,17 @@ CODEMANIFEST, lint). Совмести с тестовыми чеками.
 1. **`## Validation Commands` содержит `pytest`** для затронутых тестов (напр. `pytest tests/<spec>/ -q`). Отсутствие
    = **Critical** (тесты не запустятся).
 2. **Tasks содержат исполнимый чекбокс запуска тестов** (напр.
-   `[ ] Run tests: pytest tests/<spec>/ -q — all must pass`). Чекбокс, помеченный «manual/skipped/not automatable» =
+   `[ ] Run tests: pytest tests/<spec>/ -q`). Чекбокс, помеченный «manual/skipped/not automatable» =
    **Critical** (ralphex пропустит).
 3. **Routine → test-файл:** каждая Routine CODEMANIFEST тест-cell → задача генерации `test_<name>.py` по её
    `location`. Пропуск = **High**.
 4. **Тестовый режим:** план не описывает прод-код/Entities/`__init__.py`. Нарушение = **Critical**.
-5. **Completion Criteria** включает прохождение pytest-валидации. Отсутствие = **High**.
+5. **Completion Criteria** описывает best-effort режим: «all tests run; on unfixable failure — proceed to the
+   next task without blocking; no test is marked skipped/xfail». Отсутствие = **High**.
+6. **CRITICAL failing-test policy в каждом Task.** Каждый Task плана содержит инструкцию: при неудаляющемся
+   падении теста — оставить тест падающим и перейти к следующей задаче, не блокируя билд; `pytest.skip`/skip-markers/`xfail`
+   запрещены. Отсутствие инструкции в каком-либо Task = **Critical**. Наличие в плане `pytest.skip`/skip-markers/`xfail` =
+   **Critical** (маскировка падения).
 
 ### Phase 4. Report & Fix
 
@@ -63,6 +73,8 @@ CODEMANIFEST, lint). Совмести с тестовыми чеками.
 
 - пропускать отсутствие/маскировку pytest — это ядро ревью
 - принимать запуск тестов как «manual/skipped/not automatable»
+- принимать план, где Task'и не содержат CRITICAL failing-test policy
+- принимать `pytest.skip`/skip-markers/`xfail` в плане (маскировка падения)
 - ревьюить план как прод-реализацию
 - править CODEMANIFEST тест-cells
 
@@ -70,4 +82,5 @@ CODEMANIFEST, lint). Совмести с тестовыми чеками.
 
 - комбинировать базовый `goga-review-plan` с критическими чеками запуска тестов
 - требовать `pytest` в `## Validation Commands` и исполнимый Task-чекбокс
+- требовать CRITICAL failing-test policy в **каждом** Task
 - сверять Routine ↔ `location` ↔ `test_*.py`
