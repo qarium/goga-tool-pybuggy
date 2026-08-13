@@ -9,7 +9,7 @@
 
 ## Контракт инициализации
 
-Типы из `goga.init`:
+Типы из `goga.onboarding`:
 
 - `Questionnaire()` — интерактивный опросник через click. Без аргументов конструктора. Предоставляет per-field методы
   (по одному на каждое поле конфига) — pybuggy оркестрирует их вручную:
@@ -61,7 +61,7 @@
 
 ## Шаблон: in-process вызов (per-field сборка)
 
-      from goga.init import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
+      from goga.onboarding import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
 
       questionnaire = Questionnaire()
       generator = FileGenerator()

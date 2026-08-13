@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import click
-from goga.init import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
+from goga.onboarding import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
 from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.error import CommentMark

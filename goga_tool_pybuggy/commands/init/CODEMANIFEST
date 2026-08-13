@@ -21,7 +21,7 @@ Annotations: |
     and mapping domain errors to click.ClickException.
   Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing) AND for emitting
     .goga/tools/pybuggy/config.yml with active values plus commented records (skipped optional fields and headers/loader examples).
-  Use `goga` for the in-process initialization of the goga-project via goga.init per-field Questionnaire methods + FileGenerator.
+  Use `goga` for the in-process initialization of the goga-project via goga.onboarding per-field Questionnaire methods + FileGenerator.
 
   Top-level bootstrap command pybuggy init — initializes the goga-project (created when absent, recreated only on
   confirmation), ships the consumer usages of the api cell into the project, AND interactively builds
@@ -178,7 +178,7 @@ Annotations: |
     and never raises, so run_init — which calls it outside its own try/except — relies on this).
 
     Algorithm:
-    1. Instantiate Questionnaire() and FileGenerator() from goga.init (NO InitLogic — manual per-field orchestration).
+    1. Instantiate Questionnaire() and FileGenerator() from goga.onboarding (NO InitLogic — manual per-field orchestration).
     2. language = "python"  (hardcoded; ask_language is NOT called — pybuggy is a Python project).
     3. Collect the remaining config fields by calling the per-field Questionnaire methods individually:
        - (usages_prefill, annotations_prefill) = questionnaire.ask_base_convention()

@@ -7,7 +7,7 @@
 она вызвана, чтобы goga-агент потребителя знал, как пользоваться goga_tool_pybuggy. Аудитория — интегратор,
 подключающий pybuggy в свой проект (`goga install pybuggy`), и goga-агент потребителя.
 
-Инициализация goga-проекта выполняется in-process пакетом `goga` (per-field методы `goga.init.Questionnaire` +
+Инициализация goga-проекта выполняется in-process пакетом `goga` (per-field методы `goga.onboarding.Questionnaire` +
 `FileGenerator.generate`; `InitLogic` не используется): интерактивный опрос + генерация `.goga/config.yml`
 (language/build/pipeline/codemanifest), `.goga/usages/conventions.md`, обязательно Dockerfile (`.goga/Dockerfile`, в который после генерации дописывается установка `pybuggy` — `RUN goga install pybuggy -v 0.1.x`). Затем команда копирует
 cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регистрирует их
