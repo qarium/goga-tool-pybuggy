@@ -2,14 +2,6 @@ name: PybuggyApiAutomate
 description: "Pybuggy API-test automate lifecycle: propose → review → testcases → review → cells → review → apply → design → review → plan → review"
 ---
 
-# Feature flow
-#
-# Each stage reads the artifact produced by the previous one and writes the next.
-# Reviews run the dedicated review skill directly (mirrors `goga-feature`), not the
-# dispatcher. The first four artifacts live at fixed `docs/pybuggy/` paths; the
-# design/plan docs are named by the current git branch — goga's universal convention
-# and what `goga-design`/`goga-plan` natively resolve as `<feature>`.
-
 - name: propose
   title: "Collect feature requirements"
   communication: true
@@ -178,3 +170,26 @@ description: "Pybuggy API-test automate lifecycle: propose → review → testca
     Halt if `docs/plans/<git branch --show-current>.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-feature-plan-review
+
+- name: commit-testcases
+  title: "Commit changes and wait for the coding plan was built"
+  communication: true
+  prompt: |
+    Steps:
+      1. Commit all added and modified files.
+      2. Ask the user whether the testcases is automated and ready for acceptance.
+
+    Requirements:
+      - If the user confirms it is ready for acceptance — complete the execution.
+
+    Constraints:
+      - Don't autoconfirm user answer.
+      - Except changes in `docs/<tasks|arch|design|plans>`.
+    
+- name: accept-result
+  title: "Contracts & coverage audit"
+  communication: true
+  prompt: |
+    Commit changes after fixes
+  skills:
+    - goga-accept
