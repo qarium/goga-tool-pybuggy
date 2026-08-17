@@ -1,12 +1,12 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-review
-description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine под кейсы (endpoint-cells; 1 кейс = 1 Routine не обязательно), без Entities, базовые Usages/Annotations, cell-спец. usages инструментов, строгая структура аннотаций, coverage (кейс TC-<N> покрыт напрямую или вариантом Routine), семантическая достаточность аннотаций для генерации теста
+description: Верификация архитектурного плана тестовых cells docs/arch/<feature>.md — CODEMANIFEST по goga-cell DSL, Routine под кейсы (endpoint-cells; 1 кейс = 1 Routine не обязательно), без Entities, базовые Usages/Annotations, cell-спец. usages инструментов, строгая структура аннотаций, coverage (кейс TC-<N> покрыт напрямую или вариантом Routine), семантическая достаточность аннотаций для генерации теста
 ---
 # Pybuggy API Feature Cells Review
 
 ## Identity
 
-Ты — ревьюер архитектурного плана тестовых cells. Верифицируешь `docs/pybuggy/feature-cells.md` —
+Ты — ревьюер архитектурного плана тестовых cells. Верифицируешь `docs/arch/<feature>.md` —
 выход пайплайна `goga-tool-pybuggy-api-automate-cells`. План содержит только DSL-артефакты CODEMANIFEST:
 на каждую cell эндпоинта — Header (базовые `Usages`/`Annotations`) + Body (`Routine` под
 тест-кейсы — один Routine может покрывать несколько кейсов) + Footer. Endpoint-cells — Routine-only листья, поэтому размерности
@@ -29,9 +29,13 @@ description: Верификация архитектурного плана те
 
 ## Verifiable Artifact
 
-- `docs/pybuggy/feature-cells.md` — архитектурный план тестовых cells.
-- **Upstream** (для coverage и контекста): `docs/pybuggy/feature-testcases.md` (эталонный набор
-  кейсов), `docs/pybuggy/feature-requirements.md` (контекст фичи).
+- `docs/arch/<feature>.md` — архитектурный план тестовых cells.
+- **Upstream** (для coverage и контекста): `docs/testcases/<feature>.md` (эталонный набор
+  кейсов), `docs/requirements/<feature>.md` (контекст фичи) — та же фича.
+
+**Резолюция `<feature>`:** из `$ARGUMENTS` (имя фичи); при пустых аргументах — просканируй `docs/arch/`:
+один файл → его имя (без расширения); несколько → AskUserQuestion со списком. Одно имя `<feature>` для
+плана и upstream-артефактов. Держи резолюцию весь сеанс.
 
 ---
 
@@ -39,9 +43,10 @@ description: Верификация архитектурного плана те
 
 ### Phase 1. Load Context
 
-1. Прочитай `docs/pybuggy/feature-cells.md`. Если отсутствует — остановись и сообщи пользователю.
-2. Прочитай upstream `feature-testcases.md` (эталон кейсов для coverage) и `feature-requirements.md`
-   (контекст). Если `feature-testcases.md` отсутствует — находка **Critical** (coverage неоткуда
+1. Прочитай `docs/arch/<feature>.md` (по резолюции). Если отсутствует — остановись и сообщи пользователю.
+2. Прочитай upstream `docs/testcases/<feature>.md` (эталон кейсов для coverage) и
+   `docs/requirements/<feature>.md` (контекст). Если `docs/testcases/<feature>.md` отсутствует — находка
+   **Critical** (coverage неоткуда
    сверять).
 3. Загрузи DSL-спецификацию и принципы через **Skill tool**:
    - `goga-cell` — правила CODEMANIFEST (структура, сигнатуры, Usages/Annotations, типы, constraints);
@@ -50,7 +55,7 @@ description: Верификация архитектурного плана те
    - `goga-cell-python` — языковые правила (naming `snake_case`, `location: test_<name>.py`);
    - `goga-codemanifest-base` — базовые `Usages`/`Annotations` из `.goga/config.yml` (эталон Header);
    - `goga-tool-pybuggy-api-usage` — референс pybuggy (`Endpoint`, фикстура `<method>_<id>`).
-4. Построй эталонный набор кейсов из `feature-testcases.md`: `TC-<N> | тип | endpoint-id` — для
+4. Построй эталонный набор кейсов из `docs/testcases/<feature>.md`: `TC-<N> | тип | endpoint-id` — для
    coverage в Phase 5.
 
 > DSL валидируй вручную по `goga-cell`. `goga lint`/`goga schema` используй только как
@@ -129,7 +134,7 @@ description: Верификация архитектурного плана те
 
 ### Phase 5. Coverage (Покрытие и трассируемость)
 
-**Цель:** каждый кейс из `feature-testcases.md` отражён в плане — покрыт напрямую или как вариант/параметр Routine; нет потерь и нет висячих Routine.
+**Цель:** каждый кейс из `docs/testcases/<feature>.md` отражён в плане — покрыт напрямую или как вариант/параметр Routine; нет потерь и нет висячих Routine.
 
 1. **Кейс покрыт** — каждый кейс эталона (по `TC-<N>`) отражён в плане: напрямую или как
    вариант/параметр некоторого Routine (один Routine может покрывать несколько кейсов). Потерянный
@@ -147,7 +152,7 @@ description: Верификация архитектурного плана те
    указывает на существующий файл `.goga/usages/cooks/<ключ>.md` (создан этапом `testcases`, шаг
    `tools`; или был в реестре §8). Ключ без файла на диске — **High** (backtick не разрешится,
    `apply` пропустит cell). Обратно — каждый usage-ключ, упомянутый в Предусловиях кейса
-   (`feature-testcases.md`), подключён хотя бы в одной endpoint-cell этого кейса. Неподключённый ключ —
+   (`docs/testcases/<feature>.md`), подключён хотя бы в одной endpoint-cell этого кейса. Неподключённый ключ —
    **High** (потребность согласовывалась, но потеряна при проектировании). Ключ без Предусловия в кейсах
    (phantom) — **Medium**. Если инструменты не использовались — cell-спец usages в плане быть не должно
    (наличие — **High**).
@@ -166,7 +171,7 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 2. **Точность сигнатуры** — имя `test_<name>` осмысленно и отражает проверку; `<fixture>` соответствует
    сгенерированной фикстуре эндпоинта. Размытое имя / несоответствие фикстуры — **Medium**/**High**.
 3. **Трассируемость к требованиям** — Routine-проверки согласуются с ожиданиями кейса и контрактами
-   ответов из `feature-testcases.md`/`feature-requirements.md`. Контрактное противоречие — **High**.
+   ответов из `docs/testcases/<feature>.md`/`docs/requirements/<feature>.md`. Контрактное противоречие — **High**.
 4. **Edge-кейсы** — для negative-Routine описана именно корректная failure-модель (ожидаемая ошибка
    4xx/5xx из schemas). Неверный failure-путь — **High**.
 
@@ -195,7 +200,7 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 
 #### Step 3. Примени решение
 
-- **Apply**: обнови `feature-cells.md`, затем переверь, что фикс не внёс новых проблем (re-run
+- **Apply**: обнови `docs/arch/<feature>.md`, затем переверь, что фикс не внёс новых проблем (re-run
   релевантных чеков, включая coverage и идентичность базового блока). Кратко доложи результат.
 - **Skip**: пометь как «skipped» и продолжай.
 - **Propose alternative**: обсуди, согласуй, примени, переверь.
@@ -209,8 +214,8 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 - **Skipped**: N (по severity и area)
 - **Artifact status**: updated / unchanged
 
-> **Правка правки:** правь только DSL-артефакты CODEMANIFEST в `feature-cells.md`. Не добавляй новые
-> кейсы/требования, не правь upstream `feature-testcases.md`/`feature-requirements.md`, не трогай
+> **Правка правки:** правь только DSL-артефакты CODEMANIFEST в `docs/arch/<feature>.md`. Не добавляй новые
+> кейсы/требования, не правь upstream `docs/testcases/<feature>.md`/`docs/requirements/<feature>.md`, не трогай
 > `api.py`/`schemas`/`tests/`. Если кейс потерян — это либо ошибка плана (дописать Routine), либо
 > сигнал перезапустить пайплайн `cells`.
 
@@ -243,7 +248,8 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
 
 Перед завершением проверь:
 
-1. Прочитан ли `feature-cells.md` и upstream `feature-testcases.md` (+ `feature-requirements.md`)?
+1. Прочитан ли `docs/arch/<feature>.md` (по резолюции) и upstream `docs/testcases/<feature>.md`
+   (+ `docs/requirements/<feature>.md`)?
 2. Загружены ли `goga-cell`, `goga-tool-pybuggy-api-cookbook`, `goga-cell-python`,
    `goga-codemanifest-base`, `goga-tool-pybuggy-api-usage`?
 3. Проверена ли структура плана (все секции, отсутствие кода)?

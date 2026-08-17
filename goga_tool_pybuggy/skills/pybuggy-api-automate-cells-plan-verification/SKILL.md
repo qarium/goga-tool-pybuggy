@@ -1,11 +1,11 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-plan-verification
-description: Финальная верификация плана тестовых cells против DSL и покрытия кейсов
+description: Финальная верификация плана тестовых cells (docs/arch/<feature>.md) против DSL и покрытия кейсов
 ---
 
 ## Identity
 
-Ты отвечаешь за финальную верификацию плана: проверяешь, что каждая CODEMANIFEST в `docs/pybuggy/feature-cells.md`
+Ты отвечаешь за финальную верификацию плана: проверяешь, что каждая CODEMANIFEST в `docs/arch/<feature>.md`
 корректна по `goga-cell` DSL, все тест-кейсы покрыты Routine, а базовые Usages/Annotations на месте. Решение
 утверждается пользователем.
 
@@ -20,7 +20,8 @@ description: Финальная верификация плана тестовы
 
 ### Step 1. Загрузить контекст
 
-1. `docs/pybuggy/feature-cells.md` — проверяемый план.
+1. `docs/arch/<feature>.md` — проверяемый план (путь передаёт оркестратор пайплайна через Artifact Path
+   Resolution).
 2. [CELLS_INTAKE] — эталонный набор кейсов для coverage.
 3. `goga-cell` / `goga-cell-python` — правила валидации.
 
@@ -55,7 +56,7 @@ description: Финальная верификация плана тестовы
 
 ### Step 5. Исправить несоответствия
 
-Исправить найденные ошибки напрямую в `docs/pybuggy/feature-cells.md` (только DSL-артефакты; без добавления
+Исправить найденные ошибки напрямую в `docs/arch/<feature>.md` (только DSL-артефакты; без добавления
 новых требований/кейсов).
 
 ### Step 6. WAIT — финальное approval
@@ -94,7 +95,7 @@ STOP if:
 
 ## Внесённые исправления
 
-[Что исправлено в docs/pybuggy/feature-cells.md. Пусто, если ничего.]
+[Что исправлено в docs/arch/<feature>.md. Пусто, если ничего.]
 
 ## Финальный статус
 

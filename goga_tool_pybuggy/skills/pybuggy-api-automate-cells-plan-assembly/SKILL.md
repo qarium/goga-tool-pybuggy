@@ -1,18 +1,18 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-plan-assembly
-description: Сборка и сохранение архитектурного плана тестовых cells в docs/pybuggy/feature-cells.md
+description: Сборка и сохранение архитектурного плана тестовых cells в docs/arch/<feature>.md
 ---
 
 ## Identity
 
 Ты отвечаешь за сборку архитектурного плана тестовых cells из утверждённых CODEMANIFEST и сохранение его в
-`docs/pybuggy/feature-cells.md`. План содержит только DSL-артефакты (CODEMANIFEST), без кода реализации.
+`docs/arch/<feature>.md`. План содержит только DSL-артефакты (CODEMANIFEST), без кода реализации.
 
 ## Core Principle
 
 Ты **синтезируешь** [CONTRACTS_REPORT], [CELL_MAP_REPORT] и [CELLS_INTAKE] в единый план: порядок создания
 cells, полный CODEMANIFEST каждой cell, карту покрытия кейсов и чек-лист верификации. Ты **сохраняешь**
-результат в `docs/pybuggy/feature-cells.md`.
+результат в `docs/arch/<feature>.md`.
 
 ---
 
@@ -49,8 +49,8 @@ endpoint-cells отсутствуют; usage-файлы инструментов
 
 ### Step 6. Сохранить план
 
-Собрать документ по Output Format и сохранить в `docs/pybuggy/feature-cells.md` (создать `docs/pybuggy/`,
-если отсутствует).
+Собрать документ по Output Format и сохранить в `docs/arch/<feature>.md` (путь передаёт оркестратор пайплайна
+через Artifact Path Resolution; создать `docs/arch/`, если отсутствует).
 
 ### Step 7. Сформировать [CELLS_PLAN]
 
@@ -70,15 +70,16 @@ STOP if:
 
 ## Путь к файлу
 
-[docs/pybuggy/feature-cells.md — подтверждение сохранения]
+[docs/arch/<feature>.md — подтверждение сохранения]
 
 ## Тема
 
-[Фича и путь docs/pybuggy/feature-cells.md]
+[Фича и путь docs/arch/<feature>.md]
 
 ## Контекст
 
-[Входы: feature-testcases.md, feature-requirements.md; базовые Usages/Annotations из конфига; версия/env]
+[Входы: docs/testcases/<feature>.md, docs/requirements/<feature>.md; базовые Usages/Annotations из конфига;
+версия/env]
 
 ## Implementation Order
 

@@ -1,13 +1,13 @@
 ---
 name: goga-tool-pybuggy-api-automate-apply
-description: Материализация плана тестовых cells (docs/pybuggy/feature-cells.md) — создаёт CODEMANIFEST в tests/<spec>/<id>/ (в целевом проекте); usage-файлы инструментов уже созданы этапом testcases
+description: Материализация плана тестовых cells (docs/arch/<feature>.md) — создаёт CODEMANIFEST в tests/<spec>/<id>/ (в целевом проекте); usage-файлы инструментов уже созданы этапом testcases
 ---
 
 # Pybuggy API Feature Apply
 
 ## Identity
 
-Ты — инженер материализации архитектурного плана. Преобразуешь план `docs/pybuggy/feature-cells.md` в файлы
+Ты — инженер материализации архитектурного плана. Преобразуешь план `docs/arch/<feature>.md` в файлы
 CODEMANIFEST endpoint-cells `tests/<spec>/<id>/`. Создаёшь **только DSL-артефакты** — без тест-кода и
 `__init__.py`.
 
@@ -16,6 +16,16 @@ CODEMANIFEST endpoint-cells `tests/<spec>/<id>/`. Создаёшь **тольк�
 Материализовать план тестовых cells: для каждой endpoint-cell записать CODEMANIFEST в `tests/<spec>/<id>/`.
 Usage-файлы инструментов (`.goga/usages/cooks/<ключ>.md`) уже созданы этапом `testcases` — apply их только
 упоминает в Header cells, но не создаёт. План — единственный источник; ничего не додумывается.
+
+## Artifact Path Resolution
+
+Вход: `docs/arch/<feature>.md` — план тестовых cells. Определи `<feature>` до фаз и держи резолюцию весь сеанс:
+
+1. **В `$ARGUMENTS` есть имя фичи** — используй его как `<feature>`.
+2. **`$ARGUMENTS` пусты** — просканируй `docs/arch/`:
+   - один файл → возьми его имя (без расширения);
+   - несколько файлов → AskUserQuestion со списком;
+   - директория отсутствует или пуста → halt: сначала нужен пайплайн `pybuggy-api-automate-cells`.
 
 ## Context Initialization
 
@@ -29,8 +39,8 @@ Usage-файлы инструментов (`.goga/usages/cooks/<ключ>.md`) �
 ## Pre-flight
 
 1. Выполни `goga --help`. Если недоступен — halt и сообщи пользователю.
-2. Проверь `docs/pybuggy/feature-cells.md`. Если отсутствует/пуст — halt: сначала нужен пайплайн
-   `pybuggy-api-automate-cells`.
+2. Проверь `docs/arch/<feature>.md` (по Artifact Path Resolution). Если отсутствует/пуст — halt: сначала нужен
+   пайплайн `pybuggy-api-automate-cells`.
 
 ## Phases
 
@@ -38,7 +48,7 @@ Usage-файлы инструментов (`.goga/usages/cooks/<ключ>.md`) �
 
 ### Phase 1. Прочитать и разобрать план
 
-Из `docs/pybuggy/feature-cells.md` извлечь:
+Из `docs/arch/<feature>.md` извлечь:
 
 1. **Implementation order** — endpoint-cells `tests/<spec>/<id>/` (листья; порядок по spec/id).
 2. **Artifacts** — полный CODEMANIFEST каждой endpoint-cell (с cell-спец. usages инструментов, если есть).
@@ -121,6 +131,6 @@ Usage-файлы инструментов (`.goga/usages/cooks/<ключ>.md`) �
 
 ### ALWAYS
 
-- создавать CODEMANIFEST строго по плану `docs/pybuggy/feature-cells.md`
+- создавать CODEMANIFEST строго по плану `docs/arch/<feature>.md`
 - валидировать план до записи файлов
 - запускать `goga lint` / `goga schema` после создания

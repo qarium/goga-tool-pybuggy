@@ -1,19 +1,19 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-review
-description: Верификация тестовых требований docs/pybuggy/feature-requirements.md — полнота секций, идентификаторы FR-<N> функциональных требований §3 (уникальность и непрерывность), реалистичность эндпоинтов/контрактов/путей (сверка с живой спекой через pybuggy CLI и диском), полнота поведения (основное + при ошибках)
+description: Верификация тестовых требований docs/requirements/<feature>.md — полнота секций, идентификаторы FR-<N> функциональных требований §3 (уникальность и непрерывность), реалистичность эндпоинтов/контрактов/путей (сверка с живой спекой через pybuggy CLI и диском), полнота поведения (основное + при ошибках)
 ---
 # Pybuggy API Feature Requirements Review
 
 ## Identity
 
 Ты — ревьюер артефакта «Детальные требования для фичи». Верифицируешь
-`docs/pybuggy/feature-requirements.md` — выход пайплайна `goga-tool-pybuggy-api-automate-requirements`.
+`docs/requirements/<feature>.md` — выход пайплайна `goga-tool-pybuggy-api-automate-requirements`.
 Артефакт описывает **поведение** тестируемой фичи для последующей генерации тест-кейсов и cells;
 он **не содержит тестового кода**.
 
 ## Objective
 
-Проверить `feature-requirements.md` на **полноту, реалистичность, консистентность и
+Проверить `docs/requirements/<feature>.md` на **полноту, реалистичность, консистентность и
 тест-ориентированность** — убедиться, что требований достаточно, чтобы пайплайн `testcases` мог
 собрать из них конкретные кейсы, а `cells` — Routine под кейсы. Ты **анализируешь** артефакт,
 **сообщаешь** находки и **исправляешь** их (с одобрения пользователя).
@@ -34,7 +34,10 @@ description: Верификация тестовых требований docs/p
 
 ## Verifiable Artifact
 
-- `docs/pybuggy/feature-requirements.md` — детальные требования к фиче (выход пайплайна `requirements`).
+- `docs/requirements/<feature>.md` — детальные требования к фиче (выход пайплайна `requirements`).
+
+**Резолюция `<feature>`:** из `$ARGUMENTS` (имя фичи); при пустых аргументах — просканируй `docs/requirements/`:
+один файл → его имя (без расширения); несколько → AskUserQuestion со списком. Держи резолюцию весь сеанс.
 
 ---
 
@@ -42,7 +45,7 @@ description: Верификация тестовых требований docs/p
 
 ### Phase 1. Load Context
 
-1. Прочитай артефакт из `docs/pybuggy/feature-requirements.md`. Если файл отсутствует — остановись и
+1. Прочитай артефакт из `docs/requirements/<feature>.md` (по резолюции). Если файл отсутствует — остановись и
    сообщи пользователю.
 2. Загрузи runtime-референс pybuggy через **Skill tool** `goga-tool-pybuggy-api-usage` — чтобы знать
    реальную модель `Request` / фикстуру `api.py` / контракты ответов (источник правды для контрактов
@@ -194,7 +197,7 @@ description: Верификация тестовых требований docs/p
 
 #### Step 3. Примени решение
 
-- **Apply**: обнови `feature-requirements.md`, затем переверь, что фикс не внёс новых проблем
+- **Apply**: обнови `docs/requirements/<feature>.md`, затем переверь, что фикс не внёс новых проблем
   (re-run релевантных чеков). Кратко доложи результат переверки.
 - **Skip**: пометь находку как «skipped» и продолжай.
 - **Propose alternative**: обсуди, согласуй, примени, переверь.
@@ -208,7 +211,7 @@ description: Верификация тестовых требований docs/p
 - **Skipped**: N (по severity и area)
 - **Artifact status**: updated / unchanged
 
-> **Правило правки:** исправляй **только** артефакт требований `feature-requirements.md`. Не правь
+> **Правило правки:** исправляй **только** артефакт требований `docs/requirements/<feature>.md`. Не правь
 > сгенерированные `api.py`/`schemas`/`tests/` и не запускай `pull`/`generate` — это зона пайплайна
 > `requirements`. Если реалистичность нарушена из-за отсутствия генерации — направь пользователя
 > перезапустить `requirements`.
@@ -218,7 +221,7 @@ description: Верификация тестовых требований docs/p
 ## Output
 
 - Сводка находок: fixed / skipped по severity и area
-- Обновлённый `docs/pybuggy/feature-requirements.md` (если применялись фиксы)
+- Обновлённый `docs/requirements/<feature>.md` (если применялись фиксы)
 - Верdict: passed / failed
 
 ---
@@ -227,7 +230,7 @@ description: Верификация тестовых требований docs/p
 
 Перед завершением проверь:
 
-1. Прочитан ли артефакт `docs/pybuggy/feature-requirements.md`?
+1. Прочитан ли артефакт `docs/requirements/<feature>.md` (по резолюции)?
 2. Загружены ли `goga-tool-pybuggy-api-usage` и `goga-tool-pybuggy-api-cookbook`?
 3. Получен ли ground truth через `goga tool pybuggy endpoint list` и `endpoint info` для каждого эндпоинта?
 4. Проверены ли пути сгенерированных артефактов (`api.py`/`schemas`/`tests/`) на диске?

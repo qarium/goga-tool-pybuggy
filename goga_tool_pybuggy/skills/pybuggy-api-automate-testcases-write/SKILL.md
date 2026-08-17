@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-write
-description: Сборка детальных тест-кейсов (TC-<N>, поле requirements) и матрицы покрытия требований, сохранение их в docs/pybuggy/feature-testcases.md
+description: Сборка детальных тест-кейсов (TC-<N>, поле requirements) и матрицы покрытия требований, сохранение их в docs/testcases/<feature>.md
 ---
 
 ## Identity
@@ -88,8 +88,9 @@ description: Сборка детальных тест-кейсов (TC-<N>, по
    (единственный источник — сами кейсы): строка на каждое FR реестра §3 из [TESTCASES_INTAKE]; в колонку
    кейсов — все кейсы, указавшие этот FR, с типами; статус «покрыто» / «не покрыто» / «исключено
    (решением пользователя)» (решения — из «Решений по покрытию требований» [TESTCASES_PLAN]).
-4. Сохранить результат в `docs/pybuggy/feature-testcases.md`. После любых правок кейсов — пересчитать
-   матрицу и счётчик заново.
+4. Сохранить результат в `docs/testcases/<feature>.md` (путь передаёт оркестратор пайплайна через
+   Artifact Path Resolution; создать директорию `docs/testcases/`, если
+   отсутствует). После любых правок кейсов — пересчитать матрицу и счётчик заново.
 
 ### Step 5. Сформировать [FEATURE_TESTCASES]
 
@@ -109,7 +110,7 @@ STOP if:
 
 ## Путь к файлу
 
-[docs/pybuggy/feature-testcases.md — подтверждение сохранения]
+[docs/testcases/<feature>.md — подтверждение сохранения]
 
 ## Сводка
 

@@ -1,19 +1,19 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-review
-description: Верификация тест-кейсов docs/pybuggy/feature-testcases.md — трассируемость к требованиям (поле requirements, матрица покрытия FR), реалистичность данных (модель Request, схемы), покрытие Flow/Positive/Negative, качество кейсов (severity, конкретные данные, доскональные проверки, без кода)
+description: Верификация тест-кейсов docs/testcases/<feature>.md — трассируемость к требованиям (поле requirements, матрица покрытия FR), реалистичность данных (модель Request, схемы), покрытие Flow/Positive/Negative, качество кейсов (severity, конкретные данные, доскональные проверки, без кода)
 ---
 # Pybuggy API Feature Testcases Review
 
 ## Identity
 
 Ты — ревьюер артефакта «Детальные тест-кейсы для фичи». Верифицируешь
-`docs/pybuggy/feature-testcases.md` — выход пайплайна `goga-tool-pybuggy-api-automate-testcases`.
+`docs/testcases/<feature>.md` — выход пайплайна `goga-tool-pybuggy-api-automate-testcases`.
 Артефакт содержит конкретные, готовые к автоматизации интеграционные кейсы (Flow/Positive/Negative)
 **без тестового кода** — только описание поведения и ожиданий.
 
 ## Objective
 
-Проверить `feature-testcases.md` на **полноту, трассируемость, реалистичность, покрытие и качество
+Проверить `docs/testcases/<feature>.md` на **полноту, трассируемость, реалистичность, покрытие и качество
 кейсов** — убедиться, что кейсов достаточно и они достаточно конкретны, чтобы пайплайн `cells` мог
 построить из каждого кейса отдельный `Routine`. Ты **анализируешь** артефакт, **сообщаешь** находки
 и **исправляешь** их (с одобрения пользователя).
@@ -22,7 +22,7 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 
 **Кейс описывает что проверяется, а не как.** Каждый кейс должен быть однозначно автоматизируем:
 данные — из реальной модели `Request`, ожидания — из реальных схем `schemas`, проверки — доскональные
-(не один статус-код). Всё восходит к требованиям (`feature-requirements.md` — заявленное поведение,
+(не один статус-код). Всё восходит к требованиям (`docs/requirements/<feature>.md` — заявленное поведение,
 контракты ошибок, бизнес-предусловия) и реальным артефактам requirements — никаких догадок. Любой кейс,
 который нельзя превратить в `Routine` без додумывания, — это находка.
 
@@ -35,8 +35,12 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 
 ## Verifiable Artifact
 
-- `docs/pybuggy/feature-testcases.md` — детальные тест-кейсы (выход пайплайна `testcases`).
-- **Upstream-артефакт** для трассируемости: `docs/pybuggy/feature-requirements.md`.
+- `docs/testcases/<feature>.md` — детальные тест-кейсы (выход пайплайна `testcases`).
+- **Upstream-артефакт** для трассируемости: `docs/requirements/<feature>.md` (та же фича).
+
+**Резолюция `<feature>`:** из `$ARGUMENTS` (имя фичи); при пустых аргументах — просканируй `docs/testcases/`:
+один файл → его имя (без расширения); несколько → AskUserQuestion со списком. Одно имя `<feature>` для
+ревьюируемого артефакта и upstream-требований. Держи резолюцию весь сеанс.
 
 ---
 
@@ -44,9 +48,9 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 
 ### Phase 1. Load Context
 
-1. Прочитай `docs/pybuggy/feature-testcases.md`. Если файл отсутствует — остановись и сообщи
+1. Прочитай `docs/testcases/<feature>.md` (по резолюции). Если файл отсутствует — остановись и сообщи
    пользователю.
-2. Прочитай upstream-артефакт `docs/pybuggy/feature-requirements.md` — источник правды для
+2. Прочитай upstream-артефакт `docs/requirements/<feature>.md` — источник правды для
    трассируемости (эндпоинты, версия/env, сценарии, контракты, критерии приёмки). Если он
    отсутствует — находка **Critical** (testcases построен без валидного входа). Из §3 upstream
    распарси реестр `FR-<N>` (идентификатор + формулировка + подраздел) — эталон для Phase 3/7.
@@ -110,7 +114,7 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 5. **Границы** — ограничения из требований (что фича не делает) учтены (не тестируется как
    функциональность / покрыты negative-кейсами на границах). Противоречие — **Medium**.
 6. **Инструменты (usage-ключи)** — каждый usage-ключ, упомянутый в Предусловиях кейсов, существует:
-   либо в §8 `feature-requirements.md` (реестр доступных usages), либо как созданный файл
+   либо в §8 `docs/requirements/<feature>.md` (реестр доступных usages), либо как созданный файл
    `.goga/usages/cooks/<ключ>.md` (шаг `tools` пайплайна). Ключ без файла на диске и без записи в §8 —
    **High** (висячая ссылка: `cells-contracts` подключит её в Header, backtick не разрешится). Обратное —
    кейс с дата-сетапом, требующим инструмента, но без ключа — **Medium** (потребность не согласовывалась
@@ -240,7 +244,7 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 
 #### Step 3. Примени решение
 
-- **Apply**: обнови `feature-testcases.md`, затем переверь, что фикс не внёс новых проблем (re-run
+- **Apply**: обнови `docs/testcases/<feature>.md`, затем переверь, что фикс не внёс новых проблем (re-run
   релевантных чеков, включая пересчёт `Общее количество` и матрицы покрытия). Кратко доложи результат.
 - **Skip**: пометь как «skipped» и продолжай.
 - **Propose alternative**: обсуди, согласуй, примени, переверь.
@@ -254,7 +258,7 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 - **Skipped**: N (по severity и area)
 - **Artifact status**: updated / unchanged
 
-> **Правка правки:** исправляй **только** `feature-testcases.md`. Не правь `feature-requirements.md`
+> **Правка правки:** исправляй **только** `docs/testcases/<feature>.md`. Не правь `docs/requirements/<feature>.md`
 > (это upstream — его проверяет `requirements-review`), не трогай `api.py`/`schemas`/`tests/` и не запускай
 > `pull`/`generate`. Если реалистичность нарушена из-за отсутствия данных модели — направь пользователя
 > перезапустить `testcases`. Если непокрытое FR — следствие пробела в требованиях, направь пользователя
@@ -265,7 +269,7 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 ## Output
 
 - Сводка находок: fixed / skipped по severity и area
-- Обновлённый `docs/pybuggy/feature-testcases.md` (если применялись фиксы)
+- Обновлённый `docs/testcases/<feature>.md` (если применялись фиксы)
 - Верdict: passed / failed
 
 ---
@@ -274,7 +278,7 @@ description: Верификация тест-кейсов docs/pybuggy/feature-t
 
 Перед завершением проверь:
 
-1. Прочитан ли `feature-testcases.md` и upstream `feature-requirements.md`?
+1. Прочитан ли `docs/testcases/<feature>.md` (по резолюции) и upstream `docs/requirements/<feature>.md`?
 2. Загружены ли `goga-tool-pybuggy-api-usage` и `goga-tool-pybuggy-api-cookbook`?
 3. Получены ли контракты из `api.py` (модель `Request`) и `schemas/<status>.json`?
 4. Проверена ли структурная полнота документа и каждого кейса (все поля/подсекции, секция «Трейсы

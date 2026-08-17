@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells
-description: Пайплайн проектирования тестовых cells — по тест-кейсам собирает архитектурный план CODEMANIFEST (Routine под кейсы; 1 кейс = 1 Routine не обязательно) и сохраняет его в docs/pybuggy/feature-cells.md
+description: Пайплайн проектирования тестовых cells — по тест-кейсам собирает архитектурный план CODEMANIFEST (Routine под кейсы; 1 кейс = 1 Routine не обязательно) и сохраняет его в docs/arch/<feature>.md
 ---
 
 ## Identity
@@ -14,7 +14,23 @@ goga-cell DSL.
 Создать артефакт «Архитектурный план тестовых cells»: для каждой cell эндпоинта — полный CODEMANIFEST
 (базовые Usages/Annotations из конфига + Routine под тест-кейсы — гранулярность произвольная,
 1 кейс = 1 Routine не обязательно + Footer). Сохранить план в
-`docs/pybuggy/feature-cells.md` (без записи самих cells).
+`docs/arch/<feature>.md` (без записи самих cells).
+
+## Artifact Path Resolution
+
+Вход пайплайна: `docs/testcases/<feature>.md` (+ `docs/requirements/<feature>.md` как контекст). Выход:
+`docs/arch/<feature>.md` (создать директорию `docs/arch/`, если отсутствует). Одна фича — одно имя `<feature>`
+для входа и выхода.
+
+Определи `<feature>` до запуска фаз и держи резолюцию весь сеанс:
+
+1. **В `$ARGUMENTS` есть имя фичи** — используй его как `<feature>`.
+2. **`$ARGUMENTS` пусты** — просканируй `docs/testcases/`:
+   - директория существует и содержит ≥1 файл → один файл: возьми его имя (без расширения); несколько:
+     AskUserQuestion со списком файлов;
+   - директория отсутствует или пуста → STOP: сначала нужен пайплайн `goga-tool-pybuggy-api-automate-testcases`.
+
+Передай определённые пути sub-скиллам.
 
 ## Context Initialization
 
@@ -43,7 +59,7 @@ Usage-файлы инструментов (библиотеки данных/м�
 ### Phase 1. Intake
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-intake`
-- Reads: `docs/pybuggy/feature-testcases.md`, `docs/pybuggy/feature-requirements.md`
+- Reads: `docs/testcases/<feature>.md`, `docs/requirements/<feature>.md`
 - Output: [CELLS_INTAKE]
 - STOP if: файлы отсутствуют/пусты; нет эндпоинтов в кейсах
 
@@ -74,14 +90,14 @@ Usage-файлы инструментов (библиотеки данных/м�
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-assembly`
 - Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE]
-- Output: [CELLS_PLAN] — сохраняется в `docs/pybuggy/feature-cells.md` (endpoint-cells, включая
+- Output: [CELLS_PLAN] — сохраняется в `docs/arch/<feature>.md` (endpoint-cells, включая
   cell-спец. usages, подключённые в `contracts`)
 - STOP if: план неполон; непокрытый кейс
 
 ### Phase 6. Plan Verification (WAIT финал)
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-verification`
-- Reads: `docs/pybuggy/feature-cells.md`, [CELLS_INTAKE]
+- Reads: `docs/arch/<feature>.md`, [CELLS_INTAKE]
 - Output: [VERIFICATION_REPORT]
 - WAIT: финальное approval плана
 - STOP if: нерешённые DSL-ошибки; провал coverage (кейсы потеряны / висячие Routine); approval denied
@@ -107,4 +123,4 @@ Usage-файлы инструментов (библиотеки данных/м�
 - опираться на `goga-cell` DSL и `goga-cell-python` при сборке/валидации CODEMANIFEST
 - получать approval пользователя на каждом WAIT-gate (один вопрос, 2–4 варианта)
 - включать базовые `Usages`/`Annotations` из конфига в каждую CODEMANIFEST
-- сохранять финальный план в `docs/pybuggy/feature-cells.md` и фиксировать путь
+- сохранять финальный план в `docs/arch/<feature>.md` (путь из Artifact Path Resolution) и фиксировать путь

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases
-description: Пайплайн генерации детальных интеграционных тест-кейсов из требований к фиче — читает docs/pybuggy/feature-requirements.md, собирает реальные детали эндпоинтов, сохраняет кейсы (TC-<N>, трассируемость FR→TC) и матрицу покрытия требований в docs/pybuggy/feature-testcases.md
+description: Пайплайн генерации детальных интеграционных тест-кейсов из требований к фиче — читает docs/requirements/<feature>.md, собирает реальные детали эндпоинтов, сохраняет кейсы (TC-<N>, трассируемость FR→TC) и матрицу покрытия требований в docs/testcases/<feature>.md
 ---
 
 ## Identity
@@ -13,7 +13,22 @@ description: Пайплайн генерации детальных интегр
 
 Создать артефакт «Детальные тест-кейсы для фичи»: трейсы фичи (вызов → эффект → верификация) и выведенные
 из них конкретные сценарии (Flow/Positive/Negative) с реальными данными запросов и доскональными проверками
-контрактов ответов (статус, поля, структура, инварианты). Сохранить в `docs/pybuggy/feature-testcases.md`.
+контрактов ответов (статус, поля, структура, инварианты). Сохранить в `docs/testcases/<feature>.md`.
+
+## Artifact Path Resolution
+
+Вход пайплайна: `docs/requirements/<feature>.md`. Выход: `docs/testcases/<feature>.md` (создать директорию
+`docs/testcases/`, если отсутствует). Одна фича — одно имя `<feature>` для входа и выхода.
+
+Определи `<feature>` до запуска шагов и держи резолюцию весь сеанс:
+
+1. **В `$ARGUMENTS` есть имя фичи** — используй его как `<feature>`.
+2. **`$ARGUMENTS` пусты** — просканируй `docs/requirements/`:
+   - директория существует и содержит ≥1 файл → один файл: возьми его имя (без расширения); несколько:
+     AskUserQuestion со списком файлов;
+   - директория отсутствует или пуста → STOP: сначала нужен пайплайн `goga-tool-pybuggy-api-automate-requirements`.
+
+Передай определённые пути sub-скиллам.
 
 ## Pipeline
 
@@ -27,7 +42,7 @@ description: Пайплайн генерации детальных интегр
 
 - Invoke: `goga-tool-pybuggy-api-automate-testcases-intake`
 - Output: [TESTCASES_INTAKE]
-- STOP if: `docs/pybuggy/feature-requirements.md` отсутствует/пуст или не содержит ни одного эндпоинта фичи
+- STOP if: `docs/requirements/<feature>.md` отсутствует/пуст или не содержит ни одного эндпоинта фичи
 
 ### Step 2. Discovery
 
@@ -54,7 +69,7 @@ description: Пайплайн генерации детальных интегр
 ### Step 5. Tools (WAIT)
 
 - Invoke: `goga-tool-pybuggy-api-automate-testcases-tools`
-- Reads: [TESTCASES_PLAN], `docs/pybuggy/feature-requirements.md` (§8 — реестр usages)
+- Reads: [TESTCASES_PLAN], `docs/requirements/<feature>.md` (§8 — реестр usages)
 - Output: [TOOLS_REPORT] + созданные usage-файлы `.goga/usages/cooks/<ключ>.md` (новые инструменты)
 - WAIT: согласование инструментов с пользователем (существующие usages / новые / отложить)
 - STOP if: блокирующая потребность без инструмента после согласования
@@ -63,7 +78,7 @@ description: Пайплайн генерации детальных интегр
 
 - Invoke: `goga-tool-pybuggy-api-automate-testcases-write`
 - Reads: [TESTCASES_INTAKE], [TESTCASES_DISCOVERY], [TESTCASES_ELABORATION], [TESTCASES_PLAN], [TOOLS_REPORT]
-- Output: [FEATURE_TESTCASES] — сохраняется в `docs/pybuggy/feature-testcases.md`
+- Output: [FEATURE_TESTCASES] — сохраняется в `docs/testcases/<feature>.md`
 
 ## Output Rule
 
@@ -91,5 +106,5 @@ description: Пайплайн генерации детальных интегр
   покрытия требований — источник истины матрицы: поля `requirements` кейсов
 - подтверждать у пользователя охват кейсами и неоднозначные решения (через AskUserQuestion с вариантами)
 - ставить severity по шкале из discovery
-- сохранять финальный результат в `docs/pybuggy/feature-testcases.md` и фиксировать путь
+- сохранять финальный результат в `docs/testcases/<feature>.md` (путь из Artifact Path Resolution) и фиксировать путь
 - задавать открытые вопросы с вариантами ответов

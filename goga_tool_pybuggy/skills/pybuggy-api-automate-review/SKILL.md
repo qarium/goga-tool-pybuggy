@@ -22,47 +22,46 @@ description: Диспетчер ревью тестовых артефактов
 
 1. **В аргументах есть путь** — определи тип по сегментам пути (проверяй сверху вниз, первый матч
    выигрывает):
-   - путь содержит `docs/pybuggy/feature-requirements.md` (или `feature-requirements`) → **requirements**
-   - путь содержит `docs/pybuggy/feature-testcases.md` (или `feature-testcases`) → **testcases**
-   - путь содержит `docs/pybuggy/feature-cells.md` (или `feature-cells`) → **cells**
+   - путь содержит `docs/requirements/` → **requirements**
+   - путь содержит `docs/testcases/` → **testcases**
+   - путь содержит `docs/arch/` → **cells**
    - путь содержит `docs/design/` → **design**
    - путь содержит `docs/plans/` → **plan**
-   - путь указывает на `tests/<spec>/<id>/` или не содержит `docs/pybuggy|design|plans` → **cell**
-     (материализованная тестовая cell на диске)
 
-   Для `design`/`plan` извлеки `<target>` из пути:
+   Для каждого типа извлеки `<target>` (имя фичи) из пути:
+   - `docs/requirements/clients.md` → `<target>` = `clients`
+   - `docs/testcases/clients.md` → `<target>` = `clients`
+   - `docs/arch/clients.md` → `<target>` = `clients`
    - `docs/design/clients.md` → `<target>` = `clients`
    - `docs/plans/clients.md` → `<target>` = `clients`
-
-   Для `requirements`/`testcases`/`cells` `<target>` не нужен — артефакт лежит по фиксированному пути.
 
 2. **Аргументы пусты** — спроси через AskUserQuestion:
    - **question**: «Что проверить?»
    - **header**: «Тип ревью»
    - **multiSelect**: false
    - **options**:
-     - **label**: «requirements», **description**: «Ревью требований из docs/pybuggy/feature-requirements.md»
-     - **label**: «testcases», **description**: «Ревью тест-кейсов из docs/pybuggy/feature-testcases.md»
-     - **label**: «cells», **description**: «Ревью плана тестовых cells из docs/pybuggy/feature-cells.md»
+     - **label**: «requirements», **description**: «Ревью требований из docs/requirements/<feature>.md»
+     - **label**: «testcases», **description**: «Ревью тест-кейсов из docs/testcases/<feature>.md»
+     - **label**: «cells», **description**: «Ревью плана тестовых cells из docs/arch/<feature>.md»
      - **label**: «design», **description**: «Ревью тестового дизайн-дока из docs/design/»
      - **label**: «plan», **description**: «Ревью тестового ralphex-плана из docs/plans/ (включая запуск pytest)»
 
 ### Type-Based Routing
 
 #### requirements
-Проверь, что `docs/pybuggy/feature-requirements.md` существует.
+Проверь, что `docs/requirements/<target>.md` существует.
 1. **Нет** — остановись и сообщи пользователю (сначала нужен пайплайн `requirements`).
-2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-requirements-review`.
+2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-requirements-review`, передав `<target>`.
 
 #### testcases
-Проверь, что `docs/pybuggy/feature-testcases.md` существует.
+Проверь, что `docs/testcases/<target>.md` существует.
 1. **Нет** — остановись и сообщи пользователю (сначала нужен пайплайн `testcases`).
-2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-testcases-review`.
+2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-testcases-review`, передав `<target>`.
 
 #### cells
-Проверь, что `docs/pybuggy/feature-cells.md` существует.
+Проверь, что `docs/arch/<target>.md` существует.
 1. **Нет** — остановись и сообщи пользователю (сначала нужен пайплайн `cells`).
-2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-cells-review`.
+2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-cells-review`, передав `<target>`.
 
 #### design
 Проверь, что `docs/design/<target>.md` существует.
@@ -73,11 +72,6 @@ description: Диспетчер ревью тестовых артефактов
 Проверь, что `docs/plans/<target>.md` существует.
 1. **Нет** — остановись и сообщи пользователю.
 2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-plan-review`, передав `<target>`.
-
-#### cell
-Это материализованная тестовая cell (`tests/<spec>/<id>/`). Её архитектурная верификация — зона пайплайна
-`cells`. Направь пользователя к `goga-tool-pybuggy-api-automate-cells-plan-verification` (внутрипайплайнный
-gate). План тестовых cells (`docs/pybuggy/feature-cells.md`) проверяется отдельным ревью **cells** выше.
 
 ## Invariants
 

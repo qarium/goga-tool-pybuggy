@@ -25,7 +25,8 @@ description: Выявление потребностей тест-кейсов �
 ### Step 1. Загрузить контекст
 
 1. [TESTCASES_PLAN] — матрица кейсов (типы, эндпоинты, дата-сетап, ожидания).
-2. `docs/pybuggy/feature-requirements.md` §8 «Доступные usages проекта» — реестр существующих usages
+2. `docs/requirements/<feature>.md` §8 «Доступные usages проекта» — реестр существующих usages (путь передаёт
+   оркестратор пайплайна через Artifact Path Resolution)
    (ключ | путь | роль | назначение).
 3. При §8 «usages отсутствуют» — выполнить скан `.goga/usages/` самостоятельно (как в
    `requirements-discovery`, Step 2) и использовать его результат.

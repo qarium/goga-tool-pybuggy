@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements
-description: Пайплайн сбора требований к интеграционному тестированию фичи — собирает детальные требования из описания фичи и спецификации сервиса, генерирует фикстуры
+description: Пайплайн сбора требований к интеграционному тестированию фичи — собирает детальные требования из описания фичи и спецификации сервиса, генерирует фикстуры; сохраняет артефакт в docs/requirements/<feature>.md
 ---
 
 ## Identity
@@ -13,7 +13,18 @@ description: Пайплайн сбора требований к интегра�
 
 Собрать артефакт «Детальные требования для фичи»: что именно тестируем, какие эндпоинты задействованы, как фича
 ведёт себя (основное поведение и поведение при ошибках как контракт), какие бизнес-предусловия, роли и
-ограничения — и сохранить его в `docs/pybuggy/feature-requirements.md`.
+ограничения — и сохранить его в `docs/requirements/<feature>.md`.
+
+## Artifact Path Resolution
+
+Артефакт пайплайна: `docs/requirements/<feature>.md` (создать директорию `docs/requirements/`, если отсутствует).
+Определи `<feature>` до запуска шагов и держи резолюцию весь сеанс:
+
+1. **В `$ARGUMENTS` есть имя фичи** — используй его как `<feature>` (формат: slug, напр. `clients`).
+2. **`$ARGUMENTS` пусты** — остановись и запроси у пользователя имя фичи через AskUserQuestion (варианты:
+   slug из слов описания фичи), не выполняй шаги без определённого `<feature>`.
+
+Передай определённый путь `docs/requirements/<feature>.md` sub-скиллам на шаге Report.
 
 ## Pipeline
 
@@ -26,7 +37,7 @@ description: Пайплайн сбора требований к интегра�
 
 - Invoke: `goga-tool-pybuggy-api-automate-requirements-intake` с `$ARGUMENTS`
 - Output: [INTAKE_REPORT]
-- STOP if: описание фичи пустое или неоднозначное и не уточняется пользователем
+- STOP if: описание фичи пустое или неоднозначное и не уточняется пользователем; имя `<feature>` не определено
 
 ### Step 2. Discovery & Scaffold
 
@@ -47,7 +58,7 @@ description: Пайплайн сбора требований к интегра�
 
 - Invoke: `goga-tool-pybuggy-api-automate-requirements-report`
 - Reads: [INTAKE_REPORT], [DISCOVERY_REPORT], [ELABORATION_REPORT]
-- Output: [FEATURE_SPEC] — сохраняется в `docs/pybuggy/feature-requirements.md`
+- Output: [FEATURE_SPEC] — сохраняется в `docs/requirements/<feature>.md`
 
 ## Output Rule
 
@@ -71,5 +82,5 @@ description: Пайплайн сбора требований к интегра�
   опора трассируемости тест-кейсов
 - подтверждать у пользователя отбор эндпоинтов и неоднозначные решения
 - фиксировать пути сгенерированных артефактов (`api.py`, `schemas`)
-- сохранять финальный артефакт требований в `docs/pybuggy/feature-requirements.md`
+- сохранять финальный артефакт требований в `docs/requirements/<feature>.md` (путь из Artifact Path Resolution)
 - задавать открытые вопросы с вариантами ответов

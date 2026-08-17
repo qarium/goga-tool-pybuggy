@@ -11,7 +11,7 @@ description: Проверка входов и разбор тест-кейсов
 
 ## Core Principle
 
-Ты **проверяешь** наличие `feature-testcases.md` (+ `feature-requirements.md` как контекст) и **извлекаешь**
+Ты **проверяешь** наличие `docs/testcases/<feature>.md` (+ `docs/requirements/<feature>.md` как контекст) и **извлекаешь**
 из тест-кейсов только то, что зафиксировано: эндпоинты, кейсы (тип, title, severity, шаги, предусловия,
 ожидания), версию/env. Ничего не додумываешь — пробелы уходят в «Что нужно уточнить».
 
@@ -21,14 +21,15 @@ description: Проверка входов и разбор тест-кейсов
 
 ### Step 1. Предварительная проверка (PRELIMINARY CHECK)
 
-1. Прочитать `docs/pybuggy/feature-testcases.md`. Если отсутствует или пуст — STOP: сообщить, что сначала
-   нужен пайплайн `pybuggy-api-automate-testcases`.
-2. Прочитать `docs/pybuggy/feature-requirements.md` (контекст фичи). Если отсутствует — отметить как пробел,
-   продолжить по тест-кейсам.
+1. Прочитать `docs/testcases/<feature>.md` (путь передаёт оркестратор пайплайна через Artifact Path
+   Resolution). Если отсутствует или пуст — STOP: сообщить, что сначала нужен пайплайн
+   `pybuggy-api-automate-testcases`.
+2. Прочитать `docs/requirements/<feature>.md` (контекст фичи, тот же `<feature>`). Если отсутствует — отметить
+   как пробел, продолжить по тест-кейсам.
 
 ### Step 2. Разобрать тест-кейсы
 
-Из `feature-testcases.md` извлечь по каждому кейсу:
+Из `docs/testcases/<feature>.md` извлечь по каждому кейсу:
 
 1. Идентификатор кейса `TC-<N>` и `title` — стабильная ссылка на кейс во всех артефактах cells
    (Coverage Map, план, ревью).
@@ -51,7 +52,7 @@ description: Проверка входов и разбор тест-кейсов
 
 STOP if:
 
-- `docs/pybuggy/feature-testcases.md` отсутствует или пуст;
+- `docs/testcases/<feature>.md` отсутствует или пуст;
 - в тест-кейсах нет ни одного эндпоинта.
 
 ---
@@ -65,7 +66,8 @@ STOP if:
 
 ## Источник
 
-[Подтверждение, что feature-testcases.md (+ feature-requirements.md) загружены]
+[Имя фичи `<feature>` + подтверждение, что `docs/testcases/<feature>.md`
+(+ `docs/requirements/<feature>.md`) загружены]
 
 ## Версия сервиса и окружение
 
