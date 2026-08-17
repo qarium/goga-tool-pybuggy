@@ -72,7 +72,7 @@ Usages:
 - Базовый блок при этом **не меняется**. Cell-специфичный usage есть только в cell, использующих библиотеку, —
   его наличие в одних cells и отсутствие в других **не** расхождение.
 - coverage (покрытие кейсов) и гранулярность Routine **не затрагиваются** (lib-usages — Header/Annotations, не Routine).
-- Проектирует подключения sub-скилл `goga-tool-pybuggy-api-feature-cells-libs`; контракты с базовым Header
+- Проектирует подключения sub-скилл `goga-tool-pybuggy-api-automate-cells-libs`; контракты с базовым Header
   собирает `contracts` (без `Use \`<ключ>\`` — ссылку добавляет libs, иначе backtick не разрешится).
 
 ### Body — Routine
