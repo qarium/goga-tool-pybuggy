@@ -63,6 +63,15 @@ description: Главный навигационный скилл pybuggy — в
 | `goga-tool-pybuggy-api-automate-design` | Дизайн-док материализации тестов из CODEMANIFEST тест-cells; закрепляет `pytest` как валидацию                     | `goga-design` |
 | `goga-tool-pybuggy-api-automate-plan`   | ralphex-план генерации **и запуска** тестов; гарантирует `pytest` в Validation Commands и исполнимые Task-чекбоксы | `goga-plan`   |
 
+### Приёмка (после `goga build`)
+
+Финальная петля флоу: запускает сгенерированные тесты и разбирает падения. Вызывается вручную после
+того, как `goga build` материализовал `test_*.py`.
+
+| Скилл                                   | Что делает                                                                                                                | Вход                                  | Артефакт на выходе                         |
+|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------|---------------------------------------|--------------------------------------------|
+| `goga-tool-pybuggy-api-automate-accept` | Приёмка: сверка кейс → Routine → `test_*.py`, запуск pytest, триаж падений с пользователем; баги сервиса — в `docs/bugs/` | `docs/testcases/<feature>.md` + тесты | [ACCEPT_REPORT] + `docs/bugs/<feature>.md` |
+
 ### Ревью-скиллы
 
 Верифицируют тестовые артефакты всех фаз: requirements → testcases → cells → design/plan.
@@ -91,6 +100,7 @@ description: Главный навигационный скилл pybuggy — в
    - «дизайн тестов / спроектировать генерацию тестов» → `goga-tool-pybuggy-api-automate-design`;
    - «собрать план тестов / ralphex-план / заставить сборку запускать тесты» → `goga-tool-pybuggy-api-automate-plan`;
    - «проверить тестовый артефакт / ревью requirements|testcases|cells|design|plan» → `goga-tool-pybuggy-api-automate-review`;
+   - «принять тесты / запустить тесты / разобрать падения / зафиксировать баг» → `goga-tool-pybuggy-api-automate-accept`;
    - «создать conftest / настроить запуск тестов / load_dotenv + плагин» → `goga-tool-pybuggy-api-automate-conftest`;
    - «как вызвать API / как проверить ответ» → `goga-tool-pybuggy-api-usage`;
    - «правила DSL для тестовых cells» → `goga-tool-pybuggy-api-cookbook`.

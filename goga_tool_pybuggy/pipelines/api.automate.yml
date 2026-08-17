@@ -1,74 +1,79 @@
 name: PybuggyApiAutomate
-description: "Pybuggy API-test automate lifecycle: coverage-analysis → requirements-audit → test-design → test-audit → prepare-testcases → review-testcases → create-testcases → code-design → design-review → coding-plan → plan-review → commit-changes → accept-result"
+description: "Pybuggy API-test automate lifecycle: coverage-analysis → requirements-audit → test-design → test-audit → prepare-testcases → review-testcases → create-testcases → setup-conftest → code-design → design-review → coding-plan → plan-review → commit-changes → accept-result"
 ---
 
 - name: coverage-analysis
-  title: "Collect automate requirements"
+  title: "Analyze coverage"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-requirements
 
 - name: requirements-audit
-  title: "Review of the automate requirements"
+  title: "Review requirements"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-requirements-review
 
 - name: test-design
-  title: "Generate integration test cases"
+  title: "Design test cases"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-testcases
 
 - name: test-audit
-  title: "Review of the integration test cases"
+  title: "Review test cases"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-testcases-review
 
 - name: prepare-testcases
-  title: "Design test-cell architecture"
+  title: "Prepare testcases"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-cells
 
 - name: review-testcases
-  title: "Review of the test-cell architecture plan"
+  title: "Review testcases plan"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-cells-review
 
 - name: create-testcases
-  title: "Materialize the test-cell plan"
+  title: "Create testcases"
   skills:
     - goga-tool-pybuggy-api-automate-apply
 
+- name: setup-conftest
+  title: "Setup conftest"
+  skills:
+    - goga-tool-pybuggy-api-automate-conftest
+
 - name: code-design
-  title: "Design test materialization"
+  title: "Design test code"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-design
 
 - name: design-review
-  title: "Review of the test design document"
+  title: "Review test design"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-design-review
 
 - name: coding-plan
-  title: "Create the test execution plan"
+  title: "Create coding plan"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-plan
 
 - name: plan-review
-  title: "Review of the test execution plan"
+  title: "Review coding plan"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-plan-review
 
 - name: commit-changes
-  title: "Commit changes and wait for the coding plan was built"
+  title: "Commit changes"
   communication: true
   prompt: |
     Steps:
@@ -83,9 +88,9 @@ description: "Pybuggy API-test automate lifecycle: coverage-analysis → require
       - Except changes in `docs/<tasks|arch|design|plans>`.
 
 - name: accept-result
-  title: "Contracts & coverage audit"
+  title: "Accept test results"
   communication: true
   prompt: |
     Commit changes after fixes
   skills:
-    - goga-accept
+    - goga-tool-pybuggy-api-automate-accept
