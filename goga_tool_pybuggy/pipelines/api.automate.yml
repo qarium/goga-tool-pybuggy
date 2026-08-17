@@ -1,177 +1,73 @@
 name: PybuggyApiAutomate
-description: "Pybuggy API-test automate lifecycle: propose → review → testcases → review → cells → review → apply → design → review → plan → review"
+description: "Pybuggy API-test automate lifecycle: coverage-analysis → requirements-audit → test-design → test-audit → prepare-testcases → review-testcases → create-testcases → code-design → design-review → coding-plan → plan-review → commit-changes → accept-result"
 ---
 
-- name: propose
+- name: coverage-analysis
   title: "Collect automate requirements"
   communication: true
-  prompt: |
-    Collect detailed requirements for the integration testing of the feature
-    described in $ARGUMENTS and save the artifact to `docs/pybuggy/feature-requirements.md`.
-
-    Run the `goga-tool-pybuggy-api-automate-requirements` skill.
-
-    Halt if the feature description is empty or ambiguous and cannot be clarified.
   skills:
     - goga-tool-pybuggy-api-automate-requirements
 
-- name: requirements-review
+- name: requirements-audit
   title: "Review of the automate requirements"
   communication: true
-  prompt: |
-    Review the feature requirements `docs/pybuggy/feature-requirements.md` for
-    completeness (all 10 sections), endpoint/contract/path realness (cross-check via
-    the `pybuggy` CLI and the disk), test orientation (positive/negative, severity), and
-    absence of test code. Fix the findings with user approval.
-
-    Run the `goga-tool-pybuggy-api-automate-requirements-review` skill.
-
-    Halt if `docs/pybuggy/feature-requirements.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-requirements-review
 
-- name: testcases
+- name: test-design
   title: "Generate integration test cases"
   communication: true
-  prompt: |
-    Read `docs/pybuggy/feature-requirements.md` and generate detailed integration
-    test cases (Flow/Positive/Negative) with real request data and response-contract
-    checks. Save them to `docs/pybuggy/feature-testcases.md`.
-
-    Run the `goga-tool-pybuggy-api-automate-testcases` skill.
-
-    Halt if `docs/pybuggy/feature-requirements.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-testcases
 
-- name: testcases-review
+- name: test-audit
   title: "Review of the integration test cases"
   communication: true
-  prompt: |
-    Review the integration test cases `docs/pybuggy/feature-testcases.md` for
-    traceability to `feature-requirements.md`, data/contract realness (Request model,
-    schemas), coverage (Flow/Positive/Negative), and case quality (severity, concrete
-    data, thorough checks, no code). Fix the findings with user approval.
-
-    Run the `goga-tool-pybuggy-api-automate-testcases-review` skill.
-
-    Halt if `docs/pybuggy/feature-testcases.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-testcases-review
 
-- name: cells
+- name: prepare-testcases
   title: "Design test-cell architecture"
   communication: true
-  prompt: |
-    Read `docs/pybuggy/feature-testcases.md` and build the test-cell architecture
-    plan — a full CODEMANIFEST per endpoint cell with a Routine per test case.
-    Save the plan to `docs/pybuggy/feature-cells.md`.
-
-    Run the `goga-tool-pybuggy-api-automate-cells` skill. Honor its WAIT-gates: ask
-    the user at the cell-map, contracts, libs, and plan-verification gates.
-
-    Halt if `docs/pybuggy/feature-testcases.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-cells
 
-- name: cells-review
+- name: review-testcases
   title: "Review of the test-cell architecture plan"
   communication: true
-  prompt: |
-    Review the test-cell architecture plan `docs/pybuggy/feature-cells.md`: every
-    CODEMANIFEST valid against the `goga-cell` DSL, Routine-based endpoint-cells (no
-    Entities), base Usages/Annotations plus cell-specific library usages, strict
-    annotation order, coverage (every case covered directly or as a Routine variant;
-    1 case = 1 Routine allowed but not required), and semantic sufficiency for
-    test generation. Fix the findings with user approval.
-
-    Run the `goga-tool-pybuggy-api-automate-cells-review` skill.
-
-    Halt if `docs/pybuggy/feature-cells.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-cells-review
 
-- name: apply
+- name: create-testcases
   title: "Materialize the test-cell plan"
-  prompt: |
-    Read `docs/pybuggy/feature-cells.md` and materialize the plan: write CODEMANIFEST
-    files into `tests/<spec>/<id>/` and library usage files into
-    `.goga/usages/cooks/<key>.md` (DSL only — no test code, no `__init__.py`),
-    then run `goga lint` and `goga schema` to validate.
-
-    Run the `goga-tool-pybuggy-api-automate-apply` skill.
-
-    Halt if `docs/pybuggy/feature-cells.md` is missing, empty, or fails plan
-    validation.
   skills:
     - goga-tool-pybuggy-api-automate-apply
 
-- name: design
+- name: code-design
   title: "Design test materialization"
   communication: true
-  prompt: |
-    Generate the test-materialization design document
-    `docs/design/<git branch --show-current>.md` from the CODEMANIFEST test-cells in
-    `tests/<spec>/<id>/`: which `test_*.py` to generate, the pybuggy runtime/fixtures
-    used, with `pytest` fixed as the validation instrument.
-
-    Run the `goga-tool-pybuggy-api-automate-design` skill, passing `<feature>` =
-    `<git branch --show-current>`.
-
-    Halt if no materialized test-cells exist under `tests/`.
   skills:
     - goga-tool-pybuggy-api-automate-design
 
 - name: design-review
   title: "Review of the test design document"
   communication: true
-  prompt: |
-    Review the test design document `docs/design/<git branch --show-current>.md` for
-    test correctness: it describes generating `test_*.py` (not production code), each
-    Routine ↔ `test_<name>.py` by its `location`, the pybuggy runtime + assert layer is
-    present, and `pytest` is fixed as the validation instrument. Fix the findings with
-    user approval.
-
-    Run the `goga-tool-pybuggy-api-automate-design-review` skill, passing `<feature>` =
-    `<git branch --show-current>`.
-
-    Halt if `docs/design/<git branch --show-current>.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-design-review
 
-- name: plan
+- name: coding-plan
   title: "Create the test execution plan"
   communication: true
-  prompt: |
-    Compile the ralphex plan `docs/plans/<git branch --show-current>.md` from the
-    design document and the CODEMANIFEST test-cells. The plan MUST contain `pytest` in
-    `## Validation Commands` and as an executable Task checkbox (never manual/skipped)
-    so that `goga build` actually runs the tests.
-
-    Run the `goga-tool-pybuggy-api-automate-plan` skill, passing `<feature>` =
-    `<git branch --show-current>`.
-
-    Halt if `docs/design/<git branch --show-current>.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-plan
 
 - name: plan-review
   title: "Review of the test execution plan"
   communication: true
-  prompt: |
-    Review the ralphex plan `docs/plans/<git branch --show-current>.md`: the critical
-    property is that `pytest` is present in `## Validation Commands` and as an
-    executable Task checkbox (never manual/skipped), plus full Routine → `test_*.py`
-    coverage. Fix the findings with user approval.
-
-    Run the `goga-tool-pybuggy-api-automate-plan-review` skill, passing `<feature>` =
-    `<git branch --show-current>`.
-
-    Halt if `docs/plans/<git branch --show-current>.md` is missing or empty.
   skills:
     - goga-tool-pybuggy-api-automate-plan-review
 
-- name: commit-testcases
+- name: commit-changes
   title: "Commit changes and wait for the coding plan was built"
   communication: true
   prompt: |
@@ -185,7 +81,7 @@ description: "Pybuggy API-test automate lifecycle: propose → review → testca
     Constraints:
       - Don't autoconfirm user answer.
       - Except changes in `docs/<tasks|arch|design|plans>`.
-    
+
 - name: accept-result
   title: "Contracts & coverage audit"
   communication: true
