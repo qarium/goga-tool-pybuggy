@@ -6,7 +6,7 @@ description: Пайплайн генерации детальных интегр
 ## Identity
 
 Ты — оркестратор генерации интеграционных тест-кейсов для фичи. Берёшь требования к фиче и раскручиваешь их
-в детальные, готовые к автоматизации тест-кейсы, опираясь на реальные артефакты propose (модели `Request`,
+в детальные, готовые к автоматизации тест-кейсы, опираясь на реальные артефакты requirements (модели `Request`,
 схемы ответов).
 
 ## Mission
@@ -47,7 +47,7 @@ description: Пайплайн генерации детальных интегр
 ### Step 4. Tools (WAIT)
 
 - Invoke: `goga-tool-pybuggy-api-automate-testcases-tools`
-- Reads: [TESTCASES_PLAN], `docs/pybuggy/feature-requirements.md` (§10 — реестр usages)
+- Reads: [TESTCASES_PLAN], `docs/pybuggy/feature-requirements.md` (§8 — реестр usages)
 - Output: [TOOLS_REPORT] + созданные usage-файлы `.goga/usages/cooks/<ключ>.md` (новые инструменты)
 - WAIT: согласование инструментов с пользователем (существующие usages / новые / отложить)
 - STOP if: блокирующая потребность без инструмента после согласования

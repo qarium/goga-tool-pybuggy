@@ -31,16 +31,16 @@ description: Главный навигационный скилл pybuggy — в
 | `goga-tool-pybuggy-api-automate-cells`        | Проектирует архитектурный план тестовых cells (CODEMANIFEST, Routine под кейсы); диалоговый (WAIT-gate'ы)                      | `feature-testcases.md`    | `docs/pybuggy/feature-cells.md`        |
 | `goga-tool-pybuggy-api-automate-apply`        | Материализует план: создаёт CODEMANIFEST в `tests/<spec>/<id>/` (только DSL, без тест-кода); валидация `goga lint`/`schema`    | `feature-cells.md`        | `tests/<spec>/<id>/CODEMANIFEST`       |
 
-Полный флоу: **propose → testcases → cells → apply**.
+Полный флоу: **requirements → testcases → cells → apply**.
 
 ### Инфраструктура тестового проекта
 
-Главный скилл — вызывается отдельно (не часть цепочки артефактов `propose → … → apply`). Создаёт рабочую
+Главный скилл — вызывается отдельно (не часть цепочки артефактов `requirements → … → apply`). Создаёт рабочую
 инфраструктуру запуска тестов в целевом проекте (код, не DSL-артефакт).
 
-| Скилл                                       | Что делает                                                                                       | Артефакт на выходе |
-|---------------------------------------------|--------------------------------------------------------------------------------------------------|--------------------|
-| `goga-tool-pybuggy-api-automate-conftest`     | Создаёт корневой `conftest.py`: `load_dotenv` (`.env` до плагина) + подключение плагина pybuggy (`pytest_plugins` + `install`) | `conftest.py`      |
+| Скилл                                     | Что делает                                                                                                                     | Артефакт на выходе |
+|-------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|--------------------|
+| `goga-tool-pybuggy-api-automate-conftest` | Создаёт корневой `conftest.py`: `load_dotenv` (`.env` до плагина) + подключение плагина pybuggy (`pytest_plugins` + `install`) | `conftest.py`      |
 
 ### Референсные скиллы
 
@@ -64,7 +64,7 @@ description: Главный навигационный скилл pybuggy — в
 
 ### Ревью-скиллы
 
-Верифицируют тестовые артефакты всех фаз: propose → testcases → cells → design/plan.
+Верифицируют тестовые артефакты всех фаз: requirements → testcases → cells → design/plan.
 
 | Скилл                                                | Что проверяет                                                                                                                                                |
 |------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -89,7 +89,7 @@ description: Главный навигационный скилл pybuggy — в
    - «создать cells / материализовать план» → `goga-tool-pybuggy-api-automate-apply`;
    - «дизайн тестов / спроектировать генерацию тестов» → `goga-tool-pybuggy-api-automate-design`;
    - «собрать план тестов / ralphex-план / заставить сборку запускать тесты» → `goga-tool-pybuggy-api-automate-plan`;
-   - «проверить тестовый артефакт / ревью propose|testcases|cells|design|plan» → `goga-tool-pybuggy-api-automate-review`;
+   - «проверить тестовый артефакт / ревью requirements|testcases|cells|design|plan» → `goga-tool-pybuggy-api-automate-review`;
    - «создать conftest / настроить запуск тестов / load_dotenv + плагин» → `goga-tool-pybuggy-api-automate-conftest`;
    - «как вызвать API / как проверить ответ» → `goga-tool-pybuggy-api-usage`;
    - «правила DSL для тестовых cells» → `goga-tool-pybuggy-api-cookbook`.
