@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-review
-description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine под кейсы (endpoint-cells; 1 кейс = 1 Routine не обязательно), без Entities, базовые Usages/Annotations, cell-спец. usages инструментов, строгая структура аннотаций, coverage (кейс покрыт напрямую или вариантом Routine), семантическая достаточность аннотаций для генерации теста
+description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine под кейсы (endpoint-cells; 1 кейс = 1 Routine не обязательно), без Entities, базовые Usages/Annotations, cell-спец. usages инструментов, строгая структура аннотаций, coverage (кейс TC-<N> покрыт напрямую или вариантом Routine), семантическая достаточность аннотаций для генерации теста
 ---
 # Pybuggy API Feature Cells Review
 
@@ -50,7 +50,7 @@ description: Верификация архитектурного плана те
    - `goga-cell-python` — языковые правила (naming `snake_case`, `location: test_<name>.py`);
    - `goga-codemanifest-base` — базовые `Usages`/`Annotations` из `.goga/config.yml` (эталон Header);
    - `goga-tool-pybuggy-api-usage` — референс pybuggy (`Endpoint`, фикстура `<method>_<id>`).
-4. Построй эталонный набор кейсов из `feature-testcases.md`: `id | тип | endpoint-id` — для
+4. Построй эталонный набор кейсов из `feature-testcases.md`: `TC-<N> | тип | endpoint-id` — для
    coverage в Phase 5.
 
 > DSL валидируй вручную по `goga-cell`. `goga lint`/`goga schema` используй только как
@@ -131,13 +131,14 @@ description: Верификация архитектурного плана те
 
 **Цель:** каждый кейс из `feature-testcases.md` отражён в плане — покрыт напрямую или как вариант/параметр Routine; нет потерь и нет висячих Routine.
 
-1. **Кейс покрыт** — каждый кейс эталона отражён в плане: напрямую или как вариант/параметр некоторого
-   Routine (один Routine может покрывать несколько кейсов). Потерянный кейс — **Critical**.
+1. **Кейс покрыт** — каждый кейс эталона (по `TC-<N>`) отражён в плане: напрямую или как
+   вариант/параметр некоторого Routine (один Routine может покрывать несколько кейсов). Потерянный
+   кейс — **Critical**.
 2. **Нет висячих Routine** — каждый Routine восходит хотя бы к одному кейсу; Routine без кейса — **High**.
 3. **Имена Routine уникальны в пределах cell** — дубль имени — **High**.
 4. **Гранулярность cell** — одна endpoint-cell на эндпоинт (`tests/<spec>/<endpoint-id>/`). Несколько
    эндпоинтов в одной cell или дробление одного эндпоинта — **High**.
-5. **Coverage Map** — таблица `кейс (id, тип) | Routine | cell` полна и согласована с фактическим
+5. **Coverage Map** — таблица `кейс (TC-<N>, тип) | Routine | cell` полна и согласована с фактическим
    содержанием плана (каждая строка подтверждается реальным Routine в реальной cell; один Routine может
    встречаться в нескольких строках — это норма). Расхождение — **High**.
 6. **cell ↔ фикстура ↔ эндпоинт** — путь endpoint-cell `tests/<spec>/<endpoint-id>/`, имя фикстуры
