@@ -44,10 +44,18 @@ description: Пайплайн генерации детальных интегр
 - Output: [TESTCASES_PLAN]
 - STOP if: критическая неоднозначность, не позволяющая построить ни одного конкретного сценария
 
-### Step 4. Write
+### Step 4. Tools (WAIT)
+
+- Invoke: `goga-tool-pybuggy-api-automate-testcases-tools`
+- Reads: [TESTCASES_PLAN], `docs/pybuggy/feature-requirements.md` (§10 — реестр usages)
+- Output: [TOOLS_REPORT] + созданные usage-файлы `.goga/usages/cooks/<ключ>.md` (новые инструменты)
+- WAIT: согласование инструментов с пользователем (существующие usages / новые / отложить)
+- STOP if: блокирующая потребность без инструмента после согласования
+
+### Step 5. Write
 
 - Invoke: `goga-tool-pybuggy-api-automate-testcases-write`
-- Reads: [TESTCASES_INTAKE], [TESTCASES_DISCOVERY], [TESTCASES_PLAN]
+- Reads: [TESTCASES_INTAKE], [TESTCASES_DISCOVERY], [TESTCASES_PLAN], [TOOLS_REPORT]
 - Output: [FEATURE_TESTCASES] — сохраняется в `docs/pybuggy/feature-testcases.md`
 
 ## Output Rule

@@ -24,12 +24,12 @@ description: Главный навигационный скилл pybuggy — в
 Цепочка пайплайнов: каждый читает артефакт предыдущего. Запускать пайплайн — через **Skill tool** по его главному
 скиллу; шаги внутри пайплайн прогоняет сам.
 
-| Скилл                                    | Что делает                                                                                                                  | Вход                      | Артефакт на выходе                     |
-|------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------------------|----------------------------------------|
-| `goga-tool-pybuggy-api-automate-requirements`   | Собирает детальные требования к фиче из её описания и спецификации сервиса; генерирует фикстуры (`goga tool pybuggy generate`)        | описание фичи             | `docs/pybuggy/feature-requirements.md` |
-| `goga-tool-pybuggy-api-automate-testcases` | Генерирует детальные описательные тест-кейсы (Flow/Positive/Negative)                                                       | `feature-requirements.md` | `docs/pybuggy/feature-testcases.md`    |
-| `goga-tool-pybuggy-api-automate-cells`     | Проектирует архитектурный план тестовых cells (CODEMANIFEST, Routine под кейсы); диалоговый (WAIT-gate'ы)                     | `feature-testcases.md`    | `docs/pybuggy/feature-cells.md`        |
-| `goga-tool-pybuggy-api-automate-apply`     | Материализует план: создаёт CODEMANIFEST в `tests/<spec>/<id>/` и usage-файлы библиотек `.goga/usages/cooks/<ключ>.md` (только DSL, без тест-кода); валидация `goga lint`/`schema` | `feature-cells.md`        | `tests/<spec>/<id>/CODEMANIFEST`       |
+| Скилл                                         | Что делает                                                                                                                     | Вход                      | Артефакт на выходе                     |
+|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|---------------------------|----------------------------------------|
+| `goga-tool-pybuggy-api-automate-requirements` | Собирает детальные требования к фиче из её описания и спецификации сервиса; генерирует фикстуры (`goga tool pybuggy generate`) | описание фичи             | `docs/pybuggy/feature-requirements.md` |
+| `goga-tool-pybuggy-api-automate-testcases`    | Генерирует детальные описательные тест-кейсы (Flow/Positive/Negative)                                                          | `feature-requirements.md` | `docs/pybuggy/feature-testcases.md`    |
+| `goga-tool-pybuggy-api-automate-cells`        | Проектирует архитектурный план тестовых cells (CODEMANIFEST, Routine под кейсы); диалоговый (WAIT-gate'ы)                      | `feature-testcases.md`    | `docs/pybuggy/feature-cells.md`        |
+| `goga-tool-pybuggy-api-automate-apply`        | Материализует план: создаёт CODEMANIFEST в `tests/<spec>/<id>/` (только DSL, без тест-кода); валидация `goga lint`/`schema`    | `feature-cells.md`        | `tests/<spec>/<id>/CODEMANIFEST`       |
 
 Полный флоу: **propose → testcases → cells → apply**.
 
@@ -57,23 +57,23 @@ description: Главный навигационный скилл pybuggy — в
 относилась к CODEMANIFEST тест-cells как к источнику истины, а ralphex-план **запускал тесты**
 (чинит проблему «`goga build` пишет тесты, но не запускает их»). Вызываются вручную после `apply`.
 
-| Скилл                                       | Что делает                                                                                                                     | Оборачивает   |
-|---------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|---------------|
-| `goga-tool-pybuggy-api-automate-design`       | Дизайн-док материализации тестов из CODEMANIFEST тест-cells; закрепляет `pytest` как валидацию                                | `goga-design` |
-| `goga-tool-pybuggy-api-automate-plan`         | ralphex-план генерации **и запуска** тестов; гарантирует `pytest` в Validation Commands и исполнимые Task-чекбоксы           | `goga-plan`   |
+| Скилл                                   | Что делает                                                                                                         | Оборачивает   |
+|-----------------------------------------|--------------------------------------------------------------------------------------------------------------------|---------------|
+| `goga-tool-pybuggy-api-automate-design` | Дизайн-док материализации тестов из CODEMANIFEST тест-cells; закрепляет `pytest` как валидацию                     | `goga-design` |
+| `goga-tool-pybuggy-api-automate-plan`   | ralphex-план генерации **и запуска** тестов; гарантирует `pytest` в Validation Commands и исполнимые Task-чекбоксы | `goga-plan`   |
 
 ### Ревью-скиллы
 
 Верифицируют тестовые артефакты всех фаз: propose → testcases → cells → design/plan.
 
-| Скилл                                                | Что проверяет                                                                          |
-|------------------------------------------------------|----------------------------------------------------------------------------------------|
-| `goga-tool-pybuggy-api-automate-review`                | Диспетчер: роутит по пути таргет-файла (`docs/pybuggy\|design\|plans`) в нужный ревью-скилл |
-| `goga-tool-pybuggy-api-automate-requirements-review`        | Требования `feature-requirements.md`: 10 секций, реалистичность эндпоинтов/контрактов/путей, positive/negative, без кода |
-| `goga-tool-pybuggy-api-automate-testcases-review`      | Тест-кейсы `feature-testcases.md`: трассируемость к требованиям, данные↔Request, покрытие Flow/Positive/Negative, без кода |
-| `goga-tool-pybuggy-api-automate-cells-review`          | План cells `feature-cells.md`: CODEMANIFEST по DSL, Routine под кейсы, cell-спец. usages библиотек, coverage (кейс покрыт напрямую или вариантом Routine) |
-| `goga-tool-pybuggy-api-automate-design-review`         | Дизайн-док тестов (Routine↔`test_*.py`, pytest-валидация)                              |
-| `goga-tool-pybuggy-api-automate-plan-review`           | ralphex-план: критическое — `pytest` присутствует и исполним                           |
+| Скилл                                                | Что проверяет                                                                                                                                                |
+|------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `goga-tool-pybuggy-api-automate-review`              | Диспетчер: роутит по пути таргет-файла (`docs/pybuggy\|design\|plans`) в нужный ревью-скилл                                                                  |
+| `goga-tool-pybuggy-api-automate-requirements-review` | Требования `feature-requirements.md`: 10 секций, реалистичность эндпоинтов/контрактов/путей, positive/negative, без кода                                     |
+| `goga-tool-pybuggy-api-automate-testcases-review`    | Тест-кейсы `feature-testcases.md`: трассируемость к требованиям, данные↔Request, покрытие Flow/Positive/Negative, без кода                                   |
+| `goga-tool-pybuggy-api-automate-cells-review`        | План cells `feature-cells.md`: CODEMANIFEST по DSL, Routine под кейсы, cell-спец. usages инструментов, coverage (кейс покрыт напрямую или вариантом Routine) |
+| `goga-tool-pybuggy-api-automate-design-review`       | Дизайн-док тестов (Routine↔`test_*.py`, pytest-валидация)                                                                                                    |
+| `goga-tool-pybuggy-api-automate-plan-review`         | ralphex-план: критическое — `pytest` присутствует и исполним                                                                                                 |
 
 ---
 

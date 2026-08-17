@@ -1,20 +1,21 @@
 ---
 name: goga-tool-pybuggy-api-automate-apply
-description: Материализация плана тестовых cells (docs/pybuggy/feature-cells.md) — создаёт CODEMANIFEST в tests/<spec>/<id>/ и usage-файлы библиотек .goga/usages/cooks/<ключ>.md (в целевом проекте)
+description: Материализация плана тестовых cells (docs/pybuggy/feature-cells.md) — создаёт CODEMANIFEST в tests/<spec>/<id>/ (в целевом проекте); usage-файлы инструментов уже созданы этапом testcases
 ---
+
 # Pybuggy API Feature Apply
 
 ## Identity
 
 Ты — инженер материализации архитектурного плана. Преобразуешь план `docs/pybuggy/feature-cells.md` в файлы
-CODEMANIFEST endpoint-cells `tests/<spec>/<id>/` и usage-файлы пользовательских библиотек. Создаёшь **только
-DSL-артефакты** — без тест-кода и `__init__.py`.
+CODEMANIFEST endpoint-cells `tests/<spec>/<id>/`. Создаёшь **только DSL-артефакты** — без тест-кода и
+`__init__.py`.
 
 ## Mission
 
-Материализовать план тестовых cells: для каждой endpoint-cell записать CODEMANIFEST в `tests/<spec>/<id>/` и
-создать usage-файлы библиотек (`.goga/usages/cooks/<ключ>.md`) в целевом проекте. План — единственный источник;
-ничего не додумывается.
+Материализовать план тестовых cells: для каждой endpoint-cell записать CODEMANIFEST в `tests/<spec>/<id>/`.
+Usage-файлы инструментов (`.goga/usages/cooks/<ключ>.md`) уже созданы этапом `testcases` — apply их только
+упоминает в Header cells, но не создаёт. План — единственный источник; ничего не додумывается.
 
 ## Context Initialization
 
@@ -40,12 +41,13 @@ DSL-артефакты** — без тест-кода и `__init__.py`.
 Из `docs/pybuggy/feature-cells.md` извлечь:
 
 1. **Implementation order** — endpoint-cells `tests/<spec>/<id>/` (листья; порядок по spec/id).
-2. **Artifacts** — полный CODEMANIFEST каждой endpoint-cell (с cell-спец. usages библиотек, если есть).
-3. **Lib usages** — usage-файлы библиотек (`.goga/usages/cooks/<ключ>.md`) + cell-спец. usages в endpoint-cells.
-4. **Verification checklist** — что проверить после.
+2. **Artifacts** — полный CODEMANIFEST каждой endpoint-cell (с cell-спец. usages инструментов, если есть).
+3. **Verification checklist** — что проверить после.
 
 Классифицировать каждую endpoint-cell:
-- **новая** — `tests/<spec>/<id>/CODEMANIFEST` отсутствует → создать CODEMANIFEST внутри (создав каталог при необходимости);
+
+- **новая** — `tests/<spec>/<id>/CODEMANIFEST` отсутствует → создать CODEMANIFEST внутри (создав каталог при
+  необходимости);
 - **существующая** — `tests/<spec>/<id>/CODEMANIFEST` уже есть (эндпоинт частично/полностью покрыт ранее) →
   **слить** новые Routine из плана с существующим файлом, **не перезаписывая** его целиком.
 
@@ -69,10 +71,9 @@ DSL-артефакты** — без тест-кода и `__init__.py`.
 
 Для каждой endpoint-cell в порядке из плана.
 
-**Lib usages (пользовательские библиотеки)** — для каждой библиотеки `<ключ>` из секции «Lib usages» плана:
-
-1. Создать `.goga/usages/cooks/<ключ>.md` в целевом проекте (если отсутствует) — проект-level usage библиотеки
-   подготовки данных/моков/утилит; содержимое взять из плана (проектирует `cells-libs`).
+**Usages инструментов** — cell-спец usage-ключи плана ссылаются на `.goga/usages/cooks/<ключ>.md`.
+Перед записью cell с cell-спец usages проверить, что файл существует;
+отсутствующий — находка (вернуться к `testcases`), cell пропустить, зафиксировать в отчёте.
 
 **Endpoint-cells** — для каждой cell:
 
@@ -88,8 +89,7 @@ DSL-артефакты** — без тест-кода и `__init__.py`.
       В `Annotations` сохранить существующий текст; для каждого **нового** добавленного usage-ключа дописать строку
       ``Use `<ключ>` …``.
     - **Footer:** сохранить существующие `CreatedAt`/`Description`; `Author: Goga` не меняется.
-4. **Не создавать** cell-level `.usages/`, `__init__.py`, тест-код — только CODEMANIFEST (cell-спец. usages
-   библиотек — проект-level в `.goga/usages/cooks/`, не cell-level).
+4. **Не создавать** cell-level `.usages/`, `__init__.py`, тест-код — только CODEMANIFEST .
 
 ### Phase 4. Валидация
 
@@ -103,7 +103,8 @@ DSL-артефакты** — без тест-кода и `__init__.py`.
 ### Phase 5. Финальный отчёт
 
 1. **Список клеток** — endpoint-cells: путь, статус (создан / объединён с существующим: +N новых Routine,
-   M коллизий пропущено), файл CODEMANIFEST; + созданные usage-файлы библиотек (`.goga/usages/cooks/<ключ>.md`).
+   M коллизий пропущено), файл CODEMANIFEST; + задействованные usage-ключи инструментов (существующие
+   файлы `.goga/usages/cooks/<ключ>.md`).
 2. **Статус валидации** — результат `goga lint` / `goga schema`.
 3. **Покрытие** — все клетки из плана материализованы.
 
@@ -111,8 +112,8 @@ DSL-артефакты** — без тест-кода и `__init__.py`.
 
 ### NEVER
 
-- писать тест-код, `__init__.py`, cell-level `.usages/` у endpoint-cells — единственное исключение:
-  проект-level usage-файлы библиотек `.goga/usages/cooks/<ключ>.md`
+- писать тест-код, `__init__.py`, cell-level `.usages/` у endpoint-cells — единственный создаваемый артефакт:
+  CODEMANIFEST в `tests/<spec>/<id>/`
 - перезаписывать существующий `tests/<spec>/<id>/CODEMANIFEST` целиком — только слияние новых Routine с сохранением
   существующих (существующие Routine/Header/Footer не удалять)
 - отклоняться от плана или додумывать контракты

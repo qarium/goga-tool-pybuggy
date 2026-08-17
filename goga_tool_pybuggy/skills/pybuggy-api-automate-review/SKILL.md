@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-review
-description: Диспетчер ревью тестовых артефактов — роутит по пути таргет-файла в нужный тестовый ревью-скилл (propose/testcases/cells/design/plan), по образцу goga-review
+description: Диспетчер ревью тестовых артефактов — роутит по пути таргет-файла в нужный тестовый ревью-скилл (requirements/testcases/cells/design/plan), по образцу goga-review
 ---
 # Pybuggy API Feature Review (dispatcher)
 
@@ -22,7 +22,7 @@ description: Диспетчер ревью тестовых артефактов
 
 1. **В аргументах есть путь** — определи тип по сегментам пути (проверяй сверху вниз, первый матч
    выигрывает):
-   - путь содержит `docs/pybuggy/feature-requirements.md` (или `feature-requirements`) → **propose**
+   - путь содержит `docs/pybuggy/feature-requirements.md` (или `feature-requirements`) → **requirements**
    - путь содержит `docs/pybuggy/feature-testcases.md` (или `feature-testcases`) → **testcases**
    - путь содержит `docs/pybuggy/feature-cells.md` (или `feature-cells`) → **cells**
    - путь содержит `docs/design/` → **design**
@@ -34,14 +34,14 @@ description: Диспетчер ревью тестовых артефактов
    - `docs/design/clients.md` → `<target>` = `clients`
    - `docs/plans/clients.md` → `<target>` = `clients`
 
-   Для `propose`/`testcases`/`cells` `<target>` не нужен — артефакт лежит по фиксированному пути.
+   Для `requirements`/`testcases`/`cells` `<target>` не нужен — артефакт лежит по фиксированному пути.
 
 2. **Аргументы пусты** — спроси через AskUserQuestion:
    - **question**: «Что проверить?»
    - **header**: «Тип ревью»
    - **multiSelect**: false
    - **options**:
-     - **label**: «propose», **description**: «Ревью требований из docs/pybuggy/feature-requirements.md»
+     - **label**: «requirements», **description**: «Ревью требований из docs/pybuggy/feature-requirements.md»
      - **label**: «testcases», **description**: «Ревью тест-кейсов из docs/pybuggy/feature-testcases.md»
      - **label**: «cells», **description**: «Ревью плана тестовых cells из docs/pybuggy/feature-cells.md»
      - **label**: «design», **description**: «Ревью тестового дизайн-дока из docs/design/»
@@ -49,9 +49,9 @@ description: Диспетчер ревью тестовых артефактов
 
 ### Type-Based Routing
 
-#### propose
+#### requirements
 Проверь, что `docs/pybuggy/feature-requirements.md` существует.
-1. **Нет** — остановись и сообщи пользователю (сначала нужен пайплайн `propose`).
+1. **Нет** — остановись и сообщи пользователю (сначала нужен пайплайн `requirements`).
 2. **Есть** — вызови через **Skill tool** `goga-tool-pybuggy-api-automate-requirements-review`.
 
 #### testcases

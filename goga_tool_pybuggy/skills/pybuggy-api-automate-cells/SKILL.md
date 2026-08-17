@@ -34,7 +34,11 @@ goga-cell DSL.
 
 - Каждая фаза ДОЛЖНА выдать полный выход до начала следующей.
 - Каждая фаза — независимая атомарная операция через **Skill tool**.
-- WAIT-gate: фазы 3, 4, 5, 7 требуют approval пользователя (один вопрос за сообщение, 2–4 варианта).
+- WAIT-gate: фазы 3, 4, 6 требуют approval пользователя (один вопрос за сообщение, 2–4 варианта).
+
+Usage-файлы инструментов (библиотеки данных/моков/утилит) к началу пайплайна **уже существуют** (файлы
+`.goga/usages/cooks/<ключ>.md`).
+Пайплайн cells usage-файлы не создаёт — только подключает ключи в Header затронутых cells.
 
 ### Phase 1. Intake
 
@@ -66,23 +70,15 @@ goga-cell DSL.
 - WAIT: approval каждой CODEMANIFEST
 - STOP if: DSL-ошибка не устранена; approval denied
 
-### Phase 5. Libs (WAIT)
-
-- Invoke: `goga-tool-pybuggy-api-automate-cells-libs`
-- Reads: [CELLS_INTAKE], [CELL_MAP_REPORT], [CONTRACTS_REPORT], `docs/pybuggy/feature-requirements.md` (§10)
-- Output: [LIBS_REPORT] — usage-файлы библиотек (`.goga/usages/cooks/<ключ>.md`) + cell-специфичные usages
-  для endpoint-cells, которые их используют (поверх базового блока). **SKIP/no-op**, если библиотек в §10 нет.
-- WAIT: approval каждой библиотеки и подключения
-- STOP if: DSL-ошибка не устранена; approval denied
-
-### Phase 6. Plan Assembly
+### Phase 5. Plan Assembly
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-assembly`
-- Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE], [LIBS_REPORT]
-- Output: [CELLS_PLAN] — сохраняется в `docs/pybuggy/feature-cells.md` (endpoint-cells + cell-спец. usages)
+- Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE]
+- Output: [CELLS_PLAN] — сохраняется в `docs/pybuggy/feature-cells.md` (endpoint-cells, включая
+  cell-спец. usages, подключённые в `contracts`)
 - STOP if: план неполон; непокрытый кейс
 
-### Phase 7. Plan Verification (WAIT финал)
+### Phase 6. Plan Verification (WAIT финал)
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-verification`
 - Reads: `docs/pybuggy/feature-cells.md`, [CELLS_INTAKE]

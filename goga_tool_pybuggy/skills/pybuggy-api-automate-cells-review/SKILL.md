@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-review
-description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine под кейсы (endpoint-cells; 1 кейс = 1 Routine не обязательно), без Entities, базовые Usages/Annotations, cell-спец. usages библиотек, строгая структура аннотаций, coverage (кейс покрыт напрямую или вариантом Routine), семантическая достаточность аннотаций для генерации теста
+description: Верификация архитектурного плана тестовых cells docs/pybuggy/feature-cells.md — CODEMANIFEST по goga-cell DSL, Routine под кейсы (endpoint-cells; 1 кейс = 1 Routine не обязательно), без Entities, базовые Usages/Annotations, cell-спец. usages инструментов, строгая структура аннотаций, coverage (кейс покрыт напрямую или вариантом Routine), семантическая достаточность аннотаций для генерации теста
 ---
 # Pybuggy API Feature Cells Review
 
@@ -18,7 +18,7 @@ description: Верификация архитектурного плана те
 Независимо проверить план: каждая CODEMANIFEST корректна по `goga-cell` DSL; тесты описаны **только**
 как `Routine` (без `Entity`/`methods`/`properties`); базовые `Usages`/
 `Annotations` на месте и идентичны в endpoint-cells (поверх базового блока допустимы cell-спец. usages
-библиотек); аннотации Routine следуют строгой структуре; **каждый тест-кейс покрыт** (напрямую или как вариант/параметр Routine).
+инструментов); аннотации Routine следуют строгой структуре; **каждый тест-кейс покрыт** (напрямую или как вариант/параметр Routine).
 Найти расхождения, сообщить, исправить (с одобрения пользователя).
 
 ## Relationship to other skills
@@ -78,11 +78,11 @@ description: Верификация архитектурного плана те
 1. **Структура** — `Header → --- → Body → --- → Footer`; case-sensitive ключи. Нарушение — **Critical**.
 2. **Header — базовый блок** — `Usages` (`conventions`, `pybuggy-api`, `pybuggy-asserts`) +
    `Annotations` из конфига (через `goga-codemanifest-base`), перенесённые as-is. Поверх базового блока
-   endpoint-cell может иметь **cell-специфичные usages** библиотек (`<ключ>: .goga/usages/cooks/<ключ>.md`;
+   endpoint-cell может иметь **cell-специфичные usages** инструментов (`<ключ>: .goga/usages/cooks/<ключ>.md`;
    backtick `` `<ключ>` `` должен разрешаться в контексте cell). Отсутствие базового usage/annotation — **High**;
    искажение базового текста — **High**.
 3. **Базовый блок идентичен во всех endpoint-cells** — **базовые** `Usages`/`Annotations` совпадают дословно.
-   Поверх базового блока допустимы cell-специфичные usages библиотек (из [LIBS_REPORT]) — эти отличия нормальны,
+   Поверх базового блока допустимы cell-специфичные usages инструментов — эти отличия нормальны,
    **не** расхождение. Расхождение **базового** блока между endpoint-cells — **High**.
 4. **Body — только Routine** — нет `Entity`, нет `methods`/`properties`. Наличие `Entity` или
    `methods`/`properties` — **Critical**.
@@ -119,7 +119,7 @@ description: Верификация архитектурного плана те
    битый JSON) с явной пометкой «минуя pydantic-модель». Валидное тело через `dict` (`{field: value}`)
    — **High** (Steps материализуются в `test_*.py` дословно → теряется валидация запроса).
 6. **`Use …` — без дублирования заголовка.** В Routine перечислены **только** usages, специфичные для
-   неё (cell-спец usages библиотек). Базовые `pybuggy-api`/`pybuggy-asserts`/`conventions` уже в глобальных
+   неё (cell-спец usages инструментов). Базовые `pybuggy-api`/`pybuggy-asserts`/`conventions` уже в глобальных
    `Annotations` заголовка — их **дублирование** в Routine = **Medium** (по `goga-cell`: аннотации разных
    уровней не дублируют друг друга).
 7. **Backtick-ссылки разрешаются** в контексте CODEMANIFEST: `` `<fixture> ``, `` `pybuggy-api` ``,
@@ -142,12 +142,14 @@ description: Верификация архитектурного плана те
    встречаться в нескольких строках — это норма). Расхождение — **High**.
 6. **cell ↔ фикстура ↔ эндпоинт** — путь endpoint-cell `tests/<spec>/<endpoint-id>/`, имя фикстуры
    `<method>_<id>` и эндпоинт кейса согласованы. Несоответствие — **High**.
-7. **Cell-спец usages библиотек ↔ §10** — для каждой библиотеки из §10 `feature-requirements.md` с
-   непустой привязкой «где используется»: cell-спец usage `<ключ>: .goga/usages/cooks/<ключ>.md`
-   присутствует в каждой endpoint-cell, к которой библиотека привязана; обратно — каждый cell-спец usage
-   библиотеки восходит к §10. Phantom-lib (cell-спец usage без §10) — **High**; отсутствие cell-спец
-   usage у привязанной библиотеки — **High**. Если §10 отмечена «нет» — cell-спец usages библиотек в
-   плане быть не должно (наличие — **High**).
+7. **Cell-спец usages инструментов ↔ диск и Предусловия кейсов** — каждый cell-спец usage-ключ плана
+   указывает на существующий файл `.goga/usages/cooks/<ключ>.md` (создан этапом `testcases`, шаг
+   `tools`; или был в реестре §10). Ключ без файла на диске — **High** (backtick не разрешится,
+   `apply` пропустит cell). Обратно — каждый usage-ключ, упомянутый в Предусловиях кейса
+   (`feature-testcases.md`), подключён хотя бы в одной endpoint-cell этого кейса. Неподключённый ключ —
+   **High** (потребность согласовывалась, но потеряна при проектировании). Ключ без Предусловия в кейсах
+   (phantom) — **Medium**. Если инструменты не использовались — cell-спец usages в плане быть не должно
+   (наличие — **High**).
 
 ---
 
@@ -229,7 +231,7 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
   `goga lint`, не принимая ложные path-ошибки за дефекты)
 - сверять coverage: каждый кейс покрыт (напрямую/вариантом Routine), без потерь и висячих Routine
 - требовать строгий порядок аннотаций и идентичный **базовый** блок во всех cells (поверх допустимы
-  cell-спец. usages библиотек — `goga-tool-pybuggy-api-cookbook`, раздел «Cell-специфичные usages»)
+  cell-спец. usages инструментов — `goga-tool-pybuggy-api-cookbook`, раздел «Cell-специфичные usages»)
 - требовать модель `Request` для валидного тела positive/flow Routine (`dict` — только для negative,
   минуя pydantic) — Steps материализуются в `test_*.py` дословно
 - предъявлять каждую находку по одной с выбором Apply/Alternative/Skip
@@ -245,11 +247,11 @@ mutations / embeddings / кросс-cell связности — N/A для Routi
    `goga-codemanifest-base`, `goga-tool-pybuggy-api-usage`?
 3. Проверена ли структура плана (все секции, отсутствие кода)?
 4. Проверена ли каждая CODEMANIFEST (структура, базовый Header, идентичность **базового** блока в
-   endpoint-cells + допустимые cell-спец. usages библиотек, Routine-only, сигнатура, location, Footer)?
+   endpoint-cells + допустимые cell-спец. usages инструментов, Routine-only, сигнатура, location, Footer)?
 5. Проверена ли структура аннотаций каждой Routine (строгий порядок, фикстура, Steps, Use,
    backtick-ссылки)?
 6. Пройдена ли coverage-проверка (все кейсы покрыты напрямую или вариантом Routine, уникальность имён, cell↔фикстура↔эндпоинт, Coverage
-   Map, cell-спец usages библиотек согласованы с §10)?
+   Map, cell-спец usages инструментов существуют на диске и восходят к Предусловиям кейсов)?
 7. Проверена ли семантическая достаточность (достаточность для генерации, точность, трассируемость,
    failure-модель negative)?
 8. Предъявлена ли каждая находка по одной с выбором Apply/Alternative/Skip?
