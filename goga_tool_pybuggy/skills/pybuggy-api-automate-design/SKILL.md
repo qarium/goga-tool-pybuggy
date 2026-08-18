@@ -21,7 +21,9 @@ CODEMANIFEST тест-cells: какие `test_*.py` генерируются, к
 
 - **Режим: ТЕСТИРОВАНИЕ.** Артефакт — тест-код `test_*.py`, **не** код приложения. Не проектируй прод-сущности.
 - **Источник истины:** CODEMANIFEST тест-cells в `tests/<spec>/<id>/`. Каждая Routine = один тест-кейс
-  или несколько (параметризация); `location: test_<name>.py` — один файл на Routine. CODEMANIFEST — контракт только для чтения.
+  или несколько (параметризация); варианты Routine отличаются только значениями (данные запроса,
+  параметры, ожидаемые статусы/поля) — тело теста линейно, без ветвления по варианту.
+  CODEMANIFEST — контракт только для чтения.
 - **Runtime/фикстуры:** pybuggy `Api`, `Endpoint`, `ResponseWrapper`, assert-слой из
   `.goga/usages/cooks/pybuggy/`. Грузи через скиллы `goga-tool-pybuggy-api-usage` и
   `goga-tool-pybuggy-api-cookbook`.
@@ -42,7 +44,8 @@ CODEMANIFEST тест-cells: какие `test_*.py` генерируются, к
 3. Вызови через **Skill tool** `goga-design`, передав `<feature>` как аргумент и явно сопроводив посылкой тестового
    режима (фраза-маркер: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells; deliverable
    is `test_*.py`, never production code; valid request body MUST use the `Request` model imported from the
-   fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic»).
+   fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic; parametrized variants
+   differ only in values — the test body stays linear, no branching by variant»).
 4. `goga-design` сам диспатчит в `goga-design-by-changes` — не вызывай его в обход.
 5. После завершения проверь, что `docs/design/<feature>.md` описывает генерацию тестов и упоминает `pytest` как
    валидацию. Если нет — дополни в тестовом ключе.

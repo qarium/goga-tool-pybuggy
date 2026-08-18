@@ -35,6 +35,9 @@ ralphex (`task.txt`, STEP 2 VALIDATE): *«Run the test and lint commands specifi
   только для чтения, источник истины.
 - **Runtime:** pybuggy `Api`/`Endpoint`/`ResponseWrapper` + assert-слой. Грузи `goga-tool-pybuggy-api-usage`,
   `goga-tool-pybuggy-api-cookbook`.
+- **Параметризация линейна:** варианты одной Routine (из `Data:`/`Steps:` аннотации) отличаются только
+  значениями — тело генерируемого теста линейно, варианты материализуются параметрами, шаги и проверки
+  одни на все варианты.
 - **Тело запроса — модель `Request`:** валидное тело (positive/flow) — через импортируемую модель `Request` из
   `api/<spec>/<id>/api.py` (`json=Request(...)`, имя и вложенная структура — из этой `api.py`); сырой `dict`
   только для negative (минуя pydantic). План материализует `test_*.py` дословно из CODEMANIFEST — убедись, что
@@ -58,7 +61,8 @@ ralphex (`task.txt`, STEP 2 VALIDATE): *«Run the test and lint commands specifi
    «Pybuggy testing mode: compile a plan to GENERATE and RUN integration tests from CODEMANIFEST test-cells;
    deliverable is `test_*.py`; `pytest` MUST be in Validation Commands and as executable Task checkboxes;
    valid request body MUST use the `Request` model imported from the fixture's `api.py` — raw `dict` only for
-   negative cases bypassing pydantic; CRITICAL in EVERY Task: on unfixable test failure — abandon the fix, leave
+   negative cases bypassing pydantic; parametrized variants differ only in values — the test body stays linear,
+   no branching by variant; CRITICAL in EVERY Task: on unfixable test failure — abandon the fix, leave
    the test failing, and proceed to the next task; do NOT skip/xfail tests; do not block the build»).
 4. `goga-plan` сам диспатчит в `goga-plan-by-design` — не вызывай его в обход.
 
