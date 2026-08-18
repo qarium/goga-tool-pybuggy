@@ -283,6 +283,19 @@ with response.expected("ok").not_raise_exc() as value:
   проверить, что **каждый** элемент входит в допустимое множество, примените
   `is_in`/`is_subset` над списком. Это «все удовлетворяют», в отличие от `any=True`
   («хотя бы один»).
+- **Элемент отсутствует среди элементов массива**: выберите список значений
+  jsonpath-ом `$[*].field` и проверьте `not_contains` (для скалярных значений)
+  или `is_disjoint` (множественная семантика). `not_contains` над списком без
+  `in_array` — это членство значения в списке, то есть «значение не встречается
+  ни у одного элемента». Для строковых значений это точная проверка равенства
+  отсутствия — в отличие от `in_array=True`, где `in` для строк работает как
+  подстрока.
+- **Кастомный поиск элемента массива**: когда элемент находится по предикату
+  (несколько полей совпадают), а не по индексу, напишите обычную функцию
+  поиска и подайте её hook-ом над корнем массива (`expected()` без search —
+  значение под `data_key` целиком). Hook возвращает найденный элемент (`None`,
+  если не нашли) — ассерт остаётся во фреймворке, `None` валит проверку, что
+  даёт и «найдено», и «равно ожидаемому» одной цепочкой.
 - **Пустой результат jsonpath** (в т.ч. `$[*]` по пустому массиву) бросает
   `AssertionError` («No results»). Для проверки пустоты используйте `has_length(0)`
   по корню, а не jsonpath.
@@ -298,6 +311,19 @@ response.expected("$[0].name").equal_to("abc")                    # data[0].name
 
 # все элементы: data[*].status — список; is_subset гарантирует, что каждый входит в множество
 response.expected("$[*].status").is_subset(["active", "idle"])    # каждый status ∈ множество
+
+# элемент отсутствует: data[*].request.test_id — список значений, not_contains — ни один не равен
+response.expected("$[*].request.test_id").not_contains(test_id_b)
+
+# кастомный поиск элемента по предикату: hook над корнем массива, дальше — штатные ассерты
+def _mock_body(items: list, test_id: str, path: str, method: str):
+    for item in items:
+        req = item["request"]
+        if (req["test_id"], req["path"], req["method"]) == (test_id, path, method):
+            return _normalize_body(item["response"]["body"])
+    return None
+
+response.expected()(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to({"owner": "A1"})
 ```
 
 ---
