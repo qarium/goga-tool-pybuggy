@@ -1,6 +1,10 @@
 language: python
 image: qarium/goga-python-3.13:1.1
 
+lint:
+  ignore:
+    - .venv
+
 .claude-env: &claude-env
   ANTHROPIC_MODEL: opus
   ANTHROPIC_BASE_URL: "https://api.z.ai/api/anthropic"
