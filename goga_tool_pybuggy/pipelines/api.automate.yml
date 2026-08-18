@@ -1,9 +1,9 @@
 name: PybuggyApiAutomate
-description: "Pybuggy API-test automate lifecycle: coverage-analysis → requirements-audit → test-design → test-audit → prepare-testcases → review-testcases → create-testcases → setup-conftest → code-design → design-review → coding-plan → plan-review → commit-changes → accept-result"
+description: "Pybuggy API-test automate lifecycle"
 ---
 
-- name: coverage-analysis
-  title: "Analyze coverage"
+- name: create-requirements
+  title: "Create requirements"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-requirements
@@ -15,13 +15,13 @@ description: "Pybuggy API-test automate lifecycle: coverage-analysis → require
     - goga-tool-pybuggy-api-automate-requirements-review
 
 - name: test-design
-  title: "Design test cases"
+  title: "Design testcases"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-testcases
 
 - name: test-audit
-  title: "Review test cases"
+  title: "Review testcases"
   communication: true
   skills:
     - goga-tool-pybuggy-api-automate-testcases-review
