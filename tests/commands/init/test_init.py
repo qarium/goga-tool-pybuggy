@@ -1,5 +1,6 @@
 """Contract and logic tests for run_init / register_usages / init_cmd handler."""
 
+import logging
 import typing
 from pathlib import Path
 from unittest import mock
@@ -161,6 +162,128 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     annotations = cfg["codemanifest"]["annotations"]
     assert PYBUGGY_ANNOTATIONS["api"] in annotations
     assert PYBUGGY_ANNOTATIONS["asserts"] in annotations
+
+
+def test_run_init_generates_root_conftest_in_fresh_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step 9: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 0
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
+
+
+def test_run_init_overwrites_conftest_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When <cwd>/conftest.py exists and the user confirms, run_init overwrites it with the template."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    (tmp_path / "conftest.py").write_text("# custom\n")
+    # no .goga configs exist -> the conftest gate is the only confirm point
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))
+
+    assert run_init() == 0
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
+
+
+def test_run_init_skips_conftest_overwrite_on_decline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Declining the conftest overwrite skips the step: INFO logged, file left untouched, exit 0."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    (tmp_path / "conftest.py").write_text("# my custom conftest\n")
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+
+    with caplog.at_level(logging.INFO):
+        assert run_init() == 0
+
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == "# my custom conftest\n"
+    assert any("conftest overwrite declined" in r.message for r in caplog.records)
+
+
+def test_run_init_maps_conftest_write_failure_to_click_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A conftest write failure is ERROR-logged and mapped to click.ClickException (non-zero exit)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(
+        "goga_tool_pybuggy.commands.init.init.write_pybuggy_conftest",
+        mock.Mock(side_effect=OSError("disk full")),
+    )
+
+    with caplog.at_level(logging.ERROR), pytest.raises(click.ClickException) as excinfo:
+        run_init()
+
+    assert "disk full" in str(excinfo.value)
+    assert any("conftest write failed" in r.message for r in caplog.records)
+
+
+def test_run_init_does_not_write_conftest_when_goga_init_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero run_goga_init code returns before step 9: no conftest, no usages bootstrapped."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 1
+    assert not (tmp_path / "conftest.py").exists()
+    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
+
+
+def test_run_init_does_not_write_conftest_when_config_build_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero build_pybuggy_config code returns before step 9: no conftest is written."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
+
+    assert run_init() == 1
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_init_idempotent_repeat_run_preserves_existing_conftest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A repeat run with every confirm declined leaves the conftest written by run #1 untouched."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    # run #1: fresh cwd -> bootstrap creates .goga/config.yml, conftest written without a prompt;
+    # run #2: goga config exists -> confirm #1 declined, conftest exists -> confirm #2 declined.
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
+
+    assert run_init() == 0
+    after_first = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    assert after_first == EXPECTED_CONFTEST
+
+    assert run_init() == 0
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == after_first
+
+
+def test_run_init_propagates_abort_on_conftest_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Ctrl-C at the conftest gate propagates as click.Abort (not swallowed by the OSError handler)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    (tmp_path / "conftest.py").write_text("# custom\n")
+    # the stubbed steps 2-3 never confirm, so the Abort can only come from the conftest gate
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=click.Abort()))
+
+    with pytest.raises(click.Abort):
+        run_init()
 
 
 def test_run_init_recursive_discovery_picks_subcell(

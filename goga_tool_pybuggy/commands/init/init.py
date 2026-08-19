@@ -756,10 +756,37 @@ def _log_registration(
             logger.warning("annotation already registered, skipped", extra={"key": key})
 
 
+def _write_root_conftest(cwd: Path) -> None:
+    """Gate and write the target project's root ``conftest.py`` (init step 9).
+
+    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. When
+    ``<cwd>/conftest.py`` does not exist it is written unconditionally; when it exists, the user
+    is asked (``click.confirm``, default ``no``) and it is overwritten only on an explicit ``yes``
+    — declining logs INFO and leaves the file untouched (the step is skipped, not an error). The
+    decision lives here, in the orchestrator's helper: :func:`write_pybuggy_conftest` itself always
+    writes without any check.
+
+    Args:
+        cwd: The target project root whose ``conftest.py`` is (re)generated.
+
+    Raises:
+        click.ClickException: On a conftest write failure, after ERROR-logging it.
+    """
+    conftest = cwd / "conftest.py"
+    try:
+        if _should_rebuild(conftest, "conftest.py exists — overwrite it?"):
+            write_pybuggy_conftest(conftest)
+        else:
+            logger.info("conftest overwrite declined, skipped", extra={"path": str(conftest)})
+    except OSError as e:
+        logger.error("conftest write failed", extra={"path": str(conftest), "error": str(e)})
+        raise click.ClickException(str(e)) from e
+
+
 def run_init() -> int:
     """Initialize the goga-project, build the pybuggy tool config, then bootstrap the api usages.
 
-    Algorithm (9 steps):
+    Algorithm (10 steps):
 
     1. Resolve the output root as the current working directory.
     2. Goga-project config: when ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive
@@ -779,10 +806,15 @@ def run_init() -> int:
     7. Append a referencing annotation line per registered usage under ``codemanifest.annotations``
        via :func:`register_annotations` (idempotent by backtick reference, existing text preserved).
     8. Log INFO for added keys/annotations and WARNING for skipped ones.
-    9. Return 0.
+    9. Root ``conftest.py``: resolve ``<cwd>/conftest.py``; when absent, write it via
+       :func:`write_pybuggy_conftest`; when it exists, ask (``click.confirm``, default ``no``) —
+       ``yes`` overwrites it, ``no`` logs INFO (step skipped, file untouched) and continues. The
+       decision lives here, in the orchestrator (:func:`_write_root_conftest`); the routine itself
+       always writes without any check.
+    10. Return 0.
 
     Each config is created when absent and only recreated on explicit confirmation when present, so a
-    plain repeat run (both confirms declined) just re-copies the usages and skips already-registered
+    plain repeat run (all confirms declined) just re-copies the usages and skips already-registered
     keys/annotations — idempotent. Steps 2 and 3 are called outside this routine's own try/except —
     they rely on :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code
     on cancellation/failure).
@@ -791,7 +823,7 @@ def run_init() -> int:
         0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
 
     Raises:
-        click.ClickException: On a file-write, YAML, or navigation failure during the bootstrap.
+        click.ClickException: On a file-write, YAML, navigation, bootstrap, or conftest-write failure.
     """
     cwd = Path.cwd()
     goga_config = cwd / ".goga" / "config.yml"
@@ -831,6 +863,10 @@ def run_init() -> int:
         raise click.ClickException(str(e)) from e
 
     _log_registration(usage_keys, added_usage_keys, annotation_lines, added_annotation_keys)
+
+    # Root conftest.py: create when absent; overwrite only on explicit confirmation (merging into an
+    # existing one is never attempted — either a confirmed overwrite or a skip).
+    _write_root_conftest(cwd)
 
     return 0
 
