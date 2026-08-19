@@ -47,8 +47,7 @@ description: Инвентаризация артефактов фичи для �
 
 1. Хотя бы одна cell с CODEMANIFEST найдена.
 2. Хотя бы один `test_<name>.py` существует.
-3. `conftest.py` существует; при отсутствии — предложить пользователю скилл
-   `goga-tool-pybuggy-api-automate-conftest` и зафиксировать в отчёте.
+3. `conftest.py` существует; при отсутствии — зафиксировать в отчёте (Environment notes).
 
 STOP if:
 - артефакты фичи не найдены (нет ни testcases, ни CODEMANIFEST cells);

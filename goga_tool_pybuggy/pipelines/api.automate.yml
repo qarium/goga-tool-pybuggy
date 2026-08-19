@@ -43,11 +43,6 @@ description: "Pybuggy API-test automate lifecycle"
   skills:
     - goga-tool-pybuggy-api-automate-apply
 
-- name: setup-conftest
-  title: "Setup conftest"
-  skills:
-    - goga-tool-pybuggy-api-automate-conftest
-
 - name: code-design
   title: "Design test code"
   communication: true
