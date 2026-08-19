@@ -30,10 +30,12 @@ the underlying resq.Session's public close()). ``retries`` is orthogonal to the
 ``api`` fixture: when resolved to a
 positive int, the ``pytest_collection_modifyitems`` hook stamps every collected
 item without an existing flaky marker with ``pytest.mark.flaky(max_runs=retries)``.
-Option resolution is lazy: errors (e.g. a missing required ``base_url``) surface
-on fixture invocation, not on import. ``base_url`` is a Jinja2 template string
-rendered once in the pluginator ``configure()`` lifecycle hook against the full
-environment plus the CLI options the user actually passed, and the rendered value
+Option resolution is lazy: options resolve on first access, not at import — and
+``base_url`` renders eagerly, once in the pluginator ``configure()`` lifecycle
+hook at pytest configphase, so a missing required ``base_url`` surfaces there
+(before any fixture runs); the remaining options surface on fixture invocation.
+``base_url`` is a Jinja2 template string rendered against the full environment
+plus the CLI options the user actually passed, and the rendered value
 is stored back on ``self.base_url`` and consumed by the ``api`` fixture (no
 rendering inside the fixture). Rendering uses Jinja2 (``StrictUndefined``; unknown
 variables raise) with a ``match_re`` test for conditional URL assembly; a plain URL
@@ -225,7 +227,7 @@ class ApiPlugin:
             loaders: t.Optional[list[BaseLoader]] = None,
             default_retries: t.Optional[int] = None,
             default_assert_timeout: t.Optional[int] = None,
-            default_assert_delay: t.Optional[t.Union[int, float]] = None,
+            default_assert_delay: t.Optional[int | float] = None,
     ) -> None:
         """Initialize the plugin and synchronously register generated fixtures.
 

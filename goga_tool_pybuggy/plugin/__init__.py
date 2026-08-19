@@ -30,7 +30,7 @@ from pluginator import call_context, install_pytest_plugins
 from .loaders import PackageLoader
 from .plugin import ApiPlugin, PluginConfigKeys
 
-__all__ = ["ApiPlugin", "install", "PluginConfigKeys"]
+__all__ = ["ApiPlugin", "PluginConfigKeys", "install"]
 
 logger = logging.getLogger(__name__)
 
