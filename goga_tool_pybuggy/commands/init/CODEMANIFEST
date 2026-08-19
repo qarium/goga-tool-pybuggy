@@ -17,19 +17,21 @@ Usages:
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the command wrapper, interactive prompts (plugin scalar keys + specs survey),
-    and mapping domain errors to click.ClickException.
+  Use `click` for the command wrapper, interactive prompts (plugin scalar keys + specs survey), overwrite gates
+    (default no), and mapping domain errors to click.ClickException.
   Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing) AND for emitting
     .goga/tools/pybuggy/config.yml with active values plus commented records (skipped optional fields and headers/loader examples).
   Use `goga` for the in-process initialization of the goga-project via goga.onboarding per-field Questionnaire methods + FileGenerator.
 
   Top-level bootstrap command pybuggy init — initializes the goga-project (created when absent, recreated only on
-  confirmation), ships the consumer usages of the api cell into the project, AND interactively builds
-  .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation). The handler `run_init` is the
-  testable entry point; the click wrapper `init_cmd` delegates to `run_init`. The goga-project initialization is
-  delegated to `run_goga_init`; the interactive config build is delegated to `build_pybuggy_config` (testable seam for
-  the TTY survey), which delegates file emission to the pure `write_pybuggy_config`. The recreate decisions for both
-  configs live in `run_init` (click.confirm, default no); the builders themselves always (over)write. Usages are
+  confirmation), ships the consumer usages of the api cell into the project, interactively builds
+  .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), AND generates the root conftest.py
+  of the target project from a fixed template (written when absent, overwritten only on confirmation). The handler
+  `run_init` is the testable entry point; the click wrapper `init_cmd` delegates to `run_init`. The goga-project
+  initialization is delegated to `run_goga_init`; the interactive config build is delegated to `build_pybuggy_config`
+  (testable seam for the TTY survey), which delegates file emission to the pure `write_pybuggy_config`; the conftest
+  emission is delegated to the pure `write_pybuggy_conftest`. The recreate/overwrite decisions for both configs and
+  the conftest live in `run_init` (click.confirm, default no); the writers themselves always (over)write. Usages are
   discovered from the installed goga_tool_pybuggy.api package. Use relative imports inside the cell.
 
 ---
@@ -37,8 +39,9 @@ Annotations: |
 "run_init() -> exit_code:int":
   location: init.py
   annotations: |
-    Handler for the init command: ensure the goga-project is initialized, build the pybuggy tool config, then bootstrap
-    the consumer usages of the api cell into the project where the command is invoked.
+    Handler for the init command: ensure the goga-project is initialized, build the pybuggy tool config, bootstrap
+    the consumer usages of the api cell into the project where the command is invoked, and generate the root
+    conftest.py of the target project.
 
     `exit_code`: 0 on success; non-zero goga-init/config-build exit code propagated on failure/cancel.
 
@@ -56,7 +59,11 @@ Annotations: |
     6. Register usage keys via `register_usages` with <cwd>/.goga/config.yml (idempotent, skip-existing).
     7. Register annotation lines via `register_annotations` with <cwd>/.goga/config.yml (idempotent by backtick reference).
     8. Log INFO for added, WARNING for skipped.
-    9. Return 0.
+    9. Root conftest: resolve the path <cwd>/conftest.py; when it does NOT exist, call `write_pybuggy_conftest` with
+       it; when it DOES exist, ask via click.confirm (default no) whether to overwrite it — on yes call
+       `write_pybuggy_conftest`, on no log INFO (step skipped, file untouched) and continue. The overwrite decision
+       lives here in the orchestrator — `write_pybuggy_conftest` itself always (over)writes without checking.
+    10. Return 0.
 
     Requirements:
     - Each config (goga .goga/config.yml and pybuggy .goga/tools/pybuggy/config.yml) is created when absent and
@@ -65,12 +72,18 @@ Annotations: |
     - The config-build step (`build_pybuggy_config`) always (over)writes the tool config when it runs — the recreate
       gate is `run_init`'s, not the builder's.
     - The usages/annotations bootstrap is idempotent.
+    - The root conftest.py is created when absent and only overwritten on explicit click.confirm (default no) when
+      present; declining skips the step (file untouched) so a repeat run stays idempotent.
+    - A conftest write failure is logged (ERROR) and fails the command with a non-zero exit — uniform with the other steps.
 
     Constraints:
     - Do not register pybuggy usages/annotations when goga init failed/was cancelled — propagate goga's exit code.
     - Do not copy usages of internal development cells (config, spec, output, matchcrest, plugin, commands).
+    - Do not generate the conftest when an earlier step failed or was cancelled with a non-zero exit.
+    - Do not merge into an existing conftest — either a confirmed overwrite or a skip.
 
-    Use `run_goga_init`, `build_pybuggy_config`, `register_usages`, `register_annotations`. Use `click` for error mapping. Use `conventions` for logging/testing.
+    Use `run_goga_init`, `build_pybuggy_config`, `register_usages`, `register_annotations`, `write_pybuggy_conftest`.
+    Use `click` for the overwrite gates and error mapping. Use `conventions` for logging/testing.
 
 "build_pybuggy_config() -> exit_code:int":
   location: init.py
@@ -156,6 +169,42 @@ Annotations: |
     Use `ruamel-yaml` for CommentedMap, commented-record emission, dump. Use `PluginConfigKeys` for canonical scalar key
     set/order. Use `SpecEntry`/`GitEntry` for specs shape. Use `configuration` from Imports for schema compatibility.
     Use `conventions` for type hints/relative imports.
+
+"write_pybuggy_conftest(path: Path)":
+  location: init.py
+  annotations: |
+    Pure emitter of the target project's root conftest.py from a fixed hardcoded template — the file that wires the
+    pybuggy plugin into the consumer's pytest run. No TTY, no existence check: always (over)writes `path`.
+
+    `path`: target file path (<cwd>/conftest.py).
+
+    The template content is fixed verbatim (a module-level constant, like the Dockerfile install line):
+
+      from dotenv import load_dotenv
+
+      load_dotenv()
+
+      from goga_tool_pybuggy import plugin
+
+      plugin.install()
+
+    Algorithm:
+    1. Ensure the parent directory of `path` exists.
+    2. Write the fixed template to `path`, overwriting unconditionally.
+
+    Requirements:
+    - The written content equals the template above verbatim — operator order: load_dotenv before the plugin import
+      and install (plugin options resolve from os.environ); the argumentless load_dotenv() keeps override=False so
+      CI/operator-exported variables win.
+    - Output deterministic — no parameterization, no placeholders, no version resolution.
+
+    Constraints:
+    - Do not survey/prompt — pure (TTY-free); the overwrite gate lives in `run_init`.
+    - Do not check for an existing file, merge into it, or confirm — always overwrite `path` on every call.
+    - Do not verify the consumer environment (goga_tool_pybuggy / python-dotenv importability) — absence surfaces
+      when the consumer runs pytest.
+
+    Use `conventions` for type hints, structured logging, and testing.
 
 "run_goga_init() -> exit_code:int":
   location: init.py
@@ -353,3 +402,5 @@ Description: |
   .goga/tools/pybuggy/config.yml (plugin options + specs) — built when absent, rebuilt only on confirmation. The
   generated .goga/Dockerfile carries a pybuggy install line via install_pybuggy (RUN goga install pybuggy -v 0.1.x)
   appended after goga generates it.
+  Finally generates the target project's root conftest.py (fixed template, overwrite only on confirmation) wiring
+  the plugin into the consumer's pytest run.
