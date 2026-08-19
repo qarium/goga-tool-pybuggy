@@ -20,21 +20,21 @@ cells, полный CODEMANIFEST каждой cell, карту покрытия 
 
 ### Step 1. Загрузить контекст
 
-1. [CONTRACTS_REPORT] — утверждённые CODEMANIFEST всех endpoint-cells (включая cell-спец usages
+1. [CONTRACTS_REPORT] — утверждённые CODEMANIFEST всех тестовых cells (включая cell-спец usages
    инструментов, подключённые в `contracts`).
 2. [CELL_MAP_REPORT] — cells, Routine, маппинг кейсов.
 3. [CELLS_INTAKE] — фича, версия/env.
 
 ### Step 2. Implementation Order
 
-Endpoint-cells `tests/<spec>/<id>/` — порядок по `spec`/`endpoint-id`. Для каждой cell указать rationale:
-«лист, тесты эндпоинта».
+Cells `tests/<spec>/<id>/` — порядок по `spec`/`<id>`. Для каждой cell указать rationale:
+какие эндпоинты и кейсы она покрывает.
 
 ### Step 3. Artifacts
 
-Привести полный CODEMANIFEST каждой endpoint-cell в порядке создания (из [CONTRACTS_REPORT]) — включая
+Привести полный CODEMANIFEST каждой cell в порядке создания (из [CONTRACTS_REPORT]) — включая
 cell-спец usages инструментов в Header, если `contracts` их подключил. Cell-level `.usages/` у
-endpoint-cells отсутствуют; usage-файлы инструментов — проект-level в `.goga/usages/cooks/`, в плане не проектируются.
+тестовых cells отсутствуют; usage-файлы инструментов — проект-level в `.goga/usages/cooks/`, в плане не проектируются.
 
 ### Step 4. Coverage Map
 
@@ -83,7 +83,7 @@ STOP if:
 
 ## Implementation Order
 
-[Упорядоченный список endpoint-cells tests/<spec>/<id>/ с rationale]
+[Упорядоченный список cells tests/<spec>/<id>/ с rationale]
 
 ## Artifacts
 
@@ -91,7 +91,7 @@ STOP if:
 
 [Полный CODEMANIFEST в DSL]
 
-[Повторить для каждой endpoint-cell]
+[Повторить для каждой cell]
 
 ## Cell-спец usages (инструменты)
 

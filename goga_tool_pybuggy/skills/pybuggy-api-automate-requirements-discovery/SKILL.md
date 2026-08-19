@@ -52,15 +52,17 @@ description: Обнаружение и фильтрация эндпоинтов
 
 1. Выполнить `goga schema tests/` (или `goga schema`) в целевом проекте. Вывод — JSON-дерево: каждая cell
    `tests/<spec>/<id>/` с полем `types` (имена Routine/Entity).
-2. Для каждого отфильтрованного эндпоинта `<spec>/<endpoint-id>` найти его cell `tests/<spec>/<endpoint-id>/` в выводе
-   `goga schema`. Если cell есть — эндпоинт покрыт; её `test_*` Routine из `types` — существующие покрытые кейсы.
-3. Для каждой существующей `test_*` Routine прочитать аннотацию в `tests/<spec>/<endpoint-id>/CODEMANIFEST` и
+2. Для каждого отфильтрованного эндпоинта `<spec>/<endpoint-id>` найти его Routine: cell может называться
+   по endpoint-id (`tests/<spec>/<endpoint-id>/`) или объединять несколько эндпоинтов — ищи по всему выводу
+   `goga schema` cells, чьи `test_*` Routine ссылаются на фикстуру этого эндпоинта (`api/<spec>/<endpoint-id>/api.py`).
+   Найденные Routine — существующие покрытые кейсы.
+3. Для каждой существующей `test_*` Routine прочитать аннотацию в CODEMANIFEST её cell и
    зафиксировать:
     - имя Routine (`test_<name>`);
     - тип (Flow / Positive / Negative) и краткую суть из `Purpose` / `Precondition:` / `Data:` / `Steps:`.
 4. Зафиксировать статус покрытия по каждому эндпоинту:
-    - **не покрыт** — cell отсутствует в `goga schema`;
-    - **частично покрыт** — cell есть; перечислить существующие `test_*` Routine;
+    - **не покрыт** — Routine эндпоинта не найдены;
+    - **частично покрыт** — часть ожидаемых сценариев представлена Routine; перечислить существующие `test_*` Routine;
     - **полностью покрыт** — все ожидаемые сценарии эндпоинта уже представлены Routine.
 5. Зафиксировать смежные cells для референса: соседние `tests/<spec>/...` из `goga schema` с готовыми паттернами
    дата-сетапа / lib-usages / моков.

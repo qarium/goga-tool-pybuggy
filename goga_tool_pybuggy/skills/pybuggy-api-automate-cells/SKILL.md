@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells
-description: Пайплайн проектирования тестовых cells — по тест-кейсам собирает архитектурный план CODEMANIFEST (Routine под кейсы; 1 кейс = 1 Routine не обязательно) и сохраняет его в docs/arch/<feature>.md
+description: Пайплайн проектирования тестовых cells — по тест-кейсам собирает архитектурный план CODEMANIFEST (границы cells — проектное решение; Routine под кейсы, 1 кейс = 1 Routine не обязательно) и сохраняет его в docs/arch/<feature>.md
 ---
 
 ## Identity
@@ -11,9 +11,10 @@ goga-cell DSL.
 
 ## Mission
 
-Создать артефакт «Архитектурный план тестовых cells»: для каждой cell эндпоинта — полный CODEMANIFEST
+Создать артефакт «Архитектурный план тестовых cells»: для каждой cell — полный CODEMANIFEST
 (базовые Usages/Annotations из конфига + Routine под тест-кейсы — гранулярность произвольная,
-1 кейс = 1 Routine не обязательно + Footer). Сохранить план в
+1 кейс = 1 Routine не обязательно + Footer). Границы cells (cell на эндпоинт, объединение
+эндпоинтов, несколько cells на эндпоинт) — проектное решение фазы Cell Map. Сохранить план в
 `docs/arch/<feature>.md` (без записи самих cells).
 
 ## Artifact Path Resolution
@@ -90,7 +91,7 @@ Usage-файлы инструментов (библиотеки данных/м�
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-assembly`
 - Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE]
-- Output: [CELLS_PLAN] — сохраняется в `docs/arch/<feature>.md` (endpoint-cells, включая
+- Output: [CELLS_PLAN] — сохраняется в `docs/arch/<feature>.md` (тестовые cells, включая
   cell-спец. usages, подключённые в `contracts`)
 - STOP if: план неполон; непокрытый кейс
 

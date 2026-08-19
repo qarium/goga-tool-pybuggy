@@ -28,7 +28,7 @@ DSL-валидацию и утверждается
 
 ### Step 2. Собрать Header — базовый блок
 
-Взять базовый блок из [CELLS_CONTEXT] (общий для всех endpoint-cells):
+Взять базовый блок из [CELLS_CONTEXT] (общий для всех тестовых cells):
 
 - `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (из конфига).
 - `Annotations`: базовый текст из конфига.
@@ -51,7 +51,8 @@ Cell-специфичные usages инструментов (библиотек�
 Routine (разделив сгруппированный Routine из карты; отклонение зафиксируй в замечаниях отчёта) —
 логические конструкции `if` в теле материализуемого теста означают избыточную параметризацию.
 
-1. Сигнатура: `test_<name>(<fixture>: Endpoint)`, `location: test_<name>.py`.
+1. Сигнатура: `test_<name>(<fixture>: Endpoint, ...)` — один параметр-фикстура на каждый вызываемый
+   эндпоинт Routine; `location: test_<name>.py`.
 2. `annotations` — собрать по строгой структуре из `goga-tool-pybuggy-api-cookbook` (порядок разделов
    фиксирован: Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`; **разделы разделяются пустой
    строкой** — после Purpose и перед каждым из `Precondition:` / `Data:` / `Steps:` / `Use …`):

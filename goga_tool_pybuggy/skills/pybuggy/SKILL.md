@@ -25,12 +25,12 @@ description: Главный навигационный скилл pybuggy — в
 аргументом пайплайна (или резолвится сканом его директории). Запускать пайплайн — через **Skill tool** по его
 главному скиллу; шаги внутри пайплайн прогоняет сам.
 
-| Скилл                                         | Что делает                                                                                                                     | Вход                             | Артефакт на выходе               |
-|-----------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|----------------------------------|----------------------------------|
-| `goga-tool-pybuggy-api-automate-requirements` | Собирает детальные требования к фиче из её описания и спецификации сервиса; генерирует фикстуры (`goga tool pybuggy generate`) | описание фичи + `<feature>`      | `docs/requirements/<feature>.md` |
-| `goga-tool-pybuggy-api-automate-testcases`    | Генерирует детальные описательные тест-кейсы (TC-<N>, Flow/Positive/Negative) и матрицу покрытия требований (FR→TC)            | `docs/requirements/<feature>.md` | `docs/testcases/<feature>.md`    |
-| `goga-tool-pybuggy-api-automate-cells`        | Проектирует архитектурный план тестовых cells (CODEMANIFEST, Routine под кейсы); диалоговый (WAIT-gate'ы)                      | `docs/testcases/<feature>.md`    | `docs/arch/<feature>.md`         |
-| `goga-tool-pybuggy-api-automate-apply`        | Материализует план: создаёт CODEMANIFEST в `tests/<spec>/<id>/` (только DSL, без тест-кода); валидация `goga lint`/`schema`    | `docs/arch/<feature>.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
+| Скилл                                         | Что делает                                                                                                                                   | Вход                             | Артефакт на выходе               |
+|-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------|----------------------------------|
+| `goga-tool-pybuggy-api-automate-requirements` | Собирает детальные требования к фиче из её описания и спецификации сервиса; генерирует фикстуры (`goga tool pybuggy generate`)               | описание фичи + `<feature>`      | `docs/requirements/<feature>.md` |
+| `goga-tool-pybuggy-api-automate-testcases`    | Генерирует детальные описательные тест-кейсы (TC-<N>, Flow/Positive/Negative) и матрицу покрытия требований (FR→TC)                          | `docs/requirements/<feature>.md` | `docs/testcases/<feature>.md`    |
+| `goga-tool-pybuggy-api-automate-cells`        | Проектирует архитектурный план тестовых cells (CODEMANIFEST, Routine под кейсы; границы cells — проектное решение); диалоговый (WAIT-gate'ы) | `docs/testcases/<feature>.md`    | `docs/arch/<feature>.md`         |
+| `goga-tool-pybuggy-api-automate-apply`        | Материализует план: создаёт CODEMANIFEST в `tests/<spec>/<id>/` (только DSL, без тест-кода); валидация `goga lint`/`schema`                  | `docs/arch/<feature>.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
 
 Полный флоу: **requirements → testcases → cells → apply**.
 
@@ -50,7 +50,7 @@ description: Главный навигационный скилл pybuggy — в
 - **`goga-tool-pybuggy-api-usage`** — референс runtime pybuggy (`api`, `asserts`) из
   `.goga/usages/cooks/pybuggy/`. Источник правды про `Api`, `Endpoint`, `ResponseWrapper`, assert-слой.
 - **`goga-tool-pybuggy-api-cookbook`** — принципы применения DSL `goga-cell` для проектирования именно
-  **тестовых** cells (Routine-only endpoint-cells, базовые Usages/Annotations из конфига).
+  **тестовых** cells (Routine-only, базовые Usages/Annotations из конфига; границы cells — проектное решение).
 
 ### Диспатч-скиллы тестовой генерации (после `apply`)
 

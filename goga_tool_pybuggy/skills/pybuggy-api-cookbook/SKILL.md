@@ -23,16 +23,18 @@ description: Принципы применения DSL goga-cell для прое
 
 ## Контекст
 
-Тесты — отдельный проект, использующий pybuggy как фреймворк. Каждая тестовая cell — это папка тестов
-эндпоинта, созданная `goga tool pybuggy generate`:
+Тесты — отдельный проект, использующий pybuggy как фреймворк. Тестовая cell — это папка тестов,
+созданная `goga tool pybuggy generate`:
 
 ```
 tests/<spec>/<endpoint-id>/
 └── CODEMANIFEST
 ```
 
-Гранулярность фиксирована: **один эндпоинт — одна cell**. Решения «когда создавать cell» и «насколько крупной
-быть cell» здесь не применяются — cell уже определена генерацией.
+Генерация создаёт каталог `tests/<spec>/<endpoint-id>/` на каждый эндпоинт — это стартовая структура.
+Границы cells — проектное решение пайплайна `cells` (фаза cell-map): допустимы cell на эндпоинт,
+объединение связанных эндпоинтов в одну cell, несколько cells на один эндпоинт. Фикстуры при этом
+остаются per-endpoint (`api/<spec>/<endpoint-id>/api.py`) — cell просто подключает нужные.
 
 ## CODEMANIFEST тестовой cell
 
@@ -46,7 +48,7 @@ tests/<spec>/<endpoint-id>/
 ### Header
 
 **Базовый блок** `Usages` и `Annotations` берётся из `.goga/config.yml` (через `goga-codemanifest-base`) и
-**един для всех endpoint-cells**:
+**един для всех тестовых cells**:
 
 - `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (пути в `.goga/usages/`).
 - `Annotations`: инструкции вида `Use \`pybuggy-api\` for ...`, `Use \`pybuggy-asserts\` for ...`.
@@ -56,7 +58,7 @@ tests/<spec>/<endpoint-id>/
 
 ### Cell-специфичные usages (инструменты)
 
-Endpoint-cell, использующая инструмент подготовки данных/моков/утилиту, получает **поверх базового блока**
+Тестовая cell, использующая инструмент подготовки данных/моков/утилиту, получает **поверх базового блока**
 cell-специфичный usage:
 
 ```yaml
@@ -83,14 +85,17 @@ Usages:
 кейсов (параметризацией) — соответствие «1 кейс = 1 Routine» допустимо, но не обязательно:
 
 ```yaml
-"test_<name>(<fixture>: Endpoint)":
+"test_<name>(<fixture>: Endpoint, ...)":
   location: test_<name>.py
   annotations: |
     ...
 ```
 
-- Сигнатура: `test_<name>(<fixture>: Endpoint)` — без output (тест ничего не возвращает).
-- `<fixture>` — сгенерированная фикстура `api/<spec>/<id>/api.py` (имя `<method>_<id>`).
+- Сигнатура: `test_<name>(<fixture>: Endpoint, ...)` — без output (тест ничего не возвращает); один
+  параметр-фикстура на каждый вызываемый эндпоинт Routine (одна для single-endpoint Routine, несколько
+  для flow).
+- `<fixture>` — сгенерированная фикстура `api/<spec>/<id>/api.py` (имя `<method>_<id>`); фикстур столько,
+  сколько эндпоинтов вызывает Routine.
 - Naming `snake_case`, `location: test_<name>.py` (правила `goga-cell-python`).
 - Параметризация: если один Routine покрывает несколько кейсов, варианты (параметры) перечисляются в
   аннотации — в `Data:` и/или `Steps`; механизм параметризации (напр. `@pytest.mark.parametrize`) в
@@ -107,7 +112,7 @@ Usages:
 
 - `Author` — всегда `Goga`.
 - `CreatedAt` — день/месяц/год.
-- `Description` — зачем эта cell (тесты какого эндпоинта/фичи).
+- `Description` — зачем эта cell (тесты каких эндпоинтов/фичи).
 
 ## Standard аннотаций Routine
 
