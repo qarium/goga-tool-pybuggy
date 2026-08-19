@@ -379,6 +379,42 @@ def write_pybuggy_config(
     yaml.dump(doc, path)
 
 
+# Fixed root conftest.py template of the target project (like _INSTALL_LINE for the Dockerfile
+# line): the sole source of the emitted text, hardcoded verbatim — no parameterization, no
+# placeholders, no version resolution. load_dotenv() must run before the plugin import/install
+# because the plugin options resolve from os.environ, so .env has to be loaded first; the
+# argumentless load_dotenv() keeps override=False, letting CI/operator-exported variables win.
+_CONFTEST_TEMPLATE = (
+    "from dotenv import load_dotenv\n"
+    "\n"
+    "load_dotenv()\n"
+    "\n"
+    "from goga_tool_pybuggy import plugin\n"
+    "\n"
+    "plugin.install()\n"
+)
+
+
+def write_pybuggy_conftest(path: Path) -> None:
+    """Emit the target project's root ``conftest.py`` from the fixed ``_CONFTEST_TEMPLATE``.
+
+    Pure, TTY-free, deterministic emitter wiring the pybuggy plugin into the consumer's pytest
+    run. No existence check and no overwrite confirmation — ``path`` is always (over)written on
+    every call; the overwrite gate lives in :func:`run_init`. Nothing is logged (mirrors
+    :func:`write_pybuggy_config`).
+
+    Args:
+        path: Destination conftest path (``<cwd>/conftest.py``); the parent directory is created
+            when missing.
+
+    Raises:
+        OSError: Forwarded unchanged to the caller on a write failure.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(_CONFTEST_TEMPLATE, encoding="utf-8")
+
+
 # Human-readable prompt text for each optional scalar plugin key — mirrors the
 # ``ApiPlugin`` option docstrings so the user knows what every field is for.
 # ``BASE_URL`` is collected separately as a (possibly multi-line) Jinja2 template;
@@ -720,10 +756,37 @@ def _log_registration(
             logger.warning("annotation already registered, skipped", extra={"key": key})
 
 
-def run_init() -> int:
-    """Initialize the goga-project, build the pybuggy tool config, then bootstrap the api usages.
+def _write_root_conftest(cwd: Path) -> None:
+    """Gate and write the target project's root ``conftest.py`` (init step 9).
 
-    Algorithm (9 steps):
+    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. When
+    ``<cwd>/conftest.py`` does not exist it is written unconditionally; when it exists, the user
+    is asked (``click.confirm``, default ``no``) and it is overwritten only on an explicit ``yes``
+    — declining logs INFO and leaves the file untouched (the step is skipped, not an error). The
+    decision lives here, in the orchestrator's helper: :func:`write_pybuggy_conftest` itself always
+    writes without any check.
+
+    Args:
+        cwd: The target project root whose ``conftest.py`` is (re)generated.
+
+    Raises:
+        click.ClickException: On a conftest write failure, after ERROR-logging it.
+    """
+    conftest = cwd / "conftest.py"
+    try:
+        if _should_rebuild(conftest, "conftest.py exists — overwrite it?"):
+            write_pybuggy_conftest(conftest)
+        else:
+            logger.info("conftest overwrite declined, skipped", extra={"path": str(conftest)})
+    except OSError as e:
+        logger.error("conftest write failed", extra={"path": str(conftest), "error": str(e)})
+        raise click.ClickException(str(e)) from e
+
+
+def run_init() -> int:
+    """Initialize the goga-project, build the tool config, bootstrap the api usages, generate the conftest.
+
+    Algorithm (10 steps):
 
     1. Resolve the output root as the current working directory.
     2. Goga-project config: when ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive
@@ -743,10 +806,15 @@ def run_init() -> int:
     7. Append a referencing annotation line per registered usage under ``codemanifest.annotations``
        via :func:`register_annotations` (idempotent by backtick reference, existing text preserved).
     8. Log INFO for added keys/annotations and WARNING for skipped ones.
-    9. Return 0.
+    9. Root ``conftest.py``: resolve ``<cwd>/conftest.py``; when absent, write it via
+       :func:`write_pybuggy_conftest`; when it exists, ask (``click.confirm``, default ``no``) —
+       ``yes`` overwrites it, ``no`` logs INFO (step skipped, file untouched) and continues. The
+       decision lives here, in the orchestrator (:func:`_write_root_conftest`); the routine itself
+       always writes without any check.
+    10. Return 0.
 
     Each config is created when absent and only recreated on explicit confirmation when present, so a
-    plain repeat run (both confirms declined) just re-copies the usages and skips already-registered
+    plain repeat run (all confirms declined) just re-copies the usages and skips already-registered
     keys/annotations — idempotent. Steps 2 and 3 are called outside this routine's own try/except —
     they rely on :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code
     on cancellation/failure).
@@ -755,7 +823,7 @@ def run_init() -> int:
         0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
 
     Raises:
-        click.ClickException: On a file-write, YAML, or navigation failure during the bootstrap.
+        click.ClickException: On a file-write, YAML, navigation, bootstrap, or conftest-write failure.
     """
     cwd = Path.cwd()
     goga_config = cwd / ".goga" / "config.yml"
@@ -796,11 +864,15 @@ def run_init() -> int:
 
     _log_registration(usage_keys, added_usage_keys, annotation_lines, added_annotation_keys)
 
+    # Root conftest.py: create when absent; overwrite only on explicit confirmation (merging into an
+    # existing one is never attempted — either a confirmed overwrite or a skip).
+    _write_root_conftest(cwd)
+
     return 0
 
 
 @click.command("init")
 @click.pass_context
 def init_cmd(ctx: click.Context) -> None:
-    """Initialize the goga-project, build .goga/tools/pybuggy/config.yml, then bootstrap the api usages."""
+    """Initialize the goga-project, build the tool config, bootstrap usages, generate the conftest."""
     ctx.exit(run_init())

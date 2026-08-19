@@ -1,5 +1,6 @@
 """Contract and logic tests for run_init / register_usages / init_cmd handler."""
 
+import logging
 import typing
 from pathlib import Path
 from unittest import mock
@@ -17,9 +18,22 @@ from goga_tool_pybuggy.commands.init import (
     run_goga_init,
     run_init,
     write_pybuggy_config,
+    write_pybuggy_conftest,
 )
 from goga_tool_pybuggy.config import GitEntry, SpecEntry
 from ruamel.yaml import YAMLError
+
+# The fixed root conftest.py template the init command wires into the consumer's pytest run
+# (the single source is the CODEMANIFEST annotation of write_pybuggy_conftest).
+EXPECTED_CONFTEST = (
+    "from dotenv import load_dotenv\n"
+    "\n"
+    "load_dotenv()\n"
+    "\n"
+    "from goga_tool_pybuggy import plugin\n"
+    "\n"
+    "plugin.install()\n"
+)
 
 _USAGE_KEYS = {
     "pybuggy-api": ".goga/usages/cooks/pybuggy/api.md",
@@ -100,6 +114,27 @@ def test_register_annotations_signature() -> None:
     assert params == ("config_path", "annotation_lines")
 
 
+def test_write_pybuggy_conftest_importable_from_facade() -> None:
+    """write_pybuggy_conftest should be importable from the goga_tool_pybuggy.commands.init facade."""
+    assert callable(write_pybuggy_conftest) is True
+
+
+def test_write_pybuggy_conftest_is_public_in_facade() -> None:
+    """write_pybuggy_conftest is exposed on the facade __all__ (public contract)."""
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+
+    assert "write_pybuggy_conftest" in facade_all
+
+
+def test_write_pybuggy_conftest_signature() -> None:
+    """write_pybuggy_conftest has signature (path)."""
+    params = (
+        write_pybuggy_conftest.__code__.co_varnames[: write_pybuggy_conftest.__code__.co_argcount]
+    )
+
+    assert params == ("path",)
+
+
 # Logic tests ------------------------------------------------------------------
 
 
@@ -127,6 +162,150 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     annotations = cfg["codemanifest"]["annotations"]
     assert PYBUGGY_ANNOTATIONS["api"] in annotations
     assert PYBUGGY_ANNOTATIONS["asserts"] in annotations
+
+
+def test_run_init_generates_root_conftest_in_fresh_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step 9: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 0
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
+
+
+def test_run_init_overwrites_conftest_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When <cwd>/conftest.py exists and the user confirms, run_init overwrites it with the template."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    (tmp_path / "conftest.py").write_text("# custom\n")
+    # no .goga configs exist -> the conftest gate is the only confirm point
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))
+
+    assert run_init() == 0
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
+
+
+def test_run_init_skips_conftest_overwrite_on_decline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Declining the conftest overwrite skips the step: INFO logged, file left untouched, exit 0."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    (tmp_path / "conftest.py").write_text("# my custom conftest\n")
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+
+    with caplog.at_level(logging.INFO):
+        assert run_init() == 0
+
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == "# my custom conftest\n"
+    assert any("conftest overwrite declined" in r.message for r in caplog.records)
+    # the documented gate contract: prompt text + default=no (Enter must NOT overwrite)
+    click.confirm.assert_called_once_with("conftest.py exists — overwrite it?", default=False)
+
+
+def test_run_init_maps_conftest_write_failure_to_click_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A conftest write failure is ERROR-logged and mapped to click.ClickException (non-zero exit)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(
+        "goga_tool_pybuggy.commands.init.init.write_pybuggy_conftest",
+        mock.Mock(side_effect=OSError("disk full")),
+    )
+
+    with caplog.at_level(logging.ERROR), pytest.raises(click.ClickException) as excinfo:
+        run_init()
+
+    assert "disk full" in str(excinfo.value)
+    assert any("conftest write failed" in r.message for r in caplog.records)
+
+
+def test_run_init_does_not_write_conftest_when_goga_init_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero run_goga_init code returns before step 9: no conftest, no usages bootstrapped."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 1
+    assert not (tmp_path / "conftest.py").exists()
+    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
+
+
+def test_run_init_does_not_write_conftest_when_config_build_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero build_pybuggy_config code returns before step 9: no conftest is written."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
+
+    assert run_init() == 1
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_init_does_not_write_conftest_when_bootstrap_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bootstrap ClickException returns before step 9: no conftest is written."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    # fail the bootstrap block via a vector that leaves the real filesystem writable, so the
+    # conftest-absence assertion below is not vacuous
+    monkeypatch.setattr(
+        "goga_tool_pybuggy.commands.init.init.register_usages",
+        mock.Mock(side_effect=ValueError("bad usage key")),
+    )
+
+    with pytest.raises(click.ClickException):
+        run_init()
+
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_init_idempotent_repeat_run_preserves_existing_conftest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A repeat run with every confirm declined leaves the conftest written by run #1 untouched."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    # run #1: fresh cwd -> bootstrap creates .goga/config.yml, conftest written without a prompt;
+    # run #2: goga config exists -> confirm #1 declined, conftest exists -> confirm #2 declined.
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
+
+    assert run_init() == 0
+    after_first = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    assert after_first == EXPECTED_CONFTEST
+
+    assert run_init() == 0
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == after_first
+
+
+def test_run_init_propagates_abort_on_conftest_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A Ctrl-C at the conftest gate propagates as click.Abort (not swallowed by the OSError handler)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    (tmp_path / "conftest.py").write_text("# custom\n")
+    # the stubbed steps 2-3 never confirm, so the Abort can only come from the conftest gate
+    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=click.Abort()))
+
+    with pytest.raises(click.Abort):
+        run_init()
 
 
 def test_run_init_recursive_discovery_picks_subcell(
@@ -1048,6 +1227,87 @@ def test_write_pybuggy_config_multiple_specs_preserve_order(tmp_path: Path) -> N
 
     text = config.read_text()
     assert text.index("api:") < text.index("admin:")
+
+
+# write_pybuggy_conftest logic tests -------------------------------------------
+
+
+def test_write_pybuggy_conftest_writes_fixed_template(tmp_path: Path) -> None:
+    """In a fresh directory the conftest is written verbatim from the fixed template."""
+    write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    content = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    assert content == EXPECTED_CONFTEST
+    # operator order: .env is loaded before the plugin import/install (options resolve from os.environ)
+    assert content.index("load_dotenv()") < content.index("plugin.install()")
+
+
+def test_write_pybuggy_conftest_overwrites_existing(tmp_path: Path) -> None:
+    """An existing conftest is silently replaced by the fixed template (existence check lives upstream)."""
+    (tmp_path / "conftest.py").write_text("# custom harness\nimport my_fixtures\n")
+
+    write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    content = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    assert content == EXPECTED_CONFTEST
+    assert "# custom harness" not in content
+
+
+def test_write_pybuggy_conftest_creates_parent_dir(tmp_path: Path) -> None:
+    """A nested destination creates its parent directory before writing."""
+    write_pybuggy_conftest(tmp_path / "nested" / "conftest.py")
+
+    assert (tmp_path / "nested").is_dir()
+    assert (tmp_path / "nested" / "conftest.py").read_text() == EXPECTED_CONFTEST
+
+
+def test_write_pybuggy_conftest_never_prompts(tmp_path: Path) -> None:
+    """The routine is pure (TTY-free): neither click.confirm nor click.prompt is ever called."""
+    with (
+        mock.patch.object(click, "confirm") as confirm_mock,
+        mock.patch.object(click, "prompt") as prompt_mock,
+    ):
+        write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    assert confirm_mock.call_count == 0
+    assert prompt_mock.call_count == 0
+
+
+def test_write_pybuggy_conftest_propagates_os_error(tmp_path: Path) -> None:
+    """An OSError propagates unchanged to the caller (real write failure path, no mocks)."""
+    (tmp_path / "blocked").mkdir()
+
+    with pytest.raises(OSError, match="blocked"):
+        write_pybuggy_conftest(tmp_path / "blocked")
+
+
+def test_write_pybuggy_conftest_deterministic_across_calls(tmp_path: Path) -> None:
+    """Two calls in different directories emit byte-identical content (fixed template, no state)."""
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+
+    write_pybuggy_conftest(a / "conftest.py")
+    write_pybuggy_conftest(b / "conftest.py")
+
+    assert (a / "conftest.py").read_text() == (b / "conftest.py").read_text() == EXPECTED_CONFTEST
+
+
+def test_write_pybuggy_conftest_emits_runnable_plugin_wiring(tmp_path: Path) -> None:
+    """The emitted conftest is valid Python wiring the real plugin facade (init ↔ plugin cross-check).
+
+    The verbatim-literal tests above stay green even if all three copies of the template drift
+    together (a typo or a dropped install() call edited identically everywhere); compiling the
+    emitted file and resolving its facade attribute against the real plugin cell catches that.
+    """
+    write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    source = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    compile(source, "conftest.py", "exec")
+
+    from goga_tool_pybuggy import plugin
+
+    assert callable(plugin.install) is True
+    assert "plugin.install()" in source
 
 
 # build_pybuggy_config logic tests --------------------------------------------

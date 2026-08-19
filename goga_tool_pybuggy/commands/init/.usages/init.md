@@ -4,8 +4,10 @@
 
 Команда `pybuggy init` под капотом **инициализирует goga-проект** (создаёт при отсутствии `.goga/config.yml`; при
 наличии — спрашивает, пересоздавать ли) и затем доставляет consumer-usages ячейки `api` (и её подклеток) в проект, где
-она вызвана, чтобы goga-агент потребителя знал, как пользоваться goga_tool_pybuggy. Аудитория — интегратор,
-подключающий pybuggy в свой проект (`goga install pybuggy`), и goga-агент потребителя.
+она вызвана, чтобы goga-агент потребителя знал, как пользоваться goga_tool_pybuggy, и генерирует корневой `conftest.py`
+целевого проекта (фиксированный шаблон; при наличии файла — перезапись только по подтверждению), чтобы плагин включался
+в pytest-набор потребителя той же командой. Аудитория — интегратор, подключающий pybuggy в свой проект
+(`goga install pybuggy`), и goga-агент потребителя.
 
 Инициализация goga-проекта выполняется in-process пакетом `goga` (per-field методы `goga.onboarding.Questionnaire` +
 `FileGenerator.generate`; `InitLogic` не используется): интерактивный опрос + генерация `.goga/config.yml`
@@ -22,7 +24,7 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 
 Помимо инициализации goga-проекта и bootstrap usages, `pybuggy init` интерактивно строит конфигурацию инструмента
 `.goga/tools/pybuggy/config.yml` (плагинные опции + секция `specs`): при отсутствии файла — сразу, при наличии — после
-подтверждения (см. «Перезапись» в `.usages/config-build.md`).
+подтверждения.
 
 Что опрашивается (интерактивный шаг, изолированный в `build_pybuggy_config`):
 - Скалярные ключи плагина: `base_url` (обязательный — Jinja2-шаблон URL; пустой ввод переспрашивается и не может быть
@@ -42,6 +44,28 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
 скаляры, а также `headers` и `loader` — закомментированными записями (`# key:`) с пояснением; `specs` — активным YAML.
 Сгенерированный файл валиден для config-ячейки (`load_config`/`Config`): присутствует `specs` с обязательными полями
 `SpecEntry`; скалярные плагинные ключи игнорируются `Config` (extra=ignore).
+
+---
+
+## Генерация <cwd>/conftest.py
+
+Финальный шаг команды: создаёт корневой `conftest.py` целевого проекта по фиксированному шаблону (дословно):
+
+```python
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from goga_tool_pybuggy import plugin
+
+plugin.install()
+```
+
+`load_dotenv()` без аргументов (`override=False` — переменные CI/оператора не перезаписываются) вызывается до
+`install()` — опции плагина резолвятся из `os.environ`. Если файл существует — `run_init` спрашивает `click.confirm`
+(по умолчанию `no`); при отказе шаг пропускается с INFO-логом, остальной init завершается успешно (exit 0). Решение о
+перезаписи живёт в оркестраторе `run_init`; чистая запись изолирована в `write_pybuggy_conftest` (программно доступна
+в фасаде, всегда пишет переданный путь, без TTY — тестируется напрямую).
 
 ---
 
@@ -70,6 +94,8 @@ cell-usages `api.md`/`asserts.md` в `.goga/usages/cooks/pybuggy/` и регис
   (установка pybuggy через goga-installer с захардкоженной версией `0.1.x`; дописывается после генерации goga),
   всегда создаётся при goga-init.
 - `.goga/usages/cooks/pybuggy/api.md`, `.goga/usages/cooks/pybuggy/asserts.md`.
+- `<cwd>/conftest.py` — корневой conftest потребителя: фиксированный шаблон `load_dotenv()` → `plugin.install()`
+  (см. «Генерация <cwd>/conftest.py»).
 
 ---
 
@@ -91,10 +117,11 @@ goga-проект (перезапись `.goga/config.yml`; пользовате
 
 ## Идемпотентность
 
-Повторный `pybuggy init` в уже инициализированном проекте: `run_init` спрашивает, пересоздавать ли goga-конфиг и
-pybuggy-конфиг (`click.confirm`, по умолчанию `no`); при отказе обоих — goga-init и сборка pybuggy-конфига
-пропускаются, скопированные `.md` перезаписываются (актуальные cell-usages пакета), уже зарегистрированные ключи и уже
-ссылающиеся аннотации пропускаются. Флаги `--force`/`--dry-run` не предусмотрены.
+Повторный `pybuggy init` в уже инициализированном проекте: `run_init` спрашивает, пересоздавать ли goga-конфиг,
+pybuggy-конфиг и перезаписывать ли `conftest.py` (`click.confirm`, по умолчанию `no`); при отказе всех — goga-init,
+сборка pybuggy-конфига и запись conftest пропускаются, существующий `conftest.py` не изменяется, скопированные `.md`
+перезаписываются (актуальные cell-usages пакета), уже зарегистрированные ключи и уже ссылающиеся аннотации
+пропускаются. Флаги `--force`/`--dry-run` не предусмотрены.
 
 ---
 
@@ -103,7 +130,7 @@ pybuggy-конфиг (`click.confirm`, по умолчанию `no`); при о�
 - `0` — успех (goga-проект готов/уже был готов + usages зарегистрированы).
 - ненулевой код goga (`1`) — отмена/ошибка инициализации goga: в этом случае usages **не регистрируются**, `pybuggy init`
   завершается кодом goga.
-- Ошибки bootstrap usages → `click.ClickException` (ненулевой exit).
+- Ошибки bootstrap usages и ошибки записи conftest → `click.ClickException` (ненулевой exit).
 
 ---
 
@@ -122,18 +149,27 @@ pybuggy-конфиг (`click.confirm`, по умолчанию `no`); при о�
           monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
           assert run_init() == 0
           assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
+          assert (tmp_path / "conftest.py").exists()   # финальный шаг — фиксированный шаблон
 
       def test_goga_cancel_aborts(tmp_path, monkeypatch):
           monkeypatch.chdir(tmp_path)
           monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)  # отмена
           assert run_init() == 1
           assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()  # usages не пишутся
+          assert not (tmp_path / "conftest.py").exists()                        # conftest не пишется
 
 Для прямой регистрации usages без discovery/копирования — `register_usages` (контракт не изменился); для дописывания
 ссылающихся аннотаций в `codemanifest.annotations` — `register_annotations` (round-trip, идемпотентно по бэктик-ссылке).
 Интерактивное построение `.goga/tools/pybuggy/config.yml` изолировано в `build_pybuggy_config` (testable-seam, в `__all__`;
 возвращает exit code, не бросает — стабится monkeypatch по образцу `run_goga_init`); чистую эмиссию YAML тестируют напрямую
-через `write_pybuggy_config` (без TTY): передают `scalar_values` (с пропусками) и `specs`, проверяют результат.
+через `write_pybuggy_config` (без TTY): передают `scalar_values` (с пропусками) и `specs`, проверяют результат. Чистую
+запись conftest тестируют напрямую через `write_pybuggy_conftest` (без TTY, без проверок существования):
+
+      from goga_tool_pybuggy.commands.init import write_pybuggy_conftest
+
+      def test_conftest_written(tmp_path):
+          write_pybuggy_conftest(tmp_path / "conftest.py")
+          assert (tmp_path / "conftest.py").read_text() == EXPECTED_TEMPLATE  # дословный шаблон
 
 ---
 
@@ -141,6 +177,9 @@ pybuggy-конфиг (`click.confirm`, по умолчанию `no`); при о�
 
 - Требует установленный пакет `goga` (зависимость pybuggy) — для in-process инициализации goga-проекта.
 - Пишет в `<cwd>/.goga/` (создаёт `.goga/usages/cooks/pybuggy/`, `.goga/config.yml`).
+- Пишет `<cwd>/conftest.py` (фиксированный шаблон `load_dotenv()` → `plugin.install()`; при наличии файла — только по
+  подтверждению `click.confirm`, отказ → пропуск с INFO-логом). Наличие `goga_tool_pybuggy`/`python-dotenv` в окружении
+  pytest потребителя не проверяется — выяснится при запуске тестов.
 - Дописывает в сгенерированный `.goga/Dockerfile` строку `RUN goga install pybuggy -v 0.1.x` — pybuggy ставится через
   goga-installer с захардкоженной версией `0.1.x` (версия не резолвится динамически из метаданных пакета).
 - Читает usages из **установленного** пакета `goga_tool_pybuggy.api` (`importlib.resources`), не из cwd — работает после
@@ -151,4 +190,4 @@ pybuggy-конфиг (`click.confirm`, по умолчанию `no`); при о�
   пересоздание (`click.confirm`, по умолчанию `no`), когда файл существует.
 - Цели записи — goga-project-конфиг `.goga/config.yml` (блоки `codemanifest.usages` и `codemanifest.annotations`)
   и `.goga/tools/pybuggy/config.yml` (плагинные опции + specs; строится при отсутствии или подтверждённом пересоздании;
-  см. раздел «Построение .goga/tools/pybuggy/config.yml»).
+  см. раздел «Построение .goga/tools/pybuggy/config.yml»), а также корневой `<cwd>/conftest.py`.

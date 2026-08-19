@@ -58,6 +58,33 @@ def pull_cmd(spec_name):
 
 ---
 
+## Интерактивные запросы — confirm и prompt
+
+`click.confirm` — вопрос да/нет (гейт опасного действия); `click.prompt` — запрос значения.
+Используются в handler-ах для интерактивных гейтов и опросов:
+
+```python
+# Гейт перезаписи: файл существует — спрашиваем явное подтверждение (отказ по умолчанию)
+if not path.exists() or click.confirm(f"{path} exists — rebuild it?", default=False):
+    build(path)
+
+# Запрос значения: default="" допускает пустой ввод (пропуск необязательного поля)
+name = click.prompt("spec name", default="", show_default=False).strip()
+
+# Выбор из фиксированного набора
+spec_type = click.prompt("spec type", type=click.Choice(["swagger", "openapi"]))
+```
+
+- `default` у `confirm` — ответ по Enter; `default=False` — «отказ по умолчанию» для перезаписи и
+  других опасных действий.
+- `prompt` возвращает введённое значение; `type=click.Choice([...])` ограничивает набор допустимых
+  ответов; `show_default=False` скрывает подсказку дефолта.
+- Отказ в `confirm` — не ошибка: шаг пропускается, handler продолжает выполнение (exit 0).
+- Прерывание (Ctrl-C) поднимает `click.Abort` — handler перехватывает его и возвращает ненулевой
+  exit, не роняя процесс.
+
+---
+
 ## Handler отделён от обёртки
 
 Click-декоратор только связывает опции/аргументы и вызывает чистую handler-функцию. Это позволяет
