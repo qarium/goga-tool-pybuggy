@@ -16,6 +16,17 @@ import yaml
 from goga_tool_pybuggy.commands.init import build_pybuggy_config, init_cmd, write_pybuggy_config
 from goga_tool_pybuggy.config import GitEntry, SpecEntry, load_config
 
+# Fixed conftest template (single source: the write_pybuggy_conftest CODEMANIFEST annotation).
+EXPECTED_CONFTEST = (
+    "from dotenv import load_dotenv\n"
+    "\n"
+    "load_dotenv()\n"
+    "\n"
+    "from goga_tool_pybuggy import plugin\n"
+    "\n"
+    "plugin.install()\n"
+)
+
 # End-to-end through the Click wrapper ---------------------------------------
 
 
@@ -38,6 +49,21 @@ def test_init_cmd_end_to_end_fresh_project(
     usages = cfg["codemanifest"]["usages"]
     assert "pybuggy-api" in usages
     assert "pybuggy-asserts" in usages
+
+
+def test_init_cmd_end_to_end_writes_conftest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """init_cmd writes the root conftest.py verbatim; absent file means no confirm is asked."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    runner = click.testing.CliRunner()
+    result = runner.invoke(init_cmd, [])
+
+    assert result.exit_code == 0
+    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
 
 
 def test_init_cmd_propagates_goga_cancel_without_writing_usages(
