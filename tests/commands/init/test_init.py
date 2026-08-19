@@ -206,6 +206,8 @@ def test_run_init_skips_conftest_overwrite_on_decline(
 
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == "# my custom conftest\n"
     assert any("conftest overwrite declined" in r.message for r in caplog.records)
+    # the documented gate contract: prompt text + default=no (Enter must NOT overwrite)
+    click.confirm.assert_called_once_with("conftest.py exists — overwrite it?", default=False)
 
 
 def test_run_init_maps_conftest_write_failure_to_click_exception(
@@ -249,6 +251,26 @@ def test_run_init_does_not_write_conftest_when_config_build_fails(
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
 
     assert run_init() == 1
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_init_does_not_write_conftest_when_bootstrap_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A bootstrap ClickException returns before step 9: no conftest is written."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    # fail the bootstrap block via a vector that leaves the real filesystem writable, so the
+    # conftest-absence assertion below is not vacuous
+    monkeypatch.setattr(
+        "goga_tool_pybuggy.commands.init.init.register_usages",
+        mock.Mock(side_effect=ValueError("bad usage key")),
+    )
+
+    with pytest.raises(click.ClickException):
+        run_init()
+
     assert not (tmp_path / "conftest.py").exists()
 
 
@@ -1268,6 +1290,24 @@ def test_write_pybuggy_conftest_deterministic_across_calls(tmp_path: Path) -> No
     write_pybuggy_conftest(b / "conftest.py")
 
     assert (a / "conftest.py").read_text() == (b / "conftest.py").read_text() == EXPECTED_CONFTEST
+
+
+def test_write_pybuggy_conftest_emits_runnable_plugin_wiring(tmp_path: Path) -> None:
+    """The emitted conftest is valid Python wiring the real plugin facade (init ↔ plugin cross-check).
+
+    The verbatim-literal tests above stay green even if all three copies of the template drift
+    together (a typo or a dropped install() call edited identically everywhere); compiling the
+    emitted file and resolving its facade attribute against the real plugin cell catches that.
+    """
+    write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    source = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    compile(source, "conftest.py", "exec")
+
+    from goga_tool_pybuggy import plugin
+
+    assert callable(plugin.install) is True
+    assert "plugin.install()" in source
 
 
 # build_pybuggy_config logic tests --------------------------------------------

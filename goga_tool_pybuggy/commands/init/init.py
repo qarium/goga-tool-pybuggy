@@ -784,7 +784,7 @@ def _write_root_conftest(cwd: Path) -> None:
 
 
 def run_init() -> int:
-    """Initialize the goga-project, build the pybuggy tool config, then bootstrap the api usages.
+    """Initialize the goga-project, build the tool config, bootstrap the api usages, generate the conftest.
 
     Algorithm (10 steps):
 
@@ -874,5 +874,5 @@ def run_init() -> int:
 @click.command("init")
 @click.pass_context
 def init_cmd(ctx: click.Context) -> None:
-    """Initialize the goga-project, build .goga/tools/pybuggy/config.yml, then bootstrap the api usages."""
+    """Initialize the goga-project, build the tool config, bootstrap usages, generate the conftest."""
     ctx.exit(run_init())
