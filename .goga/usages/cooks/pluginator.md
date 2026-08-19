@@ -26,7 +26,7 @@ from pluginator import install_pytest_plugins, call_context
 class PyBuggyPlugin:
     plugin_config: dict  # сюда плагин кладёт распарсенный yaml (см. BasePlugin.plugin_config)
 
-    base_url = define.option(str, env_var="QA_BASE_URL", command_line=CommandLine("--api-url"))
+    base_url = define.option(str, env_var="QA_BASE_URL", command_line=CommandLine("--base-url"))
 ```
 
 - `define.plugin(name, /, *, config=None, default_config=None, deps=None, actions=None)`.
@@ -46,7 +46,7 @@ base_url = define.option(
     str,
     env_var="QA_BASE_URL",
     plugin_config_key="base_url",
-    command_line=CommandLine("--api-url", action="store", help="Base URL"),
+    command_line=CommandLine("--base-url", action="store", help="Base URL"),
     default_from="_default_base_url",
     nullable=True,
 )
@@ -205,7 +205,7 @@ pytest_plugins = ["goga_tool_pybuggy.plugin"]
 плагина; повторная регистрация того же `opt` пропускается (`register_once`).
 
 ```python
-CommandLine("--api-url", action="store", help="Base URL of the service under test")
+CommandLine("--base-url", action="store", help="Base URL of the service under test")
 ```
 
 ---

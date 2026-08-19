@@ -86,6 +86,11 @@ class PluginConfigKeys(str, Enum):
 # ``--key=value``. Captures the option name (letters/digits/underscore/dash).
 _PLACEHOLDER_SOURCE_PATTERN = re.compile(r"^--?([A-Za-z_][\w-]*)(?:=(.*))?$")
 
+# Normalized CLI token name of the ``--base-url`` flag (dashes -> underscores).
+# Matches both the pytest option ``dest`` and the option name, so a typed
+# ``--base-url`` is recognizable in ``_passed_cli_options`` output.
+_BASE_URL_CLI_KEY: t.Final[str] = "base_url"
+
 
 def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
     """Collect the CLI options the user actually typed, keyed by normalized name.
@@ -134,10 +139,12 @@ class ApiPlugin:
         plugin_config: anchor declaration; ``BasePlugin`` supplies the parsed
             yaml dict.
         base_url: service base URL as a Jinja2 template string (required;
-            ``QA_BASE_URL`` env / ``--api-url`` CLI). Rendered once in
+            ``QA_BASE_URL`` env / ``--base-url`` CLI). Rendered once in
             ``configure()`` against the environment + passed CLI options and stored
             back on ``self.base_url``; a plain URL without placeholders renders to
-            itself.
+            itself. When ``--base-url`` is actually typed on the CLI, its value is
+            applied with top precedence — overriding the plugin config and
+            ``QA_BASE_URL`` (see ``configure()``).
         headers: default request headers (default ``{}``).
         timeout: request timeout in seconds (nullable; ``QA_API_TIMEOUT`` env /
             ``--api-timeout`` CLI).
@@ -167,7 +174,7 @@ class ApiPlugin:
         str,
         plugin_config_key=PluginConfigKeys.BASE_URL,
         env_var=QA_BASE_URL,
-        command_line=CommandLine("--api-url", action="store", help="Base URL of the service under test"),
+        command_line=CommandLine("--base-url", action="store", help="Base URL of the service under test"),
         required=True,
     )
     headers = define.option(dict, plugin_config_key=PluginConfigKeys.HEADERS)
@@ -265,6 +272,12 @@ class ApiPlugin:
         whitespace in the rendered value is removed so a multi-line template
         yields one clean URL.
 
+        When the user typed ``--base-url``, its value is applied first, with top
+        precedence over the plugin config and ``QA_BASE_URL``: the pluginator
+        chain resolves the config before the CLI, so the typed CLI value is
+        re-applied here to make the CLI authoritative for ``base_url``. The CLI
+        value is itself a Jinja2 template and renders against the same context.
+
         This is a pluginator lifecycle callback: pluginator discovers a no-arg
         ``configure`` method and calls it from the injected ``pytest_configure``
         after ``init_pytest_config`` + ``install``, when ``self.pytest_config``
@@ -272,8 +285,14 @@ class ApiPlugin:
         ``@pytest.hookimpl``.
         """
         logger.debug("rendering base_url template")
+        cli_options = _passed_cli_options(self.pytest_config)
+
+        cli_base_url = cli_options.get(_BASE_URL_CLI_KEY)
+        if cli_base_url is not None:
+            self.base_url = cli_base_url
+
         context: dict[str, t.Any] = dict(os.environ)
-        context.update(_passed_cli_options(self.pytest_config))
+        context.update(cli_options)
         self.base_url = render_base_url(self.base_url, context)
 
     @pytest.fixture

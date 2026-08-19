@@ -223,7 +223,7 @@ class TestApiPluginLogic:
         # required-option ValueError (rendering happens eagerly in configure(),
         # not lazily on fixture invocation).
         plugin = ApiPlugin(context={})
-        plugin.init_pytest_config(_FakePytestConfig())  # --api-url absent
+        plugin.init_pytest_config(_FakePytestConfig())  # --base-url absent
 
         with pytest.raises(ValueError, match="base_url"):
             plugin.configure()
@@ -408,6 +408,76 @@ class TestApiPluginConfigure:
         _lifecycle(plugin, args=["--env", "dev"], options={"env": "dev"})
 
         assert plugin.base_url == "https://dev.cfg.example"
+
+
+class TestBaseUrlCliPrecedence:
+    """``--base-url`` CLI precedence for the ``base_url`` option.
+
+    The pluginator chain resolves the config before the CLI, so a typed
+    ``--base-url`` is re-applied in ``configure()`` with top precedence over
+    the config file and ``QA_BASE_URL``. The CLI value is itself a Jinja2
+    template rendered against the same context.
+    """
+
+    def test_cli_base_url_overrides_config(self, tmp_path, monkeypatch):
+        # The reported bug: the config-file base_url used to win over the CLI flag.
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("QA_BASE_URL", raising=False)
+
+        config = tmp_path / ".goga" / "tools" / "pybuggy"
+        config.mkdir(parents=True)
+        (config / "config.yml").write_text("base_url: https://cfg.example\n")
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(
+            plugin,
+            args=["--base-url", "https://cli.example"],
+            options={"base_url": "https://cli.example"},
+        )
+
+        assert plugin.base_url == "https://cli.example"
+
+    def test_cli_base_url_overrides_env(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("QA_BASE_URL", "https://env.example")
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(
+            plugin,
+            args=["--base-url", "https://cli.example"],
+            options={"base_url": "https://cli.example"},
+        )
+
+        assert plugin.base_url == "https://cli.example"
+
+    def test_cli_base_url_renders_as_template(self, tmp_path, monkeypatch):
+        # The typed --base-url value is a template, rendered like any other source.
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("QA_BASE_URL", raising=False)
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(
+            plugin,
+            args=["--base-url", "https://{{ env }}.cli.example", "--env", "dev"],
+            options={"base_url": "https://{{ env }}.cli.example", "env": "dev"},
+        )
+
+        assert plugin.base_url == "https://dev.cli.example"
+
+    def test_config_wins_when_cli_flag_absent(self, tmp_path, monkeypatch):
+        # Without a typed flag the pluginator chain stands (config wins); an
+        # option present on the namespace but NOT typed must not be applied.
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("QA_BASE_URL", raising=False)
+
+        config = tmp_path / ".goga" / "tools" / "pybuggy"
+        config.mkdir(parents=True)
+        (config / "config.yml").write_text("base_url: https://cfg.example\n")
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(plugin, args=["--env", "dev"], options={"env": "dev", "base_url": "https://cfg.example"})
+
+        assert plugin.base_url == "https://cfg.example"
 
 
 class TestApiPluginJinjaBaseUrl:

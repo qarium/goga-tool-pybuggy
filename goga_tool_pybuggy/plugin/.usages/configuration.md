@@ -9,7 +9,7 @@ configuration.
 
 | Option                | Type           | Env (default)    | CLI flag               | Config key            | Default  |
 |-----------------------|----------------|------------------|------------------------|-----------------------|----------|
-| base_url              | str            | `QA_BASE_URL`    | `--api-url`            | base_url              | required |
+| base_url              | str            | `QA_BASE_URL`    | `--base-url`           | base_url              | required |
 | headers               | dict[str, str] | —                | —                      | headers               | `{}`     |
 | timeout               | float          | `QA_API_TIMEOUT` | `--api-timeout`        | timeout               | None     |
 | data_key              | str            | —                | —                      | data_key              | None     |
@@ -22,14 +22,29 @@ configuration.
 
 ## Resolution priority
 
-Each option resolves by the first non-empty source, in this order:
+Each option resolves by the first non-empty source, in this order (the pluginator chain):
 
 1. plugin config key (from `.goga/tools/pybuggy/config.yml`)
 2. env variable
 3. CLI flag
 4. `default` (or required/None)
 
-So a CLI flag overrides env, env overrides the config file, and the config file overrides the default.
+So the config file overrides env, env overrides the CLI flag, and the CLI flag overrides the default.
+
+`base_url` is the exception — the CLI flag is authoritative: when you actually type `--base-url` on the command
+line, its value overrides the config file and `QA_BASE_URL` (applied in `configure()` before rendering; the
+pluginator chain alone would let the config/env win). When the flag is not typed, `base_url` keeps the order
+above (config → env → required). The CLI value is itself a Jinja2 template and renders against the same context:
+
+```yaml
+# .goga/tools/pybuggy/config.yml
+base_url: https://cfg.example
+```
+
+```bash
+pytest --base-url https://cli.example   # -> https://cli.example (CLI wins over the config file)
+pytest --base-url "https://{{ env }}.cli.example" --env=dev   # -> https://dev.cli.example
+```
 
 ## base_url template rendering
 
@@ -63,6 +78,9 @@ def pytest_addoption(parser):
     parser.addoption("--env", action="store", default=None)
     parser.addoption("--version", action="store", default=None)
 ```
+
+`--base-url` itself needs no registration — the plugin registers it. Its value (also a template) participates
+in the rendering context as the `base_url` variable when the flag is typed.
 
 Behavior:
 - An **unknown variable raises** (`jinja2.UndefinedError` via `StrictUndefined`) — URLs must

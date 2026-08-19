@@ -7,7 +7,7 @@ Trace:
 - the wiring chain (``install`` -> ``ApiPlugin`` ->
   ``install_pytest_plugins`` + ``_load_plugins``); and
 - the full ``goga_tool_pybuggy.plugin.install()`` enablement run as a real pytest subprocess
-  (hook injection, ``--api-url`` CLI registration, recursive generated-fixture
+  (hook injection, ``--base-url`` CLI registration, recursive generated-fixture
   loading, and the ``api`` fixture resolving into a working ``Api``).
 
 Environment notes (the plugin under test is unchanged against the real packages):
@@ -83,8 +83,9 @@ goga_tool_pybuggy.plugin.install()
 """
 
 # A consumer test: uses the discovered `get_orders` fixture (exercising the full
-# recursive-loading + `api`-fixture chain) and asserts the `--api-url` CLI option
-# was registered by the plugin's `pytest_addoption` hook.
+# recursive-loading + `api`-fixture chain) and asserts the `--base-url` CLI option
+# was registered by the plugin's `pytest_addoption` hook and that a typed
+# `--base-url` overrides the config-file base_url.
 _TEST_SOURCE = """\
 def test_get_orders_fixture_resolves(get_orders):
     # Resolving the generated fixture proves recursive pytest_plugins loading
@@ -93,10 +94,16 @@ def test_get_orders_fixture_resolves(get_orders):
     assert get_orders.url_path == "/orders"
 
 
-def test_api_url_option_registered(pytestconfig):
-    # `--api-url` was registered by the plugin's pytest_addoption hook; getoption
+def test_base_url_option_registered(pytestconfig):
+    # `--base-url` was registered by the plugin's pytest_addoption hook; getoption
     # raises ValueError for an unknown option.
-    pytestconfig.getoption("--api-url")
+    pytestconfig.getoption("--base-url")
+
+
+def test_base_url_cli_overrides_config(api):
+    # config.yml sets base_url: https://x.example; the run passes
+    # --base-url https://cli.example -> the typed CLI value wins.
+    assert api.base_url == "https://cli.example"
 """
 
 
@@ -159,7 +166,17 @@ class TestPluginEndToEnd:
         env = {**os.environ, "PYTHONPATH": _PROJECT_ROOT}
 
         result = subprocess.run(
-            [sys.executable, "-m", "pytest", str(tmp_path), "-v", "-p", "no:cacheprovider"],
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(tmp_path),
+                "-v",
+                "-p",
+                "no:cacheprovider",
+                "--base-url",
+                "https://cli.example",
+            ],
             cwd=str(tmp_path),
             env=env,
             capture_output=True,
@@ -170,7 +187,9 @@ class TestPluginEndToEnd:
 
         output = result.stdout + result.stderr
         assert result.returncode == 0, output
-        # The generated fixture was collected & resolved (recursive loading) and
-        # the --api-url option was registered.
+        # The generated fixture was collected & resolved (recursive loading),
+        # the --base-url option was registered, and the typed --base-url
+        # overrode the config-file base_url.
         assert "test_get_orders_fixture_resolves" in output
-        assert "test_api_url_option_registered" in output
+        assert "test_base_url_option_registered" in output
+        assert "test_base_url_cli_overrides_config" in output

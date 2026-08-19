@@ -26,7 +26,8 @@ discovery, or `install(loaders=[])` to disable it.
 
 ## What enabling wires
 
-- **CLI options** — `--api-url` (resolves `base_url`, required), `--api-timeout` (resolves `timeout`),
+- **CLI options** — `--base-url` (resolves `base_url`, required; a typed flag overrides the config-file and
+  `QA_BASE_URL` value), `--api-timeout` (resolves `timeout`),
   `--retries` (resolves `retries`, the flaky rerun count for the test run), `--api-assert-timeout`
   (resolves `assert_timeout`, the baseline assert-polling timeout), and `--api-assert-delay` (resolves
   `assert_delay`, the delay between polling attempts). The remaining options (`headers`, `data_key`,

@@ -25,6 +25,8 @@ Annotations: |
 
   base_url is a Jinja2 template string rendered once in the pluginator configure lifecycle hook (pytest configphase, before any test or fixture runs) against the rendering context = the full environment plus the CLI options the user actually passed (auto-captured from the CLI; see `pluginator`). The api fixture consumes the rendered value; there is no rendering inside the fixture. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined and a custom match_re test, so an unknown variable raises (URLs must not be silently truncated). The rendered value is stored back onto the base_url option for the api fixture to read. A plain URL without Jinja placeholders renders to itself, and every whitespace run in the rendered value is removed so a multi-line template (YAML folded (>) / literal (|) scalars, or a template with an empty Jinja block) yields one clean URL.
 
+  The CLI flag for base_url is --base-url, and a typed --base-url is authoritative: configure applies its value with top precedence over the plugin config and the QA_BASE_URL env before rendering (the pluginator chain alone resolves the config before the CLI; see `pluginator`). The CLI value is itself a Jinja2 template rendered against the same context.
+
   The plugin facade (__all__) re-exports PluginConfigKeys as an importable contract type for data-driven consumption by other cells (e.g. init iterates the scalar members).
 
   Constraints:
@@ -65,7 +67,7 @@ Annotations: |
     Use `registration` and `discovery` for the loader-driven registration step.
   properties:
     "base_url -> str": |
-      Service base URL as a Jinja2 template string. The option value resolves following `pluginator`: plugin config → env QA_BASE_URL → CLI --api-url → required (no default). Only the interpretation of the value is specific to this cell: it is rendered once in configure against the full environment plus the passed CLI options (see configure), and the rendered value is stored back onto this option. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined (an unknown variable raises) and a custom match_re test; a plain URL without Jinja placeholders renders to itself; every whitespace run in the rendered value is removed (a URL never legitimately contains literal whitespace), so a multi-line template yields one clean URL.
+      Service base URL as a Jinja2 template string. The option value resolves following `pluginator`: plugin config → env QA_BASE_URL → CLI --base-url → required (no default). Additionally, when the user actually typed --base-url on the CLI, configure applies that value with top precedence over the plugin config and env before rendering (the pluginator chain alone would let config/env win; the CLI is authoritative for base_url). Only the interpretation of the value is specific to this cell: it is rendered once in configure against the full environment plus the passed CLI options (see configure), and the rendered value is stored back onto this option. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined (an unknown variable raises) and a custom match_re test; a plain URL without Jinja placeholders renders to itself; every whitespace run in the rendered value is removed (a URL never legitimately contains literal whitespace), so a multi-line template yields one clean URL.
     "headers -> dict[str, str]": |
       Resolved default headers dict. Default {} when nothing is configured. Sourced from the headers plugin config key.
     "timeout -> float | None": |
@@ -89,9 +91,10 @@ Annotations: |
       Pluginator lifecycle callback (NOT a pytest hookimpl). Renders the base_url template once, at pytest configphase, against the full environment plus the CLI options the user actually passed, with Jinja2, and stores the rendered value back onto the base_url option for the api fixture to consume. Pluginator auto-discovers a no-arg configure method and calls it from pytest_configure after config init and install, when the pytest config and the resolved base_url are both available (see `pluginator`).
 
       Algorithm:
-      1. Build the rendering context as a plain dict initialized with the full os.environ.
-      2. Merge in the CLI options the user actually typed: collect the option tokens from the CLI, normalize their names, take their resolved values, and drop None. The full resolved option namespace is intentionally NOT used — it carries internal/plugin options that must not leak into the template (see `pluginator` for the config-time CLI sources).
-      3. Render the template once via `render_base_url` (Jinja2; StrictUndefined; the match_re test registered) against the rendering context, and store the result back onto the base_url option. `render_base_url` also removes every whitespace run from the rendered URL, so a multi-line base_url template renders to a single clean URL. A plain base_url without placeholders renders to itself.
+      1. Collect the CLI options the user actually typed: take the option tokens from the CLI, normalize their names, take their resolved values, and drop None. The full resolved option namespace is intentionally NOT used — it carries internal/plugin options that must not leak into the template (see `pluginator` for the config-time CLI sources).
+      2. When the user typed the base_url CLI flag (--base-url), store its resolved value onto the base_url option — a typed --base-url overrides the plugin config and QA_BASE_URL resolution (the pluginator chain resolves the config before the CLI; the CLI is authoritative for base_url).
+      3. Build the rendering context as a plain dict initialized with the full os.environ and merge in the collected CLI options.
+      4. Render the template once via `render_base_url` (Jinja2; StrictUndefined; the match_re test registered) against the rendering context, and store the result back onto the base_url option. `render_base_url` also removes every whitespace run from the rendered URL, so a multi-line base_url template renders to a single clean URL. A plain base_url without placeholders renders to itself.
 
       Requirements:
       - Runs once at pytest configphase, before any test or fixture invocation.
