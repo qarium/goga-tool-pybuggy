@@ -9,6 +9,7 @@ from .init import (
     run_goga_init,
     run_init,
     write_pybuggy_config,
+    write_pybuggy_conftest,
 )
 
 __all__ = [
@@ -20,4 +21,5 @@ __all__ = [
     "run_goga_init",
     "run_init",
     "write_pybuggy_config",
+    "write_pybuggy_conftest",
 ]

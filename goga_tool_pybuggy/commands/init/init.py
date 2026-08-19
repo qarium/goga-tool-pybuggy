@@ -379,6 +379,42 @@ def write_pybuggy_config(
     yaml.dump(doc, path)
 
 
+# Fixed root conftest.py template of the target project (like _INSTALL_LINE for the Dockerfile
+# line): the sole source of the emitted text, hardcoded verbatim — no parameterization, no
+# placeholders, no version resolution. load_dotenv() must run before the plugin import/install
+# because the plugin options resolve from os.environ, so .env has to be loaded first; the
+# argumentless load_dotenv() keeps override=False, letting CI/operator-exported variables win.
+_CONFTEST_TEMPLATE = (
+    "from dotenv import load_dotenv\n"
+    "\n"
+    "load_dotenv()\n"
+    "\n"
+    "from goga_tool_pybuggy import plugin\n"
+    "\n"
+    "plugin.install()\n"
+)
+
+
+def write_pybuggy_conftest(path: Path) -> None:
+    """Emit the target project's root ``conftest.py`` from the fixed ``_CONFTEST_TEMPLATE``.
+
+    Pure, TTY-free, deterministic emitter wiring the pybuggy plugin into the consumer's pytest
+    run. No existence check and no overwrite confirmation — ``path`` is always (over)written on
+    every call; the overwrite gate lives in :func:`run_init`. Nothing is logged (mirrors
+    :func:`write_pybuggy_config`).
+
+    Args:
+        path: Destination conftest path (``<cwd>/conftest.py``); the parent directory is created
+            when missing.
+
+    Raises:
+        OSError: Forwarded unchanged to the caller on a write failure.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(_CONFTEST_TEMPLATE, encoding="utf-8")
+
+
 # Human-readable prompt text for each optional scalar plugin key — mirrors the
 # ``ApiPlugin`` option docstrings so the user knows what every field is for.
 # ``BASE_URL`` is collected separately as a (possibly multi-line) Jinja2 template;

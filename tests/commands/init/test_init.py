@@ -17,9 +17,22 @@ from goga_tool_pybuggy.commands.init import (
     run_goga_init,
     run_init,
     write_pybuggy_config,
+    write_pybuggy_conftest,
 )
 from goga_tool_pybuggy.config import GitEntry, SpecEntry
 from ruamel.yaml import YAMLError
+
+# The fixed root conftest.py template the init command wires into the consumer's pytest run
+# (the single source is the CODEMANIFEST annotation of write_pybuggy_conftest).
+EXPECTED_CONFTEST = (
+    "from dotenv import load_dotenv\n"
+    "\n"
+    "load_dotenv()\n"
+    "\n"
+    "from goga_tool_pybuggy import plugin\n"
+    "\n"
+    "plugin.install()\n"
+)
 
 _USAGE_KEYS = {
     "pybuggy-api": ".goga/usages/cooks/pybuggy/api.md",
@@ -98,6 +111,27 @@ def test_register_annotations_signature() -> None:
     )
 
     assert params == ("config_path", "annotation_lines")
+
+
+def test_write_pybuggy_conftest_importable_from_facade() -> None:
+    """write_pybuggy_conftest should be importable from the goga_tool_pybuggy.commands.init facade."""
+    assert callable(write_pybuggy_conftest) is True
+
+
+def test_write_pybuggy_conftest_is_public_in_facade() -> None:
+    """write_pybuggy_conftest is exposed on the facade __all__ (public contract)."""
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+
+    assert "write_pybuggy_conftest" in facade_all
+
+
+def test_write_pybuggy_conftest_signature() -> None:
+    """write_pybuggy_conftest has signature (path)."""
+    params = (
+        write_pybuggy_conftest.__code__.co_varnames[: write_pybuggy_conftest.__code__.co_argcount]
+    )
+
+    assert params == ("path",)
 
 
 # Logic tests ------------------------------------------------------------------
@@ -1048,6 +1082,69 @@ def test_write_pybuggy_config_multiple_specs_preserve_order(tmp_path: Path) -> N
 
     text = config.read_text()
     assert text.index("api:") < text.index("admin:")
+
+
+# write_pybuggy_conftest logic tests -------------------------------------------
+
+
+def test_write_pybuggy_conftest_writes_fixed_template(tmp_path: Path) -> None:
+    """In a fresh directory the conftest is written verbatim from the fixed template."""
+    write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    content = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    assert content == EXPECTED_CONFTEST
+    # operator order: .env is loaded before the plugin import/install (options resolve from os.environ)
+    assert content.index("load_dotenv()") < content.index("plugin.install()")
+
+
+def test_write_pybuggy_conftest_overwrites_existing(tmp_path: Path) -> None:
+    """An existing conftest is silently replaced by the fixed template (existence check lives upstream)."""
+    (tmp_path / "conftest.py").write_text("# custom harness\nimport my_fixtures\n")
+
+    write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    content = (tmp_path / "conftest.py").read_text(encoding="utf-8")
+    assert content == EXPECTED_CONFTEST
+    assert "# custom harness" not in content
+
+
+def test_write_pybuggy_conftest_creates_parent_dir(tmp_path: Path) -> None:
+    """A nested destination creates its parent directory before writing."""
+    write_pybuggy_conftest(tmp_path / "nested" / "conftest.py")
+
+    assert (tmp_path / "nested").is_dir()
+    assert (tmp_path / "nested" / "conftest.py").read_text() == EXPECTED_CONFTEST
+
+
+def test_write_pybuggy_conftest_never_prompts(tmp_path: Path) -> None:
+    """The routine is pure (TTY-free): neither click.confirm nor click.prompt is ever called."""
+    with (
+        mock.patch.object(click, "confirm") as confirm_mock,
+        mock.patch.object(click, "prompt") as prompt_mock,
+    ):
+        write_pybuggy_conftest(tmp_path / "conftest.py")
+
+    assert confirm_mock.call_count == 0
+    assert prompt_mock.call_count == 0
+
+
+def test_write_pybuggy_conftest_propagates_os_error(tmp_path: Path) -> None:
+    """An OSError propagates unchanged to the caller (real write failure path, no mocks)."""
+    (tmp_path / "blocked").mkdir()
+
+    with pytest.raises(OSError, match="blocked"):
+        write_pybuggy_conftest(tmp_path / "blocked")
+
+
+def test_write_pybuggy_conftest_deterministic_across_calls(tmp_path: Path) -> None:
+    """Two calls in different directories emit byte-identical content (fixed template, no state)."""
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+
+    write_pybuggy_conftest(a / "conftest.py")
+    write_pybuggy_conftest(b / "conftest.py")
+
+    assert (a / "conftest.py").read_text() == (b / "conftest.py").read_text() == EXPECTED_CONFTEST
 
 
 # build_pybuggy_config logic tests --------------------------------------------
