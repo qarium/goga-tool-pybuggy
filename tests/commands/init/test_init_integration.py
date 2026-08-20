@@ -6,6 +6,7 @@ plus the top-level command registration in ``goga_tool_pybuggy.cli``. They compl
 and do not replace — the contract and logic tests in ``test_init.py``.
 """
 
+import importlib.resources
 from pathlib import Path
 from unittest import mock
 
@@ -26,6 +27,16 @@ EXPECTED_CONFTEST = (
     "\n"
     "plugin.install()\n"
 )
+
+# The packaged test-convention asset, read through the same importlib.resources channel the
+# routine under test uses (symmetric source — never a cwd checkout).
+_ASSET_TEXT = (
+    importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
+).read_text(encoding="utf-8")
+
+# Content anchor: without it every _ASSET_TEXT equality below compares the asset to itself, so an
+# emptied or wrongly-committed file would pass. The full-text pin lives in test_init.py.
+assert _ASSET_TEXT.startswith("# Testing Convention: pytest Configuration, Logging, Allure")
 
 # End-to-end through the Click wrapper ---------------------------------------
 
@@ -49,6 +60,29 @@ def test_init_cmd_end_to_end_fresh_project(
     usages = cfg["codemanifest"]["usages"]
     assert "pybuggy-api" in usages
     assert "pybuggy-asserts" in usages
+    assert "conventions" in usages
+    assert (tmp_path / ".goga/usages/conventions.md").exists()
+
+
+def test_init_cmd_end_to_end_occupies_conventions_slot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """init_cmd delivers the conventions slot: packaged asset written and the key registered."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    runner = click.testing.CliRunner()
+    result = runner.invoke(init_cmd, [])
+
+    assert result.exit_code == 0
+    conventions = tmp_path / ".goga" / "usages" / "conventions.md"
+    assert conventions.exists()
+    assert conventions.read_text(encoding="utf-8") == _ASSET_TEXT
+
+    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
+    usages = cfg["codemanifest"]["usages"]
+    assert {"conventions", "pybuggy-api", "pybuggy-asserts"} <= set(usages)
 
 
 def test_init_cmd_end_to_end_writes_conftest(

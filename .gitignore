@@ -222,10 +222,12 @@ __marimo__/
 .streamlit/secrets.toml
 
 # AI
+.afm/
 .claude/
 .ralphex/
-#docs/tasks/
-#docs/plans/
-#docs/design/
-#docs/arch/
+docs/plans/
+docs/design/
+docs/arch/
+docs/tasks/
+docs/proposals/
 docs/superpowers/

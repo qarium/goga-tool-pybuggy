@@ -1,4 +1,7 @@
-"""init command handler — bootstrap consumer-usages of the api cell."""
+"""init command handler — bootstraps the pybuggy test environment.
+
+The bootstrap covers the test-convention slot, api usages, tool config, and conftest.
+"""
 
 import importlib.resources
 import logging
@@ -81,7 +84,9 @@ def register_usages(config_path: Path, usage_keys: dict[str, str]) -> list[str]:
 
     Args:
         config_path: Path to the consumer ``.goga/config.yml``.
-        usage_keys: Mapping of ``pybuggy-<stem>`` to the relative path of the copied usage file.
+        usage_keys: Mapping of usage key to the relative path of the usage file to register
+            (``pybuggy-<stem>`` → ``.goga/usages/cooks/pybuggy/<stem>.md``; ``conventions`` →
+            ``.goga/usages/conventions.md``).
 
     Returns:
         The keys actually added; pre-existing keys are skipped and excluded.
@@ -153,6 +158,13 @@ PYBUGGY_ANNOTATIONS: dict[str, str] = {
     ),
 }
 
+# Annotation line for the ``conventions`` usage key — the test-convention slot occupied by
+# ``write_test_convention``. Like ``PYBUGGY_ANNOTATIONS`` above, it is the sole source of the
+# line registered under ``codemanifest.annotations`` (init step 8).
+_CONVENTION_LINE = (
+    "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
+)
+
 
 def _annotation_for(stem: str) -> str:
     """Return the annotation line for a discovered pybuggy usage ``stem``.
@@ -164,21 +176,21 @@ def _annotation_for(stem: str) -> str:
 
 
 def register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> list[str]:
-    """Append ``annotation_lines`` into the consumer ``.goga/config.yml`` under ``codemanifest.annotations``.
+    """Round-trip edit ``codemanifest.annotations`` by backtick reference.
 
-    Each entry maps a ``pybuggy-<stem>`` usage key to one annotation line. A line is skipped when its
-    backtick reference (`` `pybuggy-<stem>` ``) already appears in the existing annotations, which
-    makes the run idempotent. The existing annotation text (e.g. the base convention annotations
-    written by goga init) is preserved — only missing lines are appended. Round-trips the file with
-    ``ruamel.yaml`` so comments, key order, quotes, and block-scalars are preserved, and writes the
-    value back as a literal block scalar (``|``).
+    Each entry maps a usage key to one annotation line. For every key the first existing line
+    carrying its backtick reference (`` `key` ``) is located: an identical line is a no-op, a
+    differing one is replaced in place (migrating legacy text instead of duplicating it), and a
+    missing reference is appended. Lines without a registered reference are preserved verbatim.
+    Round-trips the file with ``ruamel.yaml`` so comments, key order, quotes, and block-scalars are
+    preserved, and writes the value back as a literal block scalar (``|``) — created when absent.
 
     Args:
         config_path: Path to the consumer ``.goga/config.yml``.
-        annotation_lines: Mapping of ``pybuggy-<stem>`` to the annotation line to append.
+        annotation_lines: Mapping of usage key to the annotation line to register.
 
     Returns:
-        The keys whose annotation line was actually added; pre-referenced keys are skipped.
+        The keys whose annotation line was appended or replaced; identical lines are excluded.
 
     Raises:
         ValueError: If ``codemanifest`` is not a mapping, or ``annotations`` exists but is not a
@@ -198,22 +210,33 @@ def register_annotations(config_path: Path, annotation_lines: dict[str, str]) ->
     codemanifest = _ensure_map(data, "codemanifest")
     text = _ensure_scalar(codemanifest, "annotations")
 
-    added_keys: list[str] = []
+    lines = text.split("\n")
+    changed_keys: list[str] = []
     for key, line in annotation_lines.items():
         needle = f"`{key}`"
-        if needle in text:
-            continue
+        idx = next((i for i, existing in enumerate(lines) if needle in existing), None)
 
-        text = f"{text}{line}\n" if text else f"{line}\n"
-        added_keys.append(key)
+        if idx is None:
+            if lines[-1] == "":
+                lines.insert(len(lines) - 1, line)  # text with a trailing newline
+            else:
+                lines.extend([line, ""])  # scalar without one — add the separator
+            changed_keys.append(key)
+        elif lines[idx] == line:
+            continue  # identical line — no-op
+        else:
+            lines[idx] = line  # replace exactly the first line carrying the reference
+            changed_keys.append(key)
 
-    if added_keys:
+        text = "\n".join(lines)  # the trailing "" element keeps the final newline
+
+    if changed_keys:
         codemanifest["annotations"] = LiteralScalarString(text)
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
     yaml.dump(data, config_path)
 
-    return added_keys
+    return changed_keys
 
 
 # Commented example blocks for the complex ``headers``/``loader`` plugin members. These members
@@ -413,6 +436,38 @@ def write_pybuggy_conftest(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     path.write_text(_CONFTEST_TEMPLATE, encoding="utf-8")
+
+
+def write_test_convention(path: Path) -> None:
+    """Occupy the consumer's ``conventions`` slot with the pybuggy test convention.
+
+    Pure writer of the consumer's test convention file — occupies the ``conventions`` slot with
+    the pybuggy test convention shipped inside the installed package. No TTY, no existence check,
+    no network: always (over)writes ``path`` with the packaged asset text, so a locally modified
+    or previously generated slot content is replaced by the package version (package-owned).
+    Nothing is logged — the delivery outcome is logged by the orchestrator
+    (:func:`run_init`), which owns the delivery gate.
+
+    The asset is read from the installed ``goga_tool_pybuggy`` package (never the cwd checkout,
+    never the network) via the same ``importlib.resources`` channel the api-usage discovery uses;
+    the source is fixed and never parameterized. The ``/`` traversal (not the multi-arg
+    ``joinpath``) keeps the routine compatible with Python 3.10.
+
+    Args:
+        path: Destination convention slot path (``<cwd>/.goga/usages/conventions.md``); the
+            parent directory tree is created when missing.
+
+    Raises:
+        OSError: Forwarded unchanged to the caller on a read/write failure (including
+            ``FileNotFoundError`` from a broken installation without the packaged asset).
+    """
+    asset_text = (
+        importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
+    ).read_text(encoding="utf-8")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(asset_text, encoding="utf-8")
 
 
 # Human-readable prompt text for each optional scalar plugin key — mirrors the
@@ -657,6 +712,13 @@ def run_goga_init() -> int:
     {dockerfile_base_image}``) and always emits the top-level ``dockerfile`` field into
     ``.goga/config.yml``.
 
+    The base convention download is NOT part of the flow: ``ask_base_convention`` is never called
+    and the codemanifest fields are collected without a prefill, so the ``conventions`` key never
+    enters the answers from this flow and goga performs no convention download — initialization is
+    fully offline. The consumer's ``conventions`` slot belongs to :func:`write_test_convention`
+    (delivered by :func:`run_init`); the residual case of a user manually typing ``conventions``
+    into the usages questionnaire is documented in the ``goga`` usage.
+
     Interactive (TTY prompts via click); callers and tests stub this routine via monkeypatch.
 
     Returns:
@@ -670,9 +732,11 @@ def run_goga_init() -> int:
     try:
         language = "python"
 
-        usages_prefill, annotations_prefill = questionnaire.ask_base_convention()
-        codemanifest_usages = questionnaire.ask_codemanifest_usages(usages_prefill)
-        codemanifest_annotations = questionnaire.ask_codemanifest_annotations(annotations_prefill)
+        # ask_base_convention is NOT called — the `conventions` slot in the consumer belongs to
+        # write_test_convention, so the base convention download is not part of this flow and
+        # initialization stays offline (the residual manual `conventions` entry is documented in `goga`).
+        codemanifest_usages = questionnaire.ask_codemanifest_usages()
+        codemanifest_annotations = questionnaire.ask_codemanifest_annotations()
         agent = questionnaire.ask_agent()
         # Dockerfile is mandatory → ask for the built-image NAME (top-level `image`) and the FROM
         # baseline separately; goga's ``ask_image`` (pre-built pull image) is the no-Dockerfile case.
@@ -731,18 +795,21 @@ def _log_registration(
     usage_keys: dict[str, str],
     added_usage_keys: list[str],
     annotation_lines: dict[str, str],
-    added_annotation_keys: list[str],
+    changed_annotation_keys: list[str],
 ) -> None:
     """Log INFO for newly-registered usages/annotations and WARNING for already-present (skipped) ones.
 
-    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. A key counts as added when it
-    appears in the corresponding ``added_*`` list returned by :func:`register_usages`/:func:`register_annotations`.
+    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. A usage key counts as added
+    when it appears in the ``added_usage_keys`` list returned by :func:`register_usages`; an annotation key counts
+    as registered when it appears in the ``changed_annotation_keys`` list returned by
+    :func:`register_annotations` (appended or replaced — an identical line is a no-op and logs as skipped).
 
     Args:
-        usage_keys: Full mapping of ``pybuggy-<stem>`` to the copied usage path.
+        usage_keys: Full mapping of usage key to the usage path (``pybuggy-<stem>`` and ``conventions``).
         added_usage_keys: Keys actually added by :func:`register_usages` (pre-existing ones excluded).
-        annotation_lines: Full mapping of ``pybuggy-<stem>`` to its annotation line.
-        added_annotation_keys: Keys whose annotation line was actually appended by :func:`register_annotations`.
+        annotation_lines: Full mapping of usage key to its annotation line.
+        changed_annotation_keys: Keys whose annotation line was appended or replaced by
+            :func:`register_annotations` (identical lines excluded).
     """
     for key, path in usage_keys.items():
         if key in added_usage_keys:
@@ -750,14 +817,14 @@ def _log_registration(
         else:
             logger.warning("usage already registered, skipped", extra={"key": key})
     for key in annotation_lines:
-        if key in added_annotation_keys:
+        if key in changed_annotation_keys:
             logger.info("annotation registered", extra={"key": key})
         else:
             logger.warning("annotation already registered, skipped", extra={"key": key})
 
 
 def _write_root_conftest(cwd: Path) -> None:
-    """Gate and write the target project's root ``conftest.py`` (init step 9).
+    """Gate and write the target project's root ``conftest.py`` (init step 10).
 
     Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. When
     ``<cwd>/conftest.py`` does not exist it is written unconditionally; when it exists, the user
@@ -784,9 +851,10 @@ def _write_root_conftest(cwd: Path) -> None:
 
 
 def run_init() -> int:
-    """Initialize the goga-project, build the tool config, bootstrap the api usages, generate the conftest.
+    """Initialize the goga-project, occupy the conventions slot, bootstrap the api usages, build the tool
+    config, generate the conftest.
 
-    Algorithm (10 steps):
+    Algorithm (11 steps):
 
     1. Resolve the output root as the current working directory.
     2. Goga-project config: when ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive
@@ -801,29 +869,38 @@ def run_init() -> int:
     4. Discover every ``.usages/*.md`` under the installed ``goga_tool_pybuggy.api`` package
        (including its subcells such as ``asserts``).
     5. Copy each discovered file to ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md``.
-    6. Register the ``pybuggy-<stem>`` keys in ``<cwd>/.goga/config.yml`` under
-       ``codemanifest.usages`` via :func:`register_usages` (idempotent, skip-existing).
-    7. Append a referencing annotation line per registered usage under ``codemanifest.annotations``
-       via :func:`register_annotations` (idempotent by backtick reference, existing text preserved).
-    8. Log INFO for added keys/annotations and WARNING for skipped ones.
-    9. Root ``conftest.py``: resolve ``<cwd>/conftest.py``; when absent, write it via
+    6. Occupy the ``conventions`` slot: always (over)write ``<cwd>/.goga/usages/conventions.md``
+       with the packaged test-convention asset via :func:`write_test_convention` — no existence
+       check, no confirmation, so a project with any prior slot content migrates automatically.
+    7. Register the usage keys in ``<cwd>/.goga/config.yml`` under ``codemanifest.usages`` via
+       :func:`register_usages`: the discovered ``pybuggy-<stem>`` keys AND the key ``conventions``
+       → ``.goga/usages/conventions.md`` (idempotent, skip-existing).
+    8. Register the annotation lines under ``codemanifest.annotations`` via
+       :func:`register_annotations`: the ``pybuggy-<stem>`` lines AND the ``conventions`` line
+       (``_CONVENTION_LINE``) — idempotent by backtick reference, an existing line carrying the
+       reference is replaced.
+    9. Log INFO for added/changed keys and WARNING for skipped ones.
+    10. Root ``conftest.py``: resolve ``<cwd>/conftest.py``; when absent, write it via
        :func:`write_pybuggy_conftest`; when it exists, ask (``click.confirm``, default ``no``) —
        ``yes`` overwrites it, ``no`` logs INFO (step skipped, file untouched) and continues. The
        decision lives here, in the orchestrator (:func:`_write_root_conftest`); the routine itself
        always writes without any check.
-    10. Return 0.
+    11. Return 0.
 
     Each config is created when absent and only recreated on explicit confirmation when present, so a
-    plain repeat run (all confirms declined) just re-copies the usages and skips already-registered
-    keys/annotations — idempotent. Steps 2 and 3 are called outside this routine's own try/except —
-    they rely on :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code
-    on cancellation/failure).
+    plain repeat run (all confirms declined) still re-copies the usages, re-delivers the conventions
+    slot (unconditionally), and skips already-registered keys/annotation lines — idempotent. Steps 2
+    and 3 are called outside this routine's own try/except — they rely on
+    :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code on
+    cancellation/failure); a non-zero code from either returns before the bootstrap block, so no
+    usages, slot, or annotations are registered and no conftest is written.
 
     Returns:
         0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
 
     Raises:
-        click.ClickException: On a file-write, YAML, navigation, bootstrap, or conftest-write failure.
+        click.ClickException: On a file-write, YAML, navigation, bootstrap (including the slot
+            delivery), or conftest-write failure.
     """
     cwd = Path.cwd()
     goga_config = cwd / ".goga" / "config.yml"
@@ -854,15 +931,21 @@ def run_init() -> int:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text, encoding="utf-8")
 
+        # The conventions slot is package-owned and delivered unconditionally on every successful
+        # pass — a project with any prior (legacy or locally modified) slot content migrates here.
+        write_test_convention(cwd / ".goga" / "usages" / "conventions.md")
+
         usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem, _ in discovered}
+        usage_keys["conventions"] = ".goga/usages/conventions.md"
         added_usage_keys = register_usages(cwd / ".goga" / "config.yml", usage_keys)
 
         annotation_lines = {f"pybuggy-{stem}": _annotation_for(stem) for stem, _ in discovered}
-        added_annotation_keys = register_annotations(cwd / ".goga" / "config.yml", annotation_lines)
+        annotation_lines["conventions"] = _CONVENTION_LINE
+        changed_annotation_keys = register_annotations(cwd / ".goga" / "config.yml", annotation_lines)
     except (OSError, YAMLError, ValueError) as e:
         raise click.ClickException(str(e)) from e
 
-    _log_registration(usage_keys, added_usage_keys, annotation_lines, added_annotation_keys)
+    _log_registration(usage_keys, added_usage_keys, annotation_lines, changed_annotation_keys)
 
     # Root conftest.py: create when absent; overwrite only on explicit confirmation (merging into an
     # existing one is never attempted — either a confirmed overwrite or a skip).
@@ -874,5 +957,5 @@ def run_init() -> int:
 @click.command("init")
 @click.pass_context
 def init_cmd(ctx: click.Context) -> None:
-    """Initialize the goga-project, build the tool config, bootstrap usages, generate the conftest."""
+    """Initialize the goga-project, occupy the conventions slot, bootstrap usages, generate the conftest."""
     ctx.exit(run_init())
