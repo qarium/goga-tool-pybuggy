@@ -16,9 +16,9 @@ Usages:
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the command wrapper (options).
-  Use `configuration` from Imports for loading and iterating the config.
-  Use `spec` from Imports for parsing a spec and extracting endpoints.
-  Use `formatting` from Imports for rendering the text block.
+  Use `configuration` for loading and iterating the config.
+  Use `spec` for parsing a spec and extracting endpoints.
+  Use `formatting` for rendering the text block.
 
   Use relative imports inside the cell.
   The handler `run_list` is the testable entry point; the Click wrapper list_cmd binds options and calls `run_list` (CLI tests call `run_list` directly).
@@ -36,10 +36,10 @@ Annotations: |
     1. Load the config via `load_config` (fixed config path) and iterate its specs.
     2. Select specs: all `Config` specs, or only `spec_name` when provided.
     3. For each selected spec (name, entry):
-       a. Parse the spec at project-root / `SpecEntry` location via `load_spec`.
-       b. Extract endpoints via `extract_endpoints`.
-       c. Render the block via `render_list`(name, `SpecEntry` location, endpoints).
-       d. Print the block.
+       3.1. Parse the spec at project-root / `SpecEntry` location via `load_spec`.
+       3.2. Extract endpoints via `extract_endpoints`.
+       3.3. Render the block via `render_list`(name, `SpecEntry` location, endpoints).
+       3.4. Print the block.
     4. A spec parse error propagates as the ClickException raised by `load_spec`.
 
     Requirements:
@@ -48,9 +48,9 @@ Annotations: |
     Constraints:
     - Read-only — does not modify specs or config.
 
-    Use `configuration` from Imports for config access.
-    Use `spec` from Imports for parse + extract.
-    Use `formatting` from Imports for rendering.
+    Use `configuration` for config access.
+    Use `spec` for parse + extract.
+    Use `formatting` for rendering.
 
 "list_cmd(spec_name: Optional[str])":
   location: list.py

@@ -109,15 +109,14 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 ## Фильтр по endpoint-id
 
 Позиционный variadic-аргумент `endpoint-ids` ограничивает генерацию подмножеством эндпоинтов по их
-id (`Endpoint.id`, те же id, что в командах `endpoint list`/`endpoint info` — строка вида
-`clients_startup_get`):
+id (`Endpoint.id` — строка вида `clients_startup_get`):
 
     pybuggy endpoint generate clients_startup_get health_get
     pybuggy endpoint generate -s shop -f clients_startup_get   # опции — до позиционных id
 
 Эндпоинты отбираются только среди выбранных спек (`--spec` или все):
 
-- Аргумент не передан — генерируются все эндпоинты выбранных спек (поведение не изменилось).
+- Аргумент не передан — генерируются все эндпоинты выбранных спек.
 - Пустой список / `None` у handler-а — то же самое (no-op).
 - id найден хотя бы в одной выбранной спеке — генерируются только совпадающие эндпоинты.
 - id не найден ни в одной выбранной спеке → `click.ClickException("endpoint not found: <id>")`,
@@ -139,7 +138,7 @@ id (`Endpoint.id`, те же id, что в командах `endpoint list`/`end
 ## Предусловия
 
 - Файлы spec должны быть в `location` (после `pull` или вручную).
-- Конфиг валиден и лежит по фиксированному пути (см. `goga_tool_pybuggy.config`); загрузка — через `load_config`.
+- Конфиг валиден и лежит по фиксированному пути `.goga/tools/pybuggy/config.yml`; загрузка — через `load_config`.
 - Артефакты пишутся в текущий рабочий каталог (`Path.cwd()`); тесты изолируют через `tmp_path` и
   подмену `cwd`.
 - `api.py` импортирует из `goga_tool_pybuggy.api` (`Endpoint`, `Api`); модуль может отсутствовать в проекте на

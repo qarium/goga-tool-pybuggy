@@ -20,11 +20,11 @@ Usages:
 
 Annotations: |
   Use `conventions` for code writing rules, relative imports, and testing.
-  Use `matchcrest` from Imports for `assert_that` and the matcher catalog backing every `Expected` and `AssertField` check.
+  Use `matchcrest` for `assert_that` and the matcher catalog backing every `Expected` and `AssertField` check.
   Use `hamcrest` for the `assert_that` entry point re-exported by matchcrest.
   Use `jsonschema` for the Draft7Validator contract that `JsonschemaMatcher` wraps under the hood.
 
-  Assert sub-cell of goga_tool_pybuggy/api. Carries the full assert layer: `AssertConfig` bundles the static check configuration (status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class); `Expected` is the two-level dispatcher (response-level matchcrest checks plus a field-level entry through its dispatcher call) and the default response-level assert class; `AssertField` is the field-level assert over a resolved body value and the default field-level assert class; load_assert_class imports a custom assert class by dotted module:Class path. `Expected` and `AssertField` are reached through the parent api cell — its response wrapper returns `Expected`, whose dispatcher call returns `AssertField` — never constructed directly by consumers. The search contexts (ResponseContext/JsonFieldContext/JsonPathFieldContext/SearchItem) and BaseAssert are internal.
+  Assert sub-cell of goga_tool_pybuggy/api. Carries the full assert layer: `AssertConfig` bundles the static check configuration (status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class); `Expected` is the two-level dispatcher (response-level matchcrest checks plus a field-level entry through its dispatcher call) and the default response-level assert class; `AssertField` is the field-level assert over a resolved body value and the default field-level assert class; load_assert_class imports a custom assert class by dotted module:Class path. `Expected` and `AssertField` are reached through the response wrapper — it returns `Expected`, whose dispatcher call returns `AssertField` — never constructed directly by consumers. The search contexts (ResponseContext/JsonFieldContext/JsonPathFieldContext/SearchItem) and BaseAssert are internal.
 
   Polling: timeout/delay (from `AssertConfig` as the baseline, overridable per check method) drive matchcrest's retry loop — the response is re-fetched between attempts until the assertion passes or the timeout elapses. Pluggable classes: assert_response_class/assert_field_class select a custom `Expected`/`AssertField` subclass via `load_assert_class` (resolved where the response/field class is constructed).
 
@@ -35,7 +35,7 @@ Annotations: |
 "AssertConfig(status: int | None = None, data_key: str | None = None, error_key: str | None = None, schemas_dir: Path | None = None, timeout: int | float | None = None, delay: int | float | None = None, assert_field_class: str | None = None, assert_response_class: str | None = None)":
   location: config.py
   annotations: |
-    Static configuration for response-level asserts — bundles the expected success status, the success/error body keys, the json-schema directory, the polling options, and the pluggable-class hooks so `Expected` (and the parent cell's response wrapper) accept a single configuration value.
+    Static configuration for response-level asserts — bundles the expected success status, the success/error body keys, the json-schema directory, the polling options, and the pluggable-class hooks so `Expected` (and the response wrapper) accept a single configuration value.
 
     `status`: expected success status code; None disables the status auto-check.
     `data_key`: success-body key asserted present (positive) / absent (negative); also the positive field-search root; None skips it.
@@ -71,7 +71,7 @@ Annotations: |
 "Expected(response: resq.http.Response, config: AssertConfig, is_negative: bool = False)":
   location: expected.py
   annotations: |
-    Two-level assert dispatcher. Response-level checks (methods below) are matchcrest assertions over an internal ResponseContext and return this `Expected` for fluent chaining. Calling the dispatcher (e.g. expected('data.items')) returns an `AssertField` for field-level checks through the body (dotted path or jsonpath). This is also the default response-level assert class: when config.assert_response_class is set, the parent cell's response wrapper loads that subclass (it must subclass `Expected`).
+    Two-level assert dispatcher. Response-level checks (methods below) are matchcrest assertions over an internal ResponseContext and return this `Expected` for fluent chaining. Calling the dispatcher (e.g. expected('data.items')) returns an `AssertField` for field-level checks through the body (dotted path or jsonpath). This is also the default response-level assert class: when config.assert_response_class is set, the response wrapper loads that subclass (it must subclass `Expected`).
 
     `response`: the raw resq.http.Response under inspection.
     `config`: the static check configuration (`AssertConfig`) — status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class (each optional; None skips/disables that check).

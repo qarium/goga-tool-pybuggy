@@ -6,7 +6,7 @@ Annotations: |
 
   Generic discovery contract for finding pytest-plugin modules by walking package directories and single module files. A loader discovers dotted module names from its source and appends them into a caller-supplied accumulator list, mutating it in place and returning nothing.
 
-  This cell exposes only the discovery primitives. Assembling the recursive pytest_plugins list from a plugin's loader config section is the consumer's responsibility — not part of this contract. The loader-section config keys (loader/packages/modules) belong to the consumer and are NOT part of any parent PluginConfigKeys, to avoid a parent↔loaders import cycle.
+  This cell exposes only the discovery primitives. Assembling the recursive pytest_plugins list from a plugin's loader config section is the consumer's responsibility — not part of this contract. The loader-section config keys (loader/packages/modules) belong to the consumer and are NOT part of the plugin config keys, to avoid an import cycle with the consumer.
 
   Constraints:
   - No new runtime dependencies — loaders are built on dataclass/abc classes (pybuggy does not declare attrs).

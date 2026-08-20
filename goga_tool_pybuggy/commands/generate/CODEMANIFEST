@@ -14,8 +14,8 @@ Usages:
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the command wrapper (options) and mapping domain errors to ClickException.
-  Use `configuration` from Imports for loading and iterating the config.
-  Use `spec` from Imports for parsing a spec and extracting endpoints.
+  Use `configuration` for loading and iterating the config.
+  Use `spec` for parsing a spec and extracting endpoints.
   Use `datamodel-code-generator` for building the request-body pydantic models and `conventions` (ruff) for aligning the generated api.py text.
 
   Use relative imports inside the cell.
@@ -40,17 +40,17 @@ Annotations: |
     3. Select specs: all `Config` specs, or only `spec_name` when provided.
     4. Normalize `endpoint_ids` into an id set; an empty value means "no filter" (keep every endpoint).
     5. Phase 1 — collect and validate (no disk writes): for each selected spec (name, `SpecEntry`):
-       a. Parse the spec at cwd / `SpecEntry` location via `load_spec`.
-       b. If "paths" not in spec, raise click.ClickException (spec has no paths).
-       c. Extract endpoints via `extract_endpoints`.
-       d. If no endpoints, silently continue this spec (no artifacts) — based on the pre-filter list.
-       e. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
+       5.1. Parse the spec at cwd / `SpecEntry` location via `load_spec`.
+       5.2. If "paths" not in spec, raise click.ClickException (spec has no paths).
+       5.3. Extract endpoints via `extract_endpoints`.
+       5.4. If no endpoints, silently continue this spec (no artifacts) — based on the pre-filter list.
+       5.5. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids — before any artifact is written.
     7. Phase 2 — write artifacts, for each collected (name, `Endpoint`):
-       a. Create cwd/api/<name>/<Endpoint.id>/schemas and cwd/tests/<name>/<Endpoint.id>.
-       b. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
-       c. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<name>/<Endpoint.id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
-       d. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<name>/<Endpoint.id>/api.py (same `force` skip/overwrite semantics).
+       7.1. Create cwd/api/<name>/<Endpoint.id>/schemas and cwd/tests/<name>/<Endpoint.id>.
+       7.2. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
+       7.3. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<name>/<Endpoint.id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
+       7.4. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<name>/<Endpoint.id>/api.py (same `force` skip/overwrite semantics).
 
     Requirements:
     - Each schema file contains the resolved schema serialized as prettified JSON (indent=2, ensure_ascii=False); codes without application/json content produce an empty schema (serialized as {}).
@@ -59,7 +59,7 @@ Annotations: |
     - api.py follows the same `force` skip/overwrite semantics as schema files; idempotent — without `force`, existing files are preserved and no per-file output is emitted.
     - Every directory on the api.py path (cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
     - Output root is the current working directory (Path.cwd()).
-    - `endpoint_ids` of None or empty generates every endpoint of the selected specs — the unfiltered command is unchanged.
+    - `endpoint_ids` of None or empty generates every endpoint of the selected specs.
     - Every requested id in `endpoint_ids` must match at least one selected spec, else a click.ClickException is raised and no artifacts are written.
 
     Constraints:
@@ -70,8 +70,8 @@ Annotations: |
     - Do not emit per-file output when skipping existing files.
     - Do not write any artifact before validating the `endpoint_ids` filter against the collected endpoints.
 
-    Use `configuration` from Imports for config access.
-    Use `spec` from Imports for parse + extract and for the `Endpoint` id used as the filter key.
+    Use `configuration` for config access.
+    Use `spec` for parse + extract and for the `Endpoint` id used as the filter key.
 
 "render_api_module(endpoint: Endpoint) -> module: str":
   location: generate.py
@@ -104,7 +104,7 @@ Annotations: |
 
     Use `datamodel-code-generator` for the request-body model text and its generation parameters.
     Use `conventions` for aligning the generated text with ruff.
-    Use `spec` from Imports for the `Endpoint` field contract.
+    Use `spec` for the `Endpoint` field contract.
 
 "generate_cmd(spec_name: Optional[str], force: bool, endpoint_ids: tuple[str, ...])":
   location: generate.py

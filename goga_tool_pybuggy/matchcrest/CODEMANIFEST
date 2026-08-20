@@ -49,7 +49,7 @@ Annotations: |
   Use `conventions` for code writing rules, relative imports, and testing.
   Use `hamcrest` for `assert_that` — the assertion entry point re-exported from hamcrest; it drives every
   matcher's _matches.
-  Use `matchers` from Imports for the matcher catalog and the BaseContext data-source contract.
+  Use `matchers` for the matcher catalog and the BaseContext data-source contract.
 
   Composition facade: the root defines no new behavior — it re-exports the matcher types from `matchers`
   (via embedding) and exposes `assert_that`. Consumers import the full API from goga_tool_pybuggy.matchcrest.

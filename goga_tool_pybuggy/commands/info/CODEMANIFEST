@@ -16,9 +16,9 @@ Usages:
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the command wrapper, the --spec option, and the variadic positional endpoint-ids filter.
-  Use `configuration` from Imports for loading and iterating the config.
-  Use `spec` from Imports for parsing a spec, extracting endpoints, and the endpoint id.
-  Use `formatting` from Imports for rendering the JSON.
+  Use `configuration` for loading and iterating the config.
+  Use `spec` for parsing a spec, extracting endpoints, and the endpoint id.
+  Use `formatting` for rendering the JSON.
 
   Use relative imports inside the cell.
   The handler `run_info` is the testable entry point; the Click wrapper info_cmd binds the --spec option and the positional endpoint-ids filter, and calls `run_info` (CLI tests call `run_info` directly).
@@ -45,16 +45,16 @@ Annotations: |
 
     Requirements:
     - A collision (same id across specs) yields all matches as a JSON array (see `formatting`).
-    - `endpoint_ids` of None or empty shows every endpoint of the selected specs — the unfiltered command is unchanged.
+    - `endpoint_ids` of None or empty shows every endpoint of the selected specs.
     - Every requested id in `endpoint_ids` must match at least one selected spec, else a click.ClickException is raised and nothing is printed.
 
     Constraints:
     - Read-only — does not modify specs or config.
     - Do not print anything before validating the `endpoint_ids` filter against the collected endpoints.
 
-    Use `configuration` from Imports for config access.
-    Use `spec` from Imports for parse, extract, and the endpoint id (`build_endpoint_id`) used as the filter key.
-    Use `formatting` from Imports for rendering.
+    Use `configuration` for config access.
+    Use `spec` for parse, extract, and the endpoint id (`build_endpoint_id`) used as the filter key.
+    Use `formatting` for rendering.
 
 "info_cmd(spec_name: Optional[str], endpoint_ids: tuple[str, ...])":
   location: info.py

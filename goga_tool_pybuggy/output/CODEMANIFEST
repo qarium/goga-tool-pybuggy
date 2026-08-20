@@ -10,7 +10,7 @@ Usages:
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `spec` from Imports for the `Endpoint` shape consumed by the formatters.
+  Use `spec` for the `Endpoint` shape consumed by the formatters.
 
   Use relative imports inside the cell.
   Formatters are pure functions — no I/O; stdout is written by the command handlers.
@@ -20,7 +20,7 @@ Annotations: |
 "render_list(name: str, location: str, endpoints: list[Endpoint]) -> text: str":
   location: list.py
   annotations: |
-    Format one spec's endpoints as a text block for the endpoint list command.
+    Format one spec's endpoints as a text block for the endpoint list output.
 
     `name`: spec name (the config dict key).
     `location`: local path of the spec (from project root).
@@ -37,12 +37,12 @@ Annotations: |
     Constraints:
     - Pure function — returns the string; does not print.
 
-    Use `spec` from Imports for the `Endpoint` fields.
+    Use `spec` for the `Endpoint` fields.
 
 "render_info(endpoints: list[Endpoint]) -> json: str":
   location: info.py
   annotations: |
-    Format endpoint(s) as JSON for the endpoint info command, with contract-fixed PascalCase keys.
+    Format endpoint(s) as JSON for the endpoint info output, with contract-fixed PascalCase keys.
 
     `spec`: one or more matching endpoints (single -> object; several -> array).
     `json`: JSON string with keys Method, Path, Request, Response, QueryParams, Description.
@@ -59,7 +59,7 @@ Annotations: |
     Constraints:
     - Pure function — returns the JSON string; does not print.
 
-    Use `spec` from Imports for the `Endpoint` fields.
+    Use `spec` for the `Endpoint` fields.
 
 ---
 

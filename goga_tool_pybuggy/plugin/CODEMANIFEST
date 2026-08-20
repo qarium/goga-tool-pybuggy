@@ -1,6 +1,8 @@
 Imports:
   - Types:
       - Api
+    Usages:
+      - api AS api_usage
     From: goga_tool_pybuggy/api
   - Types:
       - BaseLoader
@@ -20,6 +22,7 @@ Annotations: |
   Use `conventions` for code writing rules, relative imports, docstrings, and testing.
   Use `pluginator` for the plugin framework contract — @define.plugin, define.option, the option resolution chain, fixtures as plugin-class methods, install_pytest_plugins, call_context, and the configure() lifecycle hook.
   Use `jinja2` for the Jinja2 base_url engine: the Environment/StrictUndefined configuration, the custom match_re test, and the required-dependency contract.
+  Use `api_usage` for consuming the `Api` facade and generated fixtures from tests.
 
   pybuggy pytest-plugin cell. Provides the api fixture (function-scope) that constructs `Api` from plugin options, and wires the plugin into pytest through `install`. A consumer enables it by calling goga_tool_pybuggy.plugin.install() from conftest.py — there is no import-time auto-wiring, so pytest_plugins = ['goga_tool_pybuggy.plugin'] alone does NOT enable the plugin. The generated endpoint fixtures resolve api into a working `Api`.
 
@@ -27,7 +30,7 @@ Annotations: |
 
   The CLI flag for base_url is --base-url, and a typed --base-url is authoritative: configure applies its value with top precedence over the plugin config and the QA_BASE_URL env before rendering (the pluginator chain alone resolves the config before the CLI; see `pluginator`). The CLI value is itself a Jinja2 template rendered against the same context.
 
-  The plugin facade (__all__) re-exports PluginConfigKeys as an importable contract type for data-driven consumption by other cells (e.g. init iterates the scalar members).
+  The plugin facade (__all__) re-exports PluginConfigKeys as an importable contract type for data-driven consumption by consumers.
 
   Constraints:
   - `install` is NOT called at import time; a consumer must call goga_tool_pybuggy.plugin.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
@@ -179,7 +182,7 @@ Annotations: |
   annotations: |
     Fixed value set of the pybuggy plugin config keys — the canonical key set consumed by ApiPlugin via pluginator
     (option resolution chain) and written into .goga/tools/pybuggy/config.yml. Each member is a str whose value is
-    the lowercase config-key string. Newly exposed as an importable contract type: declared in this CODEMANIFEST and
+    the lowercase config-key string. Exposed as an importable contract type: declared in this CODEMANIFEST and
     re-exported through the plugin facade (__all__) so consumers iterate the key set data-driven instead of duplicating
     key names.
 
@@ -204,7 +207,7 @@ Annotations: |
     Constraints:
     - Fixed value set (implement as enum.Enum). Do not add, remove, or rename members or change their values;
       ApiPlugin option resolution and the config file contract depend on the exact key set.
-    - The 11-member set and their values are unchanged by this exposure (this change only declares the type and re-exports it).
+    - The 11-member set and their values are fixed — the type declaration and re-export do not alter them.
 
     Use `conventions` for the Enum declaration style and relative imports.
     Use `pluginator` for the option-resolution chain that consumes these keys.
@@ -212,7 +215,7 @@ Annotations: |
     "BASE_URL -> str": |
       "base_url" — required Jinja2 template string rendered once in configure(); the api base URL.
     "HEADERS -> str": |
-      "headers" — default headers dict; complex member (commented example by init, not surveyed as a scalar).
+      "headers" — default headers dict; complex member (commented example, not surveyed as a scalar).
     "TIMEOUT -> str": |
       "timeout" — network timeout (float).
     "DATA_KEY -> str": |
@@ -222,7 +225,7 @@ Annotations: |
     "RETRIES -> str": |
       "retries" — flaky rerun count (int).
     "LOADER -> str": |
-      "loader" — generated-fixture discovery section (packages/modules); complex member (commented example by init).
+      "loader" — generated-fixture discovery section (packages/modules); complex member (commented example).
     "ASSERT_TIMEOUT -> str": |
       "assert_timeout" — baseline assert-polling timeout (int).
     "ASSERT_DELAY -> str": |

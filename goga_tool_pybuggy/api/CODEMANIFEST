@@ -15,10 +15,10 @@ Annotations: |
   Use `conventions` for code writing rules, relative imports, pydantic usage, and testing.
   Use `resq` for the HTTP client contract — `Api` composes a resq.Session and issues a single request per call (no polling).
 
-  HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expected` (response-level dispatcher and field-level entry), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling status/data_key/error_key/schemas_dir) — is imported from the `asserts` sub-cell; matchcrest is reached only through that sub-cell.
-  Use `asserts` from Imports for `Expected`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expected` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own keys (falling back to the `Api`-level keys) plus status and schemas_dir.
+  HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expected` (response-level dispatcher and field-level entry), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling status/data_key/error_key/schemas_dir) — is imported via Imports; matchcrest is reached only through `asserts`.
+  Use `asserts` for `Expected`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expected` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own keys (falling back to the `Api`-level keys) plus status and schemas_dir.
   Sync-only. `Api` is a composition over resq.Session (not a subclass): auth/headers/cookies/data_key/error_key live on `Api` and are injected into each request.
-  `Api` owns the resq adapter: it builds one cached resq.Session per adapter name (the default session is the composed _client) and routes each request to the session matching the effective adapter. Only adapter="requests" (sync) is supported in the sync runtime; adapter="httpx" is async in resq (verbs return coroutines, wrapper is AsyncResponse) and is rejected by Api._validate_adapter until an async stack lands. `Endpoint` may carry a per-endpoint adapter override (None falls back to the `Api` default); the fixture generator omits it (opt-in via the default).
+  `Api` owns the resq adapter: it builds one cached resq.Session per adapter name (the default adapter uses the composed session) and routes each request to the session matching the effective adapter. Only adapter="requests" (sync) is supported in the sync runtime; adapter="httpx" is async in resq (verbs return coroutines, wrapper is AsyncResponse) and is rejected by the adapter validation. `Endpoint` may carry a per-endpoint adapter override (None falls back to the `Api` default); the override is opt-in via the default.
   The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from goga_tool_pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expected` are re-exported from `asserts` for type-hinting; `AssertConfig`, `CombineAuth`/`AuthWrapper` and the search contexts stay internal to the cell.
   Call-level auth on an `Endpoint` call accepts an AuthBase, an `Auth` protocol object (auth(request)), or a plain callable, and is combined with the stored `Api` auth via `CombineAuth`/`AuthWrapper`.
 
@@ -42,7 +42,7 @@ Annotations: |
     `assert_delay`: baseline assert-polling delay; forwarded into each `AssertConfig` by Endpoint._call.
     assert_field_class: dotted module:Class path of a custom `AssertField` subclass; forwarded into each `AssertConfig`.
     assert_response_class: dotted module:Class path of a custom `Expected` subclass; forwarded into each `AssertConfig`.
-    `adapter`: default resq adapter name used to build the composed session. `"requests"` (sync) only — "httpx" is async in resq and is rejected by _validate_adapter until an async stack lands. Read-only via the `adapter` property; per-request override flows through request's `adapter` kwarg (None falls back to this default).
+    `adapter`: default resq adapter name used to build the composed session. `"requests"` (sync) only — "httpx" is async in resq and is rejected by the adapter validation. Read-only via the `adapter` property; per-request override flows through request's `adapter` kwarg (None falls back to this default).
 
     Use `resq` for the Session/base_url contract.
     Use `conventions` for type hints and relative imports.
@@ -82,7 +82,7 @@ Annotations: |
       2. Serialize params and json: a pydantic model is serialized alias-controlled; a dict or None is kept as-is; missing params default to an empty mapping.
       3. Split path parameters (the ":name" keys) out of params, substitute them into url_path, and keep the rest as the query.
       4. Inject auth, headers, and cookies defaults with call-level precedence (call-level wins; stored values fill the gaps) without mutating a caller-owned dict.
-      5. Resolve the effective adapter: the call-level adapter kwarg when present, otherwise the `Api` default; resolve the matching cached resq.Session (the composed _client for the default; built and cached on first use otherwise). Validate the adapter — reject "httpx" (async) and any non-"requests" name until an async stack lands.
+      5. Resolve the effective adapter: the call-level adapter kwarg when present, otherwise the `Api` default; resolve the matching cached resq.Session (the composed default session for the default adapter; built and cached on first use otherwise). Validate the adapter — reject "httpx" (async) and any non-"requests" name.
       6. Resolve the HTTP verb on that session and dispatch the request with url_path and the remaining kwargs.
 
       Requirements:
@@ -93,7 +93,7 @@ Annotations: |
 
       Use `resq` for the verb set and the base_url+path concatenation.
     "close()": |
-      Close the composed resq.Session plus any cached override sessions by delegating to each one's public close(). In sync mode (the only mode pybuggy uses — adapter="requests") each close is a no-op by resq's design: the held requests.Session is released by garbage collection, not closed here. pybuggy never issues async requests, so the lazily-created httpx client is never created and is left untouched. Called by the api fixture teardown.
+      Close the composed resq.Session plus any cached override sessions by delegating to each one's public close(). In sync mode (the only mode pybuggy uses — adapter="requests") each close is a no-op by resq's design: the held requests.Session is released by garbage collection, not closed here. pybuggy never issues async requests, so the lazily-created httpx client is never created and is left untouched. Called at fixture teardown.
 
       Use `resq` for the Session/Client close contract.
       Use `conventions` for type hints.
@@ -101,7 +101,7 @@ Annotations: |
 "Endpoint(api: Api, url_path: str, method: str, status: int | None = 200, use_autocheck: bool = True, data_key: str | None = None, error_key: str | None = None, adapter: str | None = None)":
   location: endpoint.py
   annotations: |
-    Callable route over an `Api`; performs the HTTP request and returns a `ResponseWrapper`. The signature is fixed by the fixture generator and must stay compatible: Endpoint(api, url_path, method="POST", ...).
+    Callable route over an `Api`; performs the HTTP request and returns a `ResponseWrapper`. The signature is fixed and must stay compatible: Endpoint(api, url_path, method="POST", ...).
 
     api: the `Api` client used to issue the request.
     `url_path`: route path, possibly with ":name" placeholders substituted by Api.request.
@@ -121,7 +121,7 @@ Annotations: |
     - `Endpoint` must be constructed directly inside the fixture function so the caller frame is the fixture carrying the correct source path.
 
     Constraints:
-    - Do not modify the fixture generator — frame inspection makes a path parameter unnecessary.
+    - Do not add a path parameter — frame inspection makes it unnecessary.
     - Do not forward timeout/delay/polling options.
 
     Use `conventions` for type hints and relative imports.
@@ -183,7 +183,7 @@ Annotations: |
     `is_negative`: selects the negative auto-check path (no status, no schema).
 
     Use `resq` for the raw Response surface (status_code/text/content/headers/url/encoding/ok/json()/raise_for_status()/reload()) reachable through its `response` property.
-    Use `asserts` from Imports for `Expected` (built lazily from `config`), load_assert_class (for the pluggable response class), and `AssertConfig`.
+    Use `asserts` for `Expected` (built lazily from `config`), load_assert_class (for the pluggable response class), and `AssertConfig`.
     Use `conventions` for type hints and relative imports.
 
     Constraints:

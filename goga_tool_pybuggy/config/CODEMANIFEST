@@ -17,16 +17,16 @@ Annotations: |
 "GitEntry(url: str, location: str, ref: Optional[str])":
   location: git_entry.py
   annotations: |
-    Remote source of a spec for the endpoint pull command — clone URL, in-repo path, and optional git ref.
+    Remote source of a spec — clone URL, in-repo path, and optional git ref.
 
-    `url`: clone URL consumed by shallow-clone in the pull command (no embedded tokens).
+    `url`: clone URL consumed by the consumer's shallow-clone flow (no embedded tokens).
     `location`: path inside the repository (file or subdirectory) to copy from.
     `ref`: optional git ref (branch or tag name) to clone; when None the remote default branch is cloned.
 
     Use `conventions` for pydantic model rules.
 
     Requirements:
-    - `ref` is Optional — when None the pull command clones the remote default branch.
+    - `ref` is Optional — when None the consumer clones the remote default branch.
 
     Constraints:
     - `url` must be a valid clone target for GitPython (no embedded tokens).
@@ -38,8 +38,8 @@ Annotations: |
     One spec entry of the pybuggy config: declared format, local path, and optional remote source.
 
     `type`: declared spec format — constrained to 'swagger'/'openapi' via Literal; pydantic rejects other values at validation time.
-    `location`: local path (from project root) to the spec file — shown in the list command header and used as the pull copy target.
-    `git`: optional remote source; when absent the spec is treated as local-only and the pull command skips it silently.
+    `location`: local path (from project root) to the spec file — shown in the consumer's list output and used as the copy target.
+    `git`: optional remote source; when absent the spec is treated as local-only and the consumer skips it silently.
 
     Use `conventions` for pydantic model rules.
 
@@ -54,7 +54,7 @@ Annotations: |
   annotations: |
     Root configuration of pybuggy, stored at .goga/tools/pybuggy/config.yml.
 
-    `specs`: mapping of spec name to its `SpecEntry`; the name is the dict key, surfaced in list/info.
+    `specs`: mapping of spec name to its `SpecEntry`; the name is the dict key, surfaced by consumers.
 
     Use `conventions` for pydantic model rules.
 

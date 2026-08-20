@@ -337,8 +337,8 @@ response.expected()(hook=lambda items: _mock_body(items, test_id_a, "/api/shared
 (рефетчая ответ между попытками через `resq.http.Response.reload()` — повтор того
 же запроса in-place) до успеха или истечения `timeout`, делая паузу `delay`.
 Per-call `timeout`/`delay` kwargs переопределяют бейзлайн для одной проверки;
-`None` (по умолчанию) — одна попытка без polling. Источник бейзлайна — опции
-плагина `assert_timeout`/`assert_delay`.
+`None` (по умолчанию) — одна попытка без polling. Источник бейзлайна — `AssertConfig`
+(`timeout`/`delay`).
 
 ## Pluggable классы
 

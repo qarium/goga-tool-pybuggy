@@ -2,14 +2,14 @@
 
 ## Предметная область
 
-Шаблоны потребления cell `goga_tool_pybuggy/config`: загрузка `.goga/tools/pybuggy/config.yml` в типизированные модели и доступ к spec-записям. Аудитория — команды `pull`/`list`/`info` и CLI-фасад.
+Шаблоны потребления cell `goga_tool_pybuggy/config`: загрузка `.goga/tools/pybuggy/config.yml` в типизированные модели и доступ к spec-записям. Аудитория — команды-потребители и CLI-фасад.
 
 ## Загрузка конфигурации
 
 ```python
 from goga_tool_pybuggy.config import load_config
 
-config = load_config(path)  # path — от корня проекта; переопределяется через --config
+config = load_config(path)  # path — от корня проекта; None → фиксированный путь .goga/tools/pybuggy/config.yml
 ```
 
 `load_config` читает YAML (`yaml.safe_load`) и валидирует в `Config`. Невалидный конфиг падает с ошибкой валидации pydantic.
@@ -26,9 +26,9 @@ for name, entry in config.specs.items():
         repo_ref = git.ref  # Optional[str]; ветка/тег для клонирования; None → default branch
 ```
 
-- `name` (ключ dict) используется в заголовке `list` и в фильтре `--spec`.
-- `entry.git` может быть `None` — такая spec считается локальной; `pull` её пропускает с WARNING.
-- `git.ref` — значение по умолчанию для клонирования; команда `endpoint pull` может переопределить его опцией `--ref` (приоритет `--ref` > `git.ref` > default branch).
+- `name` (ключ dict) используется потребителями в выводе и в фильтре `--spec`.
+- `entry.git` может быть `None` — такая spec считается локальной; потребитель пропускает её с WARNING.
+- `git.ref` — значение по умолчанию для клонирования; потребитель может переопределить его опцией `--ref` (приоритет `--ref` > `git.ref` > default branch).
 
 ## Предусловия
 

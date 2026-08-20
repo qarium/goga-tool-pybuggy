@@ -12,7 +12,7 @@ Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `gitpython` for shallow-clone as a context manager and copy-to-local semantics.
   Use `click` for the command wrapper (options) and mapping domain errors to ClickException.
-  Use `configuration` from Imports for loading and iterating the config.
+  Use `configuration` for loading and iterating the config.
 
   Use relative imports inside the cell.
   The handler `run_pull` is the testable entry point; the Click wrapper pull_cmd only binds options and calls `run_pull` (CLI tests call `run_pull` directly).
@@ -26,21 +26,21 @@ Annotations: |
     Handler for the endpoint pull command: download specs from their git sources into their local location, idempotently.
 
     `spec_name`: optional filter; when set pull only that spec, otherwise pull all specs.
-    `ref`: optional git ref override. Accepts: None (no override); a global ref string applied to every selected spec; or a tuple of items where each item is a global ref string or a (spec_name, ref) pair (per-spec override, produced by `SmartParam`). A plain string remains a global override (backward compatible with direct handler calls).
+    `ref`: optional git ref override. Accepts: None (no override); a global ref string applied to every selected spec; or a tuple of items where each item is a global ref string or a (spec_name, ref) pair (per-spec override, produced by `SmartParam`). A plain string remains a global override (direct handler calls may pass a plain string).
 
     Algorithm:
     1. Load the config via `load_config` (fixed config path) and iterate its specs.
     2. Select specs: all `Config` specs, or only `spec_name` when provided.
     3. Normalize the ref override into a global ref and a per-spec map: plain-string items become the global ref, (name, ref) items populate the per-spec map; None items are skipped. A per-spec name absent from the configuration raises click.ClickException.
     4. For each selected entry:
-       a. If the entry git field is None, skip it silently (local-only spec).
-       b. Otherwise resolve the effective ref: per-spec override for this name wins, else the global ref (the explicit --ref, or PYBUGGY_REF bound to --ref via click's envvar when --ref is absent), else the `GitEntry` ref, else None. Shallow-clone the `GitEntry` url into a temp dir (depth=1) at the effective ref (None means the remote default branch), copy the `GitEntry` location -> project-root / `SpecEntry` location, overwriting existing files (idempotent).
+       4.1. If the entry git field is None, skip it silently (local-only spec).
+       4.2. Otherwise resolve the effective ref: per-spec override for this name wins, else the global ref (the explicit --ref, or PYBUGGY_REF bound to --ref via click's envvar when --ref is absent), else the `GitEntry` ref, else None. Shallow-clone the `GitEntry` url into a temp dir (depth=1) at the effective ref (None means the remote default branch), copy the `GitEntry` location -> project-root / `SpecEntry` location, overwriting existing files (idempotent).
     5. On clone failure or missing repo path, raise click.ClickException with a clear message.
 
     Requirements:
     - Idempotent — repeated runs overwrite the target files.
     - `SpecEntry` location is project-root-relative; create parent dirs as needed.
-    - PYBUGGY_REF is bound to --ref via click's envvar (read from os.environ by click); populated by the root CLI group's --env-file eager callback before the command runs; its presence is optional (absent ⇒ fall through to git.ref). An explicit --ref overrides PYBUGGY_REF entirely.
+    - PYBUGGY_REF is bound to --ref via click's envvar (read from os.environ by click); populated from the environment before the command runs (e.g. from a loaded .env); its presence is optional (absent ⇒ fall through to git.ref). An explicit --ref overrides PYBUGGY_REF entirely.
 
     Constraints:
     - Treat the repo as read-only — no commit/push.
@@ -48,7 +48,7 @@ Annotations: |
     - PYBUGGY_REF is the env default for --ref (click envvar): an explicit --ref (global or per-spec) overrides it entirely; with no --ref it acts as the global ref, so it sits above git.ref.
 
     Use `gitpython` for the clone+copy pattern and error mapping.
-    Use `configuration` from Imports for config access.
+    Use `configuration` for config access.
 
 "pull_cmd(spec_name: Optional[str], ref: tuple)":
   location: pull.py

@@ -192,7 +192,7 @@ pybuggy-конфиг и перезаписывать ли `conftest.py` (`click.
           write_test_convention(target)                    # повторный вызов — всегда перезапись
           assert target.read_text() == ASSET_TEXT
 
-Для прямой регистрации usages без discovery/копирования — `register_usages` (контракт не изменился); для регистрации
+Для прямой регистрации usages без discovery/копирования — `register_usages`; для регистрации
 строк аннотаций в `codemanifest.annotations` — `register_annotations` (round-trip, идемпотентно по бэктик-ссылке:
 совпавшая строка заменяется при отличии текста, иначе no-op; возвращает `changed_keys`). Интерактивное построение
 `.goga/tools/pybuggy/config.yml` изолировано в `build_pybuggy_config`; чистую эмиссию YAML тестируют напрямую через

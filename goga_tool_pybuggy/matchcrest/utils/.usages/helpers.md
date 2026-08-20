@@ -77,8 +77,8 @@ ts = date_to_timestamp(date(2026, 7, 14))  # float
 
 ## Декоратор allow_failure
 
-Гасит любое исключение, логирует его, возвращает None. Применяется внутри matchcrest для
-безопасной записи отчёта (`BaseMatcher.__save_report__`).
+Гасит любое исключение, логирует его, возвращает None. Применяется для отказоустойчивых
+вызовов, чей сбой не должен прерывать поток.
 
 ```python
 from goga_tool_pybuggy.matchcrest.utils import allow_failure

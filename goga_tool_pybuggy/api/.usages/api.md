@@ -8,11 +8,8 @@ Runtime ячейки `goga_tool_pybuggy/api` выполняет HTTP-запро�
 подробный референс API: `Api`, `Endpoint`, `ResponseWrapper`, `Expected`,
 `AssertField`, `Auth`.
 
-pybuggy поставляет **только классы**. Экземпляр `Api` собирает **pytest-плагин**
-`goga_tool_pybuggy.plugin` из опций конфига и отдаёт его в фикстуре `api`;
-сгенерированные endpoint-фикстуры регистрируются тем же плагином. Потребителю
-достаточно подключить плагин в `conftest.py` и задать опции в
-`.goga/tools/pybuggy/config.yml` — см. «Подключение плагина».
+pybuggy поставляет **только классы**. Экземпляр `Api` для фикстур и сгенерированные
+endpoint-фикстуры поставляются отдельным pytest-плагином pybuggy (см. «Подключение плагина»).
 
 ---
 
@@ -163,50 +160,11 @@ data/error-key, собирает `AssertConfig` (с `assert_*` опциями и
 
 ## Подключение плагина
 
-pybuggy — это pytest-плагин (`goga_tool_pybuggy.plugin`). Он сам собирает `Api` из
-опций конфига и предоставляет функцию-scope фикстуру `api`, а также регистрирует
-все сгенерированные endpoint-фикстуры. **Плагин не саморегистрируется**: строки
-`pytest_plugins = ["goga_tool_pybuggy.plugin"]` недостаточно. Потребитель подключает
-его одним вызовом `install()` в корневом `conftest.py`:
+Фикстура `api` (собирает `Api` из опций конфигурации) и сгенерированные endpoint-фикстуры
+поставляются отдельным pytest-плагином pybuggy — подключите его в корневом `conftest.py`
+тестового проекта.
 
-```python
-# conftest.py тестового проекта
-from goga_tool_pybuggy.plugin import install
-
-install()
-```
-
-`install()` на старте собирает `pytest_plugins` через `PackageLoader("api")` (по
-умолчанию), поэтому все сгенерированные фикстуры из дерева `api/<spec>/<id>/api.py`
-становятся доступны в тестах по имени, **без явного импорта**. Чтобы отключить
-авто-обнаружение, передайте `install(loaders=[])`.
-
-Опции `Api` (`base_url`, `headers`, `timeout`, `data_key`, `error_key`, `retries`,
-`assert_timeout`, `assert_delay`, `assert_field_class`, `assert_response_class`)
-плагин читает из конфига `.goga/tools/pybuggy/config.yml` (с фолбэками на env/CLI).
-Тело фикстуры `api` эквивалентно:
-
-```python
-@pytest.fixture
-def api(self) -> Iterator[Api]:
-    api = Api(
-        base_url=self.base_url,  # из config (Jinja-шаблон, рендерится один раз)
-        headers=self.headers,
-        timeout=self.timeout,
-        data_key=self.data_key,  # config: data_key
-        error_key=self.error_key,  # config: error_key
-        assert_timeout=self.assert_timeout,
-        assert_delay=self.assert_delay,
-        assert_field_class=self.assert_field_class,
-        assert_response_class=self.assert_response_class,
-    )
-    yield api
-    api.close()
-```
-
-**Писать свою `api`-фикстуру не нужно** — плагин её уже предоставляет; меняйте
-поведение через опции конфига, а не через дублирование фикстуры. `retries` (если
-`> 0`) ортогонален `api`: плагин маркирует все собранные тесты `pytest.mark.flaky`.
+**Писать свою `api`-фикстуру не нужно** — плагин её уже предоставляет.
 
 ---
 
@@ -305,9 +263,6 @@ def test_initiate(post_clients_calls_initiate: Endpoint):
         # jsonpath — для вложенных массивов/фильтров
         response.expected("$.items[*]", in_array=True).equal_to(2, any=True)
 ```
-
-Полный референс всех field-level и response-level матчёров — в практике
-суб-клетки `goga_tool_pybuggy/api/asserts`.
 
 ---
 
@@ -419,17 +374,3 @@ class StrictAssertField(AssertField): ...
 
 Api(base_url=..., assert_field_class="myproj:StrictAssertField")
 ```
-
----
-
-## Два разных `Endpoint`
-
-Имя `Endpoint` встречается в двух местах pybuggy — это **разные классы**, не взаимозаменяемые:
-
-| Класс | Откуда импортировать | Назначение |
-|-------|----------------------|------------|
-| runtime-`Endpoint` | `goga_tool_pybuggy.api` | callable-маршрут: делает HTTP-запрос, проверяет ответ (этот фасад) |
-| spec-`Endpoint` (pydantic) | слой спецификаций | pydantic-модель операции (method/path/schemas); запросов не делает |
-
-В тестах нужен runtime-`Endpoint` — импортируйте его из `goga_tool_pybuggy.api`. spec-`Endpoint`
-к выполнению запросов отношения не имеет.

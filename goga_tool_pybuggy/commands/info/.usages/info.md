@@ -24,21 +24,19 @@
 - Нет совпадений → `click.ClickException` («endpoint not found: <id>»).
 - Одно совпадение → JSON-объект; несколько (коллизия id в разных spec или несколько запрошенных id)
   → JSON-массив.
-- Конфиг грузится из фиксированного пути через `load_config()`. Формат задаёт `goga_tool_pybuggy.output.render_info`.
+- Конфиг грузится из фиксированного пути через `load_config()`. Формат — JSON с фиксированными ключами (объект или массив — см. выше).
 
 ## Фильтр по endpoint-id
 
 Позиционный variadic-аргумент `endpoint-ids` ограничивает вывод подмножеством эндпоинтов по их id
-(`Endpoint.id`, те же id, что в командах `endpoint list`/`endpoint generate` — строка вида
-`clients_startup_get`):
+(`Endpoint.id` — строка вида `clients_startup_get`):
 
     pybuggy endpoint info clients_startup_get health_get
     pybuggy endpoint info -s client clients_startup_get   # опция — до позиционных id
 
 Эндпоинты отбираются только среди выбранных спек (`--spec` или все):
 
-- Аргумент не передан — выводятся все эндпоинты выбранных спек (поведение не изменилось относительно
-  «показать всё»).
+- Аргумент не передан — выводятся все эндпоинты выбранных спек.
 - Пустой список / `None` у handler-а — то же самое (no-op фильтра = все).
 - id найден хотя бы в одной выбранной спеке — выводятся только совпадающие эндпоинты.
 - id не найден ни в одной выбранной спеке → `click.ClickException("endpoint not found: <id>")`,
@@ -52,5 +50,5 @@
 
 - Файлы spec должны быть в `location` (после `pull` или вручную).
 - id эндпоинта строится по алгоритму `build_endpoint_id`.
-- Конфиг валиден и лежит по фиксированному пути (см. `goga_tool_pybuggy.config`).
+- Конфиг валиден и лежит по фиксированному пути `.goga/tools/pybuggy/config.yml`.
 - Команда read-only — не модифицирует spec/конфиг.

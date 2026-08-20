@@ -20,10 +20,10 @@
     client (.specs/openapi/client/client-openapi.yaml)
     * clients_startup_get -> [GET] /clients/startup
 
-Конфиг грузится из фиксированного пути через `load_config()`. Формат задаёт `goga_tool_pybuggy.output.render_list`.
+Конфиг грузится из фиксированного пути через `load_config()`.
 
 ## Предусловия
 
 - Файлы spec должны быть в `location` (после `pull` или вручную).
-- Конфиг валиден и лежит по фиксированному пути (см. `goga_tool_pybuggy.config`).
+- Конфиг валиден и лежит по фиксированному пути `.goga/tools/pybuggy/config.yml`.
 - Команда read-only — не модифицирует spec/конфиг.

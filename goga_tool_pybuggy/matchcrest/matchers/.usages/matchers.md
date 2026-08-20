@@ -5,7 +5,7 @@
 Клетка матчеров matchcrest: базис (`BaseContext`, `BaseMatcher`, `MatchResult`) и конкретные матчёры
 для значений, HTTP-ответов и исключений. Аудитория — прямые потребители матчёров и авторы кастомных
 матчёров. Описывает, как подать данные в матча, применить его через `assert_that` и расширить
-`BaseMatcher`. Каталог «какой матча для какой проверки» — в корневой клетке `goga_tool_pybuggy.matchcrest`.
+`BaseMatcher`.
 
 Все матчёры построены на PyHamcrest: `BaseMatcher` наследует `hamcrest.core.base_matcher.BaseMatcher`,
 а `assert_that(actual, matcher)` запускает проверку.

@@ -20,7 +20,7 @@ Annotations: |
   _matches/describe_to/describe_mismatch are the hamcrest hooks driven by assert_that.
   Use `jsonschema` for response-body validation in `JsonschemaMatcher`.
   Use `requests` for status-code name lookup (requests.codes) in `ResponseCodeMatcher`.
-  Use `helpers` from Imports for retry (`waiting_for`), failure-tolerant reporting (`allow_failure`),
+  Use `helpers` for retry (`waiting_for`), failure-tolerant reporting (`allow_failure`),
   date conversion (`date_to_timestamp`), and URL validation (`url_is_valid`).
 
   Every concrete matcher specializes the local `BaseMatcher` (DSL mutation BaseMatcher::X) and implements
@@ -102,7 +102,7 @@ Annotations: |
     - _assert is the single customization hook subclasses implement.
     - describe_to/describe_mismatch render expectation/error messages from self.result.
 
-    Use `helpers` from Imports for `waiting_for` and `allow_failure`.
+    Use `helpers` for `waiting_for` and `allow_failure`.
     Use `hamcrest` for the parent BaseMatcher and Description contract.
   properties:
     "expected_value -> Any": |
@@ -376,28 +376,28 @@ Annotations: |
   annotations: |
     Assert each value is a valid URL (optionally live). The is_live modifier requires a 2xx response; the allowed_protocols modifier restricts schemes. The any modifier short-circuits on the first valid URL.
 
-    Use `helpers` from Imports for `url_is_valid`.
+    Use `helpers` for `url_is_valid`.
 
 "BaseMatcher::ValueDateEqualMatcher(expected_value: date | datetime, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
   location: value.py
   annotations: |
     Assert each date/datetime value equals `expected_value` (compared as timestamps). Non-date values fail. `any` short-circuits on the first equal date.
 
-    Use `helpers` from Imports for `date_to_timestamp`.
+    Use `helpers` for `date_to_timestamp`.
 
 "BaseMatcher::ValueDateGreaterMatcher(expected_value: date | datetime, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
   location: value.py
   annotations: |
     Assert each date/datetime value is greater than `expected_value` (as timestamps). Non-date values fail. `any` short-circuits on the first passing date.
 
-    Use `helpers` from Imports for `date_to_timestamp`.
+    Use `helpers` for `date_to_timestamp`.
 
 "BaseMatcher::ValueDateLesserMatcher(expected_value: date | datetime, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
   location: value.py
   annotations: |
     Assert each date/datetime value is lesser than `expected_value` (as timestamps). Non-date values fail. `any` short-circuits on the first passing date.
 
-    Use `helpers` from Imports for `date_to_timestamp`.
+    Use `helpers` for `date_to_timestamp`.
 
 ---
 

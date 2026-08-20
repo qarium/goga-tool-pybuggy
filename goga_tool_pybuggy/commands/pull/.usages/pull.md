@@ -41,7 +41,7 @@ Git-ref можно задать через env-переменную `PYBUGGY_REF
 `PYBUGGY_REF` привязана к `--ref` через `envvar=` в декораторе click (`show_envvar=True`): когда `--ref` не передан
 явно, click читает `PYBUGGY_REF` из `os.environ` и подставляет её как значение `--ref` (пустая `PYBUGGY_REF`
 трактуется как незаданная). Значение в `os.environ` появляется при загрузке `.env` корневой группой CLI (eager-callback
-`--env-file`; см. корневую ячейку) — поэтому `PYBUGGY_REF` можно задать как в окружении оболочки, так и через `.env`.
+`--env-file`) — поэтому `PYBUGGY_REF` можно задать как в окружении оболочки, так и через `.env`.
 Явный `--ref` (глобальный или per-spec) **полностью перебивает** `PYBUGGY_REF`; `run_pull`/`_effective_ref` env-переменную
 не читают — её разрешение живёт в click-обёртке `pull_cmd`.
 
@@ -65,7 +65,7 @@ Git-ref можно задать через env-переменную `PYBUGGY_REF
 
 ## Предусловия
 
-- Конфиг валиден и лежит по фиксированному пути (см. `goga_tool_pybuggy.config`).
+- Конфиг валиден и лежит по фиксированному пути `.goga/tools/pybuggy/config.yml`.
 - Токены в clone-URL не встраиваются — полагайтесь на git credential helpers.
 - Репозиторий — read-only (без commit/push).
 - `PYBUGGY_REF` опциональна; корневая группа CLI загружает `.env` (явный `--env-file` или `.env` из CWD) до запуска

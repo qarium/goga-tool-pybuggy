@@ -1,15 +1,21 @@
 Imports:
   - Types: [pull_cmd]
+    Usages: [pull]
     From: goga_tool_pybuggy/commands/pull
   - Types: [list_cmd]
+    Usages: [list]
     From: goga_tool_pybuggy/commands/list
   - Types: [info_cmd]
+    Usages: [info]
     From: goga_tool_pybuggy/commands/info
   - Types: [generate_cmd]
+    Usages: [generate]
     From: goga_tool_pybuggy/commands/generate
   - Types: [init_cmd]
+    Usages: [init, config-build]
     From: goga_tool_pybuggy/commands/init
   - Types: [install]
+    Usages: [enable, configuration]
     From: goga_tool_pybuggy/plugin
 
 Usages:
@@ -21,6 +27,7 @@ Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the root group, the endpoint subgroup, command registration, the top-level init command, and the global --env-file option with its eager-callback.
   Use `python-dotenv` for loading the .env file into os.environ with override=False.
+  Connected practices describe how consumers use the composed commands and the plugin: `pull`, `list`, `info`, `generate`, `init`, `config-build`, `enable`, `configuration`.
 
   This cell is the package composition root: it owns the root group `main`, loads the .env environment before any subcommand runs, and assembles the full CLI.
   Use relative imports inside the cell.
@@ -51,7 +58,7 @@ Annotations: |
 
     Constraints:
     - Do not introduce a --config option; config loading stays per-command via load_config.
-    - --env-file is the only global option added by this feature.
+    - --env-file is the only global option of the CLI.
 
     Use `click` for the group, subgroup, and the --env-file eager-callback.
     Use `python-dotenv` for the .env loading performed by `load_env`.

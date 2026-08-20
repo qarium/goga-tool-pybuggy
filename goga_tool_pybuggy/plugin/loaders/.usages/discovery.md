@@ -8,8 +8,8 @@ loaders.
 
 ## Loaders
 
-`PackageLoader` walks a package directory; `ModuleLoader` inspects one module file. Both inherit `PythonImportLoader`
-(`name` + `required`) and the abstract `BaseLoader` contract (`from_config` factory + `load`). `load` mutates the
+`PackageLoader` walks a package directory; `ModuleLoader` inspects one module file. Both share the `name`/`required`
+constructor fields and the abstract `BaseLoader` contract (`from_config` factory + `load`). `load` mutates the
 accumulator list passed to it and returns nothing.
 
 ```python
