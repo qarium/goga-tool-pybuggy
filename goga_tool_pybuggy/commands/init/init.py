@@ -153,6 +153,13 @@ PYBUGGY_ANNOTATIONS: dict[str, str] = {
     ),
 }
 
+# Annotation line for the ``conventions`` usage key — the test-convention slot occupied by
+# ``write_test_convention``. Like ``PYBUGGY_ANNOTATIONS`` above, it is the sole source of the
+# line registered under ``codemanifest.annotations`` (init step 8).
+_CONVENTION_LINE = (
+    "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
+)
+
 
 def _annotation_for(stem: str) -> str:
     """Return the annotation line for a discovered pybuggy usage ``stem``.
@@ -413,6 +420,38 @@ def write_pybuggy_conftest(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     path.write_text(_CONFTEST_TEMPLATE, encoding="utf-8")
+
+
+def write_test_convention(path: Path) -> None:
+    """Occupy the consumer's ``conventions`` slot with the pybuggy test convention.
+
+    Pure writer of the consumer's test convention file — occupies the ``conventions`` slot with
+    the pybuggy test convention shipped inside the installed package. No TTY, no existence check,
+    no network: always (over)writes ``path`` with the packaged asset text, so a locally modified
+    or previously generated slot content is replaced by the package version (package-owned).
+    Nothing is logged — the delivery outcome is logged by the orchestrator
+    (:func:`run_init`), which owns the delivery gate.
+
+    The asset is read from the installed ``goga_tool_pybuggy`` package (never the cwd checkout,
+    never the network) via the same ``importlib.resources`` channel the api-usage discovery uses;
+    the source is fixed and never parameterized. The ``/`` traversal (not the multi-arg
+    ``joinpath``) keeps the routine compatible with Python 3.10.
+
+    Args:
+        path: Destination convention slot path (``<cwd>/.goga/usages/conventions.md``); the
+            parent directory tree is created when missing.
+
+    Raises:
+        OSError: Forwarded unchanged to the caller on a read/write failure (including
+            ``FileNotFoundError`` from a broken installation without the packaged asset).
+    """
+    asset_text = (
+        importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
+    ).read_text(encoding="utf-8")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(asset_text, encoding="utf-8")
 
 
 # Human-readable prompt text for each optional scalar plugin key — mirrors the

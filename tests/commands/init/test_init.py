@@ -1,5 +1,6 @@
 """Contract and logic tests for run_init / register_usages / init_cmd handler."""
 
+import importlib.resources
 import logging
 import typing
 from pathlib import Path
@@ -44,6 +45,12 @@ _ANNOTATION_LINES = {
     "pybuggy-api": "`pybuggy-api` — runtime facade of goga_tool_pybuggy.api for executing HTTP requests.",
     "pybuggy-asserts": "`pybuggy-asserts` — full assert layer of goga_tool_pybuggy.api.asserts built on matchcrest.",
 }
+
+# The packaged test-convention asset, read through the same importlib.resources channel the
+# routine under test uses (symmetric source — never a cwd checkout).
+_ASSET_TEXT = (
+    importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
+).read_text(encoding="utf-8")
 
 
 # Contract tests ---------------------------------------------------------------
@@ -133,6 +140,29 @@ def test_write_pybuggy_conftest_signature() -> None:
     )
 
     assert params == ("path",)
+
+
+def test_write_test_convention_is_callable_with_single_path_parameter() -> None:
+    """write_test_convention exists, is callable, and takes exactly one parameter (path)."""
+    from goga_tool_pybuggy.commands.init.init import write_test_convention
+
+    assert callable(write_test_convention) is True
+    params = (
+        write_test_convention.__code__.co_varnames[: write_test_convention.__code__.co_argcount]
+    )
+
+    assert params == ("path",)
+
+
+def test_convention_line_matches_contract_text() -> None:
+    """_CONVENTION_LINE is the contract annotation line for the conventions usage key, verbatim."""
+    from goga_tool_pybuggy.commands.init.init import _CONVENTION_LINE
+
+    assert (
+        _CONVENTION_LINE
+        == "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
+    )
+    assert not _CONVENTION_LINE.endswith("\n")
 
 
 # Logic tests ------------------------------------------------------------------
@@ -1308,6 +1338,91 @@ def test_write_pybuggy_conftest_emits_runnable_plugin_wiring(tmp_path: Path) -> 
 
     assert callable(plugin.install) is True
     assert "plugin.install()" in source
+
+
+# write_test_convention logic tests ---------------------------------------------
+
+
+def test_write_test_convention_writes_asset_text(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """write_test_convention writes the packaged asset text to a nested, not-yet-existing target."""
+    from goga_tool_pybuggy.commands.init.init import write_test_convention
+
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / ".goga" / "usages" / "conventions.md"
+
+    write_test_convention(target)
+
+    assert target.exists() is True
+    assert target.parent.is_dir()
+    assert target.read_text(encoding="utf-8") == _ASSET_TEXT
+
+
+def test_write_test_convention_reads_packaged_asset_not_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Decoy conventions.md files in the cwd checkout are ignored — only the packaged asset is read."""
+    from goga_tool_pybuggy.commands.init.init import write_test_convention
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "conventions.md").write_text("decoy root")
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "conventions.md").write_text("decoy assets")
+    target = tmp_path / ".goga" / "usages" / "conventions.md"
+
+    write_test_convention(target)
+
+    text = target.read_text(encoding="utf-8")
+    assert text == _ASSET_TEXT
+    assert "decoy root" not in text
+    assert "decoy assets" not in text
+
+
+def test_write_test_convention_overwrites_locally_modified_slot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A locally modified slot file is replaced by the packaged asset (package-owned overwrite)."""
+    from goga_tool_pybuggy.commands.init.init import write_test_convention
+
+    monkeypatch.chdir(tmp_path)
+    target = tmp_path / ".goga" / "usages" / "conventions.md"
+    target.parent.mkdir(parents=True)
+    target.write_text("locally modified", encoding="utf-8")
+
+    write_test_convention(target)
+
+    assert target.read_text(encoding="utf-8") == _ASSET_TEXT
+
+
+def test_write_test_convention_propagates_os_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An OSError (here: a directory sitting on the file path) propagates — never swallowed."""
+    from goga_tool_pybuggy.commands.init.init import write_test_convention
+
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "blocked").mkdir()
+
+    with pytest.raises(OSError):
+        write_test_convention(tmp_path / "blocked")
+
+
+def test_write_test_convention_never_prompts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The routine is pure (TTY-free): neither click.confirm nor click.prompt is ever called."""
+    from goga_tool_pybuggy.commands.init.init import write_test_convention
+
+    monkeypatch.chdir(tmp_path)
+    with (
+        mock.patch.object(click, "confirm") as confirm_mock,
+        mock.patch.object(click, "prompt") as prompt_mock,
+    ):
+        write_test_convention(tmp_path / ".goga" / "usages" / "conventions.md")
+
+    assert confirm_mock.call_count == 0
+    assert prompt_mock.call_count == 0
 
 
 # build_pybuggy_config logic tests --------------------------------------------
