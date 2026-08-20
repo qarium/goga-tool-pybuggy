@@ -540,8 +540,8 @@ def _stub_questionnaire(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
     so it doubles as a spy for the language argument.
     """
     questionnaire = mock.Mock()
-    questionnaire.ask_base_convention.return_value = ({"conventions": "src"}, "annotations")
-    questionnaire.ask_codemanifest_usages.return_value = {"conventions": "src"}
+    # ask_base_convention is deliberately NOT stubbed — the flow never calls it (offline init).
+    questionnaire.ask_codemanifest_usages.return_value = {"my-usage": "src"}
     questionnaire.ask_codemanifest_annotations.return_value = "annotations"
     questionnaire.ask_agent.return_value = "coder"
     questionnaire.ask_image_name.return_value = "python-image:latest"
@@ -669,16 +669,48 @@ def test_run_goga_init_returns_1_on_abort_during_prompt(monkeypatch: pytest.Monk
     assert run_goga_init() == 1
 
 
+def test_run_goga_init_collects_codemanifest_fields_without_prefill(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The codemanifest fields are collected without a prefill from ask_base_convention (offline)."""
+    questionnaire = _stub_questionnaire(monkeypatch)
+    generator = mock.Mock()
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+
+    assert run_goga_init() == 0
+
+    # Offline init: the base-convention question is never asked, so no download prefill is threaded.
+    questionnaire.ask_base_convention.assert_not_called()
+    questionnaire.ask_codemanifest_usages.assert_called_once_with()
+    questionnaire.ask_codemanifest_annotations.assert_called_once_with()
+    answers = generator.generate.call_args.args[0]
+    assert answers.goga_config.codemanifest_usages == {"my-usage": "src"}
+
+
+def test_run_goga_init_offline_answers_carry_no_conventions_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Answers assembled by the offline flow carry no `conventions` key, so goga downloads nothing."""
+    questionnaire = _stub_questionnaire(monkeypatch)
+    generator = mock.Mock()
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
+
+    assert run_goga_init() == 0
+
+    answers = generator.generate.call_args.args[0]
+    assert answers.goga_config.codemanifest_usages == {"my-usage": "src"}
+    assert "conventions" not in answers.goga_config.codemanifest_usages
+    generator.generate.assert_called_once()
+
+
 def test_run_goga_init_threads_answers_into_downstream_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Each collected answer threads into the downstream prompt (prefill tuple, agent, pipeline_agent)."""
+    """Each collected answer threads into the downstream prompt (agent, pipeline_agent)."""
     questionnaire = _stub_questionnaire(monkeypatch)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock())
 
     assert run_goga_init() == 0
 
-    usages_prefill, annotations_prefill = questionnaire.ask_base_convention.return_value
-    questionnaire.ask_codemanifest_usages.assert_called_once_with(usages_prefill)
-    questionnaire.ask_codemanifest_annotations.assert_called_once_with(annotations_prefill)
+    questionnaire.ask_base_convention.assert_not_called()
+    questionnaire.ask_codemanifest_usages.assert_called_once_with()
+    questionnaire.ask_codemanifest_annotations.assert_called_once_with()
     agent = questionnaire.ask_agent.return_value
     questionnaire.ask_env.assert_called_once_with(agent)
     # ask_pipeline_agent takes NO args in this goga version (it does not inherit the build agent).

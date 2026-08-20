@@ -707,6 +707,13 @@ def run_goga_init() -> int:
     {dockerfile_base_image}``) and always emits the top-level ``dockerfile`` field into
     ``.goga/config.yml``.
 
+    The base convention download is NOT part of the flow: ``ask_base_convention`` is never called
+    and the codemanifest fields are collected without a prefill, so the ``conventions`` key never
+    enters the answers from this flow and goga performs no convention download — initialization is
+    fully offline. The consumer's ``conventions`` slot belongs to :func:`write_test_convention`
+    (delivered by :func:`run_init`); the residual case of a user manually typing ``conventions``
+    into the usages questionnaire is documented in the ``goga`` usage.
+
     Interactive (TTY prompts via click); callers and tests stub this routine via monkeypatch.
 
     Returns:
@@ -720,9 +727,11 @@ def run_goga_init() -> int:
     try:
         language = "python"
 
-        usages_prefill, annotations_prefill = questionnaire.ask_base_convention()
-        codemanifest_usages = questionnaire.ask_codemanifest_usages(usages_prefill)
-        codemanifest_annotations = questionnaire.ask_codemanifest_annotations(annotations_prefill)
+        # ask_base_convention is NOT called — the `conventions` slot in the consumer belongs to
+        # write_test_convention, so the base convention download is not part of this flow and
+        # initialization stays offline (the residual manual `conventions` entry is documented in `goga`).
+        codemanifest_usages = questionnaire.ask_codemanifest_usages()
+        codemanifest_annotations = questionnaire.ask_codemanifest_annotations()
         agent = questionnaire.ask_agent()
         # Dockerfile is mandatory → ask for the built-image NAME (top-level `image`) and the FROM
         # baseline separately; goga's ``ask_image`` (pre-built pull image) is the no-Dockerfile case.
