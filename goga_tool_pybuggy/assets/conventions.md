@@ -86,9 +86,9 @@ filterwarnings =
 3. **Output levels**: `log_cli_level = INFO` — the standard execution console; `log_file_level =
    DEBUG` — full system logs persist to the CI artifact (`logs/pytest.log`)
 4. **Strictness**: `strict_config = true` — a typo in an ini option name fails the run instead of
-   being silently ignored; `xfail_strict = true` — an xfail test that passes counts as an error,
-   ruling out 'permanently green' xfails. Both ini options ship with pytest 9.0 — hence
-   `minversion = 9.0`
+   being silently ignored (the option exists since pytest 8.4); `xfail_strict = true` — an xfail
+   test that passes counts as an error, ruling out 'permanently green' xfails. `minversion = 9.0`
+   is the general version floor of the runner, not tied to a single option
 5. **filterwarnings = error**: Every warning becomes a test error. Targeted `ignore` lines are
    **ALLOWED** under two conditions: a justification comment and the narrowest possible scope
    (warning category + module). Ignoring an entire category is **FORBIDDEN**
@@ -126,12 +126,12 @@ three destinations: the console (`log_cli`), the CI file (`log_file`), and the A
 
 ### Level matrix
 
-| Level    | FORBIDDEN                                               | MUST                                                                        |
-|----------|---------------------------------------------------------|-----------------------------------------------------------------------------|
-| `DEBUG`  | high-level step descriptions                            | request and response bodies, field values, payload details                  |
-| `INFO`   | bulk data, loop iterations                              | test start and end, key scenario actions, HTTP calls                        |
-| `WARNING`| routine operational exceptions                          | flaky retries, safe fallbacks, deprecation notices                          |
-| `ERROR`  | test assertion failures — a failure surfaces through the failed check | caught exceptions that do not block execution; state dump before the failure |
+| Level     | FORBIDDEN                                                             | MUST                                                                         |
+|-----------|-----------------------------------------------------------------------|------------------------------------------------------------------------------|
+| `DEBUG`   | high-level step descriptions                                          | request and response bodies, field values, payload details                   |
+| `INFO`    | bulk data, loop iterations                                            | test start and end, key scenario actions, HTTP calls                         |
+| `WARNING` | routine operational exceptions                                        | flaky retries, safe fallbacks, deprecation notices                           |
+| `ERROR`   | test assertion failures — a failure surfaces through the failed check | caught exceptions that do not block execution; state dump before the failure |
 
 Do not use `CRITICAL` in test code.
 
@@ -182,7 +182,7 @@ decorators. A test without metadata is a direct policy violation.
    `@allure.epic("System/Domain")` → `@allure.feature("Service/Module")` →
    `@allure.story("User action/Story")`
 2. **Test titles**: Technical function names are unreadable for business stakeholders — every
-   test function **MUST** have a human-readable `@allure.title("Action description")`
+   test function **MUST** have a human-readable `@allure.title("Action description")`.
 3. **Priorities**: Set `@allure.severity(...)` on critical paths (authorization, payments,
    domain core) — level `CRITICAL` or `BLOCKER`; other tests **MAY** use `NORMAL`/`MINOR`/
    `TRIVIAL`
@@ -210,8 +210,9 @@ def create_order(customer: str, amount: int):
 1. Results are written to `allure-results/` in the project root only on CI runs (the CI command
    passes `--alluredir`); the `allure-results/`, `allure-report/`, and `logs/` directories
    **MUST** be excluded from VCS (`.gitignore`)
-2. Allure attaches the `stdout`, `stderr`, and `log` pseudo-files (built-in `logging` output) to
-   every test automatically — no separate `allure.attach` calls for logs
+2. Allure attaches the `log` pseudo-file (built-in `logging` output) to every test automatically
+   — no separate `allure.attach` calls for logs; `stdout`/`stderr` appear only when non-empty,
+   which the zero-print policy (section 2) makes the exception
 3. A selective test-plan run **MAY** be performed through the `ALLURE_TESTPLAN_PATH` environment
    variable (the `testplan.json` file); the `environment.properties` file in `allure-results/`
    **MAY** be added to describe the environment
@@ -251,18 +252,6 @@ def attach_failure_context(request):
             attachment_type=allure.attachment_type.TEXT,
         )
         logger.info("failure context attached to allure report")
-
-        # Pattern for custom client wrappers: attach the last response body.
-        # The built-in pybuggy Api does not store response history — the branch activates
-        # when the project introduces a wrapper with a last_response_body attribute.
-        if "api" in request.fixturenames:
-            client = request.getfixturevalue("api")
-            if hasattr(client, "last_response_body"):
-                allure.attach(
-                    str(client.last_response_body),
-                    name="FAILED_RESPONSE_BODY",
-                    attachment_type=allure.attachment_type.TEXT,
-                )
 ```
 
 RULES:
@@ -270,10 +259,10 @@ RULES:
 1. The `pytest_runtest_makereport` hook **MUST** store phase reports (`rep_setup`/`rep_call`/
    `rep_teardown`) on the item — the foundation of any automatic capture
 2. The autouse fixture **MUST** run after the call phase and attach failure context to Allure —
-   without manual actions in the test body
-3. pybuggy projects have no UI branch (WebDriver screenshots) — the stack under test is API-only;
-   extend the fixture with branches for your own context-owner fixtures following the pattern
-   above
+   without manual actions in the test body. The attachment lands in the report's teardown section
+   of the autouse fixture, not among the test body attachments — look for `FAILURE_SUMMARY` under
+   the fixture of the failed test
+3. pybuggy projects have no UI branch (WebDriver screenshots) — the stack under test is API-only
 
 ---
 
@@ -324,7 +313,7 @@ from api.shop.api_v1_orders_post.api import Request
 @allure.feature("Orders")
 @allure.story("Order creation")
 @allure.severity(allure.severity_level.CRITICAL)
-@allure.title("TC-1: order is created with a minimal body")
+@allure.title("Order is created with a minimal body")
 @pytest.mark.positive
 @pytest.mark.smoke
 def test_create_order(order_payload: Request, post_api_v1_orders, get_api_v1_orders):
