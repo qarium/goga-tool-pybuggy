@@ -33,17 +33,19 @@ class ResponseCodeMatcher(BaseMatcher):
             f'Response code from "{item.key}" should be equal to {pformat(self.expected_value)}',
         ]
 
-        return MatchResult(self.expected_value == actual_code,
-                           expectations=expectations,
-                           errors=[f'Response code was {pformat(actual_code)}'])
+        return MatchResult(
+            self.expected_value == actual_code,
+            expectations=expectations,
+            errors=[f"Response code was {pformat(actual_code)}"],
+        )
 
 
 class ResponseHeadersByValueMatcher(BaseMatcher):
     def __init__(self, *args, **kwargs):
-        self.contains = kwargs.pop('contains', False)
-        self.startswith = kwargs.pop('startswith', False)
-        self.endswith = kwargs.pop('endswith', False)
-        self.key = kwargs.pop('key', None)
+        self.contains = kwargs.pop("contains", False)
+        self.startswith = kwargs.pop("startswith", False)
+        self.endswith = kwargs.pop("endswith", False)
+        self.key = kwargs.pop("key", None)
 
         super().__init__(*args, **kwargs)
 
@@ -52,14 +54,14 @@ class ResponseHeadersByValueMatcher(BaseMatcher):
         expected_header_value = self.expected_value.lower()
         errors: list[str] = []
         expectations = [
-            f'Response header value should matching {pformat(expected_header_value)}',
+            f"Response header value should matching {pformat(expected_header_value)}",
         ]
 
         value = next((v for k, v in headers.items() if k.lower() == self.key), None)
         if value is None:
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=[f'Response header by key "{self.key}" not found'])
+            return MatchResult(
+                False, expectations=expectations, errors=[f'Response header by key "{self.key}" not found']
+            )
         value = value.lower()
         if self.contains and expected_header_value not in value:
             errors.append(f'Response header value {value} does not contain "{expected_header_value}"')
@@ -71,27 +73,27 @@ class ResponseHeadersByValueMatcher(BaseMatcher):
             errors.append(f'Response header value {value} does not endswith "{expected_header_value}"')
 
         if errors:
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=errors)
+            return MatchResult(False, expectations=expectations, errors=errors)
 
         if self.contains or self.startswith or self.endswith:
             return MatchResult(True)
 
         if value != expected_header_value:
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=[f'Response header value {value} does not equal "{expected_header_value}"'])
+            return MatchResult(
+                False,
+                expectations=expectations,
+                errors=[f'Response header value {value} does not equal "{expected_header_value}"'],
+            )
 
         return MatchResult(True)
 
 
 class ResponseHeadersByKeyMatcher(BaseMatcher):
     def __init__(self, *args, **kwargs):
-        self.count = kwargs.pop('count', None)
-        self.contains = kwargs.pop('contains', False)
-        self.startswith = kwargs.pop('startswith', False)
-        self.endswith = kwargs.pop('endswith', False)
+        self.count = kwargs.pop("count", None)
+        self.contains = kwargs.pop("contains", False)
+        self.startswith = kwargs.pop("startswith", False)
+        self.endswith = kwargs.pop("endswith", False)
 
         super().__init__(*args, **kwargs)
 
@@ -114,17 +116,21 @@ class ResponseHeadersByKeyMatcher(BaseMatcher):
             actual_headers = {k: v for k, v in actual_headers.items() if k.lower().endswith(expected_header_key)}
 
         if not self.contains and not self.startswith and not self.endswith:
-            actual_headers = (next(({k: v} for k, v in headers.items() if k.lower() == expected_header_key), {}))
+            actual_headers = next(({k: v} for k, v in headers.items() if k.lower() == expected_header_key), {})
 
         if not actual_headers:
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=[f'Response headers does not exist by key "{expected_header_key}"'])
+            return MatchResult(
+                False,
+                expectations=expectations,
+                errors=[f'Response headers does not exist by key "{expected_header_key}"'],
+            )
 
         if self.count and (len(actual_headers.items()) != self.count):
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=[f'Response headers count {len(actual_headers)} != {self.count}'])
+            return MatchResult(
+                False,
+                expectations=expectations,
+                errors=[f"Response headers count {len(actual_headers)} != {self.count}"],
+            )
 
         return MatchResult(True)
 
@@ -136,16 +142,19 @@ class ResponseBodyMatcher(BaseMatcher):
         actual_body = item.value
 
         expectations = [
-            f'Request body from "{item.key}" is equal to {pformat(actual_body[:self.MAX_BODY_LEN])}',
+            f'Request body from "{item.key}" is equal to {pformat(actual_body[: self.MAX_BODY_LEN])}',
         ]
 
         if actual_body == self.expected_value:
             return MatchResult(True)
 
-        return MatchResult(False,
-                           expectations=expectations,
-                           errors=[f'{pformat(actual_body[:self.MAX_BODY_LEN])} !='
-                                   f' {pformat(self.expected_value[:self.MAX_BODY_LEN])}'])
+        return MatchResult(
+            False,
+            expectations=expectations,
+            errors=[
+                f"{pformat(actual_body[: self.MAX_BODY_LEN])} != {pformat(self.expected_value[: self.MAX_BODY_LEN])}"
+            ],
+        )
 
 
 class JsonschemaMatcher(BaseMatcher):
@@ -157,16 +166,18 @@ class JsonschemaMatcher(BaseMatcher):
         try:
             jsonschema.validate(item.value, self.expected_value)
         except jsonschema.ValidationError as e:
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=[f'Json data from "{e.json_path}" is not correspond to jsonschema', e.message])
+            return MatchResult(
+                False,
+                expectations=expectations,
+                errors=[f'Json data from "{e.json_path}" is not correspond to jsonschema', e.message],
+            )
 
         return MatchResult(True)
 
 
 class JsonHasDataByKeyMatcher(BaseMatcher):
     def _assert(self, item: BaseContext) -> MatchResult:
-        current_value = (item.value or {})
+        current_value = item.value or {}
 
         expectations = [
             f'Response json from "{item.key}" should has data by key {pformat(self.expected_value)}',
@@ -176,16 +187,18 @@ class JsonHasDataByKeyMatcher(BaseMatcher):
             current_value = {}
 
         if current_value.get(self.expected_value) is None:
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=[f'Response json has not data by key {pformat(self.expected_value)}'])
+            return MatchResult(
+                False,
+                expectations=expectations,
+                errors=[f"Response json has not data by key {pformat(self.expected_value)}"],
+            )
 
         return MatchResult(True)
 
 
 class JsonHasNotDataByKeyMatcher(BaseMatcher):
     def _assert(self, item: BaseContext) -> MatchResult:
-        current_value = (item.value or {})
+        current_value = item.value or {}
 
         expectations = [
             f'Response json from "{item.key}" should has not data by key {pformat(self.expected_value)}',
@@ -195,11 +208,13 @@ class JsonHasNotDataByKeyMatcher(BaseMatcher):
             current_value = {}
 
         if current_value.get(self.expected_value) is not None:
-            return MatchResult(False,
-                               expectations=expectations,
-                               errors=[
-                                   f'Response json has data by key {pformat(self.expected_value)}',
-                               ])
+            return MatchResult(
+                False,
+                expectations=expectations,
+                errors=[
+                    f"Response json has data by key {pformat(self.expected_value)}",
+                ],
+            )
 
         return MatchResult(True)
 
@@ -212,7 +227,7 @@ class JsonContainsKeyMatcher(BaseMatcher):
             self.expected_value = [self.expected_value]
 
     def _assert(self, item: BaseContext) -> MatchResult:
-        current_value = (item.value or {})
+        current_value = item.value or {}
 
         expectations = [
             f'Response json from "{item.key}" should contains key {pformat(self.expected_value)}',
@@ -223,11 +238,13 @@ class JsonContainsKeyMatcher(BaseMatcher):
 
         for key in self.expected_value:
             if key not in current_value:
-                return MatchResult(False,
-                                   expectations=expectations,
-                                   errors=[
-                                       f'Response json not contains {pformat(key)}',
-                                   ])
+                return MatchResult(
+                    False,
+                    expectations=expectations,
+                    errors=[
+                        f"Response json not contains {pformat(key)}",
+                    ],
+                )
 
             current_value = current_value[key]
 

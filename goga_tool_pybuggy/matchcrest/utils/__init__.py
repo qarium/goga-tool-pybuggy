@@ -8,10 +8,10 @@ from .utils import (
 )
 
 __all__ = [
-    'allow_failure',
-    'date_to_timestamp',
-    'join',
-    'url_is_live',
-    'url_is_valid',
-    'waiting_for',
+    "allow_failure",
+    "date_to_timestamp",
+    "join",
+    "url_is_live",
+    "url_is_valid",
+    "waiting_for",
 ]

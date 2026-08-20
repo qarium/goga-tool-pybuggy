@@ -19,20 +19,12 @@ from goga_tool_pybuggy.config import GitEntry, SpecEntry, load_config
 
 # Fixed conftest template (single source: the write_pybuggy_conftest CODEMANIFEST annotation).
 EXPECTED_CONFTEST = (
-    "from dotenv import load_dotenv\n"
-    "\n"
-    "load_dotenv()\n"
-    "\n"
-    "from goga_tool_pybuggy import plugin\n"
-    "\n"
-    "plugin.install()\n"
+    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
 )
 
 # The packaged test-convention asset, read through the same importlib.resources channel the
 # routine under test uses (symmetric source — never a cwd checkout).
-_ASSET_TEXT = (
-    importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
-).read_text(encoding="utf-8")
+_ASSET_TEXT = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(encoding="utf-8")
 
 # Content anchor: without it every _ASSET_TEXT equality below compares the asset to itself, so an
 # emptied or wrongly-committed file would pass. The full-text pin lives in test_init.py.
@@ -41,9 +33,7 @@ assert _ASSET_TEXT.startswith("# Testing Convention: pytest Configuration, Loggi
 # End-to-end through the Click wrapper ---------------------------------------
 
 
-def test_init_cmd_end_to_end_fresh_project(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_init_cmd_end_to_end_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """init_cmd drives the full chain on a fresh project: goga init then usages registered."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -64,9 +54,7 @@ def test_init_cmd_end_to_end_fresh_project(
     assert (tmp_path / ".goga/usages/conventions.md").exists()
 
 
-def test_init_cmd_end_to_end_occupies_conventions_slot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_init_cmd_end_to_end_occupies_conventions_slot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """init_cmd delivers the conventions slot: packaged asset written and the key registered."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -85,9 +73,7 @@ def test_init_cmd_end_to_end_occupies_conventions_slot(
     assert {"conventions", "pybuggy-api", "pybuggy-asserts"} <= set(usages)
 
 
-def test_init_cmd_end_to_end_writes_conftest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_init_cmd_end_to_end_writes_conftest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """init_cmd writes the root conftest.py verbatim; absent file means no confirm is asked."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -114,9 +100,7 @@ def test_init_cmd_propagates_goga_cancel_without_writing_usages(
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
 
-def test_init_cmd_maps_bootstrap_failure_to_nonzero_exit(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_init_cmd_maps_bootstrap_failure_to_nonzero_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A bootstrap file-write failure surfaces as a non-zero exit through the wrapper."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -186,9 +170,7 @@ def test_write_pybuggy_config_emits_config_cell_validates_with_git(tmp_path: Pat
     assert not hasattr(cfg, "timeout")
 
 
-def test_build_pybuggy_config_full_chain_validates(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_build_pybuggy_config_full_chain_validates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Real build_pybuggy_config with a stubbed TTY emits a config that validates end-to-end.
 
     Full chain interactive → emission → validation: the testable-seam, driven by scripted

@@ -201,8 +201,7 @@ decorators. A test without metadata is a direct policy violation.
 
 ```python
 @allure.step("Create an order for customer '{customer}' with amount {amount}")
-def create_order(customer: str, amount: int):
-    ...
+def create_order(customer: str, amount: int): ...
 ```
 
 ### Miscellaneous
@@ -318,8 +317,9 @@ from api.shop.api_v1_orders_post.api import Request
 @pytest.mark.smoke
 def test_create_order(order_payload: Request, post_api_v1_orders, get_api_v1_orders):
     with allure.step("create an order via POST /api/v1/orders"):
-        allure.attach(order_payload.model_dump_json(indent=2), name="request",
-                      attachment_type=allure.attachment_type.JSON)
+        allure.attach(
+            order_payload.model_dump_json(indent=2), name="request", attachment_type=allure.attachment_type.JSON
+        )
         with post_api_v1_orders(json=order_payload) as response:
             response.expected.has_status_code(201)
             response.expected("id").not_empty()

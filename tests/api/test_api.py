@@ -240,9 +240,10 @@ class TestApiAdapter:
         api = Api(base_url="https://x", timeout=5.0)
         fake_session = mock.Mock()
 
-        with mock.patch.object(api, "_validate_adapter"), mock.patch(
-            "goga_tool_pybuggy.api.api.resq.Session", return_value=fake_session
-        ) as session_cls:
+        with (
+            mock.patch.object(api, "_validate_adapter"),
+            mock.patch("goga_tool_pybuggy.api.api.resq.Session", return_value=fake_session) as session_cls,
+        ):
             first = api._get_session("other")
             second = api._get_session("other")
 

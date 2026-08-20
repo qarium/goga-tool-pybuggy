@@ -109,9 +109,9 @@ from goga_tool_pybuggy.api.asserts import AssertField  # для type-hint'а
 ### Field-level вход
 
 ```python
-field = response.expected("items")              # dotted-путь под data_key
-field = response.expected("$.items[*]")          # jsonpath под data_key
-field = response.expected()                      # целиком значение под data_key (массив/объект)
+field = response.expected("items")  # dotted-путь под data_key
+field = response.expected("$.items[*]")  # jsonpath под data_key
+field = response.expected()  # целиком значение под data_key (массив/объект)
 ```
 
 `Expected.__call__(search=None, *, index=None, hook=None, in_array=False)`:
@@ -246,6 +246,7 @@ response.expected("avatar").is_url(is_live=True, allowed_protocols=["https"])
 
 ```python
 from datetime import date
+
 response.expected("created_at").has_date(date(2026, 1, 1))
 response.expected("created_at").has_date_greater(date(2025, 1, 1))
 ```
@@ -301,19 +302,20 @@ with response.expected("ok").not_raise_exc() as value:
   по корню, а не jsonpath.
 
 ```python
-response.expected("items", in_array=True).equal_to(2, any=True)   # хотя бы один == 2
-response.expected("items")(index=0).equal_to(1)                   # drill по индексу
-response.expected("name")(hook=str.upper).equal_to("ABC")         # hook перед сравнением
+response.expected("items", in_array=True).equal_to(2, any=True)  # хотя бы один == 2
+response.expected("items")(index=0).equal_to(1)  # drill по индексу
+response.expected("name")(hook=str.upper).equal_to("ABC")  # hook перед сравнением
 
 # data_key — массив: непустота / конкретный элемент
-response.expected().has_length_greater(0)                          # значение под data_key (массив) непусто
-response.expected("$[0].name").equal_to("abc")                    # data[0].name
+response.expected().has_length_greater(0)  # значение под data_key (массив) непусто
+response.expected("$[0].name").equal_to("abc")  # data[0].name
 
 # все элементы: data[*].status — список; is_subset гарантирует, что каждый входит в множество
-response.expected("$[*].status").is_subset(["active", "idle"])    # каждый status ∈ множество
+response.expected("$[*].status").is_subset(["active", "idle"])  # каждый status ∈ множество
 
 # элемент отсутствует: data[*].request.test_id — список значений, not_contains — ни один не равен
 response.expected("$[*].request.test_id").not_contains(test_id_b)
+
 
 # кастомный поиск элемента по предикату: hook над корнем массива, дальше — штатные ассерты
 def _mock_body(items: list, test_id: str, path: str, method: str):
@@ -322,6 +324,7 @@ def _mock_body(items: list, test_id: str, path: str, method: str):
         if (req["test_id"], req["path"], req["method"]) == (test_id, path, method):
             return _normalize_body(item["response"]["body"])
     return None
+
 
 response.expected()(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to({"owner": "A1"})
 ```

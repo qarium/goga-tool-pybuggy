@@ -70,12 +70,7 @@ def _extract_request(operation: dict[str, Any], version: str) -> dict[str, Any]:
         (a ``schema: null`` fragment has no usable schema and degrades to ``{}``).
     """
     if version == "openapi":
-        return (
-            operation.get("requestBody", {})
-            .get("content", {})
-            .get("application/json", {})
-            .get("schema") or {}
-        )
+        return operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema") or {}
     for param in operation.get("parameters", []):
         if param.get("in") == "body":
             return param.get("schema") or {}
@@ -104,9 +99,7 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
     return {code: resp.get("schema") or {} for code, resp in responses.items()}
 
 
-def _extract_query_params(
-    all_params: list[dict[str, Any]], version: str
-) -> dict[str, Any]:
+def _extract_query_params(all_params: list[dict[str, Any]], version: str) -> dict[str, Any]:
     """Extract query-parameter schemas in a format-aware way.
 
     OpenAPI 3.x reads each query param's nested ``schema``; Swagger 2.0 reads the
@@ -164,9 +157,7 @@ def _normalize_nullable(node: Any) -> Any:
                 # schemas; the container is NOT itself a schema fragment. Recurse
                 # into each property's schema without popping on the container, so
                 # a property literally named "nullable"/"x-nullable" survives.
-                result[key] = {
-                    name: _normalize_nullable(schema) for name, schema in value.items()
-                }
+                result[key] = {name: _normalize_nullable(schema) for name, schema in value.items()}
             else:
                 result[key] = _normalize_nullable(value)
 
@@ -246,12 +237,10 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
             # Route field extraction by the detected version, then normalize
             request = _normalize_nullable(_extract_request(operation, version))
             response = {
-                code: _normalize_nullable(schema)
-                for code, schema in _extract_responses(operation, version).items()
+                code: _normalize_nullable(schema) for code, schema in _extract_responses(operation, version).items()
             }
             query_params = {
-                name: _normalize_nullable(schema)
-                for name, schema in _extract_query_params(all_params, version).items()
+                name: _normalize_nullable(schema) for name, schema in _extract_query_params(all_params, version).items()
             }
 
             description = operation.get("description", "")

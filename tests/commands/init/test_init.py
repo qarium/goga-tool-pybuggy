@@ -28,13 +28,7 @@ from ruamel.yaml import YAMLError
 # The fixed root conftest.py template the init command wires into the consumer's pytest run
 # (the single source is the CODEMANIFEST annotation of write_pybuggy_conftest).
 EXPECTED_CONFTEST = (
-    "from dotenv import load_dotenv\n"
-    "\n"
-    "load_dotenv()\n"
-    "\n"
-    "from goga_tool_pybuggy import plugin\n"
-    "\n"
-    "plugin.install()\n"
+    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
 )
 
 _USAGE_KEYS = {
@@ -49,9 +43,7 @@ _ANNOTATION_LINES = {
 
 # The packaged test-convention asset, read through the same importlib.resources channel the
 # routine under test uses (symmetric source — never a cwd checkout).
-_ASSET_TEXT = (
-    importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
-).read_text(encoding="utf-8")
+_ASSET_TEXT = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(encoding="utf-8")
 
 
 def test_asset_text_is_the_packaged_test_convention() -> None:
@@ -125,9 +117,7 @@ def test_register_annotations_is_public_in_facade() -> None:
 
 def test_register_annotations_signature() -> None:
     """register_annotations has signature (config_path, annotation_lines)."""
-    params = (
-        register_annotations.__code__.co_varnames[: register_annotations.__code__.co_argcount]
-    )
+    params = register_annotations.__code__.co_varnames[: register_annotations.__code__.co_argcount]
 
     assert params == ("config_path", "annotation_lines")
 
@@ -146,9 +136,7 @@ def test_write_pybuggy_conftest_is_public_in_facade() -> None:
 
 def test_write_pybuggy_conftest_signature() -> None:
     """write_pybuggy_conftest has signature (path)."""
-    params = (
-        write_pybuggy_conftest.__code__.co_varnames[: write_pybuggy_conftest.__code__.co_argcount]
-    )
+    params = write_pybuggy_conftest.__code__.co_varnames[: write_pybuggy_conftest.__code__.co_argcount]
 
     assert params == ("path",)
 
@@ -158,9 +146,7 @@ def test_write_test_convention_is_callable_with_single_path_parameter() -> None:
     from goga_tool_pybuggy.commands.init.init import write_test_convention
 
     assert callable(write_test_convention) is True
-    params = (
-        write_test_convention.__code__.co_varnames[: write_test_convention.__code__.co_argcount]
-    )
+    params = write_test_convention.__code__.co_varnames[: write_test_convention.__code__.co_argcount]
 
     assert params == ("path",)
 
@@ -180,10 +166,7 @@ def test_convention_line_matches_contract_text() -> None:
     """_CONVENTION_LINE is the contract annotation line for the conventions usage key, verbatim."""
     from goga_tool_pybuggy.commands.init.init import _CONVENTION_LINE
 
-    assert (
-        _CONVENTION_LINE
-        == "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
-    )
+    assert _CONVENTION_LINE == "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
     assert not _CONVENTION_LINE.endswith("\n")
 
 
@@ -217,9 +200,7 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     assert _CONVENTION_LINE in annotations
 
 
-def test_run_init_occupies_conventions_slot_in_fresh_project(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_occupies_conventions_slot_in_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """In a fresh project run_init delivers the slot, key, and annotation line end-to-end (steps 6-8)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -234,9 +215,7 @@ def test_run_init_occupies_conventions_slot_in_fresh_project(
     assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
 
 
-def test_run_init_leaves_divergent_conventions_key_untouched(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_leaves_divergent_conventions_key_untouched(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A pre-existing `conventions` key pointing elsewhere is skipped (register_usages never
     overwrites), while the slot file and the annotation line still migrate to the package version.
 
@@ -311,9 +290,7 @@ def test_run_init_logs_skipped_on_idempotent_rerun(
     assert "annotation already registered, skipped" in warn_messages
 
 
-def test_run_init_returns_goga_code_and_skips_slot_delivery(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_returns_goga_code_and_skips_slot_delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A failing goga-init returns its code before the bootstrap block: slot/usages/conftest untouched."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
@@ -344,9 +321,7 @@ def test_run_init_maps_convention_delivery_failure_to_click_exception(
     assert not (tmp_path / "conftest.py").exists()
 
 
-def test_run_init_migrates_legacy_slot_when_recreates_declined(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_migrates_legacy_slot_when_recreates_declined(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """With every recreate declined, a legacy slot is overwritten and its annotation line replaced."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -376,9 +351,7 @@ def test_run_init_migrates_legacy_slot_when_recreates_declined(
     assert "code writing rules" not in cfg["codemanifest"]["annotations"]  # legacy line replaced
 
 
-def test_run_init_generates_root_conftest_in_fresh_project(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_generates_root_conftest_in_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Step 10: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -388,9 +361,7 @@ def test_run_init_generates_root_conftest_in_fresh_project(
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
 
 
-def test_run_init_overwrites_conftest_on_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_overwrites_conftest_on_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When <cwd>/conftest.py exists and the user confirms, run_init overwrites it with the template."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -441,9 +412,7 @@ def test_run_init_maps_conftest_write_failure_to_click_exception(
     assert any("conftest write failed" in r.message for r in caplog.records)
 
 
-def test_run_init_does_not_write_conftest_when_goga_init_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_does_not_write_conftest_when_goga_init_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-zero run_goga_init code returns before step 10: no conftest, no usages bootstrapped."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
@@ -466,9 +435,7 @@ def test_run_init_does_not_write_conftest_when_config_build_fails(
     assert not (tmp_path / "conftest.py").exists()
 
 
-def test_run_init_does_not_write_conftest_when_bootstrap_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_does_not_write_conftest_when_bootstrap_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A bootstrap ClickException returns before step 10: no conftest is written."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -505,9 +472,7 @@ def test_run_init_idempotent_repeat_run_preserves_existing_conftest(
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == after_first
 
 
-def test_run_init_propagates_abort_on_conftest_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_propagates_abort_on_conftest_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A Ctrl-C at the conftest gate propagates as click.Abort (not swallowed by the OSError handler)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -520,9 +485,7 @@ def test_run_init_propagates_abort_on_conftest_confirm(
         run_init()
 
 
-def test_run_init_recursive_discovery_picks_subcell(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_recursive_discovery_picks_subcell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """run_init should discover the asserts subcell of api recursively."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
@@ -533,9 +496,7 @@ def test_run_init_recursive_discovery_picks_subcell(
     assert (tmp_path / ".goga/usages/cooks/pybuggy/asserts.md").exists()
 
 
-def test_run_init_in_initialized_project_skips_goga_init(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_in_initialized_project_skips_goga_init(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """On an already-initialized project run_init asks to recreate goga config; declining skips run_goga_init."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -553,9 +514,7 @@ def test_run_init_in_initialized_project_skips_goga_init(
     assert {"pybuggy-api", "pybuggy-asserts"} <= set(cfg["codemanifest"]["usages"])
 
 
-def test_run_init_propagates_goga_cancel_without_registering(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_propagates_goga_cancel_without_registering(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A non-zero run_goga_init exit code is returned without registering any usages."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
@@ -568,9 +527,7 @@ def test_run_init_propagates_goga_cancel_without_registering(
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
 
-def test_run_init_idempotent_second_run_no_diff(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_idempotent_second_run_no_diff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A second run_init (both recreates declined) overwrites copied files and skips keys — no diff."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -591,9 +548,7 @@ def test_run_init_idempotent_second_run_no_diff(
     assert before == after
 
 
-def test_run_init_recreates_goga_config_on_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_recreates_goga_config_on_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When .goga/config.yml exists and the user confirms, run_init re-runs run_goga_init (overwrites)."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -609,9 +564,7 @@ def test_run_init_recreates_goga_config_on_confirm(
     assert run_goga_init_spy.call_count == 1
 
 
-def test_run_init_rebuilds_pybuggy_config_on_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_rebuilds_pybuggy_config_on_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When the pybuggy tool config exists and the user confirms, run_init rebuilds it."""
     (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
     (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
@@ -630,9 +583,7 @@ def test_run_init_rebuilds_pybuggy_config_on_confirm(
     assert build_spy.call_count == 1
 
 
-def test_run_init_skips_pybuggy_rebuild_on_decline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_skips_pybuggy_rebuild_on_decline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """When the pybuggy tool config exists and the user declines, run_init skips build_pybuggy_config."""
     (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
     (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
@@ -651,9 +602,7 @@ def test_run_init_skips_pybuggy_rebuild_on_decline(
     assert build_spy.call_count == 0
 
 
-def test_run_init_maps_bootstrap_failure_to_click_exception(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_maps_bootstrap_failure_to_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """run_init should map a file-write failure to click.ClickException."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
@@ -1117,9 +1066,7 @@ def test_register_annotations_replaces_legacy_conventions_line(tmp_path: Path) -
         config,
         {
             "conventions": _CONVENTION_LINE,
-            "pybuggy-api": (
-                "Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."
-            ),
+            "pybuggy-api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
         },
     )
 
@@ -1134,9 +1081,7 @@ def test_register_annotations_replaces_legacy_conventions_line(tmp_path: Path) -
 def test_register_annotations_appends_when_reference_missing(tmp_path: Path) -> None:
     """register_annotations appends a line whose backtick reference is absent from the text."""
     config = tmp_path / "config.yml"
-    config.write_text(
-        "codemanifest:\n" "  annotations: |\n" "    Keep existing note.\n"
-    )
+    config.write_text("codemanifest:\n  annotations: |\n    Keep existing note.\n")
 
     changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
 
@@ -1169,12 +1114,7 @@ def test_register_annotations_idempotent_repeat_returns_empty_and_no_file_diff(
 def test_register_annotations_replaces_only_first_matching_line(tmp_path: Path) -> None:
     """Only the first line carrying a backtick reference is replaced; later duplicates stay."""
     config = tmp_path / "config.yml"
-    config.write_text(
-        "codemanifest:\n"
-        "  annotations: |\n"
-        "    `pybuggy-api` first mention.\n"
-        "    `pybuggy-api` second.\n"
-    )
+    config.write_text("codemanifest:\n  annotations: |\n    `pybuggy-api` first mention.\n    `pybuggy-api` second.\n")
 
     changed = register_annotations(config, {"pybuggy-api": "Use `pybuggy-api` for requests."})
 
@@ -1194,9 +1134,7 @@ def test_register_annotations_replaces_after_plain_scalar_without_trailing_newli
     a byte-identical no-op.
     """
     config = tmp_path / "config.yml"
-    config.write_text(
-        "codemanifest:\n  annotations: Use `conventions` for code writing rules and testing.\n"
-    )
+    config.write_text("codemanifest:\n  annotations: Use `conventions` for code writing rules and testing.\n")
 
     changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
 
@@ -1241,11 +1179,7 @@ def test_register_annotations_treats_empty_and_null_annotations_as_absent(
 def test_register_annotations_round_trip_preserves_comments(tmp_path: Path) -> None:
     """register_annotations preserves comments via ruamel round-trip editing."""
     config = tmp_path / "config.yml"
-    config.write_text(
-        "codemanifest:\n"
-        "  usages:\n"
-        "    conventions: .goga/usages/conventions.md  # пользовательский\n"
-    )
+    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md  # пользовательский\n")
 
     register_annotations(config, _ANNOTATION_LINES)
 
@@ -1693,9 +1627,7 @@ def test_write_pybuggy_conftest_emits_runnable_plugin_wiring(tmp_path: Path) -> 
 # write_test_convention logic tests ---------------------------------------------
 
 
-def test_write_test_convention_writes_asset_text(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_test_convention_writes_asset_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """write_test_convention writes the packaged asset text to a nested, not-yet-existing target."""
     from goga_tool_pybuggy.commands.init.init import write_test_convention
 
@@ -1709,9 +1641,7 @@ def test_write_test_convention_writes_asset_text(
     assert target.read_text(encoding="utf-8") == _ASSET_TEXT
 
 
-def test_write_test_convention_reads_packaged_asset_not_cwd(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_test_convention_reads_packaged_asset_not_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Decoy conventions.md files in the cwd checkout are ignored — only the packaged asset is read."""
     from goga_tool_pybuggy.commands.init.init import write_test_convention
 
@@ -1745,9 +1675,7 @@ def test_write_test_convention_overwrites_locally_modified_slot(
     assert target.read_text(encoding="utf-8") == _ASSET_TEXT
 
 
-def test_write_test_convention_propagates_os_error(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_test_convention_propagates_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An OSError (here: a directory sitting on the file path) propagates — never swallowed."""
     from goga_tool_pybuggy.commands.init.init import write_test_convention
 
@@ -1758,9 +1686,7 @@ def test_write_test_convention_propagates_os_error(
         write_test_convention(tmp_path / "blocked")
 
 
-def test_write_test_convention_never_prompts(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_write_test_convention_never_prompts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The routine is pure (TTY-free): neither click.confirm nor click.prompt is ever called."""
     from goga_tool_pybuggy.commands.init.init import write_test_convention
 
@@ -1809,9 +1735,7 @@ def test_build_pybuggy_config_overwrites_existing_without_confirm(
     assert "base_url: |" in text  # regenerated from the prompted answers
 
 
-def test_build_pybuggy_config_returns_nonzero_on_abort(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_build_pybuggy_config_returns_nonzero_on_abort(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A click.Abort during prompting returns non-zero without raising (scenario C).
 
     With the overwrite confirmation removed, cancellation surfaces from the interactive prompts
@@ -1827,9 +1751,7 @@ def test_build_pybuggy_config_returns_nonzero_on_abort(
     assert rc != 0  # never raises; cancellation surfaces as a non-zero code
 
 
-def test_build_pybuggy_config_returns_nonzero_on_write_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_build_pybuggy_config_returns_nonzero_on_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A failure inside write_pybuggy_config is logged/echoed and returns non-zero without raising."""
     monkeypatch.chdir(tmp_path)  # no existing config → overwrite confirm skipped
     # git confirm answered 'no' so no extra prompts are consumed inside _ask_spec
@@ -2008,9 +1930,7 @@ def test_build_pybuggy_config_reprompts_whitespace_git_url_and_location(
     assert git.ref is None  # empty ref coerced to None
 
 
-def test_build_pybuggy_config_base_url_emitted_as_block_scalar(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_build_pybuggy_config_base_url_emitted_as_block_scalar(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A single-line base_url is emitted as a | block scalar (not a wrapped plain scalar)."""
     monkeypatch.chdir(tmp_path)  # no existing config -> overwrite confirm skipped
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # no git source
@@ -2043,4 +1963,3 @@ def test_build_pybuggy_config_base_url_emitted_as_block_scalar(
     assert f"  {base_url}" in text  # one indented block line — not wrapped
     raw = yaml.safe_load(text)
     assert raw["base_url"].rstrip("\n") == base_url
-

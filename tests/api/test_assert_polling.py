@@ -19,8 +19,8 @@ import time
 from typing import Any
 
 import pytest
-from goga_tool_pybuggy.api.asserts.config import AssertConfig
 from goga_tool_pybuggy.api.asserts.base import load_assert_class
+from goga_tool_pybuggy.api.asserts.config import AssertConfig
 from goga_tool_pybuggy.api.asserts.expected import Expected
 from goga_tool_pybuggy.api.asserts.field import AssertField
 from goga_tool_pybuggy.api.response import ResponseWrapper
@@ -195,7 +195,7 @@ class TestLoadAssertClass:
             load_assert_class("no_colon_here", AssertField)
 
     def test_unknown_module_raises_import_error(self) -> None:
-        with pytest.raises(ImportError, match='Module "definitely.no.such.module" not found'):
+        with pytest.raises(ImportError, match=r'Module "definitely.no.such.module" not found'):
             load_assert_class("definitely.no.such.module:Cls", AssertField)
 
     def test_unknown_class_raises_import_error(self) -> None:

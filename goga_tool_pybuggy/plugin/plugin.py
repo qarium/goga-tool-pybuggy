@@ -121,9 +121,7 @@ def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
 
     option = config.option
     return {
-        name: getattr(option, name)
-        for name in names
-        if hasattr(option, name) and getattr(option, name) is not None
+        name: getattr(option, name) for name in names if hasattr(option, name) and getattr(option, name) is not None
     }
 
 
@@ -221,13 +219,13 @@ class ApiPlugin:
     )
 
     def __init__(
-            self,
-            *,
-            context: dict,
-            loaders: t.Optional[list[BaseLoader]] = None,
-            default_retries: t.Optional[int] = None,
-            default_assert_timeout: t.Optional[int] = None,
-            default_assert_delay: t.Optional[int | float] = None,
+        self,
+        *,
+        context: dict,
+        loaders: t.Optional[list[BaseLoader]] = None,
+        default_retries: t.Optional[int] = None,
+        default_assert_timeout: t.Optional[int] = None,
+        default_assert_delay: t.Optional[int | float] = None,
     ) -> None:
         """Initialize the plugin and synchronously register generated fixtures.
 

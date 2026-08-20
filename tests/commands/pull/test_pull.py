@@ -380,9 +380,7 @@ def test_run_pull_cli_ref_overrides_config_ref(tmp_path: Path, monkeypatch: pyte
     assert args[1] == "v2"
 
 
-def test_run_pull_cli_ref_overrides_absent_config_ref(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_pull_cli_ref_overrides_absent_config_ref(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """run_pull should pass the CLI ``ref`` to clone_repo when git.ref is absent."""
     _write_client_config(tmp_path, monkeypatch, ref=None)
     clone_root = _fake_clone_root(tmp_path)
@@ -469,9 +467,7 @@ def _two_spec_clone_roots(tmp_path: Path) -> tuple:
     return clone1, clone2
 
 
-def test_run_pull_applies_per_spec_refs_in_one_call(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_pull_applies_per_spec_refs_in_one_call(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """run_pull applies a distinct per-spec ref to each spec in a single call."""
     _write_two_spec_config(tmp_path, monkeypatch)
     clone1, clone2 = _two_spec_clone_roots(tmp_path)
@@ -495,9 +491,7 @@ def test_run_pull_applies_per_spec_refs_in_one_call(
     assert (tmp_path / ".specs" / "server.yaml").read_text() == "server"
 
 
-def test_run_pull_per_spec_ref_overrides_global(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_pull_per_spec_ref_overrides_global(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A per-spec ref overrides the global ref for that spec only; others use the global."""
     _write_two_spec_config(tmp_path, monkeypatch)
     clone1, clone2 = _two_spec_clone_roots(tmp_path)
@@ -519,9 +513,7 @@ def test_run_pull_per_spec_ref_overrides_global(
     assert seen["https://example.com/repo2.git"] == "v3"
 
 
-def test_run_pull_per_spec_ref_overrides_config_ref(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_pull_per_spec_ref_overrides_config_ref(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A per-spec ref wins over the configured git.ref for that spec."""
     _write_client_config(tmp_path, monkeypatch, ref="v1")
     clone_root = _fake_clone_root(tmp_path)
@@ -535,9 +527,7 @@ def test_run_pull_per_spec_ref_overrides_config_ref(
     assert args[1] == "v2"
 
 
-def test_run_pull_raises_on_unknown_per_spec_ref(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_pull_raises_on_unknown_per_spec_ref(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A per-spec ref naming a spec absent from the configuration raises ClickException."""
     _write_client_config(tmp_path, monkeypatch, ref="v1")
     _fake_clone_root(tmp_path)
@@ -549,9 +539,7 @@ def test_run_pull_raises_on_unknown_per_spec_ref(
     assert "nonexistent" in str(exc_info.value)
 
 
-def test_run_pull_unknown_per_spec_ref_lists_all_unknown(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_pull_unknown_per_spec_ref_lists_all_unknown(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Multiple unknown per-spec refs are all reported in the ClickException."""
     _write_client_config(tmp_path, monkeypatch, ref="v1")
     _fake_clone_root(tmp_path)
@@ -579,9 +567,7 @@ def test_run_pull_per_spec_ref_in_config_but_filtered_does_not_raise(
     assert mock_clone.call_count == 1
 
 
-def test_run_pull_global_ref_as_str_still_works(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_pull_global_ref_as_str_still_works(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A plain string ref (direct handler call) remains a global override — backward compatible."""
     _write_two_spec_config(tmp_path, monkeypatch)
     clone1, clone2 = _two_spec_clone_roots(tmp_path)
@@ -713,9 +699,7 @@ def test_pull_cmd_empty_pybuggy_ref_envvar_is_unset(monkeypatch: pytest.MonkeyPa
 # Integration: PYBUGGY_REF (via the --ref envvar) flows into the clone ref (CLI level).
 
 
-def test_pull_cmd_pybuggy_ref_envvar_used_as_clone_ref(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_pull_cmd_pybuggy_ref_envvar_used_as_clone_ref(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """PYBUGGY_REF, read via the --ref envvar, becomes the clone ref.
 
     End-to-end at the click layer: with no ``--ref`` and no configured ``git.ref``, the

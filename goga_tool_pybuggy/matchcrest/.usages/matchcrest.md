@@ -28,14 +28,22 @@ from goga_tool_pybuggy.matchcrest import assert_that, ResponseCodeMatcher, Value
 ```python
 from goga_tool_pybuggy.matchcrest import assert_that, BaseContext, ResponseCodeMatcher
 
+
 class Ctx(BaseContext):
     def __init__(self, response):
         self._r = response
+
     @property
-    def value(self): return self._r.status_code
+    def value(self):
+        return self._r.status_code
+
     @property
-    def key(self): return self._r.url
-    def update(self): self._r = refetch(self._r.url)
+    def key(self):
+        return self._r.url
+
+    def update(self):
+        self._r = refetch(self._r.url)
+
 
 assert_that(Ctx(response), ResponseCodeMatcher(200))
 ```

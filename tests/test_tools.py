@@ -45,8 +45,10 @@ class TestRetriesContract:
 
             return mock.MagicMock()
 
-        with mock.patch.object(tools, "flaky", side_effect=fake_flaky), \
-                mock.patch.object(tools.time, "sleep") as sleep_mock:
+        with (
+            mock.patch.object(tools, "flaky", side_effect=fake_flaky),
+            mock.patch.object(tools.time, "sleep") as sleep_mock,
+        ):
             tools.retries(max_runs=3, delay=2)
             result = captured["rerun_filter"]("err", "name", "test", "plugin")
 

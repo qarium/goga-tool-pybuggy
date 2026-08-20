@@ -65,7 +65,7 @@ class Api:
             rejected by :meth:`_validate_adapter` until an async stack lands.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         base_url: str,
         auth: AuthBase | None = None,

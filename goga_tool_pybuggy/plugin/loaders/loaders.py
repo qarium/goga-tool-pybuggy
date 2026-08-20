@@ -45,9 +45,7 @@ PYTEST_OBJ_ATTRS: t.Final = (
 )
 
 # Public attribute-name prefixes that mark a module as a pytest plugin (a hook).
-PYTEST_OBJ_NAME_PREFIXES: t.Final = (
-    "pytest_",
-)
+PYTEST_OBJ_NAME_PREFIXES: t.Final = ("pytest_",)
 
 
 def _module_is_pytest_plugin(name: str) -> bool:

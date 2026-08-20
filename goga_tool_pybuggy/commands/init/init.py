@@ -150,20 +150,14 @@ def _ensure_scalar(parent: CommentedMap, key: str) -> str:
 # prefix). Unknown stems fall back to a bare backtick reference so future api subcells are still
 # bound to the contract — the DSL requires every connected usage to be referenced in an annotation.
 PYBUGGY_ANNOTATIONS: dict[str, str] = {
-    "api": (
-        "Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."
-    ),
-    "asserts": (
-        "Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses."
-    ),
+    "api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
+    "asserts": ("Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses."),
 }
 
 # Annotation line for the ``conventions`` usage key — the test-convention slot occupied by
 # ``write_test_convention``. Like ``PYBUGGY_ANNOTATIONS`` above, it is the sole source of the
 # line registered under ``codemanifest.annotations`` (init step 8).
-_CONVENTION_LINE = (
-    "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
-)
+_CONVENTION_LINE = "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
 
 
 def _annotation_for(stem: str) -> str:
@@ -244,17 +238,8 @@ def register_annotations(config_path: Path, annotation_lines: dict[str, str]) ->
 # ``# ``-prefixed example (pinned to the next active key via the ruamel ``before`` comment) instead
 # of an active key — documenting the full option surface without producing schema keys (``Config``
 # ignores extra scalars).
-_HEADERS_BLOCK = (
-    "headers: example (skipped complex member)\n"
-    "  X-Example: value\n"
-    "  default request headers dict"
-)
-_LOADER_BLOCK = (
-    "loader: example (skipped complex member)\n"
-    "  packages:\n"
-    "    - api\n"
-    "  modules: []"
-)
+_HEADERS_BLOCK = "headers: example (skipped complex member)\n  X-Example: value\n  default request headers dict"
+_LOADER_BLOCK = "loader: example (skipped complex member)\n  packages:\n    - api\n  modules: []"
 
 # Complex plugin members never captured as scalars; emitted as the commented example blocks above.
 _COMPLEX_MEMBERS = frozenset({PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER})
@@ -306,9 +291,7 @@ def _git_entry_to_map(git: GitEntry) -> CommentedMap:
     return g
 
 
-def write_pybuggy_config(
-    path: Path, scalar_values: dict[str, str | None], specs: dict[str, SpecEntry]
-) -> None:
+def write_pybuggy_config(path: Path, scalar_values: dict[str, str | None], specs: dict[str, SpecEntry]) -> None:
     """Emit ``.goga/tools/pybuggy/config.yml`` from answered scalars and specs.
 
     Pure, TTY-free, deterministic round-trip emitter. Active scalar values
@@ -375,9 +358,7 @@ def write_pybuggy_config(
             # is harmless and the template still renders to the same URL.
             doc[member.value] = LiteralScalarString(value + "\n")
             _flush(member.value)
-            doc.yaml_set_comment_before_after_key(
-                PluginConfigKeys.BASE_URL.value, before="required, Jinja2 template"
-            )
+            doc.yaml_set_comment_before_after_key(PluginConfigKeys.BASE_URL.value, before="required, Jinja2 template")
         else:
             # Numeric members (timeout/retries/assert_timeout/assert_delay) are coerced to their
             # ``ApiPlugin`` option type so the emitted scalar is a number, not a quoted string — a
@@ -408,13 +389,7 @@ def write_pybuggy_config(
 # because the plugin options resolve from os.environ, so .env has to be loaded first; the
 # argumentless load_dotenv() keeps override=False, letting CI/operator-exported variables win.
 _CONFTEST_TEMPLATE = (
-    "from dotenv import load_dotenv\n"
-    "\n"
-    "load_dotenv()\n"
-    "\n"
-    "from goga_tool_pybuggy import plugin\n"
-    "\n"
-    "plugin.install()\n"
+    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
 )
 
 
@@ -461,9 +436,9 @@ def write_test_convention(path: Path) -> None:
         OSError: Forwarded unchanged to the caller on a read/write failure (including
             ``FileNotFoundError`` from a broken installation without the packaged asset).
     """
-    asset_text = (
-        importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
-    ).read_text(encoding="utf-8")
+    asset_text = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(
+        encoding="utf-8"
+    )
 
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -475,9 +450,7 @@ def write_test_convention(path: Path) -> None:
 # ``BASE_URL`` is collected separately as a (possibly multi-line) Jinja2 template;
 # ``HEADERS``/``LOADER`` are complex members and never surveyed here.
 _SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
-    PluginConfigKeys.TIMEOUT: (
-        "timeout — request timeout in seconds for HTTP calls (optional). Enter to skip"
-    ),
+    PluginConfigKeys.TIMEOUT: ("timeout — request timeout in seconds for HTTP calls (optional). Enter to skip"),
     PluginConfigKeys.DATA_KEY: (
         "data_key — response body key treated as the success payload (optional). Enter to skip"
     ),
@@ -488,19 +461,16 @@ _SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
         "retries — flaky rerun count for failing tests across the suite (optional). Enter to skip"
     ),
     PluginConfigKeys.ASSERT_TIMEOUT: (
-        "assert_timeout — baseline polling timeout in seconds for retrying assertions "
-        "(optional). Enter to skip"
+        "assert_timeout — baseline polling timeout in seconds for retrying assertions (optional). Enter to skip"
     ),
     PluginConfigKeys.ASSERT_DELAY: (
         "assert_delay — seconds between assertion polling attempts (optional). Enter to skip"
     ),
     PluginConfigKeys.ASSERT_FIELD_CLASS: (
-        'assert_field_class — dotted "module:Class" of a custom AssertField subclass '
-        "(optional). Enter to skip"
+        'assert_field_class — dotted "module:Class" of a custom AssertField subclass (optional). Enter to skip'
     ),
     PluginConfigKeys.ASSERT_RESPONSE_CLASS: (
-        'assert_response_class — dotted "module:Class" of a custom Expected subclass '
-        "(optional). Enter to skip"
+        'assert_response_class — dotted "module:Class" of a custom Expected subclass (optional). Enter to skip'
     ),
 }
 
@@ -587,10 +557,13 @@ def _ask_spec() -> SpecEntry:
                 default="",
                 show_default=False,
             ).strip()
-        g_ref = click.prompt(
-            "git ref — branch or tag to clone (optional, defaults to the remote default branch)",
-            default="",
-        ).strip() or None
+        g_ref = (
+            click.prompt(
+                "git ref — branch or tag to clone (optional, defaults to the remote default branch)",
+                default="",
+            ).strip()
+            or None
+        )
         git = GitEntry(url=g_url, location=g_loc, ref=g_ref)
     return SpecEntry(type=t, location=location, git=git)
 
@@ -908,17 +881,13 @@ def run_init() -> int:
 
     # Goga-project config: create when absent; recreate only on explicit confirmation (overwriting it
     # can discard user-customized codemanifest entries beyond pybuggy's own).
-    if _should_rebuild(
-        goga_config, ".goga/config.yml exists — re-run goga init and overwrite it?"
-    ):
+    if _should_rebuild(goga_config, ".goga/config.yml exists — re-run goga init and overwrite it?"):
         rc = run_goga_init()
         if rc != 0:
             return rc
 
     # Pybuggy tool config: build when absent; rebuild only on explicit confirmation.
-    if _should_rebuild(
-        pybuggy_config, ".goga/tools/pybuggy/config.yml exists — rebuild it from the survey?"
-    ):
+    if _should_rebuild(pybuggy_config, ".goga/tools/pybuggy/config.yml exists — rebuild it from the survey?"):
         rc = build_pybuggy_config()
         if rc != 0:
             return rc

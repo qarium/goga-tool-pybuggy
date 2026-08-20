@@ -114,9 +114,7 @@ def _resolve_refs(ref: Optional[str | tuple]) -> tuple:
     return global_ref, per_spec
 
 
-def _effective_ref(
-        name: str, git_ref: Optional[str], global_ref: Optional[str], per_spec: dict
-) -> Optional[str]:
+def _effective_ref(name: str, git_ref: Optional[str], global_ref: Optional[str], per_spec: dict) -> Optional[str]:
     """Resolve the effective ref for a single spec.
 
     Precedence (highest to lowest): per-spec override, global override,

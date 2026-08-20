@@ -14,13 +14,12 @@ from .base import (
 # pylint: disable=abstract-method
 class BaseValueMatcher(BaseMatcher):
     def __init__(self, *args, **kwargs):
-        self.any = kwargs.pop('any', False)
-        self.in_array = kwargs.pop('in_array', False)
+        self.any = kwargs.pop("any", False)
+        self.in_array = kwargs.pop("in_array", False)
 
         if self.any and not self.in_array:
             raise ValueError(
-                'Invalid parameters combination, '
-                '"any" can be used with "in_array" only',
+                'Invalid parameters combination, "any" can be used with "in_array" only',
             )
 
         super().__init__(*args, **kwargs)
@@ -33,7 +32,7 @@ class BaseSetValueMatcher(BaseValueMatcher):
 
     def _throw_if_not_iterable(self, value: t.Any):
         if not isinstance(value, Iterable):
-            raise ValueError(f'{self.__class__.__name__} can only be applied to iterable values')
+            raise ValueError(f"{self.__class__.__name__} can only be applied to iterable values")
 
 
 class ValueContainsMatcher(BaseValueMatcher):
@@ -52,12 +51,10 @@ class ValueContainsMatcher(BaseValueMatcher):
             if self.expected_value in value and self.any:
                 return MatchResult(True)
             if self.expected_value not in value:
-                errors.append(f'{pformat(self.expected_value)} not in {pformat(value)}')
+                errors.append(f"{pformat(self.expected_value)} not in {pformat(value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -78,19 +75,17 @@ class ValueNotContainsMatcher(BaseValueMatcher):
             if self.expected_value not in value and self.any:
                 return MatchResult(True)
             if self.expected_value in value:
-                errors.append(f'{pformat(self.expected_value)} in {pformat(value)}')
+                errors.append(f"{pformat(self.expected_value)} in {pformat(value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
 
 class ValueIsEqualMatcher(BaseValueMatcher):
     def __init__(self, *args, **kwargs):
-        self.strict = kwargs.pop('strict', False)
+        self.strict = kwargs.pop("strict", False)
 
         super().__init__(*args, **kwargs)
 
@@ -112,21 +107,19 @@ class ValueIsEqualMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if self.strict and self.expected_value is not value:
-                errors.append(f'{pformat(self.expected_value)} is not {pformat(value)}')
+                errors.append(f"{pformat(self.expected_value)} is not {pformat(value)}")
             if not self.strict and value != self.expected_value:
-                errors.append(f'{pformat(self.expected_value)} != {pformat(value)}')
+                errors.append(f"{pformat(self.expected_value)} != {pformat(value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
 
 class ValueIsNotEqualMatcher(BaseValueMatcher):
     def __init__(self, *args, **kwargs):
-        self.strict = kwargs.pop('strict', False)
+        self.strict = kwargs.pop("strict", False)
 
         super().__init__(*args, **kwargs)
 
@@ -148,21 +141,19 @@ class ValueIsNotEqualMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if self.strict and self.expected_value is value:
-                errors.append(f'{pformat(self.expected_value)} is {pformat(value)}')
+                errors.append(f"{pformat(self.expected_value)} is {pformat(value)}")
             if not self.strict and value == self.expected_value:
-                errors.append(f'{pformat(self.expected_value)} == {pformat(value)}')
+                errors.append(f"{pformat(self.expected_value)} == {pformat(value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
 
 class ValueIsGreaterMatcher(BaseValueMatcher):
     def __init__(self, *args, **kwargs):
-        self.or_equal = kwargs.pop('or_equal', False)
+        self.or_equal = kwargs.pop("or_equal", False)
 
         super().__init__(*args, **kwargs)
 
@@ -184,25 +175,23 @@ class ValueIsGreaterMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if self.or_equal and not value >= self.expected_value:
-                errors.append(f'{pformat(value)} < {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} < {pformat(self.expected_value)}")
             if not self.or_equal and not value > self.expected_value:
                 errors.append(
-                    f'{pformat(value)} == {pformat(self.expected_value)}'
-                    if value == self.expected_value else
-                    f'{pformat(value)} < {pformat(self.expected_value)}'
+                    f"{pformat(value)} == {pformat(self.expected_value)}"
+                    if value == self.expected_value
+                    else f"{pformat(value)} < {pformat(self.expected_value)}"
                 )
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
 
 class ValueIsLesserMatcher(BaseValueMatcher):
     def __init__(self, *args, **kwargs):
-        self.or_equal = kwargs.pop('or_equal', False)
+        self.or_equal = kwargs.pop("or_equal", False)
 
         super().__init__(*args, **kwargs)
 
@@ -224,18 +213,16 @@ class ValueIsLesserMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if self.or_equal and not value <= self.expected_value:
-                errors.append(f'{pformat(value)} > {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} > {pformat(self.expected_value)}")
             if not self.or_equal and not value < self.expected_value:
                 errors.append(
-                    f'{pformat(value)} == {pformat(self.expected_value)}'
-                    if value == self.expected_value else
-                    f'{pformat(value)} > {pformat(self.expected_value)}'
+                    f"{pformat(value)} == {pformat(self.expected_value)}"
+                    if value == self.expected_value
+                    else f"{pformat(value)} > {pformat(self.expected_value)}"
                 )
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -259,12 +246,10 @@ class ValueLengthEqualMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if self.expected_value != length:
-                errors.append(f'length of {pformat(value)}: {pformat(length)} != {pformat(self.expected_value)}')
+                errors.append(f"length of {pformat(value)}: {pformat(length)} != {pformat(self.expected_value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -288,15 +273,15 @@ class ValueLengthGreaterMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if length <= self.expected_value:
-                message = f'{pformat(length)} == {pformat(self.expected_value)}' \
-                    if length == self.expected_value else \
-                    f'{pformat(length)} < {pformat(self.expected_value)}'
-                errors.append(f'length of {pformat(value)}: {pformat(message)}')
+                message = (
+                    f"{pformat(length)} == {pformat(self.expected_value)}"
+                    if length == self.expected_value
+                    else f"{pformat(length)} < {pformat(self.expected_value)}"
+                )
+                errors.append(f"length of {pformat(value)}: {pformat(message)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -320,34 +305,37 @@ class ValueLengthLesserMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if length >= self.expected_value:
-                message = f'{pformat(length)} == {pformat(self.expected_value)}' \
-                    if length == self.expected_value else \
-                    f'{pformat(length)} > {pformat(self.expected_value)}'
-                errors.append(f'length of {pformat(value)}: {pformat(message)}')
+                message = (
+                    f"{pformat(length)} == {pformat(self.expected_value)}"
+                    if length == self.expected_value
+                    else f"{pformat(length)} > {pformat(self.expected_value)}"
+                )
+                errors.append(f"length of {pformat(value)}: {pformat(message)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
 
 class ValueIsUrlMatcher(BaseValueMatcher):
     def __init__(self, *args, **kwargs):
-        self.is_live = kwargs.pop('is_live', False)
-        self.allowed_protocols = kwargs.pop('allowed_protocols', None)
+        self.is_live = kwargs.pop("is_live", False)
+        self.allowed_protocols = kwargs.pop("allowed_protocols", None)
 
         super().__init__(*args, **kwargs)
 
     def _assert(self, item: BaseContext) -> MatchResult:
         errors: list[str] = []
-        expectations = [
-            f'Value from "{item.key}" value should be match '
-            f'URL RFC standard and response status code == 2xx',
-        ] if self.is_live else [
-            f'Value from "{item.key}" should be match URL RFC standard',
-        ]
+        expectations = (
+            [
+                f'Value from "{item.key}" value should be match URL RFC standard and response status code == 2xx',
+            ]
+            if self.is_live
+            else [
+                f'Value from "{item.key}" should be match URL RFC standard',
+            ]
+        )
 
         current_value = item.value
 
@@ -355,17 +343,18 @@ class ValueIsUrlMatcher(BaseValueMatcher):
             current_value = [current_value]
 
         for url in current_value:
-            is_valid = url_is_valid(url,
-                                    is_live=self.is_live,
-                                    allowed_protocols=self.allowed_protocols)
+            is_valid = url_is_valid(url, is_live=self.is_live, allowed_protocols=self.allowed_protocols)
 
             if is_valid and self.any:
                 return MatchResult(True)
 
             if not is_valid:
-                message = f'{pformat(url)} is not valid. '
-                errors.append(message + 'Check the status code and match RFC standard.'
-                              if self.is_live else message + 'Check match RFC standard.')
+                message = f"{pformat(url)} is not valid. "
+                errors.append(
+                    message + "Check the status code and match RFC standard."
+                    if self.is_live
+                    else message + "Check match RFC standard."
+                )
 
         if not errors:
             return MatchResult(True)
@@ -392,12 +381,10 @@ class ValueRegexMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if not result:
-                errors.append(f'{pformat(value)} does not match regexp {pformat(self.expected_value.pattern)}')
+                errors.append(f"{pformat(value)} does not match regexp {pformat(self.expected_value.pattern)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -406,8 +393,7 @@ class ValueContainsDictMatcher(BaseValueMatcher):
     def _assert(self, item: BaseContext) -> MatchResult:
         errors: list[str] = []
         expectations = [
-            f'Value from "{item.key}" should contains keys '
-            f'and values from dict {pformat(self.expected_value)}',
+            f'Value from "{item.key}" should contains keys and values from dict {pformat(self.expected_value)}',
         ]
 
         current_value = item.value
@@ -417,7 +403,7 @@ class ValueContainsDictMatcher(BaseValueMatcher):
 
         for value in current_value:
             if not isinstance(value, dict):
-                errors.append(f'{pformat(value)} is not type dict')
+                errors.append(f"{pformat(value)} is not type dict")
                 continue
 
             success = True
@@ -427,8 +413,8 @@ class ValueContainsDictMatcher(BaseValueMatcher):
 
                 if current_value_from_key != expected_value_from_key:
                     errors.append(
-                        f'For key {pformat(key)} in dict {pformat(value)}: '
-                        f'{pformat(current_value_from_key)} != {pformat(expected_value_from_key)}',
+                        f"For key {pformat(key)} in dict {pformat(value)}: "
+                        f"{pformat(current_value_from_key)} != {pformat(expected_value_from_key)}",
                     )
                     success = False
 
@@ -436,9 +422,7 @@ class ValueContainsDictMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -457,14 +441,14 @@ class ValueEndsWithMatcher(BaseValueMatcher):
 
         for value in current_value:
             if not isinstance(value, str):
-                errors.append(f'{pformat(value)} is not string')
+                errors.append(f"{pformat(value)} is not string")
                 continue
 
             if value.endswith(self.expected_value) and self.any:
                 return MatchResult(True)
 
             if not value.endswith(self.expected_value):
-                errors.append(f'{pformat(value)} does not endswith {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} does not endswith {pformat(self.expected_value)}")
 
         if errors:
             return MatchResult(False, errors=errors, expectations=expectations)
@@ -486,14 +470,14 @@ class ValueStartsWithMatcher(BaseValueMatcher):
 
         for value in current_value:
             if not isinstance(value, str):
-                errors.append(f'{pformat(value)} is not string')
+                errors.append(f"{pformat(value)} is not string")
                 continue
 
             if value.startswith(self.expected_value) and self.any:
                 return MatchResult(True)
 
             if not value.startswith(self.expected_value):
-                errors.append(f'{pformat(value)} does not startswith {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} does not startswith {pformat(self.expected_value)}")
 
         if errors:
             return MatchResult(False, errors=errors, expectations=expectations)
@@ -518,12 +502,10 @@ class ValueIsEmpty(BaseValueMatcher):
                 return MatchResult(True)
 
             if bool(value):
-                errors.append(f'{pformat(value)} is not empty')
+                errors.append(f"{pformat(value)} is not empty")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -545,12 +527,10 @@ class ValueIsNotEmpty(BaseValueMatcher):
                 return MatchResult(True)
 
             if not bool(value):
-                errors.append(f'{pformat(value)} is empty')
+                errors.append(f"{pformat(value)} is empty")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -569,7 +549,7 @@ class ValueDateEqualMatcher(BaseValueMatcher):
 
         for value in current_value:
             if not isinstance(value, date):
-                errors.append(f'{pformat(value)} is not date or datetime object')
+                errors.append(f"{pformat(value)} is not date or datetime object")
                 continue
 
             current_datetime = date_to_timestamp(value)
@@ -579,12 +559,10 @@ class ValueDateEqualMatcher(BaseValueMatcher):
                 return MatchResult(True)
 
             if current_datetime != expected_datetime:
-                errors.append(f'{pformat(value)} != {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} != {pformat(self.expected_value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -603,7 +581,7 @@ class ValueDateGreaterMatcher(BaseValueMatcher):
 
         for value in current_value:
             if not isinstance(value, date):
-                errors.append(f'{pformat(value)} is not date or datetime object')
+                errors.append(f"{pformat(value)} is not date or datetime object")
                 continue
 
             current_datetime = date_to_timestamp(value)
@@ -614,15 +592,13 @@ class ValueDateGreaterMatcher(BaseValueMatcher):
 
             if current_datetime <= expected_datetime:
                 errors.append(
-                    f'{pformat(value)} == {pformat(self.expected_value)}'
+                    f"{pformat(value)} == {pformat(self.expected_value)}"
                     if current_datetime == expected_datetime
-                    else f'{pformat(value)} < {pformat(self.expected_value)}',
+                    else f"{pformat(value)} < {pformat(self.expected_value)}",
                 )
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -641,7 +617,7 @@ class ValueDateLesserMatcher(BaseValueMatcher):
 
         for value in current_value:
             if not isinstance(value, date):
-                errors.append(f'{pformat(value)} is not date or datetime object')
+                errors.append(f"{pformat(value)} is not date or datetime object")
                 continue
 
             current_datetime = date_to_timestamp(value)
@@ -652,15 +628,13 @@ class ValueDateLesserMatcher(BaseValueMatcher):
 
             if current_datetime >= expected_datetime:
                 errors.append(
-                    f'{pformat(value)} == {pformat(self.expected_value)}'
+                    f"{pformat(value)} == {pformat(self.expected_value)}"
                     if current_datetime == expected_datetime
-                    else f'{pformat(value)} > {pformat(self.expected_value)}',
+                    else f"{pformat(value)} > {pformat(self.expected_value)}",
                 )
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -681,12 +655,10 @@ class ValueIsInMatcher(BaseValueMatcher):
             if self.any and value in self.expected_value:
                 return MatchResult(True)
             if value not in self.expected_value:
-                errors.append(f'{pformat(value)} is not in {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} is not in {pformat(self.expected_value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -707,12 +679,10 @@ class ValueIsNotInMatcher(BaseValueMatcher):
             if self.any and value not in self.expected_value:
                 return MatchResult(True)
             if value in self.expected_value:
-                errors.append(f'{pformat(value)} is in {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} is in {pformat(self.expected_value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -736,12 +706,10 @@ class ValueIsSubsetMatcher(BaseSetValueMatcher):
             if self.any and value_set.issubset(expected_set):
                 return MatchResult(True)
             if not value_set.issubset(expected_set):
-                errors.append(f'{pformat(value)} is not a subset of {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} is not a subset of {pformat(self.expected_value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)
 
@@ -765,11 +733,9 @@ class ValueIsDisjointMatcher(BaseSetValueMatcher):
             if self.any and value_set.isdisjoint(expected_set):
                 return MatchResult(True)
             if not value_set.isdisjoint(expected_set):
-                errors.append(f'{pformat(value)} is not disjoint from {pformat(self.expected_value)}')
+                errors.append(f"{pformat(value)} is not disjoint from {pformat(self.expected_value)}")
 
         if errors:
-            return MatchResult(False,
-                               errors=errors,
-                               expectations=expectations)
+            return MatchResult(False, errors=errors, expectations=expectations)
 
         return MatchResult(True)

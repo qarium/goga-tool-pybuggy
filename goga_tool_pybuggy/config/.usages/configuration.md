@@ -18,12 +18,12 @@ config = load_config(path)  # path — от корня проекта; пере�
 
 ```python
 for name, entry in config.specs.items():
-    location = entry.location       # путь от корня проекта до файла спеки
-    git = entry.git                 # Optional[GitEntry]; None → spec локальная
+    location = entry.location  # путь от корня проекта до файла спеки
+    git = entry.git  # Optional[GitEntry]; None → spec локальная
     if git is not None:
-        clone_url = git.url         # clone URL (без встроенных токенов)
-        repo_path = git.location    # путь внутри репозитория
-        repo_ref = git.ref          # Optional[str]; ветка/тег для клонирования; None → default branch
+        clone_url = git.url  # clone URL (без встроенных токенов)
+        repo_path = git.location  # путь внутри репозитория
+        repo_ref = git.ref  # Optional[str]; ветка/тег для клонирования; None → default branch
 ```
 
 - `name` (ключ dict) используется в заголовке `list` и в фильтре `--spec`.

@@ -31,11 +31,11 @@ from goga_tool_pybuggy.spec import extract_endpoints
 
 endpoints = extract_endpoints(spec)  # list[Endpoint], один на метод+путь
 for ep in endpoints:
-    ep.id            # 'clients_startup_get' — computed через build_endpoint_id
-    ep.method        # 'get' (нижний регистр)
-    ep.path          # '/clients/{id}'
-    ep.request       # развёрнутая схема request body (или {})
-    ep.response      # {status: schema}
+    ep.id  # 'clients_startup_get' — computed через build_endpoint_id
+    ep.method  # 'get' (нижний регистр)
+    ep.path  # '/clients/{id}'
+    ep.request  # развёрнутая схема request body (или {})
+    ep.response  # {status: schema}
     ep.query_params  # {name: schema}
 ```
 

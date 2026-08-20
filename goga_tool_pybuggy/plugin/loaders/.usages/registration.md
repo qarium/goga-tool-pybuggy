@@ -34,8 +34,8 @@ an explicit `loaders` to override, or `loaders=[]` to disable discovery:
 ```python
 from goga_tool_pybuggy.plugin.loaders import PackageLoader
 
-install(loaders=[PackageLoader("api")])   # override the default
-install(loaders=[])                       # disable discovery
+install(loaders=[PackageLoader("api")])  # override the default
+install(loaders=[])  # disable discovery
 ```
 
 ## The context contract
@@ -61,7 +61,7 @@ class:
 def install(**kwargs):
     kwargs.setdefault("context", call_context())
     kwargs.setdefault("loaders", [PackageLoader("api", required=False)])  # discover api/ out of the box
-    plugin = Plugin(**kwargs)                          # constructor runs registration
+    plugin = Plugin(**kwargs)  # constructor runs registration
     install_pytest_plugins(plugin, context=kwargs["context"])
 ```
 

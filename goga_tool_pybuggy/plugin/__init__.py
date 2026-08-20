@@ -59,5 +59,3 @@ def install(**kwargs: object) -> None:
     kwargs.setdefault("loaders", [PackageLoader("api", required=False)])
     plugin = ApiPlugin(**kwargs)
     install_pytest_plugins(plugin, context=kwargs["context"])
-
-

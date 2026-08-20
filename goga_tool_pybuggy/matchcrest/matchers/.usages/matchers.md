@@ -16,8 +16,12 @@
 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import (
-    BaseContext, BaseMatcher, MatchResult,
-    ValueIsEqualMatcher, ResponseCodeMatcher, RaisedExceptionMatcher,  # ...и т.д.
+    BaseContext,
+    BaseMatcher,
+    MatchResult,
+    ValueIsEqualMatcher,
+    ResponseCodeMatcher,
+    RaisedExceptionMatcher,  # ...и т.д.
 )
 ```
 
@@ -30,6 +34,7 @@ from goga_tool_pybuggy.matchcrest.matchers import (
 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import BaseContext
+
 
 class ResponseContext(BaseContext):
     def __init__(self, response):
@@ -88,6 +93,7 @@ ValueIsEqualMatcher("admin", any=True, in_array=True)  # хотя бы один 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import BaseMatcher, MatchResult
 
+
 class StatusCodeInRange(BaseMatcher):
     def _assert(self, item) -> MatchResult:
         code = item.value
@@ -95,7 +101,7 @@ class StatusCodeInRange(BaseMatcher):
         return MatchResult(
             ok,
             expectations=[f'"{item.key}" code should be 2xx'],
-            errors=None if ok else [f'{code} is not 2xx'],
+            errors=None if ok else [f"{code} is not 2xx"],
         )
 ```
 

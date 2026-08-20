@@ -47,7 +47,7 @@ class Endpoint:
             ``None`` falls back to the ``Api``-level default adapter.
     """
 
-    def __init__(  # noqa: PLR0913
+    def __init__(  # noqa: PLR0913, PLR0917
         self,
         api: Api,
         url_path: str,

@@ -1,3 +1,4 @@
+import contextlib
 import time
 import typing as t
 
@@ -27,10 +28,13 @@ class BaseContext:
 
 
 class MatchResult:
-    def __init__(self,
-                 result: bool, *,
-                 errors: t.Optional[list[str] | tuple[str]] = None,
-                 expectations: t.Optional[list[str]] = None):
+    def __init__(
+        self,
+        result: bool,
+        *,
+        errors: t.Optional[list[str] | tuple[str]] = None,
+        expectations: t.Optional[list[str]] = None,
+    ):
         self._result = result
 
         self._errors = errors
@@ -53,10 +57,14 @@ class MatchResult:
 
 
 class BaseMatcher(_BaseMatcher):
-    def __init__(self, expected_value: t.Any = None, *,
-                 proofs: t.Optional[int] = None,
-                 timeout: t.Optional[int] = None,
-                 delay: t.Optional[int | float] = None):
+    def __init__(
+        self,
+        expected_value: t.Any = None,
+        *,
+        proofs: t.Optional[int] = None,
+        timeout: t.Optional[int] = None,
+        delay: t.Optional[int | float] = None,
+    ):
         self.expected_value = expected_value
 
         self._proofs = proofs or 1
@@ -78,18 +86,15 @@ class BaseMatcher(_BaseMatcher):
     def _matches(self, item: BaseContext) -> bool:
         self.item = item
 
-        try:
-            self.__matches__(item) if self._timeout is None else waiting_for(self.__matches__,
-                                                                             args=[item],
-                                                                             timeout=self._timeout,
-                                                                             delay=self._delay)
-        except TimeoutError:
-            pass
+        with contextlib.suppress(TimeoutError):
+            self.__matches__(item) if self._timeout is None else waiting_for(
+                self.__matches__, args=[item], timeout=self._timeout, delay=self._delay
+            )
 
         if self.result is None:
-            self.result = MatchResult(False,
-                                      errors=['unknown error, result is None'],
-                                      expectations=['result set by "_assert" method'])
+            self.result = MatchResult(
+                False, errors=["unknown error, result is None"], expectations=['result set by "_assert" method']
+            )
 
         if not bool(self.result):
             self.__save_report__()
@@ -121,8 +126,8 @@ class BaseMatcher(_BaseMatcher):
 
     def describe_to(self, description: Description):
         for index, msg in enumerate(self.result.expectations):
-            description.append_text(msg if index == 0 else f', {msg}')
+            description.append_text(msg if index == 0 else f", {msg}")
 
     def describe_mismatch(self, _, mismatch_description: Description):
         for index, msg in enumerate(self.result.errors):
-            mismatch_description.append_text(msg if index == 0 else f', {msg}')
+            mismatch_description.append_text(msg if index == 0 else f", {msg}")

@@ -419,9 +419,7 @@ def test_run_info_raises_for_unknown_endpoint_id(
     assert capsys.readouterr().out == ""
 
 
-def test_run_info_unknown_ids_message_sorted_and_complete(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_info_unknown_ids_message_sorted_and_complete(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """run_info should list every missing id (sorted) in the ClickException message."""
     _two_endpoint_spec(tmp_path, monkeypatch)
 

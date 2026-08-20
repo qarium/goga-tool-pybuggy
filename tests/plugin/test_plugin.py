@@ -23,10 +23,7 @@ from goga_tool_pybuggy.plugin.loaders import PackageLoader
 
 # Jinja base_url template exercising conditional logic + the match_re test.
 _JINJA_CONDITIONAL_URL = (
-    "http://x/api/v1"
-    "{% if service_version is match_re('^feature-.*$') %}"
-    "-{{ service_version }}"
-    "{% endif %}"
+    "http://x/api/v1{% if service_version is match_re('^feature-.*$') %}-{{ service_version }}{% endif %}"
 )
 
 # Source for a generated-fixture module (carries a `@pytest.fixture` so the probe

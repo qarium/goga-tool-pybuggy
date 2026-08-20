@@ -21,8 +21,7 @@ from goga_tool_pybuggy import retries
 
 
 @retries(max_runs=3)
-def test_something():
-    ...
+def test_something(): ...
 ```
 
 Тест будет перезапущен до `max_runs` раз; перезапуски безусловны (фильтр всегда разрешает повтор).
@@ -33,8 +32,7 @@ def test_something():
 
 ```python
 @retries(max_runs=5, min_passes=2)
-def test_flaky_endpoint():
-    ...
+def test_flaky_endpoint(): ...
 ```
 
 Если `min_passes` не передан (`None`), `flaky` выводит собственное значение по умолчанию.
@@ -46,8 +44,7 @@ def test_flaky_endpoint():
 
 ```python
 @retries(max_runs=4, delay=1)
-def test_with_external_service():
-    ...
+def test_with_external_service(): ...
 ```
 
 Если `delay` не передан (`None`), перезапуски выполняются немедленно, без фильтра и без sleep.

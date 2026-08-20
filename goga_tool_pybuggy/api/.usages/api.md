@@ -190,11 +190,11 @@ install()
 @pytest.fixture
 def api(self) -> Iterator[Api]:
     api = Api(
-        base_url=self.base_url,           # из config (Jinja-шаблон, рендерится один раз)
+        base_url=self.base_url,  # из config (Jinja-шаблон, рендерится один раз)
         headers=self.headers,
         timeout=self.timeout,
-        data_key=self.data_key,           # config: data_key
-        error_key=self.error_key,         # config: error_key
+        data_key=self.data_key,  # config: data_key
+        error_key=self.error_key,  # config: error_key
         assert_timeout=self.assert_timeout,
         assert_delay=self.assert_delay,
         assert_field_class=self.assert_field_class,
@@ -277,9 +277,7 @@ with post_clients_calls_initiate.error() as response:
     response.expected.has_status_code(400)
 
 # битый JSON — raw data + явный Content-Type
-with post_clients_calls_initiate.error(
-    data="{", headers={"Content-Type": "application/json"}
-) as response:
+with post_clients_calls_initiate.error(data="{", headers={"Content-Type": "application/json"}) as response:
     response.expected.has_status_code(400)
 ```
 
@@ -393,6 +391,7 @@ matching-адаптером. Эффективный адаптер запрос�
 def api() -> Api:
     return Api(base_url="https://api.example.com", adapter="requests")
 
+
 # Per-endpoint переопределение — через Endpoint (None = фолбэк на Api-дефолт):
 @pytest.fixture(scope="function")
 def post___admin___api_v1_mocks_add(api: Api) -> Endpoint:
@@ -415,8 +414,8 @@ def post___admin___api_v1_mocks_add(api: Api) -> Endpoint:
 - `None` (по умолчанию) — встроенные классы.
 
 ```python
-class StrictAssertField(AssertField):
-    ...
+class StrictAssertField(AssertField): ...
+
 
 Api(base_url=..., assert_field_class="myproj:StrictAssertField")
 ```

@@ -10,18 +10,23 @@ from dateutil.parser import parse as parse_date_iso_string
 
 DEFAULT_TIMEOUT: t.Final = 5
 DEFAULT_DELAY: t.Final = 0.5
+HTTP_OK_MIN: t.Final = 200
+HTTP_OK_MAX: t.Final = 299
 
 WrappedType = t.Callable[[...], t.Any]  # type: ignore[misc]
 logger = logging.getLogger(__name__)
 
 
-def waiting_for(f: WrappedType, *,
-                args: t.Optional[list | tuple] = None,
-                kwargs: t.Optional[dict] = None,
-                timeout: int | float = DEFAULT_TIMEOUT,
-                delay: int | float = DEFAULT_DELAY,
-                hook: t.Optional[t.Callable[[t.Any], t.Any]] = None) -> t.Any:
-    args = args or tuple()
+def waiting_for(  # noqa: PLR0913
+    f: WrappedType,
+    *,
+    args: t.Optional[list | tuple] = None,
+    kwargs: t.Optional[dict] = None,
+    timeout: int | float = DEFAULT_TIMEOUT,
+    delay: int | float = DEFAULT_DELAY,
+    hook: t.Optional[t.Callable[[t.Any], t.Any]] = None,
+) -> t.Any:
+    args = args or ()
     kwargs = kwargs or {}
 
     start_time = time.time()
@@ -42,32 +47,29 @@ def waiting_for(f: WrappedType, *,
 
 def join(*parts: str) -> str:
     """Join URL parts, collapsing duplicate slashes between them."""
-    url = ''
+    url = ""
     for part in parts:
-        url += part.rstrip('/')
-    if parts[len(parts) - 1].endswith('/'):
-        url += '/'
+        url += part.rstrip("/")
+    if parts[len(parts) - 1].endswith("/"):
+        url += "/"
     return url
 
 
 def url_is_valid(url: str, is_live: bool = False, allowed_protocols: t.Optional[list | tuple] = None) -> bool:
-    allowed_protocols = allowed_protocols or ['https', 'http']
+    allowed_protocols = allowed_protocols or ["https", "http"]
     url_link = urlparse(url)
     is_relative_link = not bool(url_link.scheme)
 
     if all([(not is_relative_link and url_link.scheme in allowed_protocols) or True, url_link.netloc]):
-        protocol = f'{next(iter(allowed_protocols))}://' if is_relative_link else ''
+        protocol = f"{next(iter(allowed_protocols))}://" if is_relative_link else ""
 
-        if is_live and not url_is_live(join(protocol, url)):
-            return False
-
-        return True
+        return not (is_live and not url_is_live(join(protocol, url)))
     return False
 
 
 def url_is_live(url: str) -> bool:
     response = requests.get(url)
-    return 200 <= response.status_code <= 299
+    return HTTP_OK_MIN <= response.status_code <= HTTP_OK_MAX
 
 
 def date_to_timestamp(value: date | datetime) -> float:

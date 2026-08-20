@@ -31,9 +31,7 @@ def test_detect_spec_version_signature() -> None:
     params = list(sig.parameters.keys())
 
     assert params == ["spec"], f"Expected single parameter 'spec', got {params}"
-    assert sig.return_annotation is str, (
-        f"Expected return annotation str, got {sig.return_annotation}"
-    )
+    assert sig.return_annotation is str, f"Expected return annotation str, got {sig.return_annotation}"
 
 
 def test_detect_spec_version_swagger() -> None:
@@ -103,7 +101,7 @@ def test_extract_endpoints_builds_endpoint_per_operation() -> None:
                     "parameters": [{"name": "verbose", "in": "query", "schema": {"type": "boolean"}}],
                 }
             }
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -130,7 +128,7 @@ def test_extract_endpoints_skips_non_method_keys() -> None:
                 "parameters": [{"name": "limit", "in": "query", "schema": {"type": "integer"}}],
                 "get": {"responses": {"200": {"content": {"application/json": {"schema": {}}}}}},
             }
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -155,7 +153,7 @@ def test_extract_endpoints_skips_non_dict_path_item() -> None:
         "paths": {
             "/null": None,
             "/valid": {"get": {"responses": {"200": {"content": {"application/json": {"schema": {}}}}}}},
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -176,7 +174,7 @@ def test_extract_endpoints_no_application_json_returns_empty_fields() -> None:
                     "responses": {"200": {"content": {"text/plain": {"schema": {}}}}},
                 }
             }
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -198,7 +196,7 @@ def test_extract_endpoints_inherits_shared_path_item_parameters() -> None:
                     "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
                 },
             }
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -235,7 +233,7 @@ def test_extract_endpoints_with_description() -> None:
                     "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
                 }
             }
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -289,7 +287,7 @@ def test_extract_endpoints_rewrites_openapi_nullable_to_jsonschema_union() -> No
                     },
                 }
             }
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -364,7 +362,7 @@ def test_extract_endpoints_normalizes_nullable_without_type_via_anyof() -> None:
                     },
                 }
             }
-        }
+        },
     }
 
     endpoints = extract_endpoints(spec)
@@ -397,11 +395,7 @@ def test_extract_endpoints_nullable_dedup_when_type_list_already_has_null() -> N
             "/dedup": {
                 "post": {
                     "requestBody": {
-                        "content": {
-                            "application/json": {
-                                "schema": {"type": ["string", "null"], "nullable": True}
-                            }
-                        }
+                        "content": {"application/json": {"schema": {"type": ["string", "null"], "nullable": True}}}
                     },
                     "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
                 }
@@ -469,9 +463,7 @@ def test_extract_endpoints_swagger_body_request() -> None:
                             },
                         },
                     ],
-                    "responses": {
-                        "201": {"description": "created", "schema": {"type": "object"}}
-                    },
+                    "responses": {"201": {"description": "created", "schema": {"type": "object"}}},
                 }
             }
         },
@@ -601,9 +593,7 @@ def test_extract_endpoints_nullable_false_drops_key_without_union() -> None:
                             }
                         }
                     },
-                    "responses": {
-                        "200": {"content": {"application/json": {"schema": {}}}}
-                    },
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
                 }
             }
         },
@@ -742,9 +732,7 @@ def test_extract_endpoints_equivalent_operations_same_normalized_shape() -> None
                             }
                         }
                     },
-                    "responses": {
-                        "201": {"content": {"application/json": {"schema": {"type": "object"}}}}
-                    },
+                    "responses": {"201": {"content": {"application/json": {"schema": {"type": "object"}}}}},
                 },
             }
         },
@@ -757,16 +745,18 @@ def test_extract_endpoints_equivalent_operations_same_normalized_shape() -> None
 
     # GET row (index 0): no request body, 200 object-with-id, verbose boolean query.
     assert sw[0].request == oa[0].request == {}
-    assert sw[0].response == oa[0].response == {
-        "200": {"type": "object", "properties": {"id": {"type": "string"}}}
-    }
+    assert sw[0].response == oa[0].response == {"200": {"type": "object", "properties": {"id": {"type": "string"}}}}
     assert sw[0].query_params == oa[0].query_params == {"verbose": {"type": "boolean"}}
 
     # POST row (index 1): object-with-name request, 201 object response, no query.
-    assert sw[1].request == oa[1].request == {
-        "type": "object",
-        "properties": {"name": {"type": "string"}},
-    }
+    assert (
+        sw[1].request
+        == oa[1].request
+        == {
+            "type": "object",
+            "properties": {"name": {"type": "string"}},
+        }
+    )
     assert sw[1].response == oa[1].response == {"201": {"type": "object"}}
     assert sw[1].query_params == oa[1].query_params == {}
 
@@ -911,9 +901,7 @@ def test_extract_endpoints_swagger_query_array_items_preserved() -> None:
         "paths": {
             "/tags": {
                 "get": {
-                    "parameters": [
-                        {"name": "tags", "in": "query", "type": "array", "items": {"type": "string"}}
-                    ],
+                    "parameters": [{"name": "tags", "in": "query", "type": "array", "items": {"type": "string"}}],
                     "responses": {"200": {"description": "ok", "schema": {}}},
                 }
             }

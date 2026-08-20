@@ -21,7 +21,7 @@ from goga_tool_pybuggy.plugin.loaders import PackageLoader, ModuleLoader
 `from_config` accepts a bare dotted name or a mapping:
 
 ```python
-PackageLoader.from_config("api")                           # required=True
+PackageLoader.from_config("api")  # required=True
 PackageLoader.from_config({"name": "api", "required": False})
 ModuleLoader.from_config("my_plugin.conftest")
 ```
@@ -29,7 +29,7 @@ ModuleLoader.from_config("my_plugin.conftest")
 A loader may also be constructed directly with the positional `name`:
 
 ```python
-PackageLoader("api")                                       # required=True (default)
+PackageLoader("api")  # required=True (default)
 ModuleLoader("my_plugin.conftest")
 ```
 
