@@ -10,6 +10,7 @@ from .init import (
     run_init,
     write_pybuggy_config,
     write_pybuggy_conftest,
+    write_test_convention,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "run_init",
     "write_pybuggy_config",
     "write_pybuggy_conftest",
+    "write_test_convention",
 ]

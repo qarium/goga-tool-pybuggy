@@ -155,6 +155,17 @@ def test_write_test_convention_is_callable_with_single_path_parameter() -> None:
     assert params == ("path",)
 
 
+def test_write_test_convention_importable_and_public_in_facade() -> None:
+    """write_test_convention is importable from the facade and listed in __all__ (public contract)."""
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+    from goga_tool_pybuggy.commands.init import write_test_convention as imported
+
+    assert callable(imported) is True
+    assert "write_test_convention" in facade_all
+    params = imported.__code__.co_varnames[: imported.__code__.co_argcount]
+    assert params == ("path",)
+
+
 def test_convention_line_matches_contract_text() -> None:
     """_CONVENTION_LINE is the contract annotation line for the conventions usage key, verbatim."""
     from goga_tool_pybuggy.commands.init.init import _CONVENTION_LINE
