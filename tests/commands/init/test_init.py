@@ -54,6 +54,16 @@ _ASSET_TEXT = (
 ).read_text(encoding="utf-8")
 
 
+def test_asset_text_is_the_packaged_test_convention() -> None:
+    """The packaged asset carries a non-empty test convention anchored by its known heading.
+
+    Guards the asset itself (an emptied or wrongly-committed file would otherwise pass every
+    symmetric-channel equality assertion below) without pinning the full text.
+    """
+    assert _ASSET_TEXT.strip()
+    assert _ASSET_TEXT.startswith("# Testing Convention: pytest Configuration, Logging, Allure")
+
+
 # Contract tests ---------------------------------------------------------------
 
 
@@ -222,6 +232,83 @@ def test_run_init_occupies_conventions_slot_in_fresh_project(
     assert set(cfg["codemanifest"]["usages"]) == {"conventions", "pybuggy-api", "pybuggy-asserts"}
     assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
     assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
+
+
+def test_run_init_leaves_divergent_conventions_key_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A pre-existing `conventions` key pointing elsewhere is skipped (register_usages never
+    overwrites), while the slot file and the annotation line still migrate to the package version.
+
+    Pins the skip-existing contract for the residual case where goga's usages survey recorded a
+    user-typed `conventions` key with a custom path: the key (a user-defined entry, per the
+    CODEMANIFEST requirement "existing keys are never overwritten") is left as-is and logs as
+    skipped; the package-owned slot file and the annotation line are still delivered.
+    """
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        "codemanifest:\n"
+        "  usages:\n"
+        "    conventions: docs/my-own-convention.md\n"
+        "  annotations: |\n"
+        "    Use `conventions` for code writing rules and testing.\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
+
+    assert run_init() == 0
+
+    # The slot file is delivered unconditionally regardless of where the key points.
+    assert (tmp_path / ".goga/usages/conventions.md").read_text(encoding="utf-8") == _ASSET_TEXT
+    cfg = yaml.safe_load(config.read_text())
+    # skip-existing: the user-defined key value is preserved verbatim (never overwritten)…
+    assert cfg["codemanifest"]["usages"]["conventions"] == "docs/my-own-convention.md"
+    # …while the annotation line still migrates to the package convention.
+    assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
+    assert "code writing rules" not in cfg["codemanifest"]["annotations"]
+
+
+def test_run_init_logs_registered_and_skipped_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A fresh run logs INFO for every registered usage/annotation key (added or changed)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    with caplog.at_level(logging.INFO):
+        assert run_init() == 0
+
+    info_keys = {r.message for r in caplog.records if r.message == "usage registered"}
+    assert info_keys
+    assert {r.message for r in caplog.records if r.message == "annotation registered"}
+    assert not [r for r in caplog.records if "skipped" in r.message]  # fresh project: nothing skipped
+
+
+def test_run_init_logs_skipped_on_idempotent_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A repeat run logs WARNING 'already registered, skipped' for every usage and annotation key.
+
+    Pins the `changed` (vs `added`) plumbing of _log_registration: on an idempotent rerun nothing
+    was added and no annotation line changed, so every key must log as skipped — swapping the
+    INFO/WARNING conditions or dropping the changed_annotation_keys threading fails this test.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+    assert run_init() == 0  # first run registers everything
+
+    with caplog.at_level(logging.WARNING):
+        assert run_init() == 0
+
+    warn_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
+    assert "usage already registered, skipped" in warn_messages
+    assert "annotation already registered, skipped" in warn_messages
 
 
 def test_run_init_returns_goga_code_and_skips_slot_delivery(
@@ -783,7 +870,7 @@ def test_run_goga_init_collects_codemanifest_fields_without_prefill(
 
 def test_run_goga_init_offline_answers_carry_no_conventions_key(monkeypatch: pytest.MonkeyPatch) -> None:
     """Answers assembled by the offline flow carry no `conventions` key, so goga downloads nothing."""
-    questionnaire = _stub_questionnaire(monkeypatch)
+    _stub_questionnaire(monkeypatch)
     generator = mock.Mock()
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
 
@@ -1094,6 +1181,32 @@ def test_register_annotations_replaces_only_first_matching_line(tmp_path: Path) 
     assert changed == ["pybuggy-api"]
     annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
     assert "Use `pybuggy-api` for requests.\n`pybuggy-api` second." in annotations
+
+
+def test_register_annotations_replaces_after_plain_scalar_without_trailing_newline(
+    tmp_path: Path,
+) -> None:
+    """A legacy line inside a plain scalar without a trailing newline is replaced in place.
+
+    Unlike the append branch (which normalizes to a ``|`` block with a trailing newline), a
+    replace-only edit on a newline-less scalar is written back without one, so ruamel emits the
+    ``|-`` indicator — the parsed value is still exactly the registered line and a repeat run is
+    a byte-identical no-op.
+    """
+    config = tmp_path / "config.yml"
+    config.write_text(
+        "codemanifest:\n  annotations: Use `conventions` for code writing rules and testing.\n"
+    )
+
+    changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
+
+    assert changed == ["conventions"]
+    assert "annotations: |-\n" in config.read_text()  # replace-only keeps the newline-less shape
+    annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
+    assert annotations == _CONVENTION_LINE
+
+    changed2 = register_annotations(config, {"conventions": _CONVENTION_LINE})
+    assert changed2 == []
 
 
 def test_register_annotations_appends_after_plain_scalar_without_trailing_newline(
@@ -1641,7 +1754,7 @@ def test_write_test_convention_propagates_os_error(
     monkeypatch.chdir(tmp_path)
     (tmp_path / "blocked").mkdir()
 
-    with pytest.raises(OSError):
+    with pytest.raises(OSError, match="blocked"):
         write_test_convention(tmp_path / "blocked")
 
 

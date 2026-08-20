@@ -34,6 +34,10 @@ _ASSET_TEXT = (
     importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"
 ).read_text(encoding="utf-8")
 
+# Content anchor: without it every _ASSET_TEXT equality below compares the asset to itself, so an
+# emptied or wrongly-committed file would pass. The full-text pin lives in test_init.py.
+assert _ASSET_TEXT.startswith("# Testing Convention: pytest Configuration, Logging, Allure")
+
 # End-to-end through the Click wrapper ---------------------------------------
 
 
