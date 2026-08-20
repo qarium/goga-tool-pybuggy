@@ -185,7 +185,7 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     assert (tmp_path / ".goga/usages/cooks/pybuggy/asserts.md").exists()
 
     cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    assert set(cfg["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts"}
+    assert set(cfg["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
     assert cfg["codemanifest"]["usages"]["pybuggy-api"].endswith("api.md")
 
     from goga_tool_pybuggy.commands.init.init import PYBUGGY_ANNOTATIONS
@@ -193,12 +193,95 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     annotations = cfg["codemanifest"]["annotations"]
     assert PYBUGGY_ANNOTATIONS["api"] in annotations
     assert PYBUGGY_ANNOTATIONS["asserts"] in annotations
+    assert _CONVENTION_LINE in annotations
+
+
+def test_run_init_occupies_conventions_slot_in_fresh_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """In a fresh project run_init delivers the slot, key, and annotation line end-to-end (steps 6-8)."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 0
+
+    assert (tmp_path / ".goga/usages/conventions.md").read_text(encoding="utf-8") == _ASSET_TEXT
+    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
+    assert set(cfg["codemanifest"]["usages"]) == {"conventions", "pybuggy-api", "pybuggy-asserts"}
+    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
+    assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
+
+
+def test_run_init_returns_goga_code_and_skips_slot_delivery(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failing goga-init returns its code before the bootstrap block: slot/usages/conftest untouched."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 1
+    assert not (tmp_path / ".goga/usages/conventions.md").exists()
+    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_init_maps_convention_delivery_failure_to_click_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A slot-delivery failure is mapped to click.ClickException inside the bootstrap error zone."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(
+        "goga_tool_pybuggy.commands.init.init.write_test_convention",
+        mock.Mock(side_effect=OSError("disk full")),
+    )
+
+    with pytest.raises(click.ClickException) as excinfo:
+        run_init()
+
+    assert "disk full" in str(excinfo.value)
+    assert not (tmp_path / "conftest.py").exists()
+
+
+def test_run_init_migrates_legacy_slot_when_recreates_declined(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """With every recreate declined, a legacy slot is overwritten and its annotation line replaced."""
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        "codemanifest:\n"
+        "  usages:\n"
+        "    conventions: .goga/usages/conventions.md  # пользовательский\n"
+        "  annotations: |\n"
+        "    Use `conventions` for code writing rules and testing.\n"
+    )
+    legacy_slot = tmp_path / ".goga" / "usages" / "conventions.md"
+    legacy_slot.parent.mkdir(parents=True, exist_ok=True)
+    legacy_slot.write_text("legacy goga convention", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
+
+    assert run_init() == 0
+
+    assert legacy_slot.read_text(encoding="utf-8") == _ASSET_TEXT  # unconditional package-owned overwrite
+    text = config.read_text()
+    cfg = yaml.safe_load(text)
+    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
+    assert "# пользовательский" in text  # round-trip preserved the usages comment
+    assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
+    assert "code writing rules" not in cfg["codemanifest"]["annotations"]  # legacy line replaced
 
 
 def test_run_init_generates_root_conftest_in_fresh_project(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Step 9: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
+    """Step 10: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
@@ -263,7 +346,7 @@ def test_run_init_maps_conftest_write_failure_to_click_exception(
 def test_run_init_does_not_write_conftest_when_goga_init_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A non-zero run_goga_init code returns before step 9: no conftest, no usages bootstrapped."""
+    """A non-zero run_goga_init code returns before step 10: no conftest, no usages bootstrapped."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
@@ -276,7 +359,7 @@ def test_run_init_does_not_write_conftest_when_goga_init_fails(
 def test_run_init_does_not_write_conftest_when_config_build_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A non-zero build_pybuggy_config code returns before step 9: no conftest is written."""
+    """A non-zero build_pybuggy_config code returns before step 10: no conftest is written."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
@@ -288,7 +371,7 @@ def test_run_init_does_not_write_conftest_when_config_build_fails(
 def test_run_init_does_not_write_conftest_when_bootstrap_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A bootstrap ClickException returns before step 9: no conftest is written."""
+    """A bootstrap ClickException returns before step 10: no conftest is written."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
@@ -847,6 +930,21 @@ def test_register_usages_merges_skipping_existing_keys(tmp_path: Path) -> None:
     cfg = yaml.safe_load(text)
     assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
     assert cfg["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+
+
+def test_register_usages_registers_conventions_key_idempotently(tmp_path: Path) -> None:
+    """The conventions usage key registers once and is skipped (byte-identical file) on a repeat."""
+    config = tmp_path / "config.yml"
+
+    first = register_usages(config, {"conventions": ".goga/usages/conventions.md"})
+
+    assert first == ["conventions"]
+    before = config.read_bytes()
+
+    second = register_usages(config, {"conventions": ".goga/usages/conventions.md"})
+
+    assert second == []
+    assert config.read_bytes() == before
 
 
 def test_register_usages_invalid_yaml_raises(tmp_path: Path) -> None:
