@@ -45,7 +45,6 @@ markers =
     negative: negative endpoint scenario (4xx/5xx, invalid bodies)
     integration: scenario across multiple endpoints or services
     smoke: critical path, smoke sampling
-    regression: full regression run
     flaky: set by the pybuggy plugin when retries > 0; do not apply manually
 
 # 4. Live console logging
@@ -81,8 +80,9 @@ filterwarnings =
 2. **Marker control**: All custom markers **MUST** be explicitly registered in `markers`. Using
    an unregistered marker is a blocking violation (`strict_markers = true` fails the run; the
    runner catches typos before execution). Every test **MUST** carry exactly one scenario marker
-   (`positive`, `negative`, `integration`); `smoke`/`regression` **MAY** be applied additionally
-   for run selection; only the pybuggy plugin sets `flaky`
+   (`positive`, `negative`, `integration`); `smoke` **MAY** be applied additionally for run
+   selection (`-m smoke`); a full regression run is a bare `pytest` call — every test
+   participates; only the pybuggy plugin sets `flaky`
 3. **Output levels**: `log_cli_level = INFO` — the standard execution console; `log_file_level =
    DEBUG` — full system logs persist to the CI artifact (`logs/pytest.log`)
 4. **Strictness**: `strict_config = true` — a typo in an ini option name fails the run instead of
