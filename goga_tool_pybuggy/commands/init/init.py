@@ -171,21 +171,21 @@ def _annotation_for(stem: str) -> str:
 
 
 def register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> list[str]:
-    """Append ``annotation_lines`` into the consumer ``.goga/config.yml`` under ``codemanifest.annotations``.
+    """Round-trip edit ``codemanifest.annotations`` by backtick reference.
 
-    Each entry maps a ``pybuggy-<stem>`` usage key to one annotation line. A line is skipped when its
-    backtick reference (`` `pybuggy-<stem>` ``) already appears in the existing annotations, which
-    makes the run idempotent. The existing annotation text (e.g. the base convention annotations
-    written by goga init) is preserved — only missing lines are appended. Round-trips the file with
-    ``ruamel.yaml`` so comments, key order, quotes, and block-scalars are preserved, and writes the
-    value back as a literal block scalar (``|``).
+    Each entry maps a usage key to one annotation line. For every key the first existing line
+    carrying its backtick reference (`` `key` ``) is located: an identical line is a no-op, a
+    differing one is replaced in place (migrating legacy text instead of duplicating it), and a
+    missing reference is appended. Lines without a registered reference are preserved verbatim.
+    Round-trips the file with ``ruamel.yaml`` so comments, key order, quotes, and block-scalars are
+    preserved, and writes the value back as a literal block scalar (``|``) — created when absent.
 
     Args:
         config_path: Path to the consumer ``.goga/config.yml``.
-        annotation_lines: Mapping of ``pybuggy-<stem>`` to the annotation line to append.
+        annotation_lines: Mapping of usage key to the annotation line to register.
 
     Returns:
-        The keys whose annotation line was actually added; pre-referenced keys are skipped.
+        The keys whose annotation line was appended or replaced; identical lines are excluded.
 
     Raises:
         ValueError: If ``codemanifest`` is not a mapping, or ``annotations`` exists but is not a
@@ -205,22 +205,33 @@ def register_annotations(config_path: Path, annotation_lines: dict[str, str]) ->
     codemanifest = _ensure_map(data, "codemanifest")
     text = _ensure_scalar(codemanifest, "annotations")
 
-    added_keys: list[str] = []
+    lines = text.split("\n")
+    changed_keys: list[str] = []
     for key, line in annotation_lines.items():
         needle = f"`{key}`"
-        if needle in text:
-            continue
+        idx = next((i for i, existing in enumerate(lines) if needle in existing), None)
 
-        text = f"{text}{line}\n" if text else f"{line}\n"
-        added_keys.append(key)
+        if idx is None:
+            if lines[-1] == "":
+                lines.insert(len(lines) - 1, line)  # text with a trailing newline
+            else:
+                lines.extend([line, ""])  # scalar without one — add the separator
+            changed_keys.append(key)
+        elif lines[idx] == line:
+            continue  # identical line — no-op
+        else:
+            lines[idx] = line  # replace exactly the first line carrying the reference
+            changed_keys.append(key)
 
-    if added_keys:
+        text = "\n".join(lines)  # the trailing "" element keeps the final newline
+
+    if changed_keys:
         codemanifest["annotations"] = LiteralScalarString(text)
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
     yaml.dump(data, config_path)
 
-    return added_keys
+    return changed_keys
 
 
 # Commented example blocks for the complex ``headers``/``loader`` plugin members. These members

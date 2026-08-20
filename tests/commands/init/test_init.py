@@ -21,6 +21,7 @@ from goga_tool_pybuggy.commands.init import (
     write_pybuggy_config,
     write_pybuggy_conftest,
 )
+from goga_tool_pybuggy.commands.init.init import _CONVENTION_LINE
 from goga_tool_pybuggy.config import GitEntry, SpecEntry
 from ruamel.yaml import YAMLError
 
@@ -841,19 +842,20 @@ def test_register_annotations_creates_block_when_file_absent(tmp_path: Path) -> 
     """register_annotations creates a minimal config carrying the codemanifest.annotations block."""
     config = tmp_path / "config.yml"
 
-    added = register_annotations(config, _ANNOTATION_LINES)
+    changed = register_annotations(config, {**_ANNOTATION_LINES, "conventions": _CONVENTION_LINE})
 
-    assert added == ["pybuggy-api", "pybuggy-asserts"]
+    assert changed == ["pybuggy-api", "pybuggy-asserts", "conventions"]
     text = config.read_text()
     assert "annotations: |" in text
     cfg = yaml.safe_load(text)
     annotations = cfg["codemanifest"]["annotations"]
     assert "`pybuggy-api`" in annotations
     assert "`pybuggy-asserts`" in annotations
+    assert _CONVENTION_LINE in annotations
 
 
 def test_register_annotations_preserves_existing_and_appends(tmp_path: Path) -> None:
-    """register_annotations preserves the existing annotation text and only appends missing lines."""
+    """register_annotations preserves unreferenced annotation lines and appends the missing ones."""
     config = tmp_path / "config.yml"
     config.write_text(
         "codemanifest:\n"
@@ -863,29 +865,123 @@ def test_register_annotations_preserves_existing_and_appends(tmp_path: Path) -> 
         "    Use `conventions` for code writing rules and testing.\n"
     )
 
-    added = register_annotations(config, _ANNOTATION_LINES)
+    changed = register_annotations(config, _ANNOTATION_LINES)
 
-    assert added == ["pybuggy-api", "pybuggy-asserts"]
+    assert changed == ["pybuggy-api", "pybuggy-asserts"]
     text = config.read_text()
-    assert "Use `conventions` for code writing rules and testing." in text  # base annotation preserved
+    assert "Use `conventions` for code writing rules and testing." in text  # unreferenced line preserved
     assert "`pybuggy-api`" in text
     assert "`pybuggy-asserts`" in text
 
 
-def test_register_annotations_idempotent_skips_existing(tmp_path: Path) -> None:
-    """register_annotations skips annotation lines whose backtick reference already exists."""
+def test_register_annotations_replaces_legacy_conventions_line(tmp_path: Path) -> None:
+    """register_annotations replaces a legacy conventions annotation line with the package line."""
+    config = tmp_path / "config.yml"
+    config.write_text(
+        "codemanifest:\n"
+        "  usages:\n"
+        "    conventions: .goga/usages/conventions.md  # пользовательский\n"
+        "  annotations: |\n"
+        "    Use `conventions` for code writing rules and testing.\n"
+    )
+
+    changed = register_annotations(
+        config,
+        {
+            "conventions": _CONVENTION_LINE,
+            "pybuggy-api": (
+                "Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."
+            ),
+        },
+    )
+
+    assert changed == ["conventions", "pybuggy-api"]
+    text = config.read_text()
+    assert _CONVENTION_LINE in text
+    assert "Use `conventions` for code writing rules and testing." not in text  # legacy line replaced
+    assert text.count("`conventions`") == 1
+    assert "# пользовательский" in text  # round-trip preserved the usages comment
+
+
+def test_register_annotations_appends_when_reference_missing(tmp_path: Path) -> None:
+    """register_annotations appends a line whose backtick reference is absent from the text."""
+    config = tmp_path / "config.yml"
+    config.write_text(
+        "codemanifest:\n" "  annotations: |\n" "    Keep existing note.\n"
+    )
+
+    changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
+
+    assert changed == ["conventions"]
+    text = config.read_text()
+    assert "Keep existing note." in text
+    assert _CONVENTION_LINE in text
+    assert text.index("Keep existing note.") < text.index(_CONVENTION_LINE)
+    assert yaml.safe_load(text)["codemanifest"]["annotations"].endswith(_CONVENTION_LINE + "\n")
+
+
+def test_register_annotations_idempotent_repeat_returns_empty_and_no_file_diff(
+    tmp_path: Path,
+) -> None:
+    """A repeat registration with identical lines returns [] and leaves the file byte-identical."""
+    config = tmp_path / "config.yml"
+    lines = {
+        **_ANNOTATION_LINES,
+        "conventions": _CONVENTION_LINE,
+    }
+    register_annotations(config, lines)
+    before = config.read_bytes()
+
+    changed2 = register_annotations(config, lines)
+
+    assert changed2 == []
+    assert config.read_bytes() == before
+
+
+def test_register_annotations_replaces_only_first_matching_line(tmp_path: Path) -> None:
+    """Only the first line carrying a backtick reference is replaced; later duplicates stay."""
     config = tmp_path / "config.yml"
     config.write_text(
         "codemanifest:\n"
         "  annotations: |\n"
-        "    `pybuggy-api` already described here.\n"
+        "    `pybuggy-api` first mention.\n"
+        "    `pybuggy-api` second.\n"
     )
 
-    added = register_annotations(config, _ANNOTATION_LINES)
+    changed = register_annotations(config, {"pybuggy-api": "Use `pybuggy-api` for requests."})
 
-    assert added == ["pybuggy-asserts"]  # api skipped — its backtick reference already present
-    text = config.read_text()
-    assert text.count("`pybuggy-api`") == 1  # not duplicated
+    assert changed == ["pybuggy-api"]
+    annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
+    assert "Use `pybuggy-api` for requests.\n`pybuggy-api` second." in annotations
+
+
+def test_register_annotations_appends_after_plain_scalar_without_trailing_newline(
+    tmp_path: Path,
+) -> None:
+    """A plain scalar without a trailing newline gains a separator before the appended line."""
+    config = tmp_path / "config.yml"
+    config.write_text("codemanifest:\n  annotations: plain note")
+
+    changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
+
+    assert changed == ["conventions"]
+    annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
+    assert annotations == "plain note\n" + _CONVENTION_LINE + "\n"
+
+
+def test_register_annotations_treats_empty_and_null_annotations_as_absent(
+    tmp_path: Path,
+) -> None:
+    """Empty and null annotations are treated as absent text, not as a line to preserve."""
+    for content in ("", "codemanifest:\n  annotations:\n"):
+        config = tmp_path / "config.yml"
+        config.write_text(content)
+
+        changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
+
+        assert changed == ["conventions"]
+        annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
+        assert annotations == _CONVENTION_LINE + "\n"
 
 
 def test_register_annotations_round_trip_preserves_comments(tmp_path: Path) -> None:
