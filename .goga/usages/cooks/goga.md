@@ -62,7 +62,7 @@
   снова триггерит скачивание; при сбое — `RuntimeError`, `config.yml` не создаётся).
 - `Dockerfile` (по пути `dockerfile_path`) — `FROM {dockerfile_base_image}`; создаётся когда `dockerfile_path` задан
   (со стороны pybuggy он передаётся всегда — Dockerfile обязателен). После этого pybuggy дописывает
-  `RUN goga install pybuggy -v 0.1.x`.
+  `RUN goga install pybuggy -v 1.0.x`.
 
 ## Шаблон: in-process вызов (per-field сборка)
 

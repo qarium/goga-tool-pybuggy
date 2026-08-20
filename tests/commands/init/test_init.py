@@ -894,13 +894,13 @@ def test_install_pybuggy_signature() -> None:
 
 
 def test_install_pybuggy_appends_hardcoded_line(tmp_path: Path) -> None:
-    """install_pybuggy appends the hardcoded `RUN goga install pybuggy -v 0.1.x` line to the Dockerfile."""
+    """install_pybuggy appends the hardcoded `RUN goga install pybuggy -v 1.0.x` line to the Dockerfile."""
     dockerfile = tmp_path / "Dockerfile"
     dockerfile.write_text("FROM qarium/goga-python-3.12:1.1\n", encoding="utf-8")
 
     returned = install_pybuggy(dockerfile)
 
-    expected = "RUN goga install pybuggy -v 0.1.x\n"
+    expected = "RUN goga install pybuggy -v 1.0.x\n"
     assert returned == expected
 
     text = dockerfile.read_text(encoding="utf-8")
@@ -936,7 +936,7 @@ def test_install_pybuggy_ensures_newline_separator(tmp_path: Path) -> None:
 
     install_pybuggy(dockerfile)
 
-    assert dockerfile.read_text(encoding="utf-8") == "FROM image:tag\nRUN goga install pybuggy -v 0.1.x\n"
+    assert dockerfile.read_text(encoding="utf-8") == "FROM image:tag\nRUN goga install pybuggy -v 1.0.x\n"
 
 
 def test_register_usages_creates_block_when_file_absent(tmp_path: Path) -> None:

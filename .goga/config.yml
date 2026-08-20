@@ -1,5 +1,5 @@
 language: python
-image: goga-test-version:latest
+image: qarium/goga-python-3.13:1.2
 
 lint:
   ignore:

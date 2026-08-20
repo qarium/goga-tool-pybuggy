@@ -629,8 +629,8 @@ _DOCKERFILE_PATH = ".goga/Dockerfile"
 
 
 # Pybuggy install line appended to the goga-generated Dockerfile. The consumer installs pybuggy via
-# the ``goga`` installer (not pip), pinned to the hardcoded ``0.1.x`` version line.
-_INSTALL_LINE = "RUN goga install pybuggy -v 0.1.x\n"
+# the ``goga`` installer (not pip), pinned to the hardcoded ``1.0.x`` version line.
+_INSTALL_LINE = "RUN goga install pybuggy -v 1.0.x\n"
 
 
 def install_pybuggy(dockerfile_path: Path) -> str | None:
@@ -638,8 +638,8 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
 
     goga ``FileGenerator.generate`` writes the Dockerfile as ``FROM {dockerfile_base_image}\\n`` (the
     FROM baseline, distinct from the top-level built ``image`` name); this routine appends
-    ``RUN goga install pybuggy -v 0.1.x`` so the consumer's test image installs pybuggy via the goga
-    installer, pinned to the hardcoded ``0.1.x`` version line.
+    ``RUN goga install pybuggy -v 1.0.x`` so the consumer's test image installs pybuggy via the goga
+    installer, pinned to the hardcoded ``1.0.x`` version line.
 
     No-op when ``dockerfile_path`` does not exist (e.g. ``FileGenerator`` is mocked in tests, so the
     goga step wrote no file). Idempotent — skips when the install line is already present.

@@ -13,7 +13,7 @@ consumer-usages ячейки `api` (и её подклеток) в проект,
 Инициализация goga-проекта выполняется in-process пакетом `goga` (per-field методы `goga.onboarding.Questionnaire` +
 `FileGenerator.generate`; `InitLogic` не используется): интерактивный опрос + генерация `.goga/config.yml`
 (language/build/pipeline/codemanifest), обязательно Dockerfile (`.goga/Dockerfile`, в который после генерации
-дописывается установка `pybuggy` — `RUN goga install pybuggy -v 0.1.x`). Вопрос «Download base convention»
+дописывается установка `pybuggy` — `RUN goga install pybuggy -v 1.0.x`). Вопрос «Download base convention»
 интегратору не задаётся: ключ `conventions` не попадает в ответы goga — скачивание языковой конвенции не выполняется,
 инициализация проходит офлайн и завершается созданием `.goga/config.yml`.
 
@@ -104,8 +104,8 @@ plugin.install()
 - `.goga/config.yml` — полный goga-конфиг (включая top-level поле `dockerfile`) + блок `codemanifest.usages` с
   `conventions`/`pybuggy-api`/`pybuggy-asserts` + блок `codemanifest.annotations` со ссылающимися строками (строка
   `conventions`: «Use `conventions` for test code: pytest configuration, logging, and Allure reporting.»).
-- `.goga/Dockerfile` — обязательный Dockerfile: `FROM {dockerfile_base_image}` + `RUN goga install pybuggy -v 0.1.x`
-  (установка pybuggy через goga-installer с захардкоженной версией `0.1.x`; дописывается после генерации goga),
+- `.goga/Dockerfile` — обязательный Dockerfile: `FROM {dockerfile_base_image}` + `RUN goga install pybuggy -v 1.0.x`
+  (установка pybuggy через goga-installer с захардкоженной версией `1.0.x`; дописывается после генерации goga),
   всегда создаётся при goga-init.
 - `.goga/usages/conventions.md` — тестовая конвенция pybuggy (текст ассета пакета).
 - `.goga/usages/cooks/pybuggy/api.md`, `.goga/usages/cooks/pybuggy/asserts.md`.
@@ -211,7 +211,7 @@ pybuggy-конфиг и перезаписывать ли `conftest.py` (`click.
 - Пишет `<cwd>/conftest.py` (фиксированный шаблон `load_dotenv()` → `plugin.install()`; при наличии файла — только по
   подтверждению `click.confirm`, отказ → пропуск с INFO-логом). Наличие `goga_tool_pybuggy`/`python-dotenv` в окружении
   pytest потребителя не проверяется — выяснится при запуске тестов.
-- Дописывает в сгенерированный `.goga/Dockerfile` строку `RUN goga install pybuggy -v 0.1.x` (версия не резолвится
+- Дописывает в сгенерированный `.goga/Dockerfile` строку `RUN goga install pybuggy -v 1.0.x` (версия не резолвится
   динамически).
 - Читает usages и ассет конвенции из **установленного** пакета `goga_tool_pybuggy` (`importlib.resources`), не из cwd —
   работает после `goga install pybuggy`, а не только из checkout.
