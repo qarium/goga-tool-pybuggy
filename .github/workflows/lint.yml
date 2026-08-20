@@ -1,0 +1,26 @@
+name: Lint
+on:
+  push:
+    branches:
+      - '[0-9]+.[0-9]+.x'
+  pull_request:
+    branches:
+      - '[0-9]+.[0-9]+.x'
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install ruff
+        # Installed from PyPI (not via astral-sh/ruff-action) so the step does
+        # not depend on Astral's version-resolution API, which is unreachable
+        # often enough to break CI ("No server is currently available...").
+        run: pip install "ruff>=0.15.0"
+      - name: Ruff check
+        run: ruff check goga_tool_pybuggy/ tests/
+      - name: Ruff format --check
+        run: ruff format --check goga_tool_pybuggy/ tests/
