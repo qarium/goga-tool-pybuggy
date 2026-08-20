@@ -15,6 +15,9 @@
   (по одному на каждое поле конфига) — pybuggy оркестрирует их вручную:
   - `ask_language() -> str` — один из python/golang/kotlin/swift/javascript (**pybuggy НЕ вызывает — язык хардкод**).
   - `ask_base_convention() -> tuple[dict | None, str | None]` — пара (usages_prefill, annotations_prefill).
+    **pybuggy НЕ вызывает** — вопрос «Download base convention» не задаётся; ключ `conventions` не попадает
+    в ответы (слот `conventions` в потребителе заполняет тестовая конвенция pybuggy из ассета пакета,
+    не goga-скачивание).
   - `ask_codemanifest_usages(prefill: dict | None = None) -> dict | None`.
   - `ask_codemanifest_annotations(prefill: str | None = None) -> str | None`.
   - `ask_agent() -> str | None`.
@@ -54,7 +57,9 @@
 ## Генерируемые файлы (side effects, в cwd)
 
 - `.goga/config.yml` — полный goga-конфиг (language, image, dockerfile, build, pipeline, codemanifest).
-- `.goga/usages/conventions.md` — если `codemanifest_usages` содержит `"conventions"` (скачивается через requests).
+- `.goga/usages/conventions.md` — скачивается (requests) **только когда ключ `conventions` присутствует в
+  `codemanifest_usages` ответов**; pybuggy его не передаёт (residual: ручной ввод имени `conventions` в опроснике
+  снова триггерит скачивание; при сбое — `RuntimeError`, `config.yml` не создаётся).
 - `Dockerfile` (по пути `dockerfile_path`) — `FROM {dockerfile_base_image}`; создаётся когда `dockerfile_path` задан
   (со стороны pybuggy он передаётся всегда — Dockerfile обязателен). После этого pybuggy дописывает
   `RUN goga install pybuggy -v 0.1.x`.
@@ -68,9 +73,8 @@
 
       language = "python"  # хардкод — pybuggy это Python-проект; ask_language НЕ вызывается
 
-      usages_prefill, annotations_prefill = questionnaire.ask_base_convention()
-      codemanifest_usages = questionnaire.ask_codemanifest_usages(usages_prefill)
-      codemanifest_annotations = questionnaire.ask_codemanifest_annotations(annotations_prefill)
+      codemanifest_usages = questionnaire.ask_codemanifest_usages()        # без prefill — pybuggy не вызывает ask_base_convention
+      codemanifest_annotations = questionnaire.ask_codemanifest_annotations()
       agent = questionnaire.ask_agent()
       image = questionnaire.ask_image_name(language)        # имя образа, собранного из Dockerfile (top-level image)
       dockerfile_base_image = questionnaire.ask_base_image(language)  # FROM baseline для Dockerfile
@@ -108,6 +112,7 @@
 - `InitLogic`/`ask`/`ask_goga_config` **не используются** — оркестрация per-field вручную фиксирует `language="python"`
   и разделяет образ на имя собранного (`ask_image_name`) и `FROM` baseline (`ask_base_image`); `ask_image` (pre-built
   pull, без Dockerfile) **не вызывается** — Dockerfile обязателен.
+- Инициализация через pybuggy проходит офлайн: ключ `conventions` не попадает в ответы, сетевых вызовов нет.
 - Это внешний пакет — подключается в CODEMANIFEST через `Usages`, **не** через `Imports` (Imports связывает только
   ячейки проекта); абсолютный импорт наверху модуля, third-party группа isort.
 
