@@ -2,7 +2,7 @@
 
 pybuggy reads a single YAML file — `.goga/tools/pybuggy/config.yml` — from a **fixed
 path** relative to the project root. There is no `--config` option; every command loads
-the config itself via `load_config()`.
+the config itself.
 
 The file carries three concerns: the **plugin options** (feed the `api` fixture), the
 **`specs`** section (what the CLI commands operate on), and the optional **`loader`**
@@ -76,7 +76,7 @@ Behavior:
 when `assert_timeout` is set, each assertion retries — re-fetching the response by
 replaying the request — until it passes or the timeout elapses. `None` (default) runs
 each assertion once. Per-check `timeout`/`delay` kwargs override the baseline for a
-single call (see [Assertions — polling](api/asserts.md#polling)).
+single call (see [Assertions — polling](matchers/asserts.md#polling)).
 
 ### Pluggable assert classes
 
@@ -104,8 +104,7 @@ specs:
 ```
 
 - The dict key (`shop`) is the spec name used by output and the `--spec` filters.
-- `type` is declarative — parsing auto-detects the actual version
-  (see [Spec Parsing](internals/spec.md)).
+- `type` is declarative — parsing auto-detects the actual version.
 - A spec without `git` is local-only: `pull` skips it, the other commands read
   `location` directly.
 - `git.ref` is the default ref for cloning; `--ref` overrides it (priority:
@@ -129,21 +128,6 @@ Details: [Plugin — loaders](plugin/loaders.md).
 
 ## Loading
 
-```python
-from goga_tool_pybuggy.config import load_config
-
-config = load_config(path)   # path is project-root-relative; None → the fixed path
-```
-
-The file is read with `yaml.safe_load` and validated into the typed `Config` model; an
-invalid configuration raises a pydantic validation error. Scalar plugin keys are ignored
-by `Config` (`extra=ignore`) — the same file safely serves both the CLI and the plugin.
-
-```python
-for name, entry in config.specs.items():
-    entry.location   # project-root-relative path to the spec file
-    entry.git        # Optional[GitEntry]; None → local spec
-    entry.git.url    # clone URL
-    entry.git.location   # path inside the repository
-    entry.git.ref    # Optional[str]; None → default branch
-```
+The file is read as YAML and validated into a typed model; an invalid configuration
+raises a validation error. Scalar plugin keys that `Config` does not know are ignored
+(`extra=ignore`) — the same file safely serves both the CLI and the plugin.

@@ -1,9 +1,9 @@
 # Assertions — `Expected` and `AssertField`
 
-The complete pybuggy assert layer, built on [matchcrest](../matchcrest/index.md). You
-never create these objects manually: pybuggy assembles the `AssertConfig` when you call
-the endpoint, builds `Expected` lazily on first access to `response.expected`, and hands
-you the field-level assert from `response.expected('path')`.
+The complete pybuggy assert layer, built on [matchcrest](index.md). You
+never create these objects manually: pybuggy assembles the check configuration when you
+call the endpoint, builds `Expected` lazily on first access to `response.expected`, and
+hands you the field-level assert from `response.expected('path')`.
 
 ```python
 from goga_tool_pybuggy.api.asserts import AssertField   # for a type hint
@@ -98,7 +98,7 @@ response.expected("filters").is_subset({"a": 1, "b": 2})
 | Method | What it checks |
 |--------|----------------|
 | `equal_to(value)` | Equals `value`; `strict=True` → identity (`is`) |
-| `not_equal_to(value)` | Not equal |
+| `not_equal_to(value)` | Not equal; `strict` as in `equal_to` |
 | `empty()` / `not_empty()` | Empty/falsy — non-empty/truthy |
 
 ### Number comparison
@@ -191,16 +191,11 @@ response.expected()(hook=lambda items: _mock_body(items, tid, "/api/shared", "PO
 
 `timeout`/`delay` from the configuration form the baseline. The check repeats until it
 passes or `timeout` expires; between attempts the response is re-fetched **in place** by
-replaying the same request (`resq.http.Response.reload()`), pausing `delay`. Per-call
-`timeout`/`delay` kwargs override the baseline for a single check; `None` means one
-attempt without polling.
+replaying the same request, pausing `delay`. Per-call `timeout`/`delay` kwargs override
+the baseline for a single check; `None` means one attempt without polling.
 
 ## Pluggable classes
 
-`assert_field_class` / `assert_response_class` (dotted `module:Class`) plug in custom
-subclasses; they must inherit the built-ins and are loaded at the point where the class
-is built:
-
-```python
-Api(base_url=..., assert_field_class="myproj.asserts:StrictAssertField")
-```
+`assert_field_class` / `assert_response_class` plug in custom subclasses; they must
+inherit the built-ins. Both are configured in the tool config — see
+[Pluggable assert classes](../configuration.md#pluggable-assert-classes).

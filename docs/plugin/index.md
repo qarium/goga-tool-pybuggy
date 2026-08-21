@@ -43,7 +43,7 @@ variables win).
   without an existing flaky marker is stamped with `pytest.mark.flaky(max_runs=retries)`.
   The reruns take effect when the `flaky` package is installed in the consumer suite; a
   programmatic default can be passed as `install(default_retries=N)`.
-- **The `api` fixture** — function-scoped, yields an [`Api`](../api/index.md) built from
+- **The `api` fixture** — function-scoped, yields the HTTP client built from
   the resolved options and closes it after the test. Generated endpoint fixtures depend
   on it; pytest resolves `api` automatically — no extra wiring:
 
@@ -97,5 +97,7 @@ Two mechanisms exist:
 - **Suite-wide** — the `retries` option (or `install(default_retries=N)`) stamps every
   collected test without an existing flaky marker; requires the `flaky` package in the
   suite.
-- **Per-test decorator** — the facade `retries` decorator (see
-  [Home — test reruns](../index.md#test-reruns)): `@retries(max_runs=3, min_passes=2, delay=1)`.
+- **Per-test decorator** — the facade `retries` decorator (built on the `flaky`
+  package): `@retries(max_runs=3, min_passes=2, delay=1)` reruns a flaky test up to
+  `max_runs` times requiring `min_passes` successes, pausing `delay` seconds between
+  reruns.

@@ -18,7 +18,7 @@ goga tool pybuggy endpoint info                                       # all endp
 
 Filtering semantics:
 
-- Argument not passed (or an empty list / `None` at the handler) — a no-op filter: all
+- Argument not passed (or an empty list) — a no-op filter: all
   endpoints of the selected specs are printed.
 - An id found in at least one selected spec — only the matching endpoints are printed.
 - An id not found in any selected spec → `click.ClickException("endpoint not found: <id>")`,
@@ -37,16 +37,7 @@ JSON with fixed keys (PascalCase): `Method` (lowercase), `Path` (`{param}` → `
 ## Preconditions
 
 - Spec files must reside at `location` (after [pull](pull.md) or placed manually).
-- Endpoint ids are built by the `build_endpoint_id` algorithm (see
-  [Spec Parsing](../internals/spec.md)).
+- Endpoint ids are built from the method and path — `POST /v1/API/{name}` becomes
+  `v1_api_name_post`; the same id is used by [generate](generate.md) for fixture and
+  directory names.
 - The command is read-only.
-
-## Programmatic usage
-
-```python
-from goga_tool_pybuggy.commands.info import run_info
-
-run_info(["clients_startup_get"])                        # search across all specs
-run_info(["clients_startup_get"], spec_name="client")    # within a single spec
-run_info()                                               # everything
-```

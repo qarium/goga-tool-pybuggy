@@ -21,8 +21,7 @@ Header line: `<name> (<location>)`; per endpoint: `id -> [METHOD] path`.
 
 ## Behavior
 
-- The config is loaded from the fixed path `.goga/tools/pybuggy/config.yml` via
-  `load_config()`.
+- The config is loaded from the fixed path `.goga/tools/pybuggy/config.yml`.
 - The command is read-only — it does not modify specs or the config.
 
 ## Preconditions
@@ -30,12 +29,3 @@ Header line: `<name> (<location>)`; per endpoint: `id -> [METHOD] path`.
 - Spec files must reside at `location` (after
   [pull](pull.md) or placed manually).
 - The config is valid and resides at the fixed path.
-
-## Programmatic usage
-
-```python
-from goga_tool_pybuggy.commands.list import run_list
-
-run_list(spec_name=None)        # all specs
-run_list(spec_name="client")    # a single spec
-```

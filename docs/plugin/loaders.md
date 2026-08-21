@@ -60,27 +60,6 @@ loader:
   to its built-in default `[PackageLoader("api", required=False)]` — the `api/` tree is
   discovered out of the box.
 
-## Registration wiring
-
-The registration routine runs synchronously from the plugin constructor, so
-`context['pytest_plugins']` is populated before the module finishes loading:
-
-1. Read the `loader` section of the plugin config.
-2. Build `PackageLoader`/`ModuleLoader` from its `packages`/`modules` via `from_config`.
-3. Prepend the explicit `loaders`, then drive each `loader.load(modules)`.
-4. Deduplicate and write back to `context['pytest_plugins']`.
-
-`install(...)` forwards `context` (the caller's namespace, via `call_context()`) and
-`loaders` (defaulted) to the plugin class:
-
-```python
-def install(**kwargs):
-    kwargs.setdefault("context", call_context())
-    kwargs.setdefault("loaders", [PackageLoader("api", required=False)])
-    plugin = Plugin(**kwargs)            # the constructor runs registration
-    install_pytest_plugins(plugin, context=kwargs["context"])
-```
-
 ## Preconditions and side effects
 
 - A module counts as a pytest plugin when it exposes a public `pytest_`-prefixed
@@ -91,4 +70,5 @@ def install(**kwargs):
 - A directory is walked only when it contains `__init__.py`.
 - Trial imports do not pollute `sys.modules`: a module (and any ancestor package) absent
   before the probe is removed afterwards.
-- Must run synchronously at import time; mutates `context['pytest_plugins']` in place.
+- Loaders run synchronously at `install()` time; each `load` mutates the shared
+  accumulator in place.

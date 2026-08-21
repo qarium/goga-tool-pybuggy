@@ -42,7 +42,7 @@ set).
 ## Applying a matcher
 
 ```python
-from hamcrest import assert_that
+from goga_tool_pybuggy.matchcrest import assert_that
 from goga_tool_pybuggy.matchcrest.matchers import ResponseCodeMatcher
 
 assert_that(ResponseContext(response), ResponseCodeMatcher(200, timeout=10))

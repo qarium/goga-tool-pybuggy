@@ -64,22 +64,6 @@ A repeated `goga tool pybuggy init` asks before re-creating the goga config, the
 | goga code (`1`) | Goga initialization canceled/failed — conventions slot, the review-executor flag and usages are **not** delivered |
 | non-zero (`ClickException`) | Usages bootstrap or conftest write error |
 
-## Programmatic usage
-
-```python
-from goga_tool_pybuggy.commands.init import (
-    run_init, run_goga_init, init_cmd, register_usages, register_annotations,
-    ensure_review_executor_skip, write_test_convention,
-    build_pybuggy_config, write_pybuggy_config, write_pybuggy_conftest,
-)
-
-run_init()   # uses cwd as the output root; returns an exit code (int)
-```
-
-The interactive steps are isolated in testable seams (`run_goga_init`,
-`build_pybuggy_config`); the pure parts (`write_test_convention`,
-`write_pybuggy_config`, `write_pybuggy_conftest`) always write without TTY checks.
-
 ## Preconditions and side effects
 
 - Requires the installed `goga` package (a pybuggy dependency).

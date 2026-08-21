@@ -1,9 +1,20 @@
-# Test Lifecycle — the `api.automate` pipeline
+# Pipelines — the `api.automate` lifecycle
 
-Beyond the CLI and the plugin, pybuggy ships a staged goga pipeline
-(`PybuggyApiAutomate`) that automates API-test creation end to end: from feature
-requirements to committed, accepted tests. Each stage is a dedicated goga skill; stages
-marked *communication* involve the user.
+The primary way to create tests with pybuggy is the staged goga pipeline
+(`PybuggyApiAutomate`): it automates API-test creation end to end — from feature
+requirements to committed, accepted tests. Each stage is a dedicated goga skill; every
+stage except `create-testcases` is a *communication* stage that involves you.
+
+## Launch
+
+```bash
+goga pipeline pybuggy:api.automate
+```
+
+Prerequisites: pybuggy installed (`goga install pybuggy`) and the environment
+initialized (`goga tool pybuggy init` — see [Getting Started](getting-started.md)).
+The pipeline asks for the feature under test and drives the chain; `<feature>` names
+every artifact it produces.
 
 ## Stages
 
@@ -39,8 +50,7 @@ tests/<spec>/<id>/               # the materialized test code
 
 ## How it relates to the rest
 
-- The generated [`api/`](cli/generate.md) fixtures and the
-  [`Api` runtime](api/index.md) are what the materialized tests consume.
+- The generated [`api/`](cli/generate.md) fixtures are what the materialized tests consume.
 - The pipeline stages are goga skills (`goga-tool-pybuggy-api-automate-*`) driven by the
   goga agent in the consumer project — the same project `goga tool pybuggy init` bootstraps
   (usage keys `pybuggy-api` / `pybuggy-asserts` teach the consumer's agent the runtime
