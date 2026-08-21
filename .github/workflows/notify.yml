@@ -1,9 +1,13 @@
 name: Notify Release
 
+#on:
+#  workflow_run:
+#    workflows: ["Publish Release"]
+#    types: [completed]
+
 on:
-  workflow_run:
-    workflows: ["Publish Release"]
-    types: [completed]
+  workflow_dispatch:
+
 
 permissions:
   contents: read
