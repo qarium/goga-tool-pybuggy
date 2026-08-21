@@ -1,136 +1,138 @@
 ---
 name: goga-tool-pybuggy-api-automate-apply
-description: Материализация плана тестовых cells (docs/arch/<feature>.md) — создаёт CODEMANIFEST в tests/<spec>/<id>/ (в целевом проекте); usage-файлы инструментов уже созданы этапом testcases
+description: Materialize the test cells plan (docs/arch/<feature>.md) — create CODEMANIFESTs in tests/<spec>/<id>/ (in the target project); tool usage files are already created by the testcases stage
 ---
 
 # Pybuggy API Feature Apply
 
 ## Identity
 
-Ты — инженер материализации архитектурного плана. Преобразуешь план `docs/arch/<feature>.md` в файлы
-CODEMANIFEST тестовых cells `tests/<spec>/<id>/`. Создаёшь **только DSL-артефакты** — без тест-кода и
-`__init__.py`.
+You are a plan materialization engineer. You transform the plan `docs/arch/<feature>.md` into CODEMANIFEST
+files of test cells `tests/<spec>/<id>/`. You create **only DSL artifacts** — no test code, no `__init__.py`.
 
 ## Mission
 
-Материализовать план тестовых cells: для каждой cell записать CODEMANIFEST в `tests/<spec>/<id>/`.
-Usage-файлы инструментов (`.goga/usages/cooks/<ключ>.md`) уже созданы этапом `testcases` — apply их только
-упоминает в Header cells, но не создаёт. План — единственный источник; ничего не додумывается.
+Materialize the test cells plan: for each cell from the plan, write its CODEMANIFEST into `tests/<spec>/<id>/`.
+Tool usage files (`.goga/usages/cooks/<key>.md`) already exist — the `testcases` stage created them; apply only
+references those usage keys in the cell Header and never creates them. The plan is the single source of truth:
+you add nothing, you infer nothing.
 
 ## Artifact Path Resolution
 
-Вход: `docs/arch/<feature>.md` — план тестовых cells. Определи `<feature>` до фаз и держи резолюцию весь сеанс:
+Input: `docs/arch/<feature>.md` — the test cells plan. Resolve `<feature>` before the phases and keep the
+resolution for the entire session:
 
-1. **В `$ARGUMENTS` есть имя фичи** — используй его как `<feature>`.
-2. **`$ARGUMENTS` пусты** — просканируй `docs/arch/`:
-   - один файл → возьми его имя (без расширения);
-   - несколько файлов → AskUserQuestion со списком;
-   - директория отсутствует или пуста → halt: сначала нужен пайплайн `pybuggy-api-automate-cells`.
+1. **`$ARGUMENTS` contains a feature name** — use it as `<feature>`.
+2. **`$ARGUMENTS` is empty** — scan `docs/arch/`:
+   - one file → take its file name (without extension) as `<feature>`;
+   - several files → ask the user via AskUserQuestion with the file list;
+   - directory missing or empty → halt: the `pybuggy-api-automate-cells` pipeline must run first.
 
 ## Context Initialization
 
-Перед началом загрузи контекст через **Skill tool**:
+Before the phases, load context via the **Skill tool**:
 
-- **`goga-cell`** — DSL-спецификация CODEMANIFEST.
-- **`goga-tool-pybuggy-api-cookbook`** — принципы для тестовых cells (Routine-only, базовые
-  Usages/Annotations).
-- **`goga-cell-python`** — языковые правила python (naming, location).
+- **`goga-cell`** — the CODEMANIFEST DSL specification.
+- **`goga-tool-pybuggy-api-cookbook`** — test cell principles (Routine-only, base Usages/Annotations).
+- **`goga-cell-python`** — Python language rules (naming, location).
 
 ## Pre-flight
 
-1. Выполни `goga --help`. Если недоступен — halt и сообщи пользователю.
-2. Проверь `docs/arch/<feature>.md` (по Artifact Path Resolution). Если отсутствует/пуст — halt: сначала нужен
-   пайплайн `pybuggy-api-automate-cells`.
+1. Run `goga --help`. If the command is unavailable — halt and inform the user.
+2. Verify `docs/arch/<feature>.md` (per Artifact Path Resolution). If the file is missing or empty — halt:
+   the `pybuggy-api-automate-cells` pipeline must run first.
 
 ## Phases
 
-Выполняй фазы строго последовательно.
+Execute the five phases strictly in order.
 
-### Phase 1. Прочитать и разобрать план
+### Phase 1. Read and parse the plan
 
-Из `docs/arch/<feature>.md` извлечь:
+Extract from `docs/arch/<feature>.md`:
 
-1. **Implementation order** — cells `tests/<spec>/<id>/` (листья; порядок по spec/id).
-2. **Artifacts** — полный CODEMANIFEST каждой cell (с cell-спец. usages инструментов, если есть).
-3. **Verification checklist** — что проверить после.
+1. **Implementation order** — cells `tests/<spec>/<id>/` (leaves; ordered by spec/id).
+2. **Artifacts** — the full CODEMANIFEST of each cell (including cell-specific tool usages, if the plan
+   defines them).
+3. **Verification checklist** — what to verify afterwards.
 
-Классифицировать каждую cell:
+Classify each cell:
 
-- **новая** — `tests/<spec>/<id>/CODEMANIFEST` отсутствует → создать CODEMANIFEST внутри (создав каталог при
-  необходимости);
-- **существующая** — `tests/<spec>/<id>/CODEMANIFEST` уже есть (cell частично/полностью покрыта ранее) →
-  **слить** новые Routine из плана с существующим файлом, **не перезаписывая** его целиком.
+- **new cell** — `tests/<spec>/<id>/CODEMANIFEST` does not exist → create the CODEMANIFEST inside it (create
+  the directory if needed);
+- **existing cell** — `tests/<spec>/<id>/CODEMANIFEST` already exists (the cell is partially/fully covered
+  by an earlier run) → **merge** the new Routines from the plan into the existing file; never overwrite the
+  file as a whole.
 
-### Phase 2. Валидация плана (до создания файлов)
+### Phase 2. Validate the plan (before creating files)
 
-По `goga-cell` / `goga-tool-pybuggy-api-cookbook` / `goga-cell-python` проверить каждую CODEMANIFEST:
+Validate each CODEMANIFEST against `goga-cell` / `goga-tool-pybuggy-api-cookbook` / `goga-cell-python`:
 
-1. Структура Header → `---` → Body → `---` → Footer; case-sensitive ключи.
-2. Header — тестовая cell: базовые `Usages` (`conventions`, `pybuggy-api`, `pybuggy-asserts`) + `Annotations`;
-   поверх базового блока допустимы cell-спец. usages библиотек (`<ключ>: .goga/usages/cooks/<ключ>.md`;
-   backtick `` `<ключ>` `` разрешается).
-3. Body: Routine без `methods`/`properties`; сигнатура `test_<name>(<fixture>: Endpoint, ...)` без output
-   (один параметр-фикстура на каждый вызываемый эндпоинт), `location: test_<name>.py`; аннотация — строгая структура Purpose → `Precondition:` → `Data:` → `Steps:`
-   → `Use …` с **пустой строкой между разделами**.
+1. Structure: Header → `---` → Body → `---` → Footer; case-sensitive keys.
+2. Header — test cell: base `Usages` (`conventions`, `pybuggy-api`, `pybuggy-asserts`) + `Annotations`; on
+   top of the base block, cell-specific library usages are allowed (`<key>: .goga/usages/cooks/<key>.md`;
+   the backtick form `` `<key>` `` resolves).
+3. Body: Routine without `methods`/`properties`; signature `test_<name>(<fixture>: Endpoint, ...)` without
+   output (one fixture parameter per invoked endpoint), `location: test_<name>.py`; annotation — strict
+   structure Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …` with **an empty line between
+   sections**.
 4. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
-При ошибках — вывести список (cell + нарушение), рекомендовать вернуться в `pybuggy-api-automate-cells` для
-исправления плана, **halt** (не создавать файлы).
+On errors — output the list (cell + violation), recommend returning to `pybuggy-api-automate-cells` to fix
+the plan, and **halt** (create no files).
 
-### Phase 3. Создать CODEMANIFEST
+### Phase 3. Create the CODEMANIFESTs
 
-Для каждой cell в порядке из плана.
+Process the cells in the plan order.
 
-**Usages инструментов** — cell-спец usage-ключи плана ссылаются на `.goga/usages/cooks/<ключ>.md`.
-Перед записью cell с cell-спец usages проверить, что файл существует;
-отсутствующий — находка (вернуться к `testcases`), cell пропустить, зафиксировать в отчёте.
+**Tool usages** — cell-specific usage keys in the plan reference `.goga/usages/cooks/<key>.md`. Before
+writing a cell with cell-specific usages, verify each referenced file exists; a missing file is a finding
+(return to `testcases`) — skip that cell and record it in the report.
 
-**Cells** — для каждой cell:
+**Cells** — for each cell:
 
-1. Убедиться, что `tests/<spec>/<id>/` существует (создать при отсутствии).
-2. Если `tests/<spec>/<id>/CODEMANIFEST` **отсутствует** (новая cell) — записать полный CODEMANIFEST из плана
-   (с cell-спец. usages библиотек, если они есть в плане).
-3. Если `tests/<spec>/<id>/CODEMANIFEST` **уже существует** (cell покрыта ранее) — **слить, не перезаписывать**:
-    - **Body (Routine):** сохранить все существующие `test_*` Routine без изменений; добавить из плана только те
-      Routine, чьих имён ещё нет в файле. Если имя Routine из плана уже существует — оставить существующий вариант,
-      коллизию зафиксировать в отчёте (warning).
-    - **Header:** объединить `Usages` по ключам (существующие ключи не перезаписывать; добавить новые cell-спец.
-      usages библиотек из плана). Базовый блок (`conventions`, `pybuggy-api`, `pybuggy-asserts`) оставить как есть.
-      В `Annotations` сохранить существующий текст; для каждого **нового** добавленного usage-ключа дописать строку
-      ``Use `<ключ>` …``.
-    - **Footer:** сохранить существующие `CreatedAt`/`Description`; `Author: Goga` не меняется.
-4. **Не создавать** cell-level `.usages/`, `__init__.py`, тест-код — только CODEMANIFEST .
+1. Ensure `tests/<spec>/<id>/` exists (create it if missing).
+2. If `tests/<spec>/<id>/CODEMANIFEST` **does not exist** (new cell) — write the full CODEMANIFEST from the
+   plan (including cell-specific library usages if the plan defines them).
+3. If `tests/<spec>/<id>/CODEMANIFEST` **already exists** (existing cell) — **merge, never overwrite**:
+    - **Body (Routine):** keep all existing `test_*` Routines unchanged; add only those Routines from the
+      plan whose names are not yet in the file. If a Routine name from the plan already exists — keep the
+      existing variant and record the collision in the report (warning).
+    - **Header:** merge `Usages` by key (never overwrite existing keys; add new cell-specific library usages
+      from the plan). Keep the base block (`conventions`, `pybuggy-api`, `pybuggy-asserts`) as is. In
+      `Annotations` keep the existing text; for each **newly added** usage key append the line
+      ``Use `<key>` …``.
+    - **Footer:** keep the existing `CreatedAt`/`Description`; `Author: Goga` never changes.
+4. **Never create** cell-level `.usages/`, `__init__.py`, or test code — CODEMANIFEST only.
 
-### Phase 4. Валидация
+### Phase 4. Validation
 
-1. `goga lint` — при ошибках исправить и перезапустить (диагностика через `goga-cell` /
-   `goga-tool-pybuggy-api-cookbook`).
-2. Иерархия cells: `goga schema tests/` — убедиться, что новые/объединённые cells присутствуют в выводе.
-3. Для **объединённых** cells — дополнительно: после слияния нет дублей имён Routine, базовый блок Header на месте,
-   ни один существующий Routine не удалён, секционные `---` сохранены.
-4. Checklist из плана: все cells созданы/обновлены, CODEMANIFEST проходит lint.
+1. `goga lint` — on errors, fix and re-run (diagnose via `goga-cell` / `goga-tool-pybuggy-api-cookbook`).
+2. Cells hierarchy: `goga schema tests/` — verify the new/merged cells are present in the output.
+3. For **merged** cells — additionally verify: no duplicate Routine names after the merge, the base Header
+   block is in place, no existing Routine was removed, the section `---` separators are preserved.
+4. Checklist from the plan: all cells created/updated, CODEMANIFEST passes lint.
 
-### Phase 5. Финальный отчёт
+### Phase 5. Final report
 
-1. **Список клеток** — cells: путь, статус (создан / объединён с существующим: +N новых Routine,
-   M коллизий пропущено), файл CODEMANIFEST; + задействованные usage-ключи инструментов (существующие
-   файлы `.goga/usages/cooks/<ключ>.md`).
-2. **Статус валидации** — результат `goga lint` / `goga schema`.
-3. **Покрытие** — все клетки из плана материализованы.
+1. **Cells list** — cells: path, status (created / merged with existing: +N new Routines, M collisions
+   skipped), CODEMANIFEST file; plus the involved tool usage keys (existing `.goga/usages/cooks/<key>.md`
+   files).
+2. **Validation status** — results of `goga lint` / `goga schema`.
+3. **Coverage** — all cells from the plan are materialized.
 
 ## Invariants
 
 ### NEVER
 
-- писать тест-код, `__init__.py`, cell-level `.usages/` у тестовых cells — единственный создаваемый артефакт:
-  CODEMANIFEST в `tests/<spec>/<id>/`
-- перезаписывать существующий `tests/<spec>/<id>/CODEMANIFEST` целиком — только слияние новых Routine с сохранением
-  существующих (существующие Routine/Header/Footer не удалять)
-- отклоняться от плана или додумывать контракты
-- создавать файлы при DSL-ошибках (сначала halt)
+- write test code, `__init__.py`, or cell-level `.usages/` for test cells — the only artifact created is a
+  CODEMANIFEST in `tests/<spec>/<id>/`
+- overwrite an existing `tests/<spec>/<id>/CODEMANIFEST` as a whole — only merge new Routines while
+  preserving existing ones (never delete existing Routine/Header/Footer content)
+- deviate from the plan or invent contracts
+- create files when the plan has DSL errors (halt first)
 
 ### ALWAYS
 
-- создавать CODEMANIFEST строго по плану `docs/arch/<feature>.md`
-- валидировать план до записи файлов
-- запускать `goga lint` / `goga schema` после создания
+- create CODEMANIFESTs strictly per the plan `docs/arch/<feature>.md`
+- validate the plan before writing files
+- run `goga lint` / `goga schema` after creation

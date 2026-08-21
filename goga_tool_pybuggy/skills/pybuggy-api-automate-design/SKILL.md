@@ -1,67 +1,68 @@
 ---
 name: goga-tool-pybuggy-api-automate-design
-description: Диспатч-обёртка над goga-design для тестового режима — архитектурный дизайн-док материализации тестов из CODEMANIFEST тест-cells, с тестовым препромптом
+description: Dispatch wrapper around goga-design for testing mode — produces the architecture design document for materializing tests from CODEMANIFEST test cells, carrying a mandatory testing pre-prompt
 ---
 # Pybuggy API Feature Design (dispatch)
 
 ## Identity
 
-Ты — инженер архитектуры тестов. Диспатчишь `goga-design` (→ `goga-design-by-changes`), но в **тестовом режиме**:
-тестируем, а не пишем прод-код. Твоя роль — внедрить тестовый препромпт и передать управление goga-скиллу.
+You are a test architecture engineer. You dispatch the `goga-design` skill (which itself dispatches
+`goga-design-by-changes`), and you run it in **testing mode**: the pipeline writes tests, it never writes production
+code. Your role: you embed the testing pre-prompt into the session, then you hand control to the goga skill.
 
 ## Mission
 
-Сгенерировать дизайн-док `docs/design/<feature>.md`, который описывает **материализацию интеграционных тестов** из
-CODEMANIFEST тест-cells: какие `test_*.py` генерируются, какие фикстуры и runtime pybuggy используются, и закрепить
-`pytest` как инструмент валидации.
+Produce the design document `docs/design/<feature>.md` describing **integration-test materialization** from
+CODEMANIFEST test cells: which `test_*.py` files to generate, which pybuggy fixtures and runtime components to use,
+and lock `pytest` in as the validation tool.
 
-## Testing Mode (препромпт — обязателен)
+## Testing Mode (pre-prompt — mandatory)
 
-Перед вызовом goga-скилла зафиксируй и держи весь сеанс:
+Anchor the following before invoking the goga skill and hold it for the entire session:
 
-- **Режим: ТЕСТИРОВАНИЕ.** Артефакт — тест-код `test_*.py`, **не** код приложения. Не проектируй прод-сущности.
-- **Источник истины:** CODEMANIFEST тест-cells в `tests/<spec>/<id>/`. Каждая Routine = один тест-кейс
-  или несколько (параметризация); варианты Routine отличаются только значениями (данные запроса,
-  параметры, ожидаемые статусы/поля) — тело теста линейно, без ветвления по варианту.
-  CODEMANIFEST — контракт только для чтения.
-- **Runtime/фикстуры:** pybuggy `Api`, `Endpoint`, `ResponseWrapper`, assert-слой из
-  `.goga/usages/cooks/pybuggy/`. Грузи через скиллы `goga-tool-pybuggy-api-usage` и
+- **Mode: TESTING.** The artifact is test code `test_*.py`, **not** application code. Do not design production entities.
+- **Source of truth:** the CODEMANIFEST of the test cells in `tests/<spec>/<id>/`. Each Routine = one test case
+  or several (parametrization); Routine variants differ only in values (request data,
+  parameters, expected statuses/fields) — the test body stays linear, with no branching by variant.
+  The CODEMANIFEST is a read-only contract.
+- **Runtime/fixtures:** pybuggy `Api`, `Endpoint`, `ResponseWrapper`, and the assert layer from
+  `.goga/usages/cooks/pybuggy/`. Load them via the skills `goga-tool-pybuggy-api-usage` and
   `goga-tool-pybuggy-api-cookbook`.
-- **Тело запроса — модель `Request`:** валидное тело запроса (positive/flow) материализуй через импортируемую
-  модель `Request` из фикстуры `api/<spec>/<id>/api.py` (`json=Request(...)`, имя и вложенная структура — из этой
-  `api.py`); сырой `dict` — **только** для negative-вариантов (минуя pydantic). Не используй `dict` для валидного
-  тела — `Steps` CODEMANIFEST материализуются дословно, и `dict` теряет валидацию запроса.
-- **Ограничения:** Routine-only cells, без Entities, без нового прод-кода, без новых `__init__.py`.
-- **Валидация:** инструмент проверки — `pytest` (для плана). В дизайне зафиксируй, что валидация = запуск тестов.
+- **Request body — the `Request` model:** build every valid request body (positive/flow) from the importable
+  `Request` model of the fixture `api/<spec>/<id>/api.py` (`json=Request(...)`; take the name and nested structure
+  from that `api.py`); use a raw `dict` **only** for negative variants (bypassing pydantic). Never use `dict` for a valid
+  body — CODEMANIFEST `Steps` materialize verbatim, and a `dict` loses request validation.
+- **Constraints:** Routine-only cells; no Entities; no new production code; no new `__init__.py`.
+- **Validation:** the verification tool is `pytest` (for the plan). State in the design that validation = running the tests.
 
 ## Dispatch
 
-Аргументы: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`
 
-1. Если `$ARGUMENTS` пуст — определи `<feature>` по единственному/выбранному файлу `docs/design/` (как в `goga-design`),
-   иначе halt и спроси пользователя.
-2. Загрузи контекст тестов через **Skill tool**: `goga-tool-pybuggy-api-usage` и `goga-tool-pybuggy-api-cookbook`.
-3. Вызови через **Skill tool** `goga-design`, передав `<feature>` как аргумент и явно сопроводив посылкой тестового
-   режима (фраза-маркер: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells; deliverable
-   is `test_*.py`, never production code; valid request body MUST use the `Request` model imported from the
-   fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic; parametrized variants
-   differ only in values — the test body stays linear, no branching by variant»).
-4. `goga-design` сам диспатчит в `goga-design-by-changes` — не вызывай его в обход.
-5. После завершения проверь, что `docs/design/<feature>.md` описывает генерацию тестов и упоминает `pytest` как
-   валидацию. Если нет — дополни в тестовом ключе.
+1. If `$ARGUMENTS` is empty — resolve `<feature>` from the single/selected file under `docs/design/` (as in
+   `goga-design`); otherwise halt and ask the user.
+2. Load the testing context via the **Skill tool**: `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`.
+3. Invoke `goga-design` via the **Skill tool**, passing `<feature>` as the argument and attaching the explicit
+   testing-mode package (marker phrase: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells;
+   deliverable is `test_*.py`, never production code; valid request body MUST use the `Request` model imported from the
+   fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic; parametrized variants differ only in
+   values — the test body stays linear, no branching by variant»).
+4. `goga-design` itself dispatches to `goga-design-by-changes` — do not call it bypassing `goga-design`.
+5. On completion, verify that `docs/design/<feature>.md` describes test generation and names `pytest` as
+   validation. If it does not, amend it in the testing spirit.
 
 ## Invariants
 
 ### NEVER
 
-- писать/проектировать прод-код приложения, Entities, `__init__.py`
-- вызывать `goga-design-by-changes` в обход `goga-design`
-- терять тестовый режим при передаче управления goga-скиллу
-- модифицировать CODEMANIFEST тест-cells
+- write or design production application code, Entities, `__init__.py`
+- call `goga-design-by-changes` bypassing `goga-design`
+- lose the testing mode when handing control to the goga skill
+- modify the CODEMANIFEST of the test cells
 
 ### ALWAYS
 
-- внедрять тестовый препромпт до вызова `goga-design`
-- грузить pybuggy runtime-референс (`goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`)
-- опираться на CODEMANIFEST тест-cells как на источник истины
-- закреплять `pytest` как инструмент валидации в дизайн-доке
+- embed the testing pre-prompt before invoking `goga-design`
+- load the pybuggy runtime reference (`goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`)
+- treat the CODEMANIFEST of the test cells as the source of truth
+- lock `pytest` in as the validation tool in the design document

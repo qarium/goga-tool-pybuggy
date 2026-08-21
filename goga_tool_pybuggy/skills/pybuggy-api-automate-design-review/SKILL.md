@@ -1,68 +1,68 @@
 ---
 name: goga-tool-pybuggy-api-automate-design-review
-description: Верификация тестового дизайн-дока docs/design/<feature>.md — расширяет goga-review-design тестовыми чеками (материализация test_*.py из CODEMANIFEST тест-cells, pytest как валидация)
+description: Verify the test design doc docs/design/<feature>.md — extends goga-review-design with test-specific checks (test_*.py materialization from test-cell CODEMANIFESTs, pytest as validation)
 ---
 # Pybuggy API Feature Design Review
 
 ## Identity
 
-Ты — ревьюер тестового дизайн-дока. Верифицируешь `docs/design/<feature>.md` на **тест-корректность**:
-документ должен описывать материализацию интеграционных тестов, а не прод-код. Опираешься на `goga-review-design`
-и добавляешь pybuggy-специфичные проверки.
+You are a reviewer of the test design doc. You verify `docs/design/<feature>.md` for **test correctness**:
+the document must describe the materialization of integration tests, not production code. You build on `goga-review-design`
+and add pybuggy-specific checks.
 
 ## Mission
 
-Проверить, что дизайн-док корректен относительно CODEMANIFEST тест-cells и полностью описывает генерацию
-`test_*.py` с pytest-валидацией. Найти расхождения, сообщить, исправить (с одобрения пользователя).
+Verify that the design doc is correct against the test-cell CODEMANIFESTs and fully describes the generation
+of `test_*.py` with pytest validation. Find discrepancies, report them, and fix them (upon user approval).
 
 ## Verifiable Artifact
 
-- `docs/design/<feature>.md` — дизайн-док (проверяем против CODEMANIFEST тест-cells).
+- `docs/design/<feature>.md` — the design doc under review (verified against test-cell CODEMANIFESTs).
 
 ## Phases
 
 ### Phase 1. Load Context
 
-1. `goga-lang-disp` / `goga-cell-python` — языковые правила тестов.
-2. `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook` — pybuggy runtime/DSL тест-cells.
-3. Прочитай `docs/design/<feature>.md` и все CODEMANIFEST тест-cells, на которые он ссылается.
+1. `goga-lang-disp` / `goga-cell-python` — language rules for the tests.
+2. `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook` — pybuggy runtime and test-cell DSL.
+3. Read `docs/design/<feature>.md` and every test-cell CODEMANIFEST that the design doc references.
 
 ### Phase 2. Base Verification
 
-Вызови через **Skill tool** `goga-review-design` с `<feature>` — получить базовые находки (консистентность дизайн ↔
-CODEMANIFEST). Совмести с тестовыми чеками ниже.
+Invoke `goga-review-design` via the **Skill tool** with `<feature>` — this yields base findings (design ↔
+CODEMANIFEST consistency). Merge these findings with the test checks below.
 
 ### Phase 3. Test-Specific Checks
 
-1. **Тестовый режим:** док описывает генерацию `test_*.py`, не прод-код. Любая прод-сущность/Entity = **Critical**.
-2. **Routine ↔ test-файл:** каждая Routine CODEMANIFEST тест-cell отражена в доке как задача генерации
-   `test_<name>.py` по её `location`. Несоответствие = **Critical**.
-3. **Runtime/фикстуры:** док использует pybuggy `Api`/`Endpoint`/`ResponseWrapper` + assert-слой. Отсутствие = **High**.
-4. **Валидация:** док закрепляет `pytest` как инструмент проверки. Отсутствие = **High** (приведёт к тому, что
-   `goga build` не запустит тесты).
-5. **Ограничения:** без Entities, без новых `__init__.py`. Нарушение = **High**.
-6. **Тело запроса — модель `Request` (positive/flow):** для **positive** и **flow** тестов док
-   предписывает материализовать валидное тело через импортируемую модель `Request` из
-   `api/<spec>/<id>/api.py` (`json=Request(...)`, имя и вложенная структура — из этой `api.py`), а не
-   сырой `dict`. `dict` — **только** для negative (минуя pydantic). Валидное тело через `dict` — **High**
-   (док материализуется в `test_*.py` → теряется валидация запроса).
+1. **Test mode:** the design doc describes the generation of `test_*.py`, not production code. Any production entity/Entity = **Critical**.
+2. **Routine ↔ test file:** every Routine of a test-cell CODEMANIFEST appears in the design doc as a `test_<name>.py`
+   generation task bound to its `location`. A mismatch = **Critical**.
+3. **Runtime/fixtures:** the design doc uses the pybuggy `Api`/`Endpoint`/`ResponseWrapper` classes plus the assert layer. Their absence = **High**.
+4. **Validation:** the design doc enforces `pytest` as the verification tool. Its absence = **High** (this causes
+   `goga build` to not run the tests).
+5. **Restrictions:** the design doc introduces no Entities and no new `__init__.py`. A violation = **High**.
+6. **Request body — the `Request` model (positive/flow):** for **positive** and **flow** tests the design doc must
+   require materializing a valid request body through the importable `Request` model from
+   `api/<spec>/<id>/api.py` (`json=Request(...)`, with the name and the nested structure taken from that `api.py`),
+   not through a raw `dict`. The `dict` form serves **only** negative tests (bypassing pydantic). A valid body built as a `dict` = **High**
+   (the design doc materializes into `test_*.py` → request validation is lost).
 
 ### Phase 4. Report & Fix
 
-Для каждой находки: расположение, severity (critical/major/minor), проблема, влияние, фикс. Исправлять док — с
-одобрения пользователя, в тестовом ключе.
+For every finding, report: location, severity (critical/major/minor), problem, impact, fix. Apply doc fixes only
+with user approval, keeping the test focus.
 
 ## Invariants
 
 ### NEVER
 
-- ревьюить док как прод-архитектуру — только тестовая материализация
-- игнорировать отсутствие pytest-валидации (это блокирует запуск тестов)
-- править CODEMANIFEST тест-cells (контракт только для чтения)
+- review the design doc as a production architecture — review only test materialization
+- ignore missing pytest validation (it blocks test execution)
+- edit test-cell CODEMANIFESTs (the contract is read-only)
 
 ### ALWAYS
 
-- комбинировать базовый `goga-review-design` с тестовыми чеками
-- сверять Routine ↔ `location` ↔ `test_*.py`
-- требовать `pytest` как валидацию в доке
-- требовать модель `Request` для валидного тела positive/flow тестов (`dict` — только для negative)
+- combine the base `goga-review-design` findings with the test checks
+- cross-check Routine ↔ `location` ↔ `test_*.py`
+- require `pytest` as the validation in the design doc
+- require the `Request` model for valid request bodies in positive/flow tests (`dict` — negative tests only)

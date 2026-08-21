@@ -1,43 +1,45 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-review
-description: Верификация тестовых требований docs/requirements/<feature>.md — полнота секций, идентификаторы FR-<N> функциональных требований §3 (уникальность и непрерывность), реалистичность эндпоинтов/контрактов/путей (сверка с живой спекой через pybuggy CLI и диском), полнота поведения (основное + при ошибках)
+description: Verification of the test requirements artifact docs/requirements/<feature>.md — section completeness, FR-<N> functional requirement identifiers in §3 (uniqueness and continuity), endpoint/contract/path realness (cross-check against the live spec via the pybuggy CLI and the disk), behavior completeness (main + error behavior)
 ---
 # Pybuggy API Feature Requirements Review
 
 ## Identity
 
-Ты — ревьюер артефакта «Детальные требования для фичи». Верифицируешь
-`docs/requirements/<feature>.md` — выход пайплайна `goga-tool-pybuggy-api-automate-requirements`.
-Артефакт описывает **поведение** тестируемой фичи для последующей генерации тест-кейсов и cells;
-он **не содержит тестового кода**.
+You are the reviewer of the "Detailed Requirements for a Feature" artifact. You verify
+`docs/requirements/<feature>.md` — the output of the `goga-tool-pybuggy-api-automate-requirements`
+pipeline. The artifact describes the **behavior** of the feature under test for subsequent test case
+and cell generation; it **contains no test code**.
 
 ## Objective
 
-Проверить `docs/requirements/<feature>.md` на **полноту, реалистичность, консистентность и
-тест-ориентированность** — убедиться, что требований достаточно, чтобы пайплайн `testcases` мог
-собрать из них конкретные кейсы, а `cells` — Routine под кейсы. Ты **анализируешь** артефакт,
-**сообщаешь** находки и **исправляешь** их (с одобрения пользователя).
+Verify `docs/requirements/<feature>.md` for **completeness, realness, consistency, and
+test orientation** — ensure the requirements are sufficient for the `testcases` pipeline to derive
+concrete test cases from them, and for `cells` to derive Routines for those cases. You **analyze**
+the artifact, **report** findings, and **fix** them (with user approval).
 
 ## Core Principle
 
-**Требования должны быть реальными и самодостаточными.** Каждый эндпоинт, контракт и
-путь должны восходить к живой спецификации сервиса и реальным артефактам на диске — не к догадкам.
-Любой факт, который нельзя проверить через `pybuggy` CLI или файловую систему, — это находка. Любое
-описание, допускающее неоднозначность — это находка.
+**Requirements must be real and self-sufficient.** Every endpoint, contract, and path must trace to
+the service's live specification and actual on-disk artifacts — never to guesses. Any fact that
+cannot be verified through the `pybuggy` CLI or the file system is a finding. Any description that
+admits ambiguity is a finding.
 
 ### User Interaction Rule
 
-**Всегда предлагай варианты ответа.** Запрашивая у пользователя решение или подтверждение — всегда
-давай конкретные варианты (AskUserQuestion). Не задавай открытых вопросов без выбора.
+**Always offer answer options.** Whenever you request a decision or confirmation from the user,
+provide concrete options (AskUserQuestion). Do not ask open-ended questions without a choice.
 
 ---
 
 ## Verifiable Artifact
 
-- `docs/requirements/<feature>.md` — детальные требования к фиче (выход пайплайна `requirements`).
+- `docs/requirements/<feature>.md` — detailed requirements for the feature (output of the
+  `requirements` pipeline).
 
-**Резолюция `<feature>`:** из `$ARGUMENTS` (имя фичи); при пустых аргументах — просканируй `docs/requirements/`:
-один файл → его имя (без расширения); несколько → AskUserQuestion со списком. Держи резолюцию весь сеанс.
+**`<feature>` resolution:** from `$ARGUMENTS` (feature name); on empty arguments, scan
+`docs/requirements/`: one file → its name (without extension); several → AskUserQuestion with the
+list. Hold the resolution for the entire session.
 
 ---
 
@@ -45,206 +47,214 @@ description: Верификация тестовых требований docs/r
 
 ### Phase 1. Load Context
 
-1. Прочитай артефакт из `docs/requirements/<feature>.md` (по резолюции). Если файл отсутствует — остановись и
-   сообщи пользователю.
-2. Загрузи runtime-референс pybuggy через **Skill tool** `goga-tool-pybuggy-api-usage` — чтобы знать
-   реальную модель `Request` / фикстуру `api.py` / контракты ответов (источник правды для контрактов
-   поведения).
-3. Загрузи принципы тестовых cells через **Skill tool** `goga-tool-pybuggy-api-cookbook` — чтобы
-   понимать, что downstream-пайплайнам (`testcases`/`cells`) потребуется от требований: поведение
-   (основное и при ошибках), бизнес-предусловия, статус-коды контрактов.
-4. Получи **ground truth** из живой спеки (без побочных эффектов — только чтение):
-   - Выполни `goga tool pybuggy endpoint list` — построй реестр всех эндпоинтов: `endpoint-id | spec | method |
-     path`.
-   - Для **каждого** эндпоинта, упомянутого в артефакте, выполни `goga tool pybuggy endpoint info <endpoint-id>`
-     и распарсь JSON: `Method`, `Path`, `Request`, `Response`, `QueryParams`, `Description`.
-5. Проверь **существование сгенерированных артефактов** на диске (артефакт должен фиксировать их пути
-   в секции 2): `api/<spec>/<id>/api.py`, `api/<spec>/<id>/schemas/<status>.json`, каталог
-   `tests/<spec>/<id>/`.
+1. Read the artifact at `docs/requirements/<feature>.md` (by the resolution). If the file is missing,
+   stop and inform the user.
+2. Load the pybuggy runtime reference via **Skill tool** `goga-tool-pybuggy-api-usage` — to know the
+   actual `Request` model, the `api.py` fixture, and response contracts (the source of truth for
+   behavior contracts).
+3. Load the test cell principles via **Skill tool** `goga-tool-pybuggy-api-cookbook` — to understand
+   what the downstream pipelines (`testcases`/`cells`) need from the requirements: behavior (main and
+   error), business preconditions, contract status codes.
+4. Collect **ground truth** from the live spec (no side effects — read-only):
+   - Run `goga tool pybuggy endpoint list` — build the registry of all endpoints: `endpoint-id |
+     spec | method | path`.
+   - For **every** endpoint mentioned in the artifact, run `goga tool pybuggy endpoint info
+     <endpoint-id>` and parse the JSON: `Method`, `Path`, `Request`, `Response`, `QueryParams`,
+     `Description`.
+5. Verify that the **generated artifacts exist** on disk (the artifact must record their paths in
+   section 2): `api/<spec>/<id>/api.py`, `api/<spec>/<id>/schemas/<status>.json`, and the
+   `tests/<spec>/<id>/` directory.
 
-> Если `endpoint list`/`info` недоступны (спеки не скачаны) — это отдельная находка: требования
-> нельзя сверить с живой спекой. Не запускай `pull`/`generate` (они имеют побочные эффекты) —
-> предложи пользователю перезапустить пайплайн `requirements`.
+> If `endpoint list`/`info` are unavailable (specs not downloaded) — this is a separate finding:
+> the requirements cannot be cross-checked against the live spec. Do not run `pull`/`generate` (they
+> have side effects) — suggest that the user restart the `requirements` pipeline.
 
 ---
 
 ### Phase 2. Structure Completeness
 
-Проверь, что артефакт содержит **все обязательные секции**:
+Verify that the artifact contains **all mandatory sections**:
 
-1. **Контекст и цель** — сервис, дословное описание фичи от пользователя и уточнённая цель. Пустое
-   дословное описание — **High** (на него опирается `elaborate` пайплайна `testcases` при сопоставлении
-   с API).
-2. **Эндпоинты фичи** — таблица `endpoint-id | spec | method | path | роль в фиче` + пути
-   сгенерированных артефактов (`api.py`, `schemas`, каталог `tests/`).
-3. **Функциональные требования** — основное поведение, поведение при ошибках (контракт), критерии приёмки,
-   ограничения и границы; каждое требование несёт идентификатор `FR-<N>`. Требование без идентификатора —
-   **High** (невидимо для трассируемости кейсов в `testcases`).
-4. **Бизнес-предусловия и окружение** — бизнес-предусловия (сущности/роли/состояния как потребность),
-   окружение.
-5. **Роли и доступы** — кто может / не может вызывать эндпоинты.
-6. **Интеграционные аспекты** — взаимодействие с компонентами, моки, внешние зависимости.
-7. **Ссылки и ресурсы** — спеки (location), дизайн, API-док и т.д.
-8. **Доступные usages проекта** — таблица `ключ | путь | роль | назначение` — реестр скана `.goga/usages/`
-   (справочник для этапа `testcases`; per-lib API здесь нет — его собирает шаг `tools` при согласовании).
-9. **Уже покрыто тестами** — таблица `endpoint-id | статус (не покрыт / частично / полностью) |
-   существующие `test_*` Routine | действие (переиспользовать / дополнить / проверить drift)`.
+1. **Context and goal** — the service, the user's verbatim feature description, and the refined goal.
+   An empty verbatim description is **High** (the `elaborate` step of the `testcases` pipeline relies
+   on it for API matching).
+2. **Feature endpoints** — a table of `endpoint-id | spec | method | path | role in the feature` plus
+   the generated artifact paths (`api.py`, `schemas`, the `tests/` directory).
+3. **Functional requirements** — main behavior, error behavior (contract), acceptance criteria,
+   constraints and boundaries; every requirement carries an `FR-<N>` identifier. A requirement
+   without an identifier is **High** (invisible to case traceability in `testcases`).
+4. **Business preconditions and environment** — business preconditions (entities/roles/states as a
+   need), the environment.
+5. **Roles and access** — who may and may not call the endpoints.
+6. **Integration aspects** — interaction with components, mocks, external dependencies.
+7. **Links and resources** — specs (location), design, API docs, etc.
+8. **Available project usages** — a table of `key | path | role | purpose` — the `.goga/usages/` scan
+   registry (a reference for the `testcases` stage; there is no per-lib API here — the `tools` step
+   collects it during agreement).
+9. **Already covered by tests** — a table of `endpoint-id | status (not covered / partial / full) |
+   existing `test_*` Routines | action (reuse / extend / check drift)`.
 
-- Секция отсутствует — **Critical**.
-- Секция есть, но пуста или содержит плейсхолдер (TBD, TODO, «…», «далее») — **High**.
-- Секции 6 («Интеграционные аспекты») и 9 («Уже покрыто тестами») могут быть сознательно пусты, если фича
-  изолирована / покрытие отсутствует — тогда это допустимо и **не находка**, но только если явно отмечено
-  «нет» / «покрытие отсутствует».
-- Секция 8 отражает скан диска: если `.goga/usages/` пуст — явная отметка «usages отсутствуют»
-  (не находка); пустая секция без отметки — **High**.
+- A section is missing — **Critical**.
+- A section exists but is empty or contains a placeholder (TBD, TODO, "…", «далее»/"later") —
+  **High**.
+- Sections 6 ("Integration aspects") and 9 ("Already covered by tests") may be intentionally empty
+  when the feature is isolated / no coverage exists — then this is acceptable and **not a finding**,
+  but only if explicitly marked «нет» / «покрытие отсутствует» (none / no coverage).
+- Section 8 mirrors the disk scan: if `.goga/usages/` is empty — an explicit «usages отсутствуют»
+  mark (no usages) — not a finding; an empty section without the mark is **High**.
 
 ---
 
 ### Phase 3. Endpoint and Artifact Realness
 
-**Цель:** убедиться, что всё про эндпоинты и артефакты — правда, а не выдумка.
+**Goal:** ensure that every claim about endpoints and artifacts is true, not invented.
 
-1. **Существование эндпоинтов** — каждый `endpoint-id` из секции 2 присутствует в реестре
-   `goga tool pybuggy endpoint list`. Несуществующий идентификатор — **Critical** (фабрика тестов не сможет
-   сгенерировать фикстуру).
-2. **Точность метода и пути** — `method`/`path` в секции 2 совпадают с `endpoint info`. Расхождение —
+1. **Endpoint existence** — every `endpoint-id` from section 2 is present in the `goga tool pybuggy
+   endpoint list` registry. A non-existent identifier is **Critical** (the test factory cannot
+   generate the fixture).
+2. **Method and path accuracy** — `method`/`path` in section 2 match `endpoint info`. A mismatch is
    **High**.
-3. **Принадлежность к spec** — `spec` корректна для каждого эндпоинта. Ошибка — **High**.
-4. **Реальность путей артефактов** — пути `api.py`, `schemas/<status>.json`, `tests/<spec>/<id>/` из
-   секции 2 **существуют на диске**. Несуществующий путь — **Critical** (генерация не выполнена или
-   путь зафиксирован неверно).
-5. **Полнота схем ответов** — для каждого статус-кода из секции 6 существует соответствующий
-   `schemas/<status>.json`. Отсутствие схемы под заявленный контракт — **High**.
-6. **Запрос без кода** — секция «Эндпоинты» содержит **только** описание и пути; любой код
-   реализации (`def test_`, `assert`, `@pytest`, pytest-фикстуры) — **Critical**.
-7. **Реальность существующего покрытия (§9)** — через `goga schema tests/` сверить: каждый эндпоинт, заявленный
-   в §9 как частично/полностью покрытый, имеет перечисленные `test_*` Routine в выводе (cell может называться
-   по endpoint-id или объединять несколько эндпоинтов — ищи Routine по всему дереву).
-   Заявленный «покрытый» эндпоинт без Routine в `goga schema` — **High**. Обратное: эндпоинт из §2 покрыт
-   Routine в `goga schema`, но §9 его не упоминает (без отметки «покрытие отсутствует») — **Medium**.
+3. **Spec membership** — `spec` is correct for every endpoint. An error is **High**.
+4. **Artifact path realness** — the `api.py`, `schemas/<status>.json`, `tests/<spec>/<id>/` paths
+   from section 2 **exist on disk**. A non-existent path is **Critical** (generation was not run, or
+   the path was recorded incorrectly).
+5. **Response schema completeness** — every status code from section 6 has a corresponding
+   `schemas/<status>.json`. A missing schema for a declared contract is **High**.
+6. **Request without code** — the "Endpoints" section contains **only** descriptions and paths; any
+   implementation code (`def test_`, `assert`, `@pytest`, pytest fixtures) is **Critical**.
+7. **Existing coverage realness (§9)** — cross-check via `goga schema tests/`: every endpoint
+   declared in §9 as partially/fully covered has the listed `test_*` Routines in the output (a cell
+   may be named by endpoint-id or combine several endpoints — search for Routines across the whole
+   tree). A declared "covered" endpoint without a Routine in `goga schema` is **High**. The reverse:
+   an endpoint from §2 is covered by a Routine in `goga schema`, but §9 does not mention it (without
+   the «покрытие отсутствует»/"no coverage" mark) — **Medium**.
 
 ---
 
 ### Phase 4. Behavior Consistency
 
-**Цель:** внутренняя непротиворечивость требований.
+**Goal:** internal consistency of the requirements — no self-contradictions.
 
-1. **Поведение ↔ эндпоинт** — каждое поведение (основное и при ошибках) в секции 3 ссылается только на
-   эндпоинты из секции 2. Ссылка на посторонний/несуществующий эндпоинт — **High**.
-2. **Контракты ошибок ↔ info/schemas** — коды и характер ошибок в «Поведении при ошибках» совпадают с
-   `Response`/`schemas` из `endpoint info`. Несуществующий статус-код — **High**; выдуманное поведение —
-   **High**.
-3. **Полнота поведения при ошибках** — для каждого существенного эндпоинта описаны условия основных ошибок
-   (невалидный ввод / нет прав / нарушенное предусловие), где это осмысленно по спеке. Пропуск у
-   существенного эндпоинта — **High**.
-4. **Критерии приёмки** — каждый критерий (секция 3) однозначно проверяем (ответ «да/нет») и имеет
-   основание в описанном поведении/контрактах. Неоднозначный критерий — **High**; критерий без
-   контрактной основы — **Medium**.
-5. **Инварианты и побочные эффекты** — заявленные инварианты не противоречат основному поведению и
-   интеграционным аспектам. Противоречие — **High**.
-6. **Ограничения** — секция «Ограничения и границы» описывает, что фича **не делает**. Пустые общие
-   фразы — **Medium**.
-7. **Реестр usages (§8)** — сверить с диском: каждый ключ таблицы соответствует существующему файлу
-   `.goga/usages/**/<ключ>.md` (путь в таблице совпадает с фактическим); классификация ролей
-   (runtime-референс / данные-моки-утилиты / прочее) осмысленна. Файл в `.goga/usages/`, отсутствующий
-   в §8, — **Medium** (реестр неполон); ключ без файла — **High** (висячая ссылка для `testcases`);
-   расхождение пути — **Medium**.
-8. **Идентификаторы FR** — каждый пункт §3 (все четыре подраздела) имеет `FR-<N>`; идентификаторы
-   уникальны (дубль — **High** — неоднозначная ссылка для кейсов) и непрерывны с 1 в порядке подразделов
-   (пропуск/разрыв — **Medium**); `FR-<N>` встречается только в §3 (вне §3 — **Medium**).
+1. **Behavior ↔ endpoint** — every behavior (main and error) in section 3 references only endpoints
+   from section 2. A reference to a foreign or non-existent endpoint is **High**.
+2. **Error contracts ↔ info/schemas** — the codes and nature of errors in "Error behavior" match the
+   `Response`/`schemas` from `endpoint info`. A non-existent status code is **High**; invented
+   behavior is **High**.
+3. **Error behavior completeness** — every significant endpoint describes the conditions of its main
+   errors (invalid input / missing rights / violated precondition), wherever this is meaningful per
+   the spec. A missing description on a significant endpoint is **High**.
+4. **Acceptance criteria** — every criterion (section 3) is unambiguously checkable (a "yes/no"
+   answer) and grounded in the described behavior/contracts. An ambiguous criterion is **High**; a
+   criterion without a contractual basis is **Medium**.
+5. **Invariants and side effects** — the declared invariants do not contradict the main behavior and
+   the integration aspects. A contradiction is **High**.
+6. **Constraints** — the "Constraints and boundaries" section describes what the feature **does not
+   do**. Empty generic phrases are **Medium**.
+7. **Usage registry (§8)** — cross-check against the disk: every table key corresponds to an existing
+   `.goga/usages/**/<key>.md` file (the table path matches the actual one); the role classification
+   (runtime reference / data-mocks-utilities / other) is meaningful. A file under `.goga/usages/`
+   missing from §8 is **Medium** (incomplete registry); a key without a file is **High** (a dangling
+   reference for `testcases`); a path mismatch is **Medium**.
+8. **FR identifiers** — every item of §3 (all four subsections) has an `FR-<N>`; the identifiers are
+   unique (a duplicate is **High** — an ambiguous reference for cases) and continuous from 1 in
+   subsection order (a gap/break is **Medium**); `FR-<N>` appears only in §3 (outside §3 —
+   **Medium**).
 
 ---
 
-### Phase 5. Test-Orientation and Coverage
+### Phase 5. Test Orientation and Coverage
 
-**Цель:** убедиться, что артефакт реально готов к раскрутке в тесты, а не в прод-код.
+**Goal:** ensure the artifact is ready for elaboration into tests, not into production code.
 
-1. **Только поведение, не код** — во всём артефакте **нет** тестового/прод-кода (`pytest`, `assert`,
-   `def test_`, импортов фреймворков). Наличие — **Critical** (нарушение инварианта пайплайна
-   `requirements`).
-2. **Полнота поведения** — описано **и** основное поведение, **и** поведение при ошибках. Отсутствие
-   одного из видов — **High**.
-3. **Роли и доступы** — для эндпоинтов с `auth` описано, кто имеет право вызывать и кто не имеет
-   (чужая сессия, отсутствие auth). Пропуск — **Medium** (или **High**, если auth ключевая часть фичи).
-4. **Бизнес-предусловия** — предусловия (сущности/роли/состояния) конкретны, не «подготовить
-   данные». Размытые предусловия — **Medium**.
-5. **Интеграции и моки** — если фича затрагивает несколько эндпоинтов или внешние компоненты — это
-   отражено (цепочки, моки, побочные эффекты). Пропуск при наличии таких зависимостей — **Medium**.
-6. **Ссылки** — секция 7 ведёт на реальные `location` спек. Несуществующая/пустая ссылка — **Medium**.
+1. **Behavior only, no code** — the artifact contains **no** test or production code (`pytest`,
+   `assert`, `def test_`, framework imports). Any occurrence is **Critical** (a violation of the
+   `requirements` pipeline invariant).
+2. **Behavior completeness** — the artifact describes **both** main behavior **and** error behavior.
+   The absence of either kind is **High**.
+3. **Roles and access** — for endpoints with `auth`, the artifact states who may call them and who
+   may not (a foreign session, missing auth). An omission is **Medium** (or **High** if auth is a
+   key part of the feature).
+4. **Business preconditions** — the preconditions (entities/roles/states) are concrete, not "prepare
+   data". Vague preconditions are **Medium**.
+5. **Integrations and mocks** — if the feature touches several endpoints or external components,
+   this is reflected (chains, mocks, side effects). An omission in the presence of such dependencies
+   is **Medium**.
+6. **Links** — section 7 points to real spec `location`s. A non-existent/empty link is **Medium**.
 
 ---
 
 ### Phase 6. Report and Fix Findings (Interactive)
 
-Собери все находки из Phases 2–5 **до** предъявления. Отсортируй по severity:
+Collect all findings from Phases 2–5 **before** presenting them. Sort them by severity:
 **Critical → High → Medium**.
 
-Предъявляй находки **по одной**. Для каждой:
+Present findings **one at a time**. For each finding:
 
-#### Step 1. Покажи находку
+#### Step 1. Present the finding
 
 - **Severity** (Critical / High / Medium)
 - **Area** (Structure / Realness / Consistency / Test-Orientation)
-- **Location** — точная ссылка на секцию/строку/эндпоинт артефакта
-- **Issue** — чёткое описание проблемы
-- **Evidence** — чем подтверждена (вывод `pybuggy` CLI, отсутствие файла на диске и т.п.)
-- **Suggested fix** — конкретное изменение, не общий совет
+- **Location** — an exact reference to the artifact's section/line/endpoint
+- **Issue** — a clear description of the problem
+- **Evidence** — the confirmation source (`pybuggy` CLI output, a missing file on disk, etc.)
+- **Suggested fix** — a concrete change, not general advice
 
-#### Step 2. Запроси решение (AskUserQuestion)
+#### Step 2. Request a decision (AskUserQuestion)
 
-1. **Apply suggested fix** — применить исправление сейчас
-2. **Propose alternative** — пользователь предлагает иной вариант
-3. **Skip** — пропустить находку
+1. **Apply suggested fix** — apply the fix now
+2. **Propose alternative** — the user offers a different option
+3. **Skip** — skip the finding
 
-#### Step 3. Примени решение
+#### Step 3. Apply the decision
 
-- **Apply**: обнови `docs/requirements/<feature>.md`, затем переверь, что фикс не внёс новых проблем
-  (re-run релевантных чеков). Кратко доложи результат переверки.
-- **Skip**: пометь находку как «skipped» и продолжай.
-- **Propose alternative**: обсуди, согласуй, примени, переверь.
+- **Apply**: update `docs/requirements/<feature>.md`, then re-verify that the fix introduced no new
+  problems (re-run the relevant checks). Report the re-verification result briefly.
+- **Skip**: mark the finding as "skipped" and continue.
+- **Propose alternative**: discuss, agree, apply, re-verify.
 
-#### Step 4. Следующая находка
+#### Step 4. Next finding
 
-Повторяй от Step 1. Показывай счётчик: «Finding 3 of 12».
+Repeat from Step 1. Show a counter: "Finding 3 of 12".
 
-После всех находок — сводка:
-- **Fixed**: N (по severity и area)
-- **Skipped**: N (по severity и area)
+After all findings — a summary:
+- **Fixed**: N (by severity and area)
+- **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Правило правки:** исправляй **только** артефакт требований `docs/requirements/<feature>.md`. Не правь
-> сгенерированные `api.py`/`schemas`/`tests/` и не запускай `pull`/`generate` — это зона пайплайна
-> `requirements`. Если реалистичность нарушена из-за отсутствия генерации — направь пользователя
-> перезапустить `requirements`.
+> **Fix rule:** modify **only** the requirements artifact `docs/requirements/<feature>.md`. Do not
+> modify the generated `api.py`/`schemas`/`tests/` and do not run `pull`/`generate` — those belong
+> to the `requirements` pipeline's domain. If realness is broken because generation is missing,
+> direct the user to restart `requirements`.
 
 ---
 
 ## Output
 
-- Сводка находок: fixed / skipped по severity и area
-- Обновлённый `docs/requirements/<feature>.md` (если применялись фиксы)
-- Верdict: passed / failed
+- Findings summary: fixed / skipped by severity and area
+- The updated `docs/requirements/<feature>.md` (if fixes were applied)
+- Verdict: passed / failed
 
 ---
 
 ## Final Self-Check
 
-Перед завершением проверь:
+Before you finish, verify:
 
-1. Прочитан ли артефакт `docs/requirements/<feature>.md` (по резолюции)?
-2. Загружены ли `goga-tool-pybuggy-api-usage` и `goga-tool-pybuggy-api-cookbook`?
-3. Получен ли ground truth через `goga tool pybuggy endpoint list` и `endpoint info` для каждого эндпоинта?
-4. Проверены ли пути сгенерированных артефактов (`api.py`/`schemas`/`tests/`) на диске?
-5. Проверена ли структурная полнота (все обязательные секции, без плейсхолдеров; §6/§9 опциональны,
-   §8 — реестр с явной отметкой при пустых usages)?
-6. Проверена ли нумерация §3 (`FR-<N>` у каждого требования всех подразделов, уникальность,
-   непрерывность в порядке подразделов)?
-7. Проверена ли реалистичность эндпоинтов/методов/путей/схем?
-8. Проверена ли консистентность (поведение↔эндпоинт, контракты ошибок↔schemas, критерии приёмки)?
-   Сверен ли реестр usages §8 с диском (ключ ↔ файл, роли)?
-9. Проверена ли тест-ориентированность (нет кода, есть основное поведение + поведение
-   при ошибках, роли, бизнес-предусловия)?
-10. Предъявлена ли каждая находка по одной с выбором Apply/Alternative/Skip?
-11. Применены ли одобренные фиксы с перепроверкой?
+1. Did you read the artifact `docs/requirements/<feature>.md` (using the resolution)?
+2. Did you load `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`?
+3. Did you collect ground truth via `goga tool pybuggy endpoint list` and `endpoint info` for every
+   endpoint?
+4. Did you check the generated artifact paths (`api.py`/`schemas`/`tests/`) on disk?
+5. Did you check structural completeness (all mandatory sections, no placeholders; §6/§9 optional,
+   §8 — a registry with an explicit mark when usages are empty)?
+6. Did you check the §3 numbering (`FR-<N>` on every requirement of all subsections, uniqueness,
+   continuity in subsection order)?
+7. Did you check the realness of endpoints/methods/paths/schemas?
+8. Did you check consistency (behavior↔endpoint, error contracts↔schemas, acceptance criteria)? Did
+   you cross-check the §8 usage registry against the disk (key ↔ file, roles)?
+9. Did you check test orientation (no code, main behavior + error behavior present, roles, business
+   preconditions)?
+10. Did you present every finding one at a time with an Apply/Alternative/Skip choice?
+11. Did you apply the approved fixes with re-verification?
 
-Если хотя бы один ответ «нет» — заверши недоделанную проверку перед возвратом.
+If at least one answer is "no" — complete the unfinished check before you return.

@@ -1,92 +1,97 @@
-# pybuggy — сборка и запуск CLI (composition root)
+# pybuggy — CLI assembly and execution (composition root)
 
-## Предметная область
+## Domain
 
-Шаблоны потребления корневой ячейки `goga_tool_pybuggy/`: пакетный фасад, где определяется корневая Click-группа
-`main`, загружается `.env` в `os.environ` до запуска команды, и собирается полный CLI. Аудитория — интеграторы,
-запускающие `pybuggy` (консольная команда или `python -m goga_tool_pybuggy`), и внешние импортёры фасада
-(`from goga_tool_pybuggy import main`).
+Consumption patterns of the root cell `goga_tool_pybuggy/`: a package facade that defines the root Click group
+`main`, loads `.env` into `os.environ` before any command executes, and assembles the full CLI. The audience:
+integrators who launch `pybuggy` (console command or `python -m goga_tool_pybuggy`) and external importers of
+the facade (`from goga_tool_pybuggy import main`).
 
-## Точка входа
+## Entry point
 
-Пакетный фасад `pybuggy` выставляет корневую группу `main`:
+The package facade `pybuggy` exposes the root group `main`:
 
-- Консольная команда (entry point в `pyproject.toml`):
+- Console command (entry point in `pyproject.toml`):
 
       pybuggy endpoint list
 
-- Модульный запуск (`goga_tool_pybuggy/__main__.py`):
+- Module execution (`goga_tool_pybuggy/__main__.py`):
 
       python -m goga_tool_pybuggy endpoint list
 
-- Глобальная опция `--env-file` (ДО подкоманды) — загрузка `.env` в `os.environ` перед запуском команды:
+- Global option `--env-file` (BEFORE the subcommand) — loads `.env` into `os.environ` before the command runs:
 
-      pybuggy --env-file ./my.env endpoint list      # явный файл (должен существовать)
-      pybuggy endpoint list                          # неявный .env из CWD (отсутствие — тихо)
+      pybuggy --env-file ./my.env endpoint list      # explicit file (must exist)
+      pybuggy endpoint list                          # implicit .env from CWD (absence handled silently)
 
-- Скаффолдинг артефактов по спеке (`endpoint generate`, опции `-s/--spec`, `-f/--force`):
+- Spec-driven artifact scaffolding (`endpoint generate`, options `-s/--spec`, `-f/--force`):
 
       pybuggy endpoint generate -s shop
       pybuggy endpoint generate --spec shop --force
 
-- Bootstrap consumer-usages (top-level `init`, без опций):
+- Consumer-usages bootstrap (top-level `init`, no options):
 
       pybuggy init
       python -m goga_tool_pybuggy init
 
-- Программный импорт фасада:
+- Programmatic facade import:
 
       from goga_tool_pybuggy import main
 
-## Загрузка .env (глобальная опция --env-file и ctx.obj)
+## .env loading (global option --env-file and ctx.obj)
 
-Корневая группа `main` — единая точка загрузки переменных окружения. Глобальная опция `--env-file` парсится на
-уровне группы, поэтому флаг обязан идти ДО подкоманды:
+The root group `main` is the single load point for environment variables. The global option `--env-file` is
+parsed at the group level, so the flag must come BEFORE the subcommand:
 
       pybuggy --env-file ./my.env <cmd>     # ✓ exit 0
       pybuggy <cmd> --env-file ./my.env     # ✗ exit 2 (No such option)
 
-Два режима загрузки (через `load_env` в `env.py`):
+`load_env` in `env.py` implements two loading modes:
 
-- **Явный файл** (`--env-file FILE`): файл обязан существовать, иначе `click.ClickException`. Грузится в `os.environ`.
-- **Неявный `.env` из CWD** (флаг отсутствует): если `.env` есть в CWD — грузится; если нет — тихо (без ошибки, без значений).
+- **Explicit file** (`--env-file FILE`): the file must exist; otherwise a `click.ClickException` is raised.
+  The file is loaded into `os.environ`.
+- **Implicit `.env` from CWD** (flag absent): if `.env` exists in the CWD, it is loaded; if not, it is skipped
+  silently (no error, no values).
 
-`override=False` — уже заданные в окружении переменные НЕ перезаписываются. Загрузка выполняется ДО запуска любой
-подкоманды (eager-callback корневой группы).
+`override=False` — variables already set in the environment are NOT overwritten. Loading completes BEFORE any
+subcommand runs (eager callback of the root group).
 
-Контекст-объект `ctx.obj` (тип `EnvContext`, `env.py`) несёт разрешённый путь env-файла (`env_path: str | None`) и
-загруженные значения (`values: dict[str, str]`). Это осознанное введение pass-object в контракт root-ячейки —
-он носит env-контекст; конфиг по-прежнему грузится командами сами через `load_config()`.
+The context object `ctx.obj` (type `EnvContext`, `env.py`) carries the resolved env-file path
+(`env_path: str | None`) and the loaded values (`values: dict[str, str]`). Introducing a pass-object into the
+root cell contract is deliberate: `ctx.obj` carries env context only; each command still loads its config
+itself via `load_config()`.
 
-> Примечание: команда `pull` получает `PYBUGGY_REF` через `envvar=` опции `--ref` в декораторе click (click читает
-> `os.environ`), а не из `ctx.obj` — слабая связность между ячейками сохранена.
+> Note: the `pull` command receives `PYBUGGY_REF` through the `envvar=` binding of the `--ref` option in the
+> click decorator (click reads `os.environ`), not from `ctx.obj` — loose coupling between cells is preserved.
 
-## Сборка CLI
+## CLI assembly
 
-Сборка живёт в модуле `goga_tool_pybuggy/cli.py` (принадлежит корневой ячейке) и выполняется при импорте:
+Assembly lives in the `goga_tool_pybuggy/cli.py` module (owned by the root cell) and runs at import time:
 
-1. Определяется корневая группа `main` (с глобальной опцией `--env-file` + eager-callback загрузки env).
-2. Создаётся подгруппа `endpoint`.
-3. В `endpoint` регистрируются команды `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd`
-   (из `goga_tool_pybuggy/commands/{pull,list,info,generate}`).
-4. Подгруппа `endpoint` добавляется в `main`.
-5. На `main` напрямую регистрируется top-level команда `init_cmd` (из `goga_tool_pybuggy/commands/init`).
-6. `main` экспортируется через `__all__`. На фасаде также доступны `load_env`, `EnvContext`.
+1. Define the root group `main` (with the global option `--env-file` + an eager callback that loads the env).
+2. Create the `endpoint` subgroup.
+3. Register the commands `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd` on `endpoint`
+   (from `goga_tool_pybuggy/commands/{pull,list,info,generate}`).
+4. Add the `endpoint` subgroup to `main`.
+5. Register the top-level command `init_cmd` on `main` directly (from `goga_tool_pybuggy/commands/init`).
+6. Export `main` via `__all__`. `load_env` and `EnvContext` are also available on the facade.
 
-Top-level на `main`: `init`.
-В `endpoint` входят: `pull`, `list`, `info`, `generate`.
+Top-level on `main`: `init`.
+Registered under `endpoint`: `pull`, `list`, `info`, `generate`.
 
-## Статичный конфиг
+## Static config
 
-Путь до конфига фиксирован (`.goga/tools/pybuggy/config.yml`, см. `goga_tool_pybuggy.config.CONFIG_PATH`).
-Опции `--config` нет — команды грузят конфиг сами через `load_config()` (без аргумента). Pass-object `ctx.obj`
-существует, но несёт только env-контекст (`EnvContext`), а не конфиг.
+The config path is fixed (`.goga/tools/pybuggy/config.yml`, see `goga_tool_pybuggy.config.CONFIG_PATH`).
+There is no `--config` option — commands load the config themselves via `load_config()` (no argument). The
+pass-object `ctx.obj` exists but carries only the env context (`EnvContext`), not the config.
 
-## Предусловия и побочные эффекты
+## Preconditions and side effects
 
-- `import goga_tool_pybuggy` триггерит полную сборку CLI (импорт `click` и всех ячеек команд).
-- Запуск команд требует валидный конфиг по фиксированному пути; загрузка и валидация — через `load_config` в подкоманде.
-- `--env-file` (явный) или `.env` из CWD (неявный) грузятся в `os.environ` (`override=False`) до запуска команды;
-  значения доступны всем подкомандам через `os.environ` (например `PYBUGGY_REF` для `pull`).
-- `init` — top-level команда и НЕ требует конфиг pybuggy: работает с goga-project-конфигом потребителя
-  (`<cwd>/.goga/config.yml`), читает usages из установленного пакета.
+- `import goga_tool_pybuggy` triggers the full CLI assembly (imports `click` and all command cells).
+- Running a command requires a valid config at the fixed path; loading and validation happen via `load_config`
+  in the subcommand.
+- `--env-file` (explicit) or `.env` from the CWD (implicit) is loaded into `os.environ` (`override=False`)
+  before the command runs; the values are available to all subcommands via `os.environ`
+  (e.g. `PYBUGGY_REF` for `pull`).
+- `init` is a top-level command and does NOT require the pybuggy config: it operates on the consumer's
+  goga-project config (`<cwd>/.goga/config.yml`) and reads usages from the installed package.

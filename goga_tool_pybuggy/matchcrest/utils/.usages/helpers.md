@@ -1,15 +1,15 @@
-# matchcrest/utils — вспомогательные routines
+# matchcrest/utils — helper routines
 
-## Предметная область
+## Domain Overview
 
-Внутренняя utility-клетка matchcrest: retry-цикл, URL-хелперы, конвертация дат и декоратор
-`allow_failure`. Аудитория — клетка `matchers` (импортирует `waiting_for`, `allow_failure`,
-`date_to_timestamp`, `url_is_valid`) и редкие прямые потребители `allow_failure` (реэкспорт
-через корень matchcrest). Содержит готовые шаблоны потребления фасада.
+matchcrest/utils is an internal utility cell that provides a retry loop, URL helpers, date conversion, and the
+`allow_failure` decorator. The cell serves the `matchers` cell (which imports `waiting_for`, `allow_failure`,
+`date_to_timestamp`, and `url_is_valid`) and rare direct consumers of `allow_failure` (re-exported
+through the matchcrest root). This usage file provides ready-made patterns for consuming the cell facade.
 
 ---
 
-## Фасад
+## Facade
 
 ```python
 from goga_tool_pybuggy.matchcrest.utils import (
@@ -24,16 +24,16 @@ from goga_tool_pybuggy.matchcrest.utils import (
 
 ---
 
-## Retry-цикл
+## Retry loop
 
-`waiting_for` вызывает функцию, пока она не вернёт truthy-значение или не выйдет timeout.
+`waiting_for` invokes the target function repeatedly until it returns a truthy value or the timeout expires.
 
 ```python
 from goga_tool_pybuggy.matchcrest.utils import waiting_for
 
 
 def ready() -> bool:
-    return poll_resource()  # True когда ресурс готов
+    return poll_resource()  # True when the resource is ready
 
 
 try:
@@ -42,27 +42,27 @@ except TimeoutError:
     ...
 ```
 
-- `args`/`kwargs` — позиционные/именованные аргументы вызова `f`.
-- `hook` — опц. трансформер возвращаемого значения перед проверкой truthiness.
+- `args`/`kwargs` — positional and keyword arguments passed to `f`.
+- `hook` — optional transformer applied to the return value before the truthiness check.
 
 ---
 
-## URL-хелперы
+## URL helpers
 
 ```python
 from goga_tool_pybuggy.matchcrest.utils import join, url_is_valid
 
 join("https://api.example.com/", "/v1/", "/users/")  # 'https://api.example.com/v1/users/'
-url_is_valid("https://example.com")  # True (структурно)
-url_is_valid("https://example.com", is_live=True)  # True только при ответе 2xx
+url_is_valid("https://example.com")  # True (structural check)
+url_is_valid("https://example.com", is_live=True)  # True only on a 2xx response
 ```
 
-- `url_is_valid` принимает относительные ссылки (подставляет первый allowed-протокол).
-- `is_live=True` делает реальный GET через `url_is_live` — это сетевой побочный эффект.
+- `url_is_valid` accepts relative URLs and substitutes the first allowed protocol.
+- `is_live=True` issues a real GET request via `url_is_live` — a network side effect.
 
 ---
 
-## Конвертация дат
+## Date conversion
 
 ```python
 from datetime import date
@@ -71,14 +71,15 @@ from goga_tool_pybuggy.matchcrest.utils import date_to_timestamp
 ts = date_to_timestamp(date(2026, 7, 14))  # float
 ```
 
-- Принимает только `date`/`datetime`; иначе ValueError.
+- `date_to_timestamp` accepts only `date`/`datetime` instances; otherwise it raises `ValueError`.
 
 ---
 
-## Декоратор allow_failure
+## allow_failure decorator
 
-Гасит любое исключение, логирует его, возвращает None. Применяется для отказоустойчивых
-вызовов, чей сбой не должен прерывать поток.
+The `allow_failure` decorator suppresses any exception raised by the decorated function, logs the exception,
+and returns `None`. Apply the decorator to fault-tolerant calls whose failure must not interrupt the
+surrounding flow.
 
 ```python
 from goga_tool_pybuggy.matchcrest.utils import allow_failure

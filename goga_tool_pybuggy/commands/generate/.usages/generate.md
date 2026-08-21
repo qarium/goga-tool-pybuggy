@@ -1,48 +1,50 @@
-# goga_tool_pybuggy.commands.generate — команда endpoint generate
+# goga_tool_pybuggy.commands.generate — endpoint generate command
 
-## Предметная область
+## Subject domain
 
-Шаблоны потребления cell `goga_tool_pybuggy/commands/generate`: скаффолдинг каталогов `api/` (JSON-схемы
-ответов + pytest-фикстура `api.py` на эндпоинт + пустые `__init__.py`-маркеры пакета на каждом
-каталоге пути к `api.py`) и пустых каталогов `tests/` из спецификаций.
-Аудитория — регистрация в CLI (`generate_cmd`) и тесты (`run_generate` напрямую; чистый рендерер
-`render_api_module` — напрямую для текстовых проверок).
+The cell `goga_tool_pybuggy/commands/generate` provides scaffolding: it generates `api/` directories
+from specifications (response JSON schemas, a pytest fixture `api.py` per endpoint, and empty
+`__init__.py` package markers on every directory along the path to `api.py`) plus empty `tests/`
+directories.
+Consumers: CLI registration (`generate_cmd`) and tests (`run_generate` directly; the pure renderer
+`render_api_module` directly for text checks).
 
-## Вызов handler-функции
+## Handler function invocation
 
-`run_generate` — тестируемая точка входа (Click-обёртка `generate_cmd` связывает опции и вызывает
-`run_generate`):
+`run_generate` is the testable entry point; the Click wrapper `generate_cmd` binds the options and
+calls `run_generate`:
 
     from goga_tool_pybuggy.commands.generate import run_generate
 
-    run_generate(spec_name=None, force=False)    # все спеки, пропуск существующего
-    run_generate(spec_name="shop", force=True)  # одна спека, перезапись
-    run_generate(None, False, endpoint_ids=["clients_startup_get"])  # только указанные эндпоинты
-    run_generate(None, False, endpoint_ids=[])  # пустой/None фильтр — все эндпоинты (no-op)
+    run_generate(spec_name=None, force=False)    # all specs, skip existing
+    run_generate(spec_name="shop", force=True)  # single spec, overwrite
+    run_generate(None, False, endpoint_ids=["clients_startup_get"])  # only the listed endpoints
+    run_generate(None, False, endpoint_ids=[])  # empty/None filter — all endpoints (no-op)
 
-`render_api_module` — чистая функция `Endpoint -> str`, возвращает полный текст `api.py`. Используется
-в тестах для проверки содержимого фикстуры без записи на диск:
+`render_api_module` is a pure function with the signature `Endpoint -> str`; it returns the full
+text of `api.py`. Tests use it to verify fixture content without writing to disk:
 
     from goga_tool_pybuggy.commands.generate import render_api_module
 
-    module_text = render_api_module(endpoint)   # str; детерминирован для данного endpoint
+    module_text = render_api_module(endpoint)   # str; deterministic for a given endpoint
 
-## Наблюдаемое поведение
+## Observable behavior
 
-Для каждой (отфильтрованной) спеки `name`: разобрать файл в `location` → извлечь эндпоинты → для
-каждого эндпоинта записать схему каждого кода ответа, сгенерировать `api.py`, проставить пустые
-`__init__.py`-маркеры пакета на каждом каталоге пути к `api.py` и создать каталог тестов.
+The handler `run_generate` processes each (filtered) spec `name` as follows: parse the file at
+`location` → extract the endpoints → for each endpoint: write the schema of every response status
+code, generate `api.py`, place empty `__init__.py` package markers on every directory along the
+path to `api.py`, and create the test directory.
 
-Дерево артефактов (в текущем рабочем каталоге):
+Artifact tree (under the current working directory):
 
-    api/__init__.py                       # пустой маркер пакета
-    api/<spec>/__init__.py                # пустой маркер пакета
-    api/<spec>/<endpoint.id>/__init__.py  # пустой маркер пакета
+    api/__init__.py                       # empty package marker
+    api/<spec>/__init__.py                # empty package marker
+    api/<spec>/<endpoint.id>/__init__.py  # empty package marker
     api/<spec>/<endpoint.id>/schemas/<status_code>.json
     api/<spec>/<endpoint.id>/api.py
-    tests/<spec>/<endpoint.id>/          # пустой каталог
+    tests/<spec>/<endpoint.id>/          # empty directory
 
-Пример: спека `shop`, эндпоинт `clients_startup_get` с кодами `200`, `404`:
+Example: spec `shop`, endpoint `clients_startup_get` with status codes `200`, `404`:
 
     api/__init__.py
     api/shop/__init__.py
@@ -52,30 +54,31 @@
     api/shop/clients_startup_get/api.py
     tests/shop/clients_startup_get/
 
-Содержимое `<status_code>.json` — prettified JSON развёрнутой схемы ответа (indent=2,
-ensure_ascii=False). Для кодов без `application/json` пишется `{}`. Пишутся все коды из ответа
-эндпоинта.
+The content of `<status_code>.json` is the prettified JSON of the expanded response schema
+(indent=2, ensure_ascii=False). For status codes without `application/json`, `{}` is written. The
+handler writes every status code from the endpoint response.
 
-## Содержимое api.py
+## Contents of api.py
 
-`api.py` — pytest-модуль-фикстура на эндпоинт, выровненный `ruff` (двойные кавычки,
-сортировка импортов, line-length 120):
+`api.py` is a pytest fixture module scoped to a single endpoint, formatted with `ruff` (double
+quotes, sorted imports, line-length 120):
 
-- `@pytest.fixture(scope="function")` с именем `{method}_{path_part}` (`path_part` = `endpoint.id`
-  без суффикса `_{method}`), принимающая `api: Api` и возвращающая
-  `Endpoint(api, "<route>", method="<METHOD>")`. `<METHOD>` — метод в верхнем регистре.
-- `<route>` = `endpoint.path`, где `{param}` заменено на `:param` с сохранением имени и регистра
-  параметра (например `/clients/{orderID}/status` → `/clients/:orderID/status`).
-- `class Request(BaseModel)` — тело запроса, сгенерированное `datamodel-code-generator`
-  (см. `datamodel-code-generator`) из `endpoint.request`: вложенные объекты становятся
-  отдельными pydantic-классами, массивы — типизированными `list[...]`, enum'ы — `Literal[...]`,
-  необязательные поля — `T | None = None` (union operator), nullable required — `T | None`
-  без дефолта. При отсутствии свойств тела класс `Request` и импорт `pydantic` опускаются.
-- Импорты собираются `ruff` (`check --fix --select I`): `pytest`,
-  `from goga_tool_pybuggy.api import Api, Endpoint`, опционально `from pydantic import BaseModel`
-  (и `RootModel`/`typing` — только когда сгенерированные модели их требуют).
+- `@pytest.fixture(scope="function")` named `{method}_{path_part}` (`path_part` = `endpoint.id`
+  without the `_{method}` suffix); it accepts `api: Api` and returns
+  `Endpoint(api, "<route>", method="<METHOD>")`, where `<METHOD>` is the HTTP method in uppercase.
+- `<route>` derives from `endpoint.path` by replacing `{param}` with `:param` while preserving the
+  parameter name and case (e.g. `/clients/{orderID}/status` → `/clients/:orderID/status`).
+- `class Request(BaseModel)` models the request body, generated by `datamodel-code-generator`
+  (see `datamodel-code-generator`) from `endpoint.request`: nested objects become separate
+  pydantic classes, arrays become typed `list[...]`, enums become `Literal[...]`, optional fields
+  become `T | None = None` (union operator), nullable required fields become `T | None` without a
+  default. When the body has no properties, the `Request` class and the `pydantic` import are
+  omitted.
+- Imports are collected by `ruff` (`check --fix --select I`): `pytest`,
+  `from goga_tool_pybuggy.api import Api, Endpoint`, optionally `from pydantic import BaseModel`
+  (plus `RootModel`/`typing` only when the generated models require them).
 
-Пример с телом и path-параметром (POST `/clients/calls/{orderID}/status`, тело `{note: string}`):
+Example with a body and a path parameter (POST `/clients/calls/{orderID}/status`, body `{note: string}`):
 
 ```python
 import pytest
@@ -92,54 +95,58 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
     return Endpoint(api, "/clients/calls/:orderID/status", method="POST")
 ```
 
-## Семантика --force
+## --force semantics
 
-- Без `-f` (`force=False`): существующие `<status_code>.json`, `api.py` и `__init__.py`-маркеры
-  пропускаются молча (без вывода в консоль), недостающие файлы и каталоги создаются. Поведение идемпотентно.
-- С `-f` (`force=True`): файлы перезаписываются, `__init__.py`-маркеры перезаписываются пустым
-  содержимым, каталоги (пере)создаются — всё дерево артефактов регенерируется единообразно.
-- `__init__.py`-маркеры проставляются только на пути к `api.py` (`api/`, `api/<spec>/`,
-  `api/<spec>/<endpoint.id>/`), но не под `tests/`.
+- Without `-f` (`force=False`): the handler silently skips existing `<status_code>.json` files,
+  `api.py` files, and `__init__.py` markers (no console output) and creates the missing files and
+  directories. The behavior is idempotent.
+- With `-f` (`force=True`): the handler overwrites files, rewrites `__init__.py` markers with empty
+  content, and (re)creates directories — the entire artifact tree regenerates uniformly.
+- `__init__.py` markers are placed only along the path to `api.py` (`api/`, `api/<spec>/`,
+  `api/<spec>/<endpoint.id>/`), never under `tests/`.
 
-## Флаг --spec
+## The --spec flag
 
-`-s/--spec <name>` ограничивает генерацию одной спекой. Несуществующее имя →
-`click.ClickException("spec not found: <name>")`, ненулевой exit.
+`-s/--spec <name>` restricts generation to a single spec. A non-existent name causes
+`click.ClickException("spec not found: <name>")` and a non-zero exit.
 
-## Фильтр по endpoint-id
+## Endpoint-id filter
 
-Позиционный variadic-аргумент `endpoint-ids` ограничивает генерацию подмножеством эндпоинтов по их
-id (`Endpoint.id` — строка вида `clients_startup_get`):
+The positional variadic argument `endpoint-ids` restricts generation to a subset of endpoints by
+their ids (`Endpoint.id` is a string such as `clients_startup_get`):
 
     pybuggy endpoint generate clients_startup_get health_get
-    pybuggy endpoint generate -s shop -f clients_startup_get   # опции — до позиционных id
+    pybuggy endpoint generate -s shop -f clients_startup_get   # options precede the positional ids
 
-Эндпоинты отбираются только среди выбранных спек (`--spec` или все):
+Endpoints are selected only among the selected specs (`--spec` or all):
 
-- Аргумент не передан — генерируются все эндпоинты выбранных спек.
-- Пустой список / `None` у handler-а — то же самое (no-op).
-- id найден хотя бы в одной выбранной спеке — генерируются только совпадающие эндпоинты.
-- id не найден ни в одной выбранной спеке → `click.ClickException("endpoint not found: <id>")`,
-  ненулевой exit; при нескольких отсутствующих id они перечисляются все (отсортированы).
+- Argument not passed → all endpoints of the selected specs are generated.
+- Empty list / `None` on the handler → the same (no-op).
+- An id found in at least one selected spec → only the matching endpoints are generated.
+- An id not found in any selected spec → `click.ClickException("endpoint not found: <id>")`,
+  non-zero exit; when several ids are missing, all of them are listed (sorted).
 
-У handler-а `run_generate` фильтр — третий параметр `endpoint_ids: list[str] | None`. Валидация
-выполняется до записи артефактов, поэтому неизвестный id не оставляет частично сгенерированного
-дерева `api/` и `tests/`.
+On the handler `run_generate`, the filter is the third parameter, `endpoint_ids: list[str] | None`.
+Validation runs before any artifacts are written, so an unknown id never leaves a partially
+generated `api/` and `tests/` tree.
 
-## Особые случаи
+## Special cases
 
-- Спека без `paths` → `click.ClickException`.
-- Спека без эндпоинтов → WARNING, артефактов не создаётся.
-- Эндпоинт без тела / тело без полей → `api.py` без `class Request` (импорт `pydantic` опускается);
-  фикстура генерируется в любом случае.
-- Неизвестный `endpoint-id` (нет ни в одной выбранной спеке) →
-  `click.ClickException("endpoint not found: <id>")`; валидация до записи, артефактов не создаётся.
+- A spec without `paths` → `click.ClickException`.
+- A spec without endpoints → WARNING; no artifacts are created.
+- An endpoint without a body, or a body without fields → `api.py` without `class Request` (the
+  `pydantic` import is omitted); the fixture is generated in any case.
+- An unknown `endpoint-id` (not found in any selected spec) →
+  `click.ClickException("endpoint not found: <id>")`; validation happens before writing, no
+  artifacts are created.
 
-## Предусловия
+## Preconditions
 
-- Файлы spec должны быть в `location` (после `pull` или вручную).
-- Конфиг валиден и лежит по фиксированному пути `.goga/tools/pybuggy/config.yml`; загрузка — через `load_config`.
-- Артефакты пишутся в текущий рабочий каталог (`Path.cwd()`); тесты изолируют через `tmp_path` и
-  подмену `cwd`.
-- `api.py` импортирует из `goga_tool_pybuggy.api` (`Endpoint`, `Api`); модуль может отсутствовать в проекте на
-  момент генерации — файл предназначен для последующего использования, а не для импорта в самом goga_tool_pybuggy.
+- Spec files must be present in `location` (after `pull` or placed manually).
+- The config must be valid and reside at the fixed path `.goga/tools/pybuggy/config.yml`; it is
+  loaded via `load_config`.
+- Artifacts are written to the current working directory (`Path.cwd()`); tests isolate via
+  `tmp_path` and a `cwd` override.
+- `api.py` imports from `goga_tool_pybuggy.api` (`Endpoint`, `Api`); the module may be absent from
+  the project at generation time — the file is intended for later use, not for import inside
+  goga_tool_pybuggy itself.

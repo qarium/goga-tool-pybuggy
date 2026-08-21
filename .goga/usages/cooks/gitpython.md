@@ -1,16 +1,16 @@
-# GitPython — клонирование репозитория со спеками для `endpoint pull`
+# GitPython — cloning the specs repository for `endpoint pull`
 
-## Предметная область
+## Domain
 
-Шаблон доступа к удалённому git-репозиторию со спецификациями для команды `pybuggy endpoint pull`. `pybuggy` обращается с репозиторием как с **read-only**: shallow-clone во временную директорию, чтение, копирование нужного файла/подкаталога в локальный `location`, удаление клона. Никаких commit/push.
+This document describes a pattern for accessing a remote git repository that stores specifications for the `pybuggy endpoint pull` command. `pybuggy` treats the repository as **read-only**: shallow-clone into a temporary directory, read, copy the required file/subdirectory to the local `location`, delete the clone. No commit/push.
 
-Идиома зеркалирует cell `swax/git/` (`clone_specs` как context manager), но реализована **внутри pybuggy** (cell `swax.git` не используется — только `swax.openapi`).
+The idiom mirrors cell `swax/git/` (`clone_specs` as a context manager), but is implemented **inside pybuggy** (cell `swax.git` is not used — only `swax.openapi`).
 
 ---
 
-## Shallow-clone как context manager
+## Shallow-clone as context manager
 
-`Repo.clone_from(..., depth=1)` — нужен только последний коммит. Временный каталог удаляется при выходе из `with` (нормальном или с исключением):
+`Repo.clone_from(..., depth=1)` fetches only the latest commit. The temporary directory is deleted when the `with` block exits (normally or via an exception):
 
 ```python
 import contextlib
@@ -29,7 +29,7 @@ def clone_repo(repo_url: str, ref: str | None = None) -> Iterator[pathlib.Path]:
         tmp_root = pathlib.Path(tmp_name)
 
         try:
-            # branch=None ⇒ GitPython не добавляет --branch ⇒ клонируется default branch.
+            # branch=None ⇒ GitPython omits --branch ⇒ the default branch is cloned.
             Repo.clone_from(repo_url, str(tmp_root), depth=1, branch=ref)
         except GitCommandError as exc:
             raise click.ClickException(f"failed to clone {repo_url}: {exc}") from exc
@@ -37,16 +37,16 @@ def clone_repo(repo_url: str, ref: str | None = None) -> Iterator[pathlib.Path]:
         yield tmp_root
 ```
 
-Соглашения потребителя:
-- `repo_url` — clone URL. Для приватных репозиториев полагаться на git credential helpers; **не встраивать** токены в URL.
-- `ref` — git ref (имя ветки или тега) для shallow-clone через `branch=` (git `--branch`). `None` ⇒ default branch. Голый commit SHA shallow-resolve'ится не всегда — использовать имена веток/тегов.
-- Использовать `with` обязательно — путь за пределами блока невалиден (каталог удалён).
+Consumer conventions:
+- `repo_url` — the clone URL. For private repositories, rely on git credential helpers; **never embed** tokens in the URL.
+- `ref` — a git ref (branch or tag name) for the shallow clone via `branch=` (git `--branch`). `None` ⇒ default branch. A bare commit SHA does not reliably shallow-resolve — use branch or tag names.
+- Always use `with` — outside the block the yielded path is invalid (the directory is deleted).
 
 ---
 
-## Копирование спеки в локальный location
+## Copying a spec to the local location
 
-Внутри `with` находим `git.location` (путь в репо — файл или подкаталог) и копируем в локальный `location` (путь от корня проекта):
+Inside the `with` block, resolve `git.location` (a repository path — file or subdirectory) and copy it to the local `location` (a path relative to the project root):
 
 ```python
 import shutil
@@ -71,20 +71,20 @@ def install_spec(repo_url: str, git_location: str, local_location: pathlib.Path,
     return destination
 ```
 
-Соглашения потребителя:
-- `git_location` (`specs.<name>.git.location`) — путь в репозитории (файл или подкаталог).
-- `local_location` (`specs.<name>.location`) — путь от корня проекта до файла спеки; именно он показывается в заголовке `list`.
-- Идемпотентность: повторный `pull` перезаписывает (`dirs_exist_ok=True` / `shutil.copy2`).
+Consumer conventions:
+- `git_location` (`specs.<name>.git.location`) — the path within the repository (file or subdirectory).
+- `local_location` (`specs.<name>.location`) — the project-root-relative path to the spec file; this is the value the `list` header displays.
+- Idempotency: a repeated `pull` overwrites the target (`dirs_exist_ok=True` / `shutil.copy2`).
 
 ---
 
-## Маппинг ошибок
+## Error mapping
 
-`GitCommandError` → `click.ClickException` для единообразного ненулевого exit (см. cook `click.md`). Отсутствие `git.location` в клоне — тоже `ClickException` с понятным путём.
+Map `GitCommandError` → `click.ClickException` to produce a uniform non-zero exit (see the `click.md` cook). A missing `git.location` inside the clone also raises a `ClickException` whose message includes the offending path.
 
 ---
 
-## Тестирование
+## Testing
 
-- `Repo.clone_from` мокать в точке импорта (`mock.patch("goga_tool_pybuggy.<...>.Repo.clone_from")`) — реальное клонирование в тестах не выполнять (см. `.goga/usages/conventions.md`, раздел Mocks).
-- Копирование/разрешение путей тестировать на `tmp_path` с псевдо-«клоном» (поддиректория-фикстура).
+- Mock `Repo.clone_from` at the import site (`mock.patch("goga_tool_pybuggy.<...>.Repo.clone_from")`) — never perform real cloning in tests (see `.goga/usages/conventions.md`, Mocks section).
+- Test copying/path resolution on `tmp_path` using a pseudo-"clone" (a fixture subdirectory).

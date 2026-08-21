@@ -1,26 +1,26 @@
-# swax.openapi — разбор спецификаций и экстракция эндпоинтов
+# swax.openapi — spec parsing and endpoint extraction
 
-## Предметная область
+## Domain
 
-Шаблоны потребления парсящей cell `swax.openapi` в CLI `pybuggy`. Из swax используется **только** этот модуль — для разбора спецификаций. `pybuggy` НЕ использует `swax.git`, `swax.fs`, `swax.config`, `swax.cli`.
+Consumption patterns for the parsing cell `swax.openapi` in the `pybuggy` CLI. pybuggy uses **only** this swax module — for parsing specifications. `pybuggy` does NOT use `swax.git`, `swax.fs`, `swax.config`, `swax.cli`.
 
-Публичный API (фасад `swax.openapi`):
-- `parse_spec(spec_path: Path) -> dict` — полностью разыменованная спека (Prance инлайнит `$ref`).
-- `discover_specs(root: Path) -> list[Path]` — дешёвое перечисление файлов спек в каталоге.
-- `extract_paths` / `extract_schemas` — **не используем** (см. ниже).
-- `SpecParseError` — доменная ошибка разбора.
-
----
-
-## Главное правило: extract_paths отбрасывает методы
-
-`swax.openapi.extract_paths` сознательно возвращает **только** шаблоны путей, без HTTP-методов — граф отслеживаемости swax оперирует путями. `pybuggy` же работает с эндпоинтами метод+путь и строит `endpoint_id` из обоих. Поэтому **извлечение операций pybuggy делает сам** поверх dict из `parse_spec`, а `extract_paths`/`extract_schemas` не вызывает.
+Public API (facade `swax.openapi`):
+- `parse_spec(spec_path: Path) -> dict` — a fully dereferenced spec (Prance inlines `$ref`).
+- `discover_specs(root: Path) -> list[Path]` — cheap enumeration of spec files in a directory.
+- `extract_paths` / `extract_schemas` — **not used** (see below).
+- `SpecParseError` — the domain parsing error.
 
 ---
 
-## Разбор спецификации
+## The main rule: extract_paths discards methods
 
-`parse_spec` возвращает dict с уже инлайнеными `$ref` — разрешать ссылки вручную не нужно. Swagger 2.0 и OpenAPI 3.x обрабатываются прозрачно; поле `type` в конфиге `pybuggy` носит декларативный характер и не влияет на разбор.
+`swax.openapi.extract_paths` deliberately returns **only** path templates, without HTTP methods — the swax traceability graph operates on paths. `pybuggy`, in contrast, works with endpoints of the form method+path and builds `endpoint_id` from both parts. Therefore **pybuggy extracts operations itself**, on top of the dict returned by `parse_spec`; pybuggy never calls `extract_paths`/`extract_schemas`.
+
+---
+
+## Parsing a specification
+
+`parse_spec` returns a dict with `$ref` already inlined — no manual reference resolution is needed. The parser handles Swagger 2.0 and OpenAPI 3.x transparently; the `type` field in the `pybuggy` config is declarative and does not affect parsing.
 
 ```python
 from pathlib import Path
@@ -30,16 +30,16 @@ def load_spec(spec_location: str, project_root: Path) -> dict:
     return parse_spec(project_root / spec_location)
 ```
 
-Соглашения потребителя:
-- `spec_location` — путь от корня проекта до файла спеки (значение `specs.<name>.location` из конфига).
-- Принимает `.yaml`, `.yml`, `.json`.
-- При ошибке разбора выбрасывает `SpecParseError(path=..., reason=...)` — CLI-handler маппит в `click.ClickException`.
+Consumer conventions:
+- `spec_location` — the project-root-relative path to the spec file (the `specs.<name>.location` value from the config).
+- Accepts `.yaml`, `.yml`, `.json`.
+- On a parsing error it raises `SpecParseError(path=..., reason=...)` — the CLI handler maps it to `click.ClickException`.
 
 ---
 
-## Определение версии спецификации
+## Determining the specification version
 
-Формат определяется **по содержимому спеки**, а не по декларативному полю конфига `SpecEntry.type`. Этим управляет `detect_spec_version` из cell `spec`.
+The format is determined **from the spec's content**, not from the declarative config field `SpecEntry.type`. Cell `spec` governs this rule through `detect_spec_version`.
 
 ```python
 def detect_spec_version(spec: dict) -> str:
@@ -51,16 +51,16 @@ def detect_spec_version(spec: dict) -> str:
     raise ValueError("spec declares neither a swagger nor an openapi version")
 ```
 
-Соглашения потребителя:
-- Проверка по наличию top-level ключа `swagger` (Swagger 2.0) против `openapi` (OpenAPI 3.x).
-- Спека без top-level ключа `swagger` или `openapi` некорректна — выбрасывается ValueError (валидная спека обязана объявить версию).
-- Не использовать `SpecEntry.type` для выбора пути извлечения.
+Consumer conventions:
+- Detect by the presence of the top-level `swagger` key (Swagger 2.0) versus `openapi` (OpenAPI 3.x).
+- A spec without a top-level `swagger` or `openapi` key is invalid — the function raises ValueError (a valid spec must declare a version).
+- Never use `SpecEntry.type` to choose the extraction path.
 
 ---
 
-## Экстракция эндпоинтов (своя, поверх parsed spec)
+## Endpoint extraction (pybuggy's own, on top of the parsed spec)
 
-Операции живут в `spec["paths"][path][method]`, где `method` — `get`/`post`/`put`/`delete`/`patch`/`options`/`head`. Схемы уже инлайнированы Prance, поэтому `$ref` нигде не разрешаем. Поля операции извлекаются по структуре, выбранной `detect_spec_version`; оба формата приводятся к идентичной нормализованной форме.
+Operations live in `spec["paths"][path][method]`, where `method` is `get`/`post`/`put`/`delete`/`patch`/`options`/`head`. Prance has already inlined the schemas, so `$ref` is never resolved manually. Operation fields are extracted per the structure that `detect_spec_version` selects; both formats are normalized to an identical form.
 
 ```python
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
@@ -73,11 +73,11 @@ def iter_operations(spec: dict):
                 yield method, path, operation
 ```
 
-Соглашения потребителя:
-- Ключи-не-методы (`parameters`, `summary` на уровне path-item) пропускаем.
-- Параметры path-item (`item["parameters"]`) наследуются всеми операциями; мерджим с `operation["parameters"]`.
+Consumer conventions:
+- Non-method keys (`parameters`, `summary` at the path-item level) are skipped.
+- Path-item parameters (`item["parameters"]`) are inherited by all operations; merge them with `operation["parameters"]`.
 
-### Поля операции — OpenAPI 3.x
+### Operation fields — OpenAPI 3.x
 
 ```python
 def extract_request_schema_openapi(operation: dict) -> dict:
@@ -94,9 +94,9 @@ def extract_query_params_openapi(operation: dict) -> dict:
     return {p["name"]: p.get("schema", {}) for p in operation.get("parameters", []) if p.get("in") == "query"}
 ```
 
-### Поля операции — Swagger 2.0
+### Operation fields — Swagger 2.0
 
-В Swagger 2.0 структура иная: request body задаётся параметром `in: body` с корневым `schema`; response — `responses[code].schema` напрямую без обёртки `content`; поля типа инлайнятся в сам параметр (нет вложенного `schema`); nullable обозначается `x-nullable`.
+Swagger 2.0 structures the same data differently: the request body is a parameter with `in: body` carrying a root `schema`; the response is `responses[code].schema` directly, without a `content` wrapper; type fields are inlined into the parameter itself (no nested `schema`); nullability is expressed via `x-nullable`.
 
 ```python
 def extract_request_schema_swagger(operation: dict) -> dict:
@@ -109,8 +109,8 @@ def extract_response_schemas_swagger(operation: dict) -> dict:
     return {code: resp.get("schema", {}) for code, resp in operation.get("responses", {}).items()}
 
 _TYPE_FIELDS = ("type", "format", "items", "enum", "default", "description", "x-nullable")
-# `x-nullable` включён намеренно: иначе ключевое слово удаляется фильтрацией полей до
-# nullable-нормализации и nullability query-параметра теряется (см. cell spec / design review).
+# `x-nullable` is included deliberately: field filtering would otherwise drop the keyword before
+# nullable-normalization, and the query parameter's nullability would be lost (see cell spec / design review).
 def extract_query_params_swagger(operation: dict) -> dict:
     result = {}
     for p in operation.get("parameters", []):
@@ -119,15 +119,15 @@ def extract_query_params_swagger(operation: dict) -> dict:
     return result
 ```
 
-Соглашения потребителя (оба формата):
-- `Request` / `Response` / `QueryParams` в выводе `info` — уже **развёрнутые** схемы (Prance всё инлайнил).
-- Primary content-type — `application/json`; при его отсутствии поля пусты (`{}`).
+Consumer conventions (both formats):
+- `Request` / `Response` / `QueryParams` in the `info` output are already **expanded** schemas (Prance has inlined everything).
+- The primary content type is `application/json`; when absent, the fields are empty (`{}`).
 - `Description` = `operation.get("description", "")`.
-- Оба формата приводятся к идентичной нормализованной форме перед попаданием в `Endpoint` (nullable-нормализация выполняется внутри cell `spec`).
+- Both formats are normalized to an identical form before the data reaches `Endpoint` (nullable-normalization runs inside cell `spec`).
 
 ---
 
-## Маппинг ошибок в CLI
+## Error mapping in the CLI
 
 ```python
 import click
@@ -142,7 +142,7 @@ def safe_parse(spec_path: Path) -> dict:
 
 ---
 
-## Тестирование
+## Testing
 
-- Разбор/экстракцию тестировать на фикстурах-спеках в `tmp_path` (без моков — чистая логика поверх dict).
-- Swagger 2.0 и OpenAPI 3.x кейсы — inline-спеки как dict, с утверждением эквивалентности нормализованных схем при одинаковой семантике операций.
+- Test parsing/extraction against spec fixtures in `tmp_path` (no mocks — pure logic over a dict).
+- Swagger 2.0 and OpenAPI 3.x cases — inline specs as dicts, asserting the equivalence of the normalized schemas for operations with the same semantics.

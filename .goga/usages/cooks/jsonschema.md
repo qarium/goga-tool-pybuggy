@@ -1,30 +1,26 @@
-# jsonschema — валидация тела ответа (Draft7Validator)
+# jsonschema — response body validation (Draft7Validator)
 
-## Предметная область
+## Domain
 
-`jsonschema` валидирует JSON-тело ответа (`resq.http.Response.json()`) против json-схемы.
-Используется ячейкой `goga_tool_pybuggy/api/asserts`: методы `Expected.jsonschema_is_valid`
-(одна схема dict/путь) и `Expected.jsonschemas_is_valid` (каталог схем по статусу), а также
-авто-валидация positive-пути (по файлу `schemas/<status>*.json`).
+`jsonschema` validates the JSON body of a response (`resq.http.Response.json()`) against a JSON schema. Cell `goga_tool_pybuggy/api/asserts` uses it: the `Expected.jsonschema_is_valid` method (a single schema dict/path), the `Expected.jsonschemas_is_valid` method (a directory of schemas keyed by status), and auto-validation on the positive path (via the `schemas/<status>*.json` file).
 
 ```python
 import jsonschema
 from pathlib import Path
 
 schema = json.loads(Path("schemas/200.json").read_text(encoding="utf-8"))
-jsonschema.Draft7Validator(schema).validate(response.json())  # raises ValidationError при ошибке
+jsonschema.Draft7Validator(schema).validate(response.json())  # raises ValidationError on failure
 ```
 
 ---
 
-## Draft7Validator — базовый контракт
+## Draft7Validator — the base contract
 
-- `jsonschema.Draft7Validator(schema)` строит валидатор; `.validate(instance)` выбрасывает
-  `jsonschema.exceptions.ValidationError`, когда `instance` не соответствует схеме.
-- В pybuggy `instance` — это всегда `response.json()` (распарсенное тело ответа).
-- Схема — обычный dict (json-schema: `type`, `properties`, `required`, `items`, и т.п.).
+- `jsonschema.Draft7Validator(schema)` builds a validator; `.validate(instance)` raises `jsonschema.exceptions.ValidationError` when `instance` does not conform to the schema.
+- In pybuggy, `instance` is always `response.json()` (the parsed response body).
+- The schema is a plain dict (JSON Schema keywords: `type`, `properties`, `required`, `items`, etc.).
 
-Схема может быть загружена из dict напрямую или прочитана из `.json`-файла (UTF-8):
+Load the schema either directly from a dict or from a `.json` file (UTF-8):
 ```python
 if isinstance(schema, str):
     schema = json.loads(Path(schema).read_text(encoding="utf-8"))
@@ -33,11 +29,9 @@ jsonschema.Draft7Validator(schema).validate(body)
 
 ---
 
-## Авто-валидация по статусу
+## Auto-validation by status
 
-`Expected` на positive-пути грузит **первый** файл из `schemas_dir`, чьё имя начинается со
-строки фактического статус-кода (`str(response.status_code)`), и валидирует тело. Файлы
-сортируются — берётся первый совпадающий:
+On the positive path, `Expected` loads the **first** file in `schemas_dir` whose name starts with the actual status code string (`str(response.status_code)`), and validates the body against it. The files are sorted — the first match wins:
 
 ```python
 code = str(response.status_code)
@@ -48,14 +42,10 @@ for entry in sorted(schemas_dir.iterdir()):
         return
 ```
 
-Когда `schemas_dir` нет / не каталог / нет файла под статус — авто-валидация **тихо
-пропускается** (без ошибки).
+Auto-validation is **silently skipped** — no error — when `schemas_dir` is missing, when it is not a directory, or when it holds no file for the status.
 
 ---
 
-## OpenAPI-flavored схемы — ограничение Draft7
+## OpenAPI-flavored schemas — the Draft7 limitation
 
-Response-схемы пишутся из OpenAPI-спеки и могут не содержать принудительного `$schema`, а также
-нести ключевые слова, которые `Draft7Validator` не понимает (`nullable`, и т.п.). По умолчанию
-используется именно `Draft7Validator`. Если такие расхождения проявятся как ложные
-ошибки/пропуски — переключиться на `openapi-schema-validator`; текущий контракт этого не делает.
+Response schemas are derived from an OpenAPI spec; such schemas may lack a mandatory `$schema` and may carry keywords that `Draft7Validator` does not understand (`nullable`, etc.). The default is exactly `Draft7Validator`. If such discrepancies surface as false errors/misses, switch to `openapi-schema-validator`; the current contract does not do that.

@@ -1,21 +1,16 @@
-# datamodel-code-generator — генерация pydantic-моделей из JSON-Schema
+# datamodel-code-generator — pydantic model generation from JSON-Schema
 
-## Предметная область
+## Domain
 
-Генерация pydantic v2 моделей (`BaseModel`) из JSON-Schema запроса эндпоинта для
-модуля-фикстуры `api.py`. Используется в cell `goga_tool_pybuggy/commands/generate` (рутина
-`render_api_module`) вместо ручного маппинга типов: datamodel-code-generator строит
-полноценные модели, включая вложенные объекты и массивы, которые ручной маппинг
-раньше деградировал до `Any`.
+`datamodel-code-generator` generates pydantic v2 models (`BaseModel`) from an endpoint's JSON-Schema for the `api.py` fixture module. Cell `goga_tool_pybuggy/commands/generate` uses it (the `render_api_module` routine) instead of manual type mapping: the library builds complete models — including nested objects and arrays — where manual mapping used to degrade them to `Any`.
 
-Библиотека: `datamodel_code_generator`. Python API — функция `generate(...)`.
+Library: `datamodel_code_generator`. Python API — the `generate(...)` function.
 
 ---
 
-## Канонический вызов
+## The canonical call
 
-Фрагмент схемы запроса (`endpoint.request`, resolved — все `$ref` уже развёрнуты
-через `load_spec`) подаётся как JSON-строка:
+Feed the request schema fragment (`endpoint.request`, resolved — `load_spec` has already expanded all `$ref`) as a JSON string:
 
 ```python
 from datamodel_code_generator import (
@@ -45,56 +40,41 @@ source = generate(
 )
 ```
 
-### Назначение параметров
+### Parameter purposes
 
-- `class_name="Request"` — имя корневой модели (имя фиксировано контрактом `render_api_module`).
-- `disable_timestamp=True` — **обязательно** для детерминизма: иначе datamodel-code-generator
-  штампует дату генерации в заголовке и одинаковый endpoint даёт разный текст (ломает
-  свойство «identical endpoint → identical module»).
-- `disable_future_imports=True` — без `from __future__ import annotations`.
-- `use_union_operator=True` — опциональные поля как `X | None = None` (вместо `Optional[X]`).
-- `use_standard_collections=True` — `list[...]` / `dict[...]` вместо `typing.List`.
-- `enum_field_as_literal=LiteralType.All` — enum'ы как `Literal[...]`.
-- `snake_case_field=True`, `capitalise_enum_members=True` — конвенции именования.
+- `class_name="Request"` — the root model's name (the `render_api_module` contract fixes the name).
+- `disable_timestamp=True` — **mandatory** for determinism: without the flag, the library stamps the generation date into the header, and the same endpoint then yields different text (breaking the "identical endpoint → identical module" property).
+- `disable_future_imports=True` — the output omits `from __future__ import annotations`.
+- `use_union_operator=True` — optional fields render as `X | None = None` (instead of `Optional[X]`).
+- `use_standard_collections=True` — `list[...]` / `dict[...]` instead of `typing.List`.
+- `enum_field_as_literal=LiteralType.All` — enums render as `Literal[...]`.
+- `snake_case_field=True`, `capitalise_enum_members=True` — naming conventions.
 - `output_datetime_class=DatetimeClassType.Datetime` — `datetime.datetime`.
-- `formatters=[Formatter.BUILTIN]` — dependency-free форматер (без black/isort), финальное
-  выравнивание выполняет `ruff` (см. ниже). Не используйте `Formatter.BLACK`/`ISORT` — они
-  требуют дополнительных зависимостей; не используйте default (black+isort) по той же причине.
-- `disable_timestamp=True` критичен — без него вывод недетерминирован.
+- `formatters=[Formatter.BUILTIN]` — a dependency-free formatter (no black/isort); `ruff` performs the final alignment (see below). Do not use `Formatter.BLACK`/`ISORT` — those formatters require extra dependencies; do not use the default (black+isort) for the same reason.
+- `disable_timestamp=True` is critical — without the flag the output is non-deterministic.
 
 ---
 
-## Санитизация свойств (never-raise контракт)
+## Property sanitization (the never-raise contract)
 
-datamodel-code-generator бросает `SchemaParseError`, если фрагмент свойства — не dict и
-не bool (например, «мусорный» `int`/`str`/`list`/`None`). Ручной маппинг ранее был
-дефенсивным («never raises», unknown → `Any`). Поэтому перед вызовом `generate` свойства
-санитизируются: невалидный фрагмент заменяется на boolean-схему `True` (JSON-Schema «any
-type»), что даёт `Any` без исключения. Валидные boolean-схемы (`true`/`false`)
-передаются как есть.
+`datamodel-code-generator` raises `SchemaParseError` when a property fragment is neither a dict nor a bool (e.g. a garbage `int`/`str`/`list`/`None`). Manual mapping used to be defensive ("never raises", unknown → `Any`). Therefore the properties are sanitized before the `generate` call: an invalid fragment is replaced with the boolean schema `True` (JSON-Schema "any type"), which yields `Any` without an exception. Valid boolean schemas (`true`/`false`) pass through unchanged.
 
 ---
 
-## Выравнивание вывода ruff'ом
+## Aligning the output with ruff
 
-datamodel-code-generator prependит заголовок-комментарий (`# generated by
-datamodel-codegen:` …) даже с `disable_timestamp=True` — его нужно отрезать (ведущие
-`#`-строки и пустые строки до первого кода).
+`datamodel-code-generator` prepends a header comment (`# generated by datamodel-codegen:` …) even with `disable_timestamp=True` — strip it (the leading `#` lines and the blank lines up to the first code).
 
-Собранный модуль (модели + `import pytest` + `from goga_tool_pybuggy.api import Endpoint, Api` +
-фикстура) выравнивается через `ruff` (замена isort+black): `ruff check --fix --select I`
-(сортировка/слияние импортов) + `ruff format` (форматирование), с теми же опциями, что в
-`pyproject.toml` (`--line-length 120 --target-version py310`). ruff определяется через
-`shutil.which("ruff")` с fallback на интерпретаторный venv (`Path(sys.executable).parent / "ruff"`).
+The assembled module (models + `import pytest` + `from goga_tool_pybuggy.api import Endpoint, Api` + the fixture) is aligned with `ruff` (a replacement for isort+black): `ruff check --fix --select I` (import sorting/merging) + `ruff format` (formatting), with the same options as `pyproject.toml` (`--line-length 120 --target-version py310`). ruff is located via `shutil.which("ruff")` with a fallback to the interpreter venv (`Path(sys.executable).parent / "ruff"`).
 
-Результат детерминирован: одинаковый вход → одинаковый выровненный текст.
+The result is deterministic: identical input → identical aligned text.
 
 ---
 
-## Что меняется по сравнению с ручным маппингом
+## What changes compared to manual mapping
 
-- Вложенные объекты → отдельные классы `BaseModel` (раньше `Any`).
-- Массивы → `list[...]` с типом элементов (раньше `Any`).
-- Enum'ы → `Literal[...]`.
-- Nullable required → `X | None` без дефолта.
-- Импорты управляются ruff (раньше собирались вручную).
+- Nested objects → dedicated `BaseModel` classes (previously `Any`).
+- Arrays → `list[...]` with an element type (previously `Any`).
+- Enums → `Literal[...]`.
+- Nullable required fields → `X | None` without a default.
+- ruff manages the imports (previously assembled by hand).

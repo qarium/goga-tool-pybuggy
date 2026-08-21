@@ -1,88 +1,89 @@
 ---
 name: goga-tool-pybuggy-api-cookbook
-description: Принципы применения DSL goga-cell для проектирования тестовых cells
+description: Principles for applying the goga-cell DSL to design test cells
 ---
 # Pybuggy API Cookbook
 
 ## Purpose
 
-Принципы применения DSL `goga-cell` при проектировании **тестовых** cells. Это адаптация `goga-cookbook`,
-оставляющая только релевантное для тестов: тесты описываются как `Routine` с базовыми
-`Usages`/`Annotations` из конфига проекта.
+Principles for applying the `goga-cell` DSL to design **test** cells. This document adapts `goga-cookbook`
+and keeps only what is relevant to tests: tests are described as `Routine` with base
+`Usages`/`Annotations` from the project config.
 
-Этот скилл вызывается другими скиллами для контекста проектирования тестовых cells.
+Other skills invoke this skill to load test cell design context.
 
 ## Behavior
 
-Применяй принципы в контексте вызывающего скилла. Не пересказывай `goga-cookbook` целиком и не описывай, как
-устроены другие скиллы — используй принципы для проектных решений по тестовым cells.
+The invoking skill applies these principles in its own context. The invoking skill must not restate
+`goga-cookbook` in full and must not describe the internals of other skills — it uses these principles
+to make design decisions about test cells.
 
 ---
 
-# Принципы проектирования тестовых cells
+# Test cell design principles
 
-## Контекст
+## Context
 
-Тесты — отдельный проект, использующий pybuggy как фреймворк. Тестовая cell — это папка тестов,
-созданная `goga tool pybuggy generate`:
+Tests are a separate project that uses pybuggy as its framework. A test cell is a folder of tests
+created by `goga tool pybuggy generate`:
 
 ```
 tests/<spec>/<endpoint-id>/
 └── CODEMANIFEST
 ```
 
-Генерация создаёт каталог `tests/<spec>/<endpoint-id>/` на каждый эндпоинт — это стартовая структура.
-Границы cells — проектное решение пайплайна `cells` (фаза cell-map): допустимы cell на эндпоинт,
-объединение связанных эндпоинтов в одну cell, несколько cells на один эндпоинт. Фикстуры при этом
-остаются per-endpoint (`api/<spec>/<endpoint-id>/api.py`) — cell просто подключает нужные.
+Generation creates one directory per endpoint — `tests/<spec>/<endpoint-id>/` — as the starting structure.
+The `cells` pipeline (cell-map phase) owns cell boundaries as a design decision: one cell per endpoint,
+merging related endpoints into a single cell, or several cells per endpoint are all valid. Fixtures remain
+per-endpoint (`api/<spec>/<endpoint-id>/api.py`) — a cell only wires in the ones it needs.
 
-## CODEMANIFEST тестовой cell
+## Test cell CODEMANIFEST
 
-### Порядок дизайна
+### Design order
 
-1. **Header** — базовые `Usages` + `Annotations` (контракт работает в контексте базовых практик проекта).
-2. **Body** — `Routine` под тест-кейсы: один Routine может покрывать один или несколько связанных кейсов
-   (в т.ч. параметризованно); 1 кейс = 1 Routine допустимо, но не обязательно.
+1. **Header** — base `Usages` + `Annotations` (the contract operates in the context of the project's base practices).
+2. **Body** — `Routine` for test cases: one Routine may cover one or several related cases
+   (including parameterized ones); 1 case = 1 Routine is valid but not mandatory.
 3. **Footer** — `Author`, `CreatedAt`, `Description`.
 
 ### Header
 
-**Базовый блок** `Usages` и `Annotations` берётся из `.goga/config.yml` (через `goga-codemanifest-base`) и
-**един для всех тестовых cells**:
+The **base block** of `Usages` and `Annotations` is taken from `.goga/config.yml` (via `goga-codemanifest-base`) and
+is **identical for all test cells**:
 
-- `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (пути в `.goga/usages/`).
-- `Annotations`: инструкции вида `Use \`pybuggy-api\` for ...`, `Use \`pybuggy-asserts\` for ...`.
+- `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (paths in `.goga/usages/`).
+- `Annotations`: instructions of the form ``Use `pybuggy-api` for ...``, ``Use `pybuggy-asserts` for ...``.
 
-Поверх базового блока cell может иметь **cell-специфичные usages** — см. раздел «Cell-специфичные usages
-(инструменты)» ниже.
+On top of the base block, a cell may have **cell-specific usages** — see the "Cell-specific usages
+(tools)" section below.
 
-### Cell-специфичные usages (инструменты)
+### Cell-specific usages (tools)
 
-Тестовая cell, использующая инструмент подготовки данных/моков/утилиту, получает **поверх базового блока**
-cell-специфичный usage:
+A test cell that uses a data preparation, mock, or utility tool receives a cell-specific usage
+**on top of the base block**:
 
 ```yaml
 Usages:
-  conventions: .goga/usages/conventions.md          # базовый блок — идентичен во всех cells
+  conventions: .goga/usages/conventions.md          # base block — identical in all cells
   pybuggy-api: .goga/usages/cooks/pybuggy/api.md
   pybuggy-asserts: .goga/usages/cooks/pybuggy/asserts.md
-  faker: .goga/usages/cooks/faker.md                # cell-специфичный (только где используется)
+  faker: .goga/usages/cooks/faker.md                # cell-specific (only where used)
 ```
 
-- Usage-ключ подключается в Header **только при существующем файле** `.goga/usages/cooks/<ключ>.md` —
-  файл должен быть на диске до проектирования cells.
-- Подключение — запись `<ключ>: .goga/usages/cooks/<ключ>.md` в `Usages` + строка
-  ``Use `<ключ>` for <подготовка данных/моки/утилиты>`` в `Annotations` затронутой cell. Backtick-ссылка
-  `` `<ключ>` `` разрешается сразу: ключ уже объявлен в `Usages` этой cell.
-- Базовый блок при этом **не меняется**. Cell-специфичный usage есть только в cell, использующих
-  инструмент, — его наличие в одних cells и отсутствие в других **не** расхождение.
-- coverage (покрытие кейсов) и гранулярность Routine **не затрагиваются** (usages инструментов —
-  Header/Annotations, не Routine).
+- A usage key is added to the Header **only when the file exists** — `.goga/usages/cooks/<key>.md`
+  must be on disk before cell design starts.
+- Wiring a tool in requires two entries: a `<key>: .goga/usages/cooks/<key>.md` line in `Usages` + a
+  ``Use `<key>` for <data preparation/mocks/utilities>`` line in the `Annotations` of the affected cell. The backtick
+  reference `` `<key>` `` resolves immediately: the key is already declared in that cell's `Usages`.
+- The base block stays **unchanged**. A cell-specific usage exists only in cells that use
+  the tool — its presence in some cells and absence in others is **not** a discrepancy.
+- Coverage (case coverage) and Routine granularity remain **unaffected** (tool usages belong to
+  Header/Annotations, not Routine).
 
 ### Body — Routine
 
-Тест — это `Routine` (без `methods`/`properties`); один Routine может покрывать один или несколько
-кейсов (параметризацией) — соответствие «1 кейс = 1 Routine» допустимо, но не обязательно:
+A test is a `Routine` (no `methods`/`properties`); one Routine may cover one or several
+cases via parameterization — the mapping 1 case = 1 Routine is valid but not mandatory:
 
 ```yaml
 "test_<name>(<fixture>: Endpoint, ...)":
@@ -91,97 +92,102 @@ Usages:
     ...
 ```
 
-- Сигнатура: `test_<name>(<fixture>: Endpoint, ...)` — без output (тест ничего не возвращает); один
-  параметр-фикстура на каждый вызываемый эндпоинт Routine (одна для single-endpoint Routine, несколько
-  для flow).
-- `<fixture>` — сгенерированная фикстура `api/<spec>/<id>/api.py` (имя `<method>_<id>`); фикстур столько,
-  сколько эндпоинтов вызывает Routine.
-- Naming `snake_case`, `location: test_<name>.py` (правила `goga-cell-python`).
-- Параметризация: если один Routine покрывает несколько кейсов, варианты (параметры) перечисляются в
-  аннотации — в `Data:` и/или `Steps`; механизм параметризации (напр. `@pytest.mark.parametrize`) в
-  CODEMANIFEST не описывается — он появляется при генерации тестового кода из Routine. На один Routine —
-  один `test_<name>.py` (несколько кейсов → один файл).
-- Критерий параметризации — линейность: объединяй в один Routine только кейсы с совпадающим составом
-  шагов и проверок — варианты отличаются значениями (данные запроса, параметры, ожидаемые статусы/поля),
-  но не тем, какие шаги и проверки выполняются. Кейсы с разным составом шагов или проверок — отдельные
-  Routine: тест из параметризованной Routine материализуется линейным, и логические конструкции в теле
-  теста (`if`/`else` и подобные, выбирающие шаги/проверки по варианту) означают избыточную
-  параметризацию.
+- Signature: `test_<name>(<fixture>: Endpoint, ...)` — without output (a test returns nothing); declare one
+  fixture parameter per endpoint the Routine calls (one for a single-endpoint Routine, several
+  for a flow).
+- `<fixture>` is a generated fixture from `api/<spec>/<id>/api.py` (name `<method>_<id>`); the Routine
+  receives as many fixtures as endpoints it calls.
+- Naming is `snake_case`, `location: test_<name>.py` (`goga-cell-python` rules).
+- Parameterization: when one Routine covers several cases, the variants (parameters) are listed in
+  the annotation — in `Data:` and/or `Steps`; CODEMANIFEST does not describe the parameterization mechanism
+  (e.g. `@pytest.mark.parametrize`) — it emerges when test code is generated from the Routine. One Routine maps to
+  one `test_<name>.py` (several cases → one file).
+- The parameterization criterion is linearity: merge into one Routine only cases with a matching set
+  of steps and checks — variants differ in values (request data, parameters, expected statuses/fields),
+  but not in which steps and checks run. Cases with a different set of steps or checks become
+  separate Routines: a test materialized from a parameterized Routine is linear, so logical
+  constructs in the test body (`if`/`else` and the like, selecting steps/checks per variant) indicate excessive
+  parameterization.
 
 ### Footer
 
-- `Author` — всегда `Goga`.
-- `CreatedAt` — день/месяц/год.
-- `Description` — зачем эта cell (тесты каких эндпоинтов/фичи).
+- `Author` — always `Goga`.
+- `CreatedAt` — day/month/year.
+- `Description` — why this cell exists (which endpoints/feature it tests).
 
-## Standard аннотаций Routine
+## Routine annotation standard
 
-Аннотация Routine должна быть достаточна для реализации без уточнений. Для тестов используется **строгая
-структура** из упорядоченных разделов. Порядок разделов фиксирован:
+A Routine annotation must be sufficient for implementation without clarification. Tests use a **strict
+structure** of ordered sections. The section order is fixed:
 **Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`**.
 
-Разделы **разделяются пустой строкой**: после Purpose и перед каждым из `Precondition:` / `Data:` / `Steps:` /
-`Use …` стоит пустая строка. Два соседних раздела без пустой строки между ними — нарушение структуры.
+Sections **are separated by a blank line**: a blank line follows Purpose and precedes each of
+`Precondition:` / `Data:` / `Steps:` / `Use …`. Two adjacent sections without a blank line between them violate
+the structure.
 
-**1. Purpose — без лейбла.** Что проверяет Routine (из `title`/описания тест-кейса). Первый абзац аннотации.
+**1. Purpose — no label.** The section states what the Routine verifies (from the test case
+`title`/description). It is the first paragraph of the annotation.
 
-**2. `Precondition:` — фикстуры и предусловия.** Маркированный список (`- `): каждая параметр-фикстура с
-описанием сгенерированного артефакта (`api/<spec>/<id>/api.py`, имя `<method>_<id>`, METHOD /path, роль —
-основной SUT или верификация), а также общие предусловия (тип параметров `Endpoint` из pybuggy runtime,
-состояние системы/данные ДО теста из кейса). Backtick на имя фикстуры обязателен.
+**2. `Precondition:` — fixtures and preconditions.** A bulleted list (`- `): each fixture parameter with
+a description of the generated artifact (`api/<spec>/<id>/api.py`, name `<method>_<id>`, METHOD /path, role —
+primary SUT or verification), plus general preconditions (the `Endpoint` parameter type from the pybuggy
+runtime, system state/data BEFORE the test as stated by the case). The fixture name must carry a backtick.
 
-**3. `Data:` — данные, создаваемые внутри теста.** Маркированный список внутренних данных теста: переменные,
-ключи, вычисляемые значения (напр. `test_id`), не привязанные к одному вызову. Конкретные значения вызовов
-(`request`/`response`) остаются внутри `Steps`. Секция опускается, если таких данных нет.
+**3. `Data:` — data created inside the test.** A bulleted list of the test's internal data: variables,
+keys, computed values (e.g. `test_id`) that are not tied to a single call. Concrete call values
+(`request`/`response`) stay inside `Steps`. Omit the section when no such data exists.
 
-**4. `Steps:` — пронумерованные шаги теста.** Шаги из тест-кейса (Действие / Данные / Ожидание). Логика, не
-код — действия выражаются через ссылки на Usages и фикстуру, без pytest-кода. Пронумерованный список (`1. `).
+**4. `Steps:` — numbered test steps.** Steps come from the test case (Action / Data / Expectation). Logic, not
+code — actions are expressed through references to Usages and the fixture, without pytest code. Numbered
+list (`1. `).
 
-**5. `Use …` — только специфичные для Routine usages.** В конце аннотации перечисляются usages, которые
-используются **в этой Routine** и не покрыты глобальными `Annotations` заголовка. Базовые практики
-(`pybuggy-api`, `pybuggy-asserts`, `conventions`) уже связаны в `Annotations` заголовка CODEMANIFEST — **не
-дублируй** их в Routine (по `goga-cell`: аннотации разных уровней не дублируют друг друга). Здесь остаются
-только cell-специфичные usages инструментов (напр. ``Use `faker` for генерации test_id``). Раздел опускается,
-если у Routine нет специфичных usages. Backtick-ссылки должны разрешаться в контексте CODEMANIFEST.
+**5. `Use …` — only Routine-specific usages.** The section closes the annotation and lists the usages used
+**in this Routine** that the header's global `Annotations` do not already cover. Base practices
+(`pybuggy-api`, `pybuggy-asserts`, `conventions`) are already linked in the CODEMANIFEST header's `Annotations` — **do not
+duplicate** them in the Routine (per `goga-cell`: annotations at different levels do not duplicate each other). Only
+cell-specific tool usages belong here (e.g. ``Use `faker` for generating test_id``). Omit the section
+when the Routine has no specific usages. Backtick references must resolve within the CODEMANIFEST context.
 
-**Не используется** для тестов: `Requirements:`/`Constraints:` (переносятся из кейса в `Precondition:`/`Data:`
-по мере необходимости); `Algorithm:` заменён на `Steps:`.
+**Not used** for tests: `Requirements:`/`Constraints:` (their content moves from the case into
+`Precondition:`/`Data:` as needed); `Algorithm:` is replaced by `Steps:`.
 
-**Тело запроса — модель `Request` против `dict` (важно).** `Steps` материализуются в `test_*.py` дословно, поэтому
-способ описания тела запроса определяет сгенерированный код:
+**Request body — the `Request` model vs `dict` (important).** `Steps` materialize into `test_*.py` verbatim,
+so the way the request body is described determines the generated code:
 
-- **Валидное тело (positive/flow, корректные данные):** описывай через **импортируемую модель `Request`** из
-  фикстуры `api/<spec>/<id>/api.py` — `json=Request(...)`. Имя модели и вложенная структура (включая вложенные
-  модели, если она составная — напр. `Request1`/`Response`) берётся из этой же `api.py`; модель `Request(...)`
-  указывай в `Steps` — **текстом, без backtick-ссылки** (модель внешняя относительно CODEMANIFEST тестовой cell:
-  не переменная сигнатуры, не `Imports`/`Usages`; backtick-ссылка на неё неразрешима по `goga-cell` DSL).
-  Backtick остаётся только на фикстуру `` `<fixture>` `` (она в сигнатуре). Это **основной путь** — соответствует
-  `pybuggy-api`.
-- **Невалидное тело (negative — нет обязательного поля, неверный тип, пустое тело, битый JSON):** описывай
-  **сырым `dict`**, минуя pydantic-модель (иначе `ValidationError` до отправки запроса, и SUT не будет
-  протестирован). Обязательно пометь: «сырой `dict`, минуя pydantic-модель». Это **исключение** для negative.
+- **Valid body (positive/flow, correct data):** describe it through the **importable `Request` model** from
+  the fixture `api/<spec>/<id>/api.py` — `json=Request(...)`. The model name and the nested structure (including
+  nested models when it is composite — e.g. `Request1`/`Response`) come from that same `api.py`; specify the
+  `Request(...)` model in `Steps` — **as plain text, without a backtick reference** (the model is external to
+  the test cell's CODEMANIFEST: it is neither a signature variable nor `Imports`/`Usages`; a backtick reference
+  to it is unresolvable under the `goga-cell` DSL). The backtick stays only on the fixture
+  `` `<fixture>` `` (it appears in the signature). This is the **primary path** — it matches `pybuggy-api`.
+- **Invalid body (negative — missing required field, wrong type, empty body, malformed JSON):** describe it
+  as a **raw `dict`**, bypassing the pydantic model (a pydantic-validated body would raise `ValidationError`
+  before the request is sent, and the SUT would never be tested). Always mark it explicitly: "raw `dict`,
+  bypassing the pydantic model". This **exception** applies only to negative.
 
-**Никогда** не описывай валидное тело `dict`-нотацией (`{field: value}`) — `Steps` превратится в `json={...}`,
-валидация запроса потеряется, и positive-проверка перестанет тестировать контракт запроса.
+**Never** describe a valid body in dict notation (`{field: value}`) — `Steps` would materialize as
+`json={...}`, request validation would be lost, and the positive check would stop testing the request
+contract.
 
-Пример:
+Example:
 
 ```yaml
 "test_create_order_returns_201(create_order: Endpoint)":
   location: test_create_order_returns_201.py
   annotations: |
-    Проверяет успешное создание заказа — статус 201 и наличие id в ответе.
+    Verifies successful order creation — status 201 and the presence of id in the response.
 
     Precondition:
-    - `create_order`: сгенерированная фикстура api/orders/create_order/api.py (POST /orders), основной SUT.
-    - Параметр-фикстура имеет тип `Endpoint` (runtime pybuggy) — передаётся в тест как готовый callable-маршрут.
+    - `create_order`: generated fixture api/orders/create_order/api.py (POST /orders), primary SUT.
+    - The fixture parameter has type `Endpoint` (pybuggy runtime) — passed into the test as a ready callable route.
 
     Data:
-    - `order_id` генерируется сервисом в ответе создания и используется в проверках.
+    - `order_id` is generated by the service in the creation response and used in checks.
 
     Steps:
-    1. Вызвать эндпоинт с валидным телом — модель Request(item="A", qty=2) (импорт из api.py фикстуры).
-    2. Проверить статус 201 и поле id в ответе.
+    1. Call the endpoint with a valid body — model Request(item="A", qty=2) (imported from the fixture's api.py).
+    2. Check status 201 and the id field in the response.
 
-    Use <usages> специфичных для Routine usages
+    Use <usages> specific to the Routine usages
 ```

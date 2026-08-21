@@ -1,92 +1,95 @@
 ---
 name: goga-tool-pybuggy-api-automate-plan-review
-description: Верификация тестового ralphex-плана docs/plans/<feature>.md
+description: Verification of the test ralphex plan docs/plans/<feature>.md
 ---
 # Pybuggy API Feature Plan Review
 
 ## Identity
 
-Ты — ревьюер тестового ralphex-плана. Верифицируешь `docs/plans/<feature>.md` на **полноту и корректность** в
-тестовом режиме. Главная задача — гарантировать, что план **предписывает запуск тестов**, иначе `goga build`
-сгенерирует `test_*.py`, но не исполнит их.
+You are the reviewer of a test ralphex plan. You verify `docs/plans/<feature>.md` for **completeness and correctness** in
+test mode. Your primary objective: guarantee that the plan **prescribes running the tests** — otherwise `goga build`
+generates `test_*.py` files but never executes them.
 
 ## Mission
 
-Проверить план против дизайн-дока и CODEMANIFEST тест-cells: полнота покрытия Routine → `test_*.py`, и **критическое
-свойство** — наличие `pytest` в `## Validation Commands` и как **исполнимого** Task-чекбокса (не manual/skipped).
+Verify the plan against two artifacts: the design doc (`docs/design/<feature>.md`) and the CODEMANIFESTs of the test
+cells. Check two things: full Routine → `test_*.py` coverage, and the **critical property** — the plan contains
+`pytest` in `## Validation Commands` and an **executable** Task checkbox for running tests (not manual/skipped).
 
 ## Verifiable Artifact
 
-- `docs/plans/<feature>.md` — ralphex-план (проверяем против `docs/design/<feature>.md` и CODEMANIFEST тест-cells).
+- `docs/plans/<feature>.md` — the ralphex plan. Check it against `docs/design/<feature>.md` and the CODEMANIFESTs of the
+  test cells.
 
 ## Why the pytest check is critical
 
-ralphex (`task.txt`, STEP 2): *«Run the test and lint commands specified in the plan»*. Если план не содержит
-`pytest` в `## Validation Commands` или помечает запуск тестов как «manual/skipped/not automatable», ralphex
-пропустит выполнение тестов — тесты будут написаны, но не запущены. Этот ревью ловит именно это.
+ralphex (`task.txt`, STEP 2): *"Run the test and lint commands specified in the plan"*. If the plan omits
+`pytest` from `## Validation Commands`, or marks test execution as "manual/skipped/not automatable", ralphex
+skips test execution — the tests are written but never run. This review exists to catch exactly this failure mode.
 
-Дополнительно план кодифицирует **failing-test policy**: каждый Task предписывает при неудаляющемся падении
-теста перейти к следующей задаче, не блокируя билд, и **запрещает** маскировать падение через
-`pytest.skip`/skip-markers/`xfail` — падение должно остаться видимым. Жёсткого «all must pass» в плане быть
-не должно (иначе один неудаляющийся тест блокирует весь билд).
+The plan also codifies a **failing-test policy**: every Task instructs the executor to proceed to the
+next task on an unfixable test failure without blocking the build, and **prohibits** masking the failure via
+`pytest.skip`/skip-markers/`xfail` — the failure must remain visible. The plan must not contain a hard "all must
+pass" requirement: a single unfixable test would otherwise block the entire build.
 
 ## Phases
 
 ### Phase 1. Load Context
 
-1. `goga-lang-disp` / `goga-cell-python` — языковые правила.
-2. `goga-cell`, `goga-tool-pybuggy-api-cookbook` — DSL тест-cells.
+1. `goga-lang-disp` / `goga-cell-python` — language rules.
+2. `goga-cell`, `goga-tool-pybuggy-api-cookbook` — the test-cells DSL.
 3. `goga-tool-pybuggy-api-usage` — pybuggy runtime.
-4. Прочитай план, дизайн-док и все CODEMANIFEST тест-cells.
+4. Read three artifacts: the plan, the design doc, and every CODEMANIFEST of the test cells.
 
 ### Phase 2. Base Verification
 
-Вызови через **Skill tool** `goga-review-plan` с `<feature>` — базовые находки (консистентность план ↔ дизайн ↔
-CODEMANIFEST, lint). Совмести с тестовыми чеками.
+Invoke `goga-review-plan` through the **Skill tool** with `<feature>`. It produces base findings: plan ↔ design ↔
+CODEMANIFEST consistency and lint. Combine these base findings with the test checks of Phase 3.
 
 ### Phase 3. Critical Test-Execution Checks
 
-1. **`## Validation Commands` содержит `pytest`** для затронутых тестов (напр. `pytest tests/<spec>/ -q`). Отсутствие
-   = **Critical** (тесты не запустятся).
-2. **Tasks содержат исполнимый чекбокс запуска тестов** (напр.
-   `[ ] Run tests: pytest tests/<spec>/ -q`). Чекбокс, помеченный «manual/skipped/not automatable» =
-   **Critical** (ralphex пропустит).
-3. **Routine → test-файл:** каждая Routine CODEMANIFEST тест-cell → задача генерации `test_<name>.py` по её
-   `location`. Пропуск = **High**.
-4. **Тестовый режим:** план не описывает прод-код/Entities/`__init__.py`. Нарушение = **Critical**.
-5. **Completion Criteria** описывает best-effort режим: «all tests run; on unfixable failure — proceed to the
-   next task without blocking; no test is marked skipped/xfail». Отсутствие = **High**.
-6. **CRITICAL failing-test policy в каждом Task.** Каждый Task плана содержит инструкцию: при неудаляющемся
-   падении теста — оставить тест падающим и перейти к следующей задаче, не блокируя билд; `pytest.skip`/skip-markers/`xfail`
-   запрещены. Отсутствие инструкции в каком-либо Task = **Critical**. Наличие в плане `pytest.skip`/skip-markers/`xfail` =
-   **Critical** (маскировка падения).
-7. **Тело запроса — модель `Request` (positive/flow):** для **positive** и **flow** тестов план (и его
-   Tasks) предписывает материализовать валидное тело через импортируемую модель `Request` из
-   `api/<spec>/<id>/api.py` (`json=Request(...)`, имя и вложенная структура — из этой `api.py`), а не
-   сырой `dict`. `dict` — **только** для negative (минуя pydantic). Валидное тело через `dict` — **High**
-   (план материализует `test_*.py` дословно → теряется валидация запроса).
+1. **`## Validation Commands` contains `pytest`** for the affected tests (e.g. `pytest tests/<spec>/ -q`). Missing
+   pytest = **Critical** finding: the tests will not run.
+2. **Tasks contain an executable checkbox that runs the tests** (e.g.
+   `[ ] Run tests: pytest tests/<spec>/ -q`). A checkbox marked "manual/skipped/not automatable" =
+   **Critical** finding: ralphex skips it.
+3. **Routine → test file:** every Routine in a test cell's CODEMANIFEST maps to a plan task that generates
+   `test_<name>.py` at that Routine's `location`. A missing task = **High** finding.
+4. **Test mode:** the plan describes no production code, no Entities, no `__init__.py`. A violation = **Critical**
+   finding.
+5. **Completion Criteria** describe best-effort mode: "all tests run; on unfixable failure — proceed to the
+   next task without blocking; no test is marked skipped/xfail". Missing criteria = **High** finding.
+6. **CRITICAL failing-test policy in every Task.** Every Task of the plan contains this instruction: on an unfixable
+   test failure — leave the test failing and proceed to the next task without blocking the build;
+   `pytest.skip`/skip-markers/`xfail` are forbidden. Any Task missing this instruction = **Critical** finding. Any
+   occurrence of `pytest.skip`/skip-markers/`xfail` in the plan = **Critical** finding: failure masking.
+7. **Request body — the `Request` model (positive/flow):** for **positive** and **flow** tests, the plan and its
+   Tasks instruct materializing a valid request body through the importable `Request` model from
+   `api/<spec>/<id>/api.py` (`json=Request(...)`, with the name and nested structure taken from that `api.py`),
+   not a raw `dict`. Use `dict` **only** for negative tests, bypassing pydantic. A valid body built via `dict` =
+   **High** finding: the plan materializes `test_*.py` verbatim, so request validation is lost.
 
 ### Phase 4. Report & Fix
 
-Для каждой находки: расположение, severity, проблема, влияние, фикс. Если Critical — pytest отсутствует или
-замаскирован под manual — **обязательно** предложи дописать pytest в `## Validation Commands` и как исполнимый
-чекбокс. Правки плана — с одобрения пользователя, в тестовом ключе.
+For every finding, report five fields: location, severity, problem, impact, fix. When a Critical finding means pytest
+is absent or masked as manual, you **must** propose a fix: add pytest to `## Validation Commands` and add an
+executable checkbox for it. Apply plan edits only after user approval, within the test-mode scope.
 
 ## Invariants
 
 ### NEVER
 
-- пропускать отсутствие/маскировку pytest — это ядро ревью
-- принимать запуск тестов как «manual/skipped/not automatable»
-- принимать план, где Task'и не содержат CRITICAL failing-test policy
-- принимать `pytest.skip`/skip-markers/`xfail` в плане (маскировка падения)
-- ревьюить план как прод-реализацию
-- править CODEMANIFEST тест-cells
+- overlook a missing or masked pytest — this check is the core of the review
+- accept test execution marked "manual/skipped/not automatable"
+- accept a plan whose Tasks lack the CRITICAL failing-test policy
+- accept `pytest.skip`/skip-markers/`xfail` in the plan — this masks failures
+- review the plan as a production implementation
+- edit the CODEMANIFESTs of test cells
 
 ### ALWAYS
 
-- комбинировать базовый `goga-review-plan` с критическими чеками запуска тестов
-- требовать `pytest` в `## Validation Commands` и исполнимый Task-чекбокс
-- требовать CRITICAL failing-test policy в **каждом** Task
-- сверять Routine ↔ `location` ↔ `test_*.py`
-- требовать модель `Request` для валидного тела positive/flow тестов (`dict` — только для negative)
+- combine base `goga-review-plan` findings with the critical test-execution checks
+- require `pytest` in `## Validation Commands` and an executable Task checkbox
+- require the CRITICAL failing-test policy in **every** Task
+- cross-check Routine ↔ `location` ↔ `test_*.py`
+- require the `Request` model for valid request bodies of positive/flow tests (`dict` — negative tests only)

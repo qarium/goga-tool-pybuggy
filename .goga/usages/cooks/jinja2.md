@@ -1,57 +1,42 @@
-# jinja2 — движок рендеринга base_url
+# jinja2 — the base_url rendering engine
 
-## Предметная область
+## Domain
 
-`jinja2` — используется для рендеринга `base_url` ячейки `goga_tool_pybuggy/plugin`. Шаблон `base_url` рендерится
-через `jinja2.Environment(undefined=StrictUndefined)` с зарегистрированным кастомным тестом
-`match_re`. Jinja-режим даёт потребителю условную логику и regex-проверку прямо в шаблоне URL —
-без предварительного вычисления переменных в `conftest`.
+`jinja2` renders the `base_url` of cell `goga_tool_pybuggy/plugin`. The plugin renders the `base_url` template through `jinja2.Environment(undefined=StrictUndefined)` with a registered custom test `match_re`. The Jinja mode gives the consumer conditional logic and regex checks directly in the URL template — with no precomputation of variables in `conftest`.
 
-Рендеринг выполняется в lifecycle-хуке `configure()` (один раз, pytest configphase), значение
-сохраняется обратно в опцию `base_url`.
+The render runs in the `configure()` lifecycle hook (once, during the pytest configphase); the plugin stores the resulting value back into the `base_url` option.
 
 ---
 
-## Environment — конфигурация
+## Environment — configuration
 
-pybuggy создаёт `jinja2.Environment` со следующими настройками:
+pybuggy creates a `jinja2.Environment` with the following settings:
 
-- `undefined=jinja2.StrictUndefined` — неизвестная переменная **поднимает ошибку**
-  (`UndefinedError`), а не рендерится в пустую строку. URL не должен молчаливо
-  обрезаться.
-- `keep_trailing_newline=False` — завершающий перенос (например, от YAML `>`
-  folded-scalar) не попадает в URL.
+- `undefined=jinja2.StrictUndefined` — an unknown variable **raises an error** (`UndefinedError`) instead of rendering to an empty string. A URL must never be silently truncated.
+- `keep_trailing_newline=False` — a trailing newline (e.g. from a YAML `>` folded scalar) never reaches the URL.
 
-Контекст рендеринга — обычный `dict`: полная `os.environ` + CLI-опции, которые
-пользователь реально набрал. Переменные шаблона пишутся в Jinja-синтаксисе: `{{ name }}`.
+The rendering context is a plain `dict`: the full `os.environ` plus the CLI options the user actually typed. Template variables use Jinja syntax: `{{ name }}`.
 
-После рендеринга движком (Jinja2) из результата **удаляются все пробельные символы**
-(`re.sub(r"\s+", "", ...)`). URL по определению не содержит литеральных пробелов —
-иначе они превратятся в `%20` и сломают путь запроса (классический баг с folded-scalar
-`>`: перенос строки между сегментами URL и пустой Jinja-блок оставляли висячий пробел).
-Поэтому многострочные шаблоны (YAML folded `>` / literal `|` скаляры, пустые Jinja-блоки)
-рендерятся в один чистый URL. Plain URL без Jinja-плейсхолдеров рендерится сам в себя.
+After the engine renders the template, **all whitespace characters are stripped** from the result (`re.sub(r"\s+", "", ...)`). A URL by definition contains no literal spaces — otherwise the spaces would become `%20` and break the request path (the classic bug with the folded scalar `>`: a line break between URL segments plus an empty Jinja block left a dangling space). Consequently, multi-line templates (YAML folded `>` / literal `|` scalars, empty Jinja blocks) render into a single clean URL. A plain URL without Jinja placeholders renders to itself.
 
 ---
 
-## Custom test `match_re` — regex в условиях
+## The custom test `match_re` — regex in conditions
 
-В Jinja2 нет встроенного regex-фильтра/теста. pybuggy регистрирует кастомный
-**test** `match_re`, оборачивающий `re.match`:
+Jinja2 ships no built-in regex filter/test. pybuggy registers a custom **test**, `match_re`, wrapping `re.match`:
 
 ```jinja
 {% if service_version is match_re("^feature-.*$") %}-{{ service_version }}{% endif %}
 ```
 
 - `x is match_re(pattern)` → `re.match(pattern, str(x)) is not None`.
-- `re.match` анкорит паттерн в начале строки (явный `^` в паттерне избыточен, но
-  допустим).
+- `re.match` anchors the pattern at the start of the string (an explicit `^` in the pattern is redundant but allowed).
 
 ---
 
-## Примеры
+## Examples
 
-Переменная:
+A variable:
 
 ```yaml
 # .goga/tools/pybuggy/config.yml
@@ -62,7 +47,7 @@ base_url: "http://{{ env }}.svc.example/api"
 pytest --env=dev   # -> http://dev.svc.example/api
 ```
 
-Условная сборка URL (суффикс `-{version}` только для feature-веток):
+Conditional URL assembly (the `-{version}` suffix appears only for feature branches):
 
 ```yaml
 base_url: "http://x/api/v1{% if service_version is match_re('^feature-.*$') %}-{{ service_version }}{% endif %}"
@@ -73,8 +58,7 @@ pytest --service-version=feature-123   # -> http://x/api/v1-feature-123
 pytest --service-version=1.2.3         # -> http://x/api/v1
 ```
 
-Многострочный шаблон (YAML folded-scalar `>` — переноды строк сворачиваются в пробелы,
-которые нормализация удаляет; работает и в обеих ветках условия):
+A multi-line template (YAML folded scalar `>` — line breaks fold into spaces, which normalization removes; works in both branches of the condition):
 
 ```yaml
 base_url: >
@@ -87,22 +71,13 @@ pytest --env=stage-el --some-version=1.2.3        # -> http://stage-el.svc.examp
 pytest --env=stage-el --some-version=feature-123   # -> http://stage-el.svc.example/api/v1-feature-123
 ```
 
-CLI-плейсхолдеры (например `--env`, `--service-version`) потребитель регистрирует
-сам через `pytest_addoption` в `conftest.py` — pytest отвергает незарегистрированные
-опции ещё до хуков.
+The consumer registers CLI placeholders (e.g. `--env`, `--service-version`) itself via `pytest_addoption` in `conftest.py` — pytest rejects unregistered options before any hook runs.
 
 ---
 
-## Ограничения
+## Limitations
 
-- **Неизвестная переменная** → `UndefinedError` (`StrictUndefined`). URL не должен
-  молчаливо обрезаться — используйте только переменные из `os.environ` или переданные
-  через CLI.
-- **Literal фигурные скобки** в URL не поддерживаются: одинарные `{`/`}` нейтральны для
-  Jinja2 (выводятся как есть), но `{{ }}` всегда трактуется как переменная.
-- **Пробелы в URL нормализуются**: `render_base_url` удаляет из результата все
-  пробельные символы, поэтому YAML folded (`>`) / literal (`|`) многострочные скаляры
-  и пустые Jinja-блоки не оставляют висячих пробелов в URL (явные `%20` в шаблоне
-  сохраняются — это не whitespace).
-- Рендеринг однократный и eager: выполняется в `configure()` (configphase), до любого
-  теста или фикстуры.
+- **An unknown variable** → `UndefinedError` (`StrictUndefined`). A URL must never be silently truncated — use only variables from `os.environ` or variables passed via CLI.
+- **Literal curly braces** in a URL are unsupported: single `{`/`}` are neutral for Jinja2 (emitted as is), but `{{ }}` is always treated as a variable.
+- **Spaces in a URL are normalized**: `render_base_url` strips all whitespace from the result, so YAML folded (`>`) / literal (`|`) multi-line scalars and empty Jinja blocks leave no dangling spaces in the URL (an explicit `%20` in the template survives — it is not whitespace).
+- The render is single-shot and eager: it happens in `configure()` (configphase), before any test or fixture.

@@ -1,20 +1,20 @@
-# pybuggy — повторные запуски тестов через `retries`
+# pybuggy — test reruns via `retries`
 
-## Предметная область
+## Domain
 
-Шаблоны потребления фасадной функции `retries` корневой ячейки `goga_tool_pybuggy/`: декоратор-фабрика поверх
-библиотеки `flaky` для настраиваемого перезапуска тестов. Аудитория — авторы тестовых наборов, которым
-нужно задать число прогонов, минимум успешных прогонов и опциональную задержку между перезапусками.
+Consumption patterns of the `retries` facade function of the root cell `goga_tool_pybuggy/`: a decorator
+factory built on the `flaky` library for configurable test reruns. The audience: test suite authors who need
+to set the number of runs, the minimum number of successful runs, and an optional delay between reruns.
 
-## Точка входа
+## Entry point
 
-Фасад экспортирует `retries` для программного импорта:
+The facade exports `retries` for programmatic import:
 
     from goga_tool_pybuggy import retries
 
-## Базовый перезапуск
+## Basic rerun
 
-`retries` возвращает декоратор. Минимальный сценарий — `max_runs` (сколько раз прогнать тест):
+`retries` returns a decorator. The minimal scenario is `max_runs` (how many times to run the test):
 
 ```python
 from goga_tool_pybuggy import retries
@@ -24,36 +24,35 @@ from goga_tool_pybuggy import retries
 def test_something(): ...
 ```
 
-Тест будет перезапущен до `max_runs` раз; перезапуски безусловны (фильтр всегда разрешает повтор).
+The test is rerun up to `max_runs` times; reruns are unconditional (the filter always permits a repeat).
 
-## Минимум успешных прогонов
+## Minimum successful runs
 
-Параметр `min_passes` задаёт, сколько успешных прогонов из `max_runs` достаточно для успеха:
+The `min_passes` parameter sets how many successful runs out of `max_runs` are sufficient for success:
 
 ```python
 @retries(max_runs=5, min_passes=2)
 def test_flaky_endpoint(): ...
 ```
 
-Если `min_passes` не передан (`None`), `flaky` выводит собственное значение по умолчанию.
+If `min_passes` is not passed (`None`), `flaky` derives its own default value.
 
-## Задержка между перезапусками
+## Delay between reruns
 
-Параметр `delay` (секунды) добавляет sleep между перезапусками — полезно для временно недоступных
-зависимостей:
+The `delay` parameter (seconds) adds a sleep between reruns — useful for temporarily unavailable dependencies:
 
 ```python
 @retries(max_runs=4, delay=1)
 def test_with_external_service(): ...
 ```
 
-Если `delay` не передан (`None`), перезапуски выполняются немедленно, без фильтра и без sleep.
+If `delay` is not passed (`None`), reruns execute immediately, with no filter and no sleep.
 
-## Предусловия и побочные эффекты
+## Preconditions and side effects
 
-- `retries` работает поверх `flaky`; пакет должен быть установлен в окружении тестов (это зависимость
-  `pybuggy`).
-- `delay > 0` замедляет тестовый набор (sleep между перезапусками) — применяйте точечно.
-- Перезапуски безусловны: фильтр всегда возвращает разрешение, число попыток ограничено только
+- `retries` runs on top of `flaky`; the package must be installed in the test environment (it is a dependency
+  of `pybuggy`).
+- `delay > 0` slows down the test suite (sleep between reruns) — apply it point-wise.
+- Reruns are unconditional: the filter always returns permission; the number of attempts is bounded only by
   `max_runs`.
-- `retries` — ручной декоратор на конкретный тест (не маркер уровня набора).
+- `retries` is a manual decorator for a specific test (not a suite-level marker).

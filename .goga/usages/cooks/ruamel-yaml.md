@@ -1,42 +1,39 @@
-# ruamel.yaml — round-trip YAML (библиотека)
+# ruamel.yaml — round-trip YAML (library)
 
-## Предметная область
+## Domain
 
-`ruamel.yaml` — YAML в режиме round-trip: сохраняет комментарии, порядок ключей, кавычки и
-block-scalars при load→modify→dump. Используется, когда нужно точечно дописать пользовательский
-YAML, не переформатируя его (pyyaml для этого непригоден — сбрасывает кавычки и удаляет комментарии).
+`ruamel.yaml` handles YAML in round-trip mode: it preserves comments, key order, quotes, and block-scalars across load→modify→dump. Use it when a user's YAML must be amended point-wise without reformatting (pyyaml is unfit for this — it drops quotes and deletes comments).
 
 ```python
 from ruamel.yaml import YAML
 ```
 
-Эта практика описывает только round-trip API `ruamel.yaml`. Парсинг собственных конфигов проекта
-через pyyaml — в клеточных `.usages/`.
+This practice covers only the round-trip API of `ruamel.yaml`. The cells' `.usages/` describe how the project parses its own configs with pyyaml.
 
 ---
 
-## Round-trip: load → изменить → dump
+## Round-trip: load → modify → dump
 
 ```python
 from ruamel.yaml import YAML
 
 yaml = YAML()
-yaml.preserve_quotes = True          # сохранять стиль кавычек исходного файла
+yaml.preserve_quotes = True          # keep the source file's quote style
 
-data = yaml.load(path)               # Path | file-like; CommentedMap, либо None для пустого файла
+data = yaml.load(path)               # Path | file-like; CommentedMap, or None for an empty file
 usages = data["codemanifest"]["usages"]
 usages["pybuggy-api"] = ".goga/usages/cooks/pybuggy/api.md"
 
 yaml.dump(data, path)
 ```
 
-- `yaml.load` пустого файла/None → `None`; проверяй перед доступом.
-- `preserve_quotes=True` — сохранять кавычки значений.
-- Порядок ключей, комментарии и block-scalars (`|`, `>`) сохраняются по умолчанию.
+- `yaml.load` of an empty file/None → `None`; check before access.
+- `preserve_quotes=True` — keep the quotes of values.
+- Key order, comments, and block-scalars (`|`, `>`) are preserved by default.
 
 ---
 
-## Идемпотентное дополнение (не затирать существующие ключи)
+## Idempotent amendment (never overwrite existing keys)
 
 ```python
 for key, value in new_usages.items():
@@ -44,13 +41,13 @@ for key, value in new_usages.items():
         usages[key] = value
 ```
 
-Существующие ключи (включая пользовательские) не трогаются — повторный запуск не даёт diff.
+Existing keys (including user-defined ones) stay untouched — a repeated run produces no diff.
 
 ---
 
-## Создать файл с нуля
+## Create a file from scratch
 
-Если файла нет — собери структуру из `CommentedMap` (не из `{}`) и dump:
+When the file does not exist, build the structure from `CommentedMap` (not from `{}`) and dump:
 
 ```python
 from ruamel.yaml import YAML
@@ -70,12 +67,9 @@ yaml.dump(data, path)
 
 ---
 
-## Эмиссия закомментированных записей (создание с нуля)
+## Emitting commented-out entries (creation from scratch)
 
-Когда конфиг собирается из ответов, часть полей — пропущенные необязательные скаляры и сложные секции (`headers`-dict,
-`loader`-section, `git`-block) — нужно записать **закомментированными** примерами (`# key:`), а не активными ключами.
-Round-trip API `ruamel.yaml` умеет это через комментарии, привязанные к следующему активному ключу: комментарий НЕ
-становится ключом (при round-trip `load` он отсутствует в `keys()`).
+When the config is assembled from answers, some fields — skipped optional scalars and complex sections (`headers` dict, `loader` section, `git` block) — must be written as **commented-out** examples (`# key:`), not as active keys. The `ruamel.yaml` round-trip API achieves this through comments attached to the next active key: a comment never becomes a key (round-trip `load` omits it from `keys()`).
 
 ```python
 from ruamel.yaml import YAML
@@ -85,46 +79,42 @@ yaml = YAML()
 yaml.preserve_quotes = True
 
 doc = CommentedMap()
-# только АКТИВНЫЕ ключи; пропущенные поля как ключи НЕ добавляем
+# ACTIVE keys only; never add skipped fields as keys
 doc["base_url"] = "https://{{ host }}/api"
 doc["data_key"] = "data"
 
-# (1) однострочная закомментированная запись ПЕРЕД следующим активным ключом:
+# (1) a one-line commented-out entry BEFORE the next active key:
 doc.yaml_set_comment_before_after_key("data_key", before="timeout: (skipped optional scalar)")
-#     ->  "# timeout: (skipped optional scalar)" строкой выше data_key
+#     ->  "# timeout: (skipped optional scalar)" on the line above data_key
 
-# (2) многострочный закомментированный блок (сложная секция) — "\n"-joined текст, каждая строка получает префикс "# ":
+# (2) a multi-line commented block (a complex section) — "\n"-joined text; every line gets the "# " prefix:
 doc.yaml_set_comment_before_after_key(
     "specs",
     before="headers: example (skipped complex member)\nX-Example: value\ndefault headers dict",
 )
 #     ->  "# headers: example (skipped complex member)"
 #         "# X-Example: value"
-#         "# default headers dict"  строками выше specs
+#         "# default headers dict"  on the lines above specs
 
-doc["specs"] = CommentedMap()  # обязательная непустая секция — якорь для предшествующих комментариев
+doc["specs"] = CommentedMap()  # the mandatory non-empty section — the anchor for the preceding comments
 
-# (3) trailing-комментарий к значению активного ключа:
+# (3) a trailing comment on an active key's value:
 doc.yaml_add_eol_comment("required, Jinja2 template", "base_url")
 #     ->  "base_url: https://{{ host }}/api  # required, Jinja2 template"
 
 yaml.dump(doc, path)
 ```
 
-- `yaml_set_comment_before_after_key(key, before=...)` — строки `# ...` **перед** ключом `key`; `before` — одна строка
-  (однострочный комментарий) либо `\n`-joined текст (многострочный блок, каждая строка получает префикс `# `).
-- `yaml_add_eol_comment(text, key)` — trailing-комментарий `# text` в конце строки значения ключа `key`.
-- Порядок детерминирован: `CommentedMap` сохраняет порядок вставки активных ключей; комментарий привязывается к
-  следующему за ним активному ключу.
-- Комментарий не становится ключом: round-trip `yaml.load` вернёт только активные ключи (закомментированные записи
-  отсутствуют в `keys()`), т.е. они игнорируются валидатором схемы (extra=ignore).
-- Ограничение: comment-before крепится к **следующему** активному ключу — после последней закомментированной записи
-  обязан быть активный ключ (например, обязательная непустая секция `specs`), иначе комментарий не выведется.
+- `yaml_set_comment_before_after_key(key, before=...)` — `# ...` lines **before** the key `key`; `before` is a single line (a one-line comment) or `\n`-joined text (a multi-line block; every line gets the `# ` prefix).
+- `yaml_add_eol_comment(text, key)` — a trailing `# text` comment at the end of the value line of the key `key`.
+- Ordering is deterministic: `CommentedMap` preserves the insertion order of active keys; the comment attaches to the active key that follows it.
+- A comment never becomes a key: round-trip `yaml.load` returns only the active keys (commented-out entries are absent from `keys()`), so the schema validator ignores them (extra=ignore).
+- Limitation: a comment-before attaches to the **next** active key — an active key must follow the last commented-out entry (e.g. the mandatory non-empty `specs` section), otherwise the comment is not emitted.
 
 ---
 
-## Тестирование
+## Testing
 
-- Файл I/O — через `tmp_path`; исходный YAML готовь фикстурой.
-- Проверяй round-trip: load→dump без правок даёт идентичный текст (комментарии/кавычки на месте).
-- Проверяй идемпотентность: второй запуск с теми же ключами не меняет файл.
+- File I/O — via `tmp_path`; prepare the source YAML with a fixture.
+- Verify the round-trip: load→dump without edits yields identical text (comments/quotes intact).
+- Verify idempotency: a second run with the same keys leaves the file unchanged.

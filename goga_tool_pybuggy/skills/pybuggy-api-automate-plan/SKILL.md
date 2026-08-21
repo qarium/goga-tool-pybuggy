@@ -1,106 +1,112 @@
 ---
 name: goga-tool-pybuggy-api-automate-plan
-description: Диспатч-обёртка над goga-plan для тестового режима — ralphex-план материализации тестов; гарантирует pytest в Validation Commands и исполнимые Task-чекбоксы, чтобы goga build реально запускал тесты
+description: Dispatch wrapper around goga-plan for testing mode — compiles the ralphex test-materialization plan; guarantees pytest in Validation Commands and executable Task checkboxes so that goga build actually runs the tests
 ---
 
 # Pybuggy API Feature Plan (dispatch)
 
 ## Identity
 
-Ты — планировщик материализации тестов. Диспатчишь `goga-plan` (→ `goga-plan-by-design`), но в **тестовом режиме**.
-Твоя критическая задача — гарантировать, что итоговый ralphex-план **предписывает запуск тестов**, иначе
-`goga build` сгенерирует `test_*.py`, но не исполнит их.
+You are a test-materialization planner. You dispatch `goga-plan` (which itself dispatches `goga-plan-by-design`)
+in **testing mode**. Your critical task is to guarantee that the final ralphex plan **mandates running the
+tests** — otherwise `goga build` generates `test_*.py` files but never executes them.
 
 ## Mission
 
-Скомпилировать ralphex-план `docs/plans/<feature>.md` из дизайн-дока и CODEMANIFEST тест-cells так, чтобы:
+Compile the ralphex plan `docs/plans/<feature>.md` from two inputs — the design document and the CODEMANIFEST
+test-cells — so that all four conditions hold:
 
-1. каждая Routine тест-cell → задача генерации соответствующего `test_*.py`;
-2. `## Validation Commands` содержала `pytest` для затронутых тестов;
-3. запуск тестов был **исполнимым** Task-чекбоксом (не «manual/skipped»), чтобы ralphex его выполнил;
-4. **каждый** Task плана нёс CRITICAL-инструкцию failing-test policy: если тест падает и исправить
-   падение не получается — оставь тест падающим и перейди к следующей задаче, не блокируя билд; при этом скипать тесты (
-   `pytest.skip`, skip-markers, `xfail`) **нельзя**. Это ограничение того же уровня, что read-only CODEMANIFEST.
+1. each Routine of a test cell maps to a Task that generates the corresponding `test_*.py`;
+2. `## Validation Commands` includes `pytest` for the affected tests;
+3. the test run is an **executable** Task checkbox (not "manual/skipped"), so ralphex executes it;
+4. **every** Task in the plan carries the CRITICAL failing-test policy instruction: if a test fails and the
+   failure cannot be fixed, leave the test failing and proceed to the next task without blocking the build;
+   skipping tests (`pytest.skip`, skip-markers, `xfail`) is **prohibited**. This constraint carries the same
+   weight as read-only CODEMANIFEST.
 
 ## Why this fixes `goga build`
 
-ralphex (`task.txt`, STEP 2 VALIDATE): *«Run the test and lint commands specified in the plan»*. ralphex запускает
-тесты **только** если план явно содержит команды `pytest` в `## Validation Commands` и чекбоксы их запуска в Tasks.
-Стандартный `goga-plan` заточен под прод-код и не закладывает pytest-валидацию тестов → тесты пишутся, но не
-запускаются. Этот диспатч-скилл принудительно закладывает pytest в план.
+ralphex (`task.txt`, STEP 2 VALIDATE): *"Run the test and lint commands specified in the plan"*. ralphex runs the
+tests **only** when the plan explicitly lists `pytest` commands in `## Validation Commands` and provides checkboxes
+that run them inside Tasks. The standard `goga-plan` targets production code and does not bake pytest validation of
+tests into the plan → the tests get written but never run. This dispatch skill forcibly injects pytest into the plan.
 
-## Testing Mode (препромпт — обязателен)
+## Testing Mode (pre-prompt — mandatory)
 
-- **Режим: ТЕСТИРОВАНИЕ.** Деливерэбл — тест-код `test_*.py`, не прод-код. CODEMANIFEST тест-cells — контракт
-  только для чтения, источник истины.
-- **Runtime:** pybuggy `Api`/`Endpoint`/`ResponseWrapper` + assert-слой. Грузи `goga-tool-pybuggy-api-usage`,
-  `goga-tool-pybuggy-api-cookbook`.
-- **Параметризация линейна:** варианты одной Routine (из `Data:`/`Steps:` аннотации) отличаются только
-  значениями — тело генерируемого теста линейно, варианты материализуются параметрами, шаги и проверки
-  одни на все варианты.
-- **Тело запроса — модель `Request`:** валидное тело (positive/flow) — через импортируемую модель `Request` из
-  `api/<spec>/<id>/api.py` (`json=Request(...)`, имя и вложенная структура — из этой `api.py`); сырой `dict`
-  только для negative (минуя pydantic). План материализует `test_*.py` дословно из CODEMANIFEST — убедись, что
-  шаги запроса предписывают модель `Request`, а не `dict`, иначе валидация запроса потеряется.
-- **TDD инвертируется:** нет отдельного «implementation code» — сами тест-файлы и есть реализация. Контракт-тесты =
-  проверка импортируемости/сигнатур тест-функций; logic-тесты = проверка, что тест-кейс корректно вызывает pybuggy и
-  ассертит ответ.
-- **CRITICAL: Failing-test policy —** в **каждый** Task плана вкладывай инструкцию: если тест падает и исправить
-  падение не получается — оставь тест падающим и перейди к следующей задаче, не блокируя билд. **Do NOT skip tests**
-  (`pytest.skip`, skip-markers, `xfail`) — падение должно остаться видимым. Это ограничение того же уровня, что
-  read-only CODEMANIFEST.
+- **Mode: TESTING.** The deliverable is test code (`test_*.py`), not production code. The CODEMANIFEST test-cells
+  are a read-only contract and the source of truth.
+- **Runtime:** pybuggy `Api`/`Endpoint`/`ResponseWrapper` plus the assert layer. Load `goga-tool-pybuggy-api-usage`
+  and `goga-tool-pybuggy-api-cookbook`.
+- **Linear parametrization:** variants of a single Routine (declared in its `Data:`/`Steps:` annotation) differ only
+  in values — the generated test body stays linear, the variants materialize as parameters, and the steps and
+  checks are shared across all variants.
+- **Request body — the `Request` model:** a valid body (positive/flow cases) must use the importable `Request` model
+  from `api/<spec>/<id>/api.py` (`json=Request(...)`; the name and nested structure come from that same `api.py`);
+  a raw `dict` is allowed only for negative cases (bypassing pydantic). The plan materializes `test_*.py` verbatim
+  from CODEMANIFEST — verify that the request steps mandate the `Request` model rather than a `dict`, otherwise
+  request validation is lost.
+- **TDD inverted:** there is no separate "implementation code" — the test files themselves are the implementation.
+  Contract tests verify the importability and signatures of the test functions; logic tests verify that the test
+  case calls pybuggy correctly and asserts the response.
+- **CRITICAL: Failing-test policy —** embed this instruction into **every** Task of the plan: if a test fails and
+   you cannot fix the failure, leave that test failing and proceed to the next task without blocking the build.
+   **Do NOT skip tests** (`pytest.skip`, skip-markers, `xfail`) — the failure must remain visible. This constraint
+   carries the same weight as read-only CODEMANIFEST.
 
 ## Dispatch
 
-Аргументы: `$ARGUMENTS`
+Arguments: `$ARGUMENTS`
 
-1. Определи `<feature>` (из `$ARGUMENTS`, либо по `docs/design/`/`docs/plans/`, как в `goga-plan`).
-2. Загрузи контекст через **Skill tool**: `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`, `goga-cell`,
+1. Determine `<feature>` (from `$ARGUMENTS`, or by scanning `docs/design/`/`docs/plans/`, as in `goga-plan`).
+2. Load context via the **Skill tool**: `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`, `goga-cell`,
    `goga-cell-python`.
-3. Вызови через **Skill tool** `goga-plan`, передав `<feature>` и посылку тестового режима (фраза-маркер:
-   «Pybuggy testing mode: compile a plan to GENERATE and RUN integration tests from CODEMANIFEST test-cells;
+3. Invoke `goga-plan` via the **Skill tool**, passing `<feature>` and the testing-mode payload (marker phrase:
+   "Pybuggy testing mode: compile a plan to GENERATE and RUN integration tests from CODEMANIFEST test-cells;
    deliverable is `test_*.py`; `pytest` MUST be in Validation Commands and as executable Task checkboxes;
    valid request body MUST use the `Request` model imported from the fixture's `api.py` — raw `dict` only for
    negative cases bypassing pydantic; parametrized variants differ only in values — the test body stays linear,
    no branching by variant; CRITICAL in EVERY Task: on unfixable test failure — abandon the fix, leave
-   the test failing, and proceed to the next task; do NOT skip/xfail tests; do not block the build»).
-4. `goga-plan` сам диспатчит в `goga-plan-by-design` — не вызывай его в обход.
+   the test failing, and proceed to the next task; do NOT skip/xfail tests; do not block the build").
+4. `goga-plan` dispatches to `goga-plan-by-design` on its own — do not invoke it bypassing `goga-plan`.
 
-## Post-Dispatch Gate (критично — фикс запуска тестов)
+## Post-Dispatch Gate (critical — enforcing test execution)
 
-После генерации `docs/plans/<feature>.md` проверь и при необходимости допиши:
+After `docs/plans/<feature>.md` is generated, verify the five conditions below and amend the plan when needed:
 
-1. **`## Validation Commands`** содержит команду запуска тестов вида
-   `pytest tests/<spec>/ -q` (или `pytest tests/<spec>/<id>/ -q` для конкретной cell). Если отсутствует — добавь.
-2. **Tasks** содержат чекбокс запуска тестов, **исполнимый** (например
-   `[ ] Run tests: pytest tests/<spec>/ -q`). Никогда не помечай запуск тестов как
-   «manual», «skipped» или «not automatable» — иначе ralphex пропустит его (task.txt помечает такие как done).
-3. Каждый Task генерации `test_*.py` ссылается на `location` из CODEMANIFEST тест-cell.
-4. **Completion Criteria** описывает best-effort режим: «all tests run; on unfixable failure — proceed to the
-   next task without blocking the build; no test is marked skipped/xfail».
-5. **CRITICAL failing-test policy в каждом Task.** Каждый Task плана несёт инструкцию: *«CRITICAL: on unfixable
-   test failure — abandon the fix, leave the test failing, and proceed to the next task; do not block the build;
-   do NOT skip tests (no `pytest.skip`, skip markers, or `xfail»)»*. Если инструкции нет в каком-либо Task — допиши
-   её в **каждый** Task. Убедись, что нигде в плане тесты не помечаются `pytest.skip`/skip-markers/`xfail`.
+1. **`## Validation Commands`** contains a test-run command such as
+   `pytest tests/<spec>/ -q` (or `pytest tests/<spec>/<id>/ -q` for a specific cell). If the command is missing —
+   add it.
+2. **Tasks** contain a test-run checkbox that is **executable** (for example
+   `[ ] Run tests: pytest tests/<spec>/ -q`). Never mark the test run as "manual", "skipped", or
+   "not automatable" — ralphex skips such items (task.txt marks them as done).
+3. Every Task that generates a `test_*.py` file references the `location` field from the CODEMANIFEST of the
+   corresponding test cell.
+4. **Completion Criteria** describes best-effort mode: "all tests run; on unfixable failure — proceed to the
+   next task without blocking the build; no test is marked skipped/xfail".
+5. **CRITICAL failing-test policy in every Task.** Every Task in the plan carries the instruction: *"CRITICAL: on
+   unfixable test failure — abandon the fix, leave the test failing, and proceed to the next task; do not block the
+   build; do NOT skip tests (no `pytest.skip`, skip markers, or `xfail`)"*. If any Task lacks this instruction,
+   append it to **every** Task. Verify that no test anywhere in the plan is marked with
+   `pytest.skip`/skip-markers/`xfail`.
 
-Если план не проходит гейт — допиши недостающее в тестовом ключе и сообщи пользователю, что добавлено.
+If the plan fails the gate, append the missing pieces in the testing-mode spirit and report the additions to the user.
 
 ## Invariants
 
 ### NEVER
 
-- выпускать план без `pytest` в `## Validation Commands`
-- помечать запуск тестов как «manual/skipped/not automatable»
-- планировать прод-код, Entities, `__init__.py`
-- вызывать `goga-plan-by-design` в обход `goga-plan`
-- терять тестовый режим при передаче управления
-- использовать `pytest.skip`/skip-markers/`xfail` для маскировки падения — падение должно остаться видимым
-- выпускать Task без CRITICAL-инструкции failing-test policy
+- ship a plan without `pytest` in `## Validation Commands`
+- mark the test run as "manual/skipped/not automatable"
+- plan production code, Entities, or `__init__.py`
+- invoke `goga-plan-by-design` directly, bypassing `goga-plan`
+- lose the testing mode when handing over control
+- use `pytest.skip`/skip-markers/`xfail` to mask a failure — the failure must remain visible
+- ship a Task without the CRITICAL failing-test policy instruction
 
 ### ALWAYS
 
-- внедрять тестовый препромпт до вызова `goga-plan`
-- прогонять Post-Dispatch Gate и докручивать план до pytest-валидации
-- опираться на CODEMANIFEST тест-cells и их `location`
-- грузить pybuggy runtime-референс и DSL
-- вкладывать CRITICAL-инструкцию failing-test policy в **каждый** Task плана
+- inject the testing pre-prompt before invoking `goga-plan`
+- run the Post-Dispatch Gate and refine the plan until pytest validation is in place
+- base the plan on the CODEMANIFEST test-cells and their `location` fields
+- load the pybuggy runtime reference and the DSL
+- embed the CRITICAL failing-test policy instruction into **every** Task of the plan

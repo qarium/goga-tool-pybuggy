@@ -1,82 +1,75 @@
 ---
 name: goga-tool-pybuggy-api-automate-accept-scope
-description: Инвентаризация артефактов фичи для приёмки — cells, Routine, test_*.py, usage-ключи и команда запуска тестов
+description: Feature artifact inventory for acceptance — cells, Routines, test_*.py files, usage keys, and the test run command
 ---
 # Pybuggy API Feature Accept — Scope
 
 ## Identity
 
-Ты отвечаешь за определение объёма приёмки: какие артефакты фичи существуют, какие cells и Routine входят в
-объём, какие `test_*.py` материализованы и какой командой их запускать. Только факты с диска — без предположений.
+You are the scope executor. You define the acceptance scope of the feature: you enumerate which feature artifacts exist on disk, you list which cells and Routines belong to the scope, you detect which `test_*.py` files are materialized, and you determine the command that runs them. You use only facts read from disk — you make no assumptions.
 
 ## Algorithm
 
-### Step 1. Собрать инвентарь артефактов
+### Step 1. Collect the artifact inventory
 
-Для `<feature>` (резолюция из оркестратора) проверить существование и загрузить:
+For `<feature>` (resolved by the orchestrator), verify existence and load:
 
-1. `docs/testcases/<feature>.md` — тест-кейсы (TC-<N>) и матрица покрытия FR→TC.
-2. `docs/arch/<feature>.md` — план cells (контекст: ожидаемый состав cells/Routine).
-3. `tests/<spec>/<id>/CODEMANIFEST` — все cells фичи. Состав cells брать из CODEMANIFEST на диске
-   (фактический), arch-план использовать как ожидание для сверки.
-4. Сгенерированные `test_<name>.py` — по `location` каждой Routine.
-5. `conftest.py` в корне — наличие (загрузка `.env` + плагин pybuggy).
-6. Usage-файлы: базовые `.goga/usages/cooks/pybuggy/` + cell-спец `.goga/usages/cooks/<ключ>.md`
-   (ключи из Header Usages каждой cell).
-7. `docs/bugs/<feature>.md` — наличие существующего файла багов (для долива записей).
+1. `docs/testcases/<feature>.md` — test cases (TC-<N>) and the FR→TC coverage matrix.
+2. `docs/arch/<feature>.md` — the cells plan (context: expected cells/Routines composition).
+3. `tests/<spec>/<id>/CODEMANIFEST` — all feature cells. Source of truth for the cells composition: the CODEMANIFEST on disk (actual state); the arch plan serves as the expectation for the cross-check.
+4. Generated `test_<name>.py` files — by each Routine's `location`.
+5. `conftest.py` in the root — verify presence (`.env` loading + pybuggy plugin).
+6. Usage files: base `.goga/usages/cooks/pybuggy/` + cell-specific `.goga/usages/cooks/<key>.md` (keys from each cell's Header Usages).
+7. `docs/bugs/<feature>.md` — check for an existing bugs file (target for appending records).
 
-### Step 2. Извлечь Routine и трассу
+### Step 2. Extract Routines and build the trace
 
-Из CODEMANIFEST каждой cell:
+From each cell's CODEMANIFEST:
 
-1. Имена Routine `test_<name>`, их `location: test_<name>.py`.
-2. Сопоставить с тест-кейсами из `docs/testcases/<feature>.md`: кейс покрыт напрямую Routine или
-   вариантом параметризации Routine (варианты — из `Data:`/`Steps:` аннотации). Одному Routine может
-   соответствовать несколько кейсов (параметризация).
-3. Отметить Routine merged-cells: Routine, добавленные в существующую cell поверх прошлых фич (если
-   различимо по arch-плану/дате) — в объём приёмки этой фичи включаются Routine из текущего arch-плана.
+1. Routine names `test_<name>` and their `location: test_<name>.py`.
+2. Map them to the test cases in `docs/testcases/<feature>.md`: a case is covered either directly by a Routine or by a parameterization variant of a Routine (variants derive from the `Data:`/`Steps:` annotations). A single Routine may cover multiple cases (parameterization).
+3. Mark merged-cells Routines: these are Routines added to an existing cell on top of previous features (distinguish them by the arch plan/date when possible) — the acceptance scope of this feature includes only the Routines from the current arch plan.
 
-### Step 3. Определить команду запуска
+### Step 3. Determine the run command
 
-1. Базовая команда: `pytest <paths> -q`, где `<paths>` — каталоги cells фичи
-   (`tests/<spec>/` или `tests/<spec>/<id>/` по каждой cell).
-2. Если cells одной фичи размазаны по нескольким `<spec>` — перечислить все пути в одной команде.
-3. Зафиксировать корень запуска: каталог, где лежит `conftest.py` (pytest запускается из него).
+1. Base command: `pytest <paths> -q`, where `<paths>` are the feature's cell directories (`tests/<spec>/` or `tests/<spec>/<id>/` per cell).
+2. If a feature's cells span multiple `<spec>` values, list all paths in a single command.
+3. Record the run root: the directory that contains `conftest.py` (pytest runs from there).
 
-### Step 4. Проверки жизнеспособности объёма
+### Step 4. Acceptance scope viability checks
 
-1. Хотя бы одна cell с CODEMANIFEST найдена.
-2. Хотя бы один `test_<name>.py` существует.
-3. `conftest.py` существует; при отсутствии — зафиксировать в отчёте (Environment notes).
+1. At least one cell with a CODEMANIFEST is found.
+2. At least one `test_<name>.py` exists.
+3. `conftest.py` exists; if missing, record this in the report (Environment notes).
 
 STOP if:
-- артефакты фичи не найдены (нет ни testcases, ни CODEMANIFEST cells);
-- сгенерированных тест-файлов нет вовсе (фаза `goga build` не выполнена).
+- feature artifacts are not found (neither testcases nor CODEMANIFEST cells exist);
+- no generated test files exist at all (the `goga build` phase was not executed).
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are prohibited.
 
 ```md
 # [ACCEPT_SCOPE]
 
 ## Data source
-[Как резолвилась фича и из каких артефактов собран объём]
+[How the feature was resolved and from which artifacts the scope was assembled]
 
 ## Cells in scope
-[Таблица: Cell (tests/<spec>/<id>/) | Routine count | test-файлы найдены (N/M) | Usage-ключи]
+[Table: Cell (tests/<spec>/<id>/) | Routine count | test files found (N/M) | Usage keys]
 
 ## Trace: testcase → Routine → test file
-[Таблица: TC-<N> | Routine test_<name> | tests/<spec>/<id>/test_<name>.py | Статус (материализован / нет)]
+[Table: TC-<N> | Routine test_<name> | tests/<spec>/<id>/test_<name>.py | Status (materialized / not)]
 
 ## Uncovered testcases
-[Кейсы без Routine — из матрицы покрытия docs/testcases. Пусто, если нет]
+[Cases without a Routine — from the docs/testcases coverage matrix. Empty if none]
 
 ## Run command
-[Команда pytest и каталог запуска (корень с conftest.py)]
+[The pytest command and the run directory (the root containing conftest.py)]
 
 ## Environment notes
-[conftest.py найден/нет; существующий docs/bugs/<feature>.md; иные наблюдения]
+[conftest.py found/missing; existing docs/bugs/<feature>.md; other observations]
 ```

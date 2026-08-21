@@ -1,13 +1,10 @@
-# pluginator — фреймворк pytest-плагинов
+# pluginator — a pytest-plugin framework
 
-## Предметная область
+## Domain
 
-`pluginator` — фреймворк для декларативного описания pytest-плагинов: опции (env / конфиг /
-CLI / дефолт), фикстуры как методы класса-плагина, действия (`actions`) и единая установка в
-pytest через инъекцию хуков. Используется ячейкой `goga_tool_pybuggy/plugin`, чтобы предоставить фикстуру
-`api` и зарегистрировать сгенерированные фикстуры.
+`pluginator` is a framework for declaring pytest plugins: options (env / config / CLI / default), fixtures as plugin-class methods, actions (`actions`), and a single-step installation into pytest via hook injection. Cell `goga_tool_pybuggy/plugin` uses it to provide the `api` fixture and to register the generated fixtures.
 
-Импорт в коде:
+Import in code:
 ```python
 from pluginator import define, CommandLine, Action, ActionContext
 from pluginator import install_pytest_plugins, call_context
@@ -15,31 +12,27 @@ from pluginator import install_pytest_plugins, call_context
 
 ---
 
-## @define.plugin — класс-плагин
+## @define.plugin — the plugin class
 
-`define.plugin` — декоратор класса. Задаёт имя, путь к yaml-конфигу, дефолтный конфиг, список
-зависимостей и действий. Декоратор подмешивает `BasePlugin` в базы и кладёт `__meta__: PluginMeta`
-в класс. Конфиг читается лениво через `plugin_config` (см. ниже).
+`define.plugin` is a class decorator. It sets the plugin name, the yaml config path, the default config, and the lists of dependencies and actions. The decorator mixes `BasePlugin` into the class bases and places `__meta__: PluginMeta` on the class. The plugin reads its config lazily via `plugin_config` (see below).
 
 ```python
 @define.plugin("pybuggy", config=".goga/tools/pybuggy/config.yml")
 class PyBuggyPlugin:
-    plugin_config: dict  # сюда плагин кладёт распарсенный yaml (см. BasePlugin.plugin_config)
+    plugin_config: dict  # the parsed yaml lands in this attribute (see BasePlugin.plugin_config)
 
     base_url = define.option(str, env_var="QA_BASE_URL", command_line=CommandLine("--base-url"))
 ```
 
 - `define.plugin(name, /, *, config=None, default_config=None, deps=None, actions=None)`.
-- `config` — относительный путь к yaml-файлу; читается через `plugin_config` (см. ниже).
-- Класс должен иметь атрибут `plugin_config: dict` (декларация-«якорь»; реальный dict даёт
-  `BasePlugin.plugin_config`).
+- `config` — a relative path to the yaml file; the plugin reads it via `plugin_config` (see below).
+- The plugin class must declare a `plugin_config: dict` attribute (an "anchor" declaration; `BasePlugin.plugin_config` supplies the real dict).
 
 ---
 
-## define.option — опция плагина
+## define.option — a plugin option
 
-`define.option` — дескриптор (`PluginOption`), объявляющий настраиваемое поле класса-плагина.
-Значение вычисляется лениво при доступе через `self.<option>`.
+`define.option` is a descriptor (`PluginOption`) declaring a configurable field of the plugin class. The descriptor resolves the value lazily, on access via `self.<option>`.
 
 ```python
 base_url = define.option(
@@ -52,37 +45,30 @@ base_url = define.option(
 )
 ```
 
-- `define.option(opt_type, /, *, strict=True, nullable=False, required=False, env_var=None,
-  default_from=None, plugin_config_key=None, command_line=None, hook=None)`.
-- `default_from` — имя свойства/атрибута класса-плагина, дающего дефолт.
+- `define.option(opt_type, /, *, strict=True, nullable=False, required=False, env_var=None, default_from=None, plugin_config_key=None, command_line=None, hook=None)`.
+- `default_from` — the name of a plugin-class property/attribute supplying the default.
 
-**Цепочка резолва значения** (порядок строгий, первый непустой выигрывает —
-`PluginOption.__get__`):
+**The value resolve chain** (strict order; the first non-empty source wins — `PluginOption.__get__`):
 
-1. `plugin_config_key` → значение из yaml-конфига плагина (`plugin_config.get(key, ...)`).
+1. `plugin_config_key` → the value from the plugin's yaml config (`plugin_config.get(key, ...)`).
 2. `env_var` → `os.getenv(env_var)`.
 3. `command_line` → `pytest_config.getoption(opt)`.
 4. `default_from` → `getattr(plugin, default_from)`.
-5. иначе: `required` → `ValueError`; `nullable` → `None`; иначе `opt_type()` (пустое значение).
+5. otherwise: `required` → `ValueError`; `nullable` → `None`; else `opt_type()` (an empty value).
 
-Значение проходит через `hook` (если задан) и приводится к `opt_type` (`strict=True`).
-
----
-
-## plugin_config — чтение yaml
-
-`BasePlugin.plugin_config` (`cached_property`) читает `meta.config_file`, объединяет с
-`meta.default_config` (`default_config | loaded`). Когда файл отсутствует — возвращает только
-`default_config` (или `{}`). Таким образом опции с `plugin_config_key` берут значения из
-`.goga/tools/pybuggy/config.yml`, а `default_config` задаёт встроенные дефолты.
+The resolved value passes through the `hook` (when set), and the descriptor coerces it to `opt_type` (`strict=True`).
 
 ---
 
-## Фикстуры — методы класса-плагина
+## plugin_config — reading yaml
 
-Фикстуры — обычные методы класса-плагина, декорированные `@pytest.fixture`. Они попадают в pytest
-вместе с установкой плагина. Зависимости от других фикстур разрешаются через
-`request.getfixturevalue("<name>")` (имя внешней фикстуры), что позволяет не хардкодить сигнатуру:
+`BasePlugin.plugin_config` (a `cached_property`) reads `meta.config_file` and merges the file with `meta.default_config` (`default_config | loaded`). When the file is absent, the property returns only `default_config` (or `{}`). Consequently, options with a `plugin_config_key` take values from `.goga/tools/pybuggy/config.yml`, and `default_config` supplies the built-in defaults.
+
+---
+
+## Fixtures — plugin-class methods
+
+Fixtures are plain plugin-class methods decorated with `@pytest.fixture`. The plugin installation carries the fixtures into pytest. A fixture resolves dependencies on other fixtures via `request.getfixturevalue("<name>")` — the external fixture's name — which avoids hardcoding the signature:
 
 ```python
 @pytest.fixture(scope="function")
@@ -98,17 +84,11 @@ def api(self, request: pytest.FixtureRequest):
 
 ---
 
-## install_pytest_plugins + call_context — установка
+## install_pytest_plugins + call_context — installation
 
-`install_pytest_plugins(*plugins, check_deps=True, context=None)` инжектит в `context` три хука:
-`pytest_addoption` (регистрирует CLI-опции всех плагинов), `pytest_configure` (инициализирует
-конфиг и регистрирует плагины в `pluginmanager`, вызывает `configure()` если есть),
-`pytest_collection_finish` (опциональная проверка `deps`). `context` — это `dict`-неймспейс
-модуля (обычно globals модуля-плагина или conftest), куда и ложатся хуки.
+`install_pytest_plugins(*plugins, check_deps=True, context=None)` injects three hooks into `context`: `pytest_addoption` (registers the CLI options of all plugins), `pytest_configure` (initializes the config, registers the plugins with the `pluginmanager`, and calls `configure()` when the method exists), and `pytest_collection_finish` (an optional `deps` check). `context` is the module's dict namespace — usually the plugin module's or a conftest's globals — where the hooks land.
 
-`call_context()` достаёт globals вызывающего модуля через `inspect.stack()[2][0].f_globals`.
-Поэтому **вызывать его нужно через одноуровневую обёртку** `install()` — тогда `stack[2]` указывает
-на модуль, в котором вызвана обёртка:
+`call_context()` fetches the calling module's globals via `inspect.stack()[2][0].f_globals`. Therefore **call it through a one-level wrapper** `install()` — then `stack[2]` points at the module that invoked the wrapper:
 
 ```python
 def install(**kwargs):
@@ -118,35 +98,28 @@ def install(**kwargs):
 
 ---
 
-## configure() — lifecycle-хук конфигурации
+## configure() — the configuration lifecycle hook
 
-pluginator в инжектированном `pytest_configure` (после `init_pytest_config(config)` и
-`install()`) вызывает `plugin.configure()` без аргументов, если метод определён. Это
-идиоматичное место для одноразовой подготовки, которой нужен уже установленный
-pytest-config:
+Inside the injected `pytest_configure` (after `init_pytest_config(config)` and `install()`), pluginator calls `plugin.configure()` with no arguments when the plugin defines the method. `configure()` is the idiomatic place for one-time preparation that needs an already-installed pytest config:
 
 ```python
-def pytest_configure(config: Config):      # инжектируется в context обёрткой install_pytest_plugins
+def pytest_configure(config: Config):      # the install_pytest_plugins wrapper injects this into context
     ctx_pytest_configure(config)
     for plugin in plugins:
-        plugin.init_pytest_config(config)   # ① plugin.pytest_config становится доступен
-        plugin.install()                     # ② регистрация в pluginmanager
+        plugin.init_pytest_config(config)   # ① plugin.pytest_config becomes available
+        plugin.install()                     # ② registration with the pluginmanager
         configure_callback = getattr(plugin, "configure", None)
         if configure_callback is not None:
-            configure_callback()             # ③ вызывается без аргументов, если метод есть
+            configure_callback()             # ③ called with no arguments when the method exists
 ```
 
-`configure()` — это **обычный метод**, НЕ `@pytest.hookimpl`. pluginator находит его через
-`getattr(plugin, "configure", None)` и зовёт без аргументов. Выполняется в фазе configphase
-— раньше collection и любых фикстур.
+`configure()` is a **plain method**, NOT `@pytest.hookimpl`. pluginator finds it via `getattr(plugin, "configure", None)` and calls it with no arguments. The call runs in the configphase — before collection and before any fixture.
 
-`BasePlugin.pytest_config` — property; поднимает `AssertionError`, пока `init_pytest_config`
-не отработал. Поэтому внутри `configure()` (и только после `init_pytest_config`) безопасно
-читать `self.pytest_config`.
+`BasePlugin.pytest_config` is a property; the property raises an `AssertionError` until `init_pytest_config` has run. Therefore, inside `configure()` — and only after `init_pytest_config` — reading `self.pytest_config` is safe.
 
-Источники CLI для рендеринга/логики на config-time:
-- `config.invocation_params.args` — сырые токены CLI (что пользователь реально набрал).
-- `config.option` — namespace со значениями всех зарегистрированных опций.
+CLI sources for config-time rendering/logic:
+- `config.invocation_params.args` — the raw CLI tokens (what the user actually typed).
+- `config.option` — a namespace holding the values of all registered options.
 
 ```python
 @define.plugin("myplugin", config="config.yml")
@@ -154,7 +127,7 @@ class MyPlugin:
     plugin_config: dict
 
     def configure(self):
-        # self.pytest_config уже установлен — init_pytest_config отработал выше
+        # self.pytest_config is already set — init_pytest_config ran above
         names = {
             token.strip("-").split("=", 1)[0].replace("-", "_")
             for token in self.pytest_config.invocation_params.args
@@ -168,41 +141,30 @@ class MyPlugin:
         self.rendered = self.template.format_map(context)
 ```
 
-Важно: `pytest_addoption` (регистрация опций) выполняется инжектируемой обёрткой ДО
-`pytest_configure`. Произвольная «голая» опция без `pytest_addoption` (или `command_line`
-у `define.option`) отвергается pytest ещё до хуков (`unrecognized arguments`). Поэтому
-свои опции-плейсхолдеры потребитель регистрирует сам через `pytest_addoption` в conftest.
+Important: the injected wrapper runs `pytest_addoption` (option registration) BEFORE `pytest_configure`. pytest rejects an arbitrary "bare" option — one without `pytest_addoption` (or without `command_line` on a `define.option`) — before any hook runs (`unrecognized arguments`). Therefore the consumer registers its own placeholder options itself via `pytest_addoption` in conftest.
 
 ---
 
-## Паттерн установки через pytest_plugins
+## The installation pattern via pytest_plugins
 
-Чтобы потребитель подключал плагин одной строкой в `conftest.py`:
+The consumer attaches the plugin with one line in `conftest.py`:
 
 ```python
 # conftest.py
 pytest_plugins = ["goga_tool_pybuggy.plugin"]
 ```
 
-— обёртка `install()` вызывается **на верхнем уровне** модуля-плагина (`<пакет>/__init__.py`). При
-импорте `goga_tool_pybuggy.plugin` `call_context()` резолвится в globals этого же модуля, хуки
-(`pytest_addoption`/`pytest_configure`/`pytest_collection_finish`) инжектятся в неймспейс
-`goga_tool_pybuggy.plugin`, и pytest их находит.
+— the plugin module (`<package>/__init__.py`) calls the `install()` wrapper **at the top level**. On import of `goga_tool_pybuggy.plugin`, `call_context()` resolves to that same module's globals; the hooks (`pytest_addoption`/`pytest_configure`/`pytest_collection_finish`) are injected into the `goga_tool_pybuggy.plugin` namespace, and pytest finds them.
 
-Тот же приём регистрирует **сгенерированные фикстуры**: loader, отрабатывая внутри `install()`,
-кладёт список найденных модулей в `context["pytest_plugins"]` (т.е. в `goga_tool_pybuggy.plugin.pytest_plugins`),
-и pytest рекурсивно их догружает. Поэтому loader обязан работать синхронно при импорте.
+The same trick registers the **generated fixtures**: the loader — running inside `install()` — places the list of discovered modules into `context["pytest_plugins"]` (i.e. `goga_tool_pybuggy.plugin.pytest_plugins`), and pytest loads them recursively. Therefore the loader must run synchronously at import time.
 
-Важно: импорт модуля-плагина вне pytest-проекта не должен падать — обход отсутствующего пакета
-`api/` идёт с `required=False`.
+Important: importing the plugin module outside a pytest project must not crash — the loader works around the missing `api/` package with `required=False`.
 
 ---
 
-## CommandLine — CLI-опция pytest
+## CommandLine — a pytest CLI option
 
-`CommandLine(opt, *args, **kwargs)` — обёртка над `parser.addoption`. Регистрируется
-автоматически через `command_line=...` у `define.option`. Опция добавляется в группу с именем
-плагина; повторная регистрация того же `opt` пропускается (`register_once`).
+`CommandLine(opt, *args, **kwargs)` wraps `parser.addoption`. `define.option` registers the option automatically via `command_line=...`. The option joins a group named after the plugin; a repeated registration of the same `opt` is skipped (`register_once`).
 
 ```python
 CommandLine("--base-url", action="store", help="Base URL of the service under test")
@@ -210,18 +172,14 @@ CommandLine("--base-url", action="store", help="Base URL of the service under te
 
 ---
 
-## Actions — точка расширения (опционально)
+## Actions — an extension point (optional)
 
-`Action(name, module, *, enable=True, default_config=None)` — отложенно-импортируемое действие.
-`module` — dotted-путь к модулю с функцией `main(context, config)` (и опционально
-`setup(config)`). Действие вызывается через `plugin.action(name, context, lazy=True/False)`; при
-`lazy=True` возвращает замыкание, дорабатывающее контекст в момент вызова. Ячейка `goga_tool_pybuggy/plugin`
-actions не использует — описано для полноты картины фреймворка.
+`Action(name, module, *, enable=True, default_config=None)` is a lazily-imported action. `module` is a dotted path to a module that provides a `main(context, config)` function (and optionally `setup(config)`). The plugin invokes the action via `plugin.action(name, context, lazy=True/False)`; with `lazy=True` the call returns a closure that finalizes the context at call time. Cell `goga_tool_pybuggy/plugin` does not use actions — documented for completeness of the framework picture.
 
 ---
 
-## Что pybuggy НЕ использует
+## What pybuggy does NOT use
 
-- `deps`/`check_deps` — проверка зависимостей между плагинами (один плагин, зависимостей нет).
-- `actions` — отложенные действия (не нужно: `Api` делает одиночный запрос, без polling/collector).
-- `hook` у `define.option` — пост-обработка значения опции (опции простые, приводятся типом).
+- `deps`/`check_deps` — inter-plugin dependency checks (pybuggy ships one plugin; the plugin has no dependencies).
+- `actions` — deferred actions (not needed: `Api` issues a single request, without polling/collector).
+- `hook` on `define.option` — option-value post-processing (the options are simple; the type coerces them).

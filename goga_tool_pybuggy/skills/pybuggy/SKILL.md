@@ -1,113 +1,113 @@
 ---
 name: goga-tool-pybuggy
-description: Главный навигационный скилл pybuggy — выводит карту доступных скиллов pybuggy
+description: Main pybuggy navigation skill — prints the map of available pybuggy skills
 ---
 # Pybuggy
 
 ## Identity
 
-Ты — навигатор по скиллам pybuggy. Точка входа в экосистему скиллов pybuggy.
-Твоя задача — показать, какие скиллы доступны, для чего каждый нужен, и направить пользователя к подходящему.
+You are the pybuggy skill navigator — the entry point into the pybuggy skill ecosystem.
+Your task: show which skills are available, what each skill is for, and direct the user to the suitable one.
 
 ## Mission
 
-Вывести карту доступных pybuggy-скиллов и помочь выбрать нужный под задачу. В карте — **только главные скиллы**
-каждого пайплайна плюс референсные скиллы. Sub-скиллы пайплайнов (intake/discovery/plan/…) здесь намеренно не
-перечисляются — ими управляют сами пайплайны через Skill tool.
+Print the map of available pybuggy skills and help the user choose the right one for the task. The map includes **only the main skills**
+of each pipeline plus the reference skills. Pipeline sub-skills (intake/discovery/plan/…) are intentionally
+omitted here — the pipelines themselves manage them via the Skill tool.
 
 ---
 
-## Карта скиллов
+## Skill Map
 
-### Фича-флоу (пайплайны)
+### Feature flow (pipelines)
 
-Цепочка пайплайнов: каждый читает артефакт предыдущего. Артефакты именуются по фиче — `<feature>` задаётся
-аргументом пайплайна (или резолвится сканом его директории). Запускать пайплайн — через **Skill tool** по его
-главному скиллу; шаги внутри пайплайн прогоняет сам.
+The pipelines form a chain: each pipeline reads the output artifact of the previous one. Artifacts are named by feature — `<feature>` is set
+by the pipeline argument (or resolved by scanning the pipeline's directory). Launch a pipeline via the **Skill tool** by its
+main skill; the pipeline itself runs its internal steps.
 
-| Скилл                                         | Что делает                                                                                                                                   | Вход                             | Артефакт на выходе               |
+| Skill                                         | Purpose                                                                                                                                      | Input                            | Output artifact                  |
 |-----------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------|----------------------------------|
-| `goga-tool-pybuggy-api-automate-requirements` | Собирает детальные требования к фиче из её описания и спецификации сервиса; генерирует фикстуры (`goga tool pybuggy generate`)               | описание фичи + `<feature>`      | `docs/requirements/<feature>.md` |
-| `goga-tool-pybuggy-api-automate-testcases`    | Генерирует детальные описательные тест-кейсы (TC-<N>, Flow/Positive/Negative) и матрицу покрытия требований (FR→TC)                          | `docs/requirements/<feature>.md` | `docs/testcases/<feature>.md`    |
-| `goga-tool-pybuggy-api-automate-cells`        | Проектирует архитектурный план тестовых cells (CODEMANIFEST, Routine под кейсы; границы cells — проектное решение); диалоговый (WAIT-gate'ы) | `docs/testcases/<feature>.md`    | `docs/arch/<feature>.md`         |
-| `goga-tool-pybuggy-api-automate-apply`        | Материализует план: создаёт CODEMANIFEST в `tests/<spec>/<id>/` (только DSL, без тест-кода); валидация `goga lint`/`schema`                  | `docs/arch/<feature>.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
+| `goga-tool-pybuggy-api-automate-requirements` | Collects detailed requirements for the feature from its description and the service spec; generates fixtures (`goga tool pybuggy generate`)   | feature description + `<feature>`      | `docs/requirements/<feature>.md` |
+| `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (FR→TC)                         | `docs/requirements/<feature>.md` | `docs/testcases/<feature>.md`    |
+| `goga-tool-pybuggy-api-automate-cells`        | Designs the architecture plan for the test cells (CODEMANIFEST, one Routine per test case; cell boundaries are a design decision); interactive, driven by WAIT-gates | `docs/testcases/<feature>.md`    | `docs/arch/<feature>.md`         |
+| `goga-tool-pybuggy-api-automate-apply`        | Materializes the plan: creates CODEMANIFEST in `tests/<spec>/<id>/` (DSL only, no test code); validation via `goga lint`/`schema`             | `docs/arch/<feature>.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
 
-Полный флоу: **requirements → testcases → cells → apply**.
+Full flow: **requirements → testcases → cells → apply**.
 
-### Референсные скиллы
+### Reference skills
 
-Контекстные скиллы — вызываются другими скиллами для загрузки знаний, но применимы и сами по себе.
+Context skills — other skills invoke them to load knowledge, yet they also work standalone.
 
-- **`goga-tool-pybuggy-api-usage`** — референс runtime pybuggy (`api`, `asserts`) из
-  `.goga/usages/cooks/pybuggy/`. Источник правды про `Api`, `Endpoint`, `ResponseWrapper`, assert-слой.
-- **`goga-tool-pybuggy-api-cookbook`** — принципы применения DSL `goga-cell` для проектирования именно
-  **тестовых** cells (Routine-only, базовые Usages/Annotations из конфига; границы cells — проектное решение).
+- **`goga-tool-pybuggy-api-usage`** — the pybuggy runtime reference (`api`, `asserts`) from
+  `.goga/usages/cooks/pybuggy/`. The source of truth on `Api`, `Endpoint`, `ResponseWrapper`, and the assert layer.
+- **`goga-tool-pybuggy-api-cookbook`** — principles for applying the `goga-cell` DSL to **test** cell design
+  (Routine-only, base Usages/Annotations from the config; cell boundaries are a design decision).
 
-### Диспатч-скиллы тестовой генерации (после `apply`)
+### Test-generation dispatch skills (after `apply`)
 
-Оборачивают goga-скиллы `goga-design` / `goga-plan` **тестовым препромптом** — чтобы фаза design→plan
-относилась к CODEMANIFEST тест-cells как к источнику истины, а ralphex-план **запускал тесты**
-(чинит проблему «`goga build` пишет тесты, но не запускает их»). Вызываются вручную после `apply`.
+They wrap the goga skills `goga-design` / `goga-plan` with a **test-mode pre-prompt**, so that the design→plan phase
+treats the CODEMANIFEST of the test cells as the source of truth, and the ralphex plan **runs the tests**
+(fixes the problem where "`goga build` writes tests but does not run them"). Invoke them manually after `apply`.
 
-| Скилл                                   | Что делает                                                                                                         | Оборачивает   |
-|-----------------------------------------|--------------------------------------------------------------------------------------------------------------------|---------------|
-| `goga-tool-pybuggy-api-automate-design` | Дизайн-док материализации тестов из CODEMANIFEST тест-cells; закрепляет `pytest` как валидацию                     | `goga-design` |
-| `goga-tool-pybuggy-api-automate-plan`   | ralphex-план генерации **и запуска** тестов; гарантирует `pytest` в Validation Commands и исполнимые Task-чекбоксы | `goga-plan`   |
+| Skill                                   | Purpose                                                                                                          | Wraps        |
+|-----------------------------------------|-------------------------------------------------------------------------------------------------------------------|---------------|
+| `goga-tool-pybuggy-api-automate-design` | Produces the design document for materializing tests from the CODEMANIFEST of the test cells; pins `pytest` as the validation | `goga-design` |
+| `goga-tool-pybuggy-api-automate-plan`   | Builds the ralphex plan that generates **and runs** the tests; guarantees `pytest` in the Validation Commands and executable Task checkboxes | `goga-plan`   |
 
-### Приёмка (после `goga build`)
+### Acceptance (after `goga build`)
 
-Финальная петля флоу: запускает сгенерированные тесты и разбирает падения. Вызывается вручную после
-того, как `goga build` материализовал `test_*.py`.
+The final loop of the flow: runs the generated tests and triages the failures. Invoke it manually after
+`goga build` has materialized the `test_*.py` files.
 
-| Скилл                                   | Что делает                                                                                                                | Вход                                  | Артефакт на выходе                         |
-|-----------------------------------------|---------------------------------------------------------------------------------------------------------------------------|---------------------------------------|--------------------------------------------|
-| `goga-tool-pybuggy-api-automate-accept` | Приёмка: сверка кейс → Routine → `test_*.py`, запуск pytest, триаж падений с пользователем; баги сервиса — в `docs/bugs/` | `docs/testcases/<feature>.md` + тесты | [ACCEPT_REPORT] + `docs/bugs/<feature>.md` |
+| Skill                                   | Purpose                                                                                                                    | Input                                        | Output artifact                         |
+|-----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------|---------------------------------------|--------------------------------------------|
+| `goga-tool-pybuggy-api-automate-accept` | Acceptance: cross-checks test case → Routine → `test_*.py`, runs pytest, triages failures with the user; service bugs go to `docs/bugs/` | `docs/testcases/<feature>.md` + tests | [ACCEPT_REPORT] + `docs/bugs/<feature>.md` |
 
-### Ревью-скиллы
+### Review skills
 
-Верифицируют тестовые артефакты всех фаз: requirements → testcases → cells → design/plan.
+They verify the test artifacts of all phases: requirements → testcases → cells → design/plan.
 
-| Скилл                                                | Что проверяет                                                                                                                                                      |
+| Skill                                                | What it verifies                                                                                                                                       |
 |------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `goga-tool-pybuggy-api-automate-review`              | Диспетчер: роутит по пути таргет-файла (`docs/requirements\|testcases\|arch\|design\|plans`) в нужный ревью-скилл                                                  |
-| `goga-tool-pybuggy-api-automate-requirements-review` | Требования `docs/requirements/<feature>.md`: 10 секций, реалистичность эндпоинтов/контрактов/путей, positive/negative, без кода                                    |
-| `goga-tool-pybuggy-api-automate-testcases-review`    | Тест-кейсы `docs/testcases/<feature>.md`: трассируемость к требованиям, данные↔Request, покрытие Flow/Positive/Negative, без кода                                  |
-| `goga-tool-pybuggy-api-automate-cells-review`        | План cells `docs/arch/<feature>.md`: CODEMANIFEST по DSL, Routine под кейсы, cell-спец. usages инструментов, coverage (кейс покрыт напрямую или вариантом Routine) |
-| `goga-tool-pybuggy-api-automate-design-review`       | Дизайн-док тестов (Routine↔`test_*.py`, pytest-валидация)                                                                                                          |
-| `goga-tool-pybuggy-api-automate-plan-review`         | ralphex-план: критическое — `pytest` присутствует и исполним                                                                                                       |
+| `goga-tool-pybuggy-api-automate-review`              | Dispatcher: routes by the target file path (`docs/requirements\|testcases\|arch\|design\|plans`) to the matching review skill                                          |
+| `goga-tool-pybuggy-api-automate-requirements-review` | Requirements `docs/requirements/<feature>.md`: 10 sections, realistic endpoints/contracts/paths, positive/negative coverage, no code                                |
+| `goga-tool-pybuggy-api-automate-testcases-review`    | Test cases `docs/testcases/<feature>.md`: traceability to the requirements, data↔Request consistency, Flow/Positive/Negative coverage, no code                      |
+| `goga-tool-pybuggy-api-automate-cells-review`        | Cells plan `docs/arch/<feature>.md`: CODEMANIFEST follows the DSL, one Routine per test case, cell-specific tool usages, coverage (each test case covered directly or via a Routine variant) |
+| `goga-tool-pybuggy-api-automate-design-review`       | Test design document (Routine↔`test_*.py`, pytest validation)                                                                                                      |
+| `goga-tool-pybuggy-api-automate-plan-review`         | ralphex plan: the critical check — `pytest` is present and executable                                                                                               |
 
 ---
 
 ## Behavior
 
-1. Выведи **карту скиллов** выше — главные скиллы пайплайнов и референсные скиллы. Sub-скиллы пайплайнов не
-   перечисляй: это внутреннее устройство пайплайнов, пользователь их не вызывает напрямую.
-2. Если в `$ARGUMENTS` передана конкретная задача — определи, на каком этапе флоу она находится, и порекомендуй
-   ровно один главный скилл пайплайна (с кратким пояснением почему). Примеры:
-   - «собрать требования / что тестировать» → `goga-tool-pybuggy-api-automate-requirements`;
-   - «написать тест-кейсы / описать сценарии» → `goga-tool-pybuggy-api-automate-testcases`;
-   - «спроектировать cells / CODEMANIFEST» → `goga-tool-pybuggy-api-automate-cells`;
-   - «создать cells / материализовать план» → `goga-tool-pybuggy-api-automate-apply`;
-   - «дизайн тестов / спроектировать генерацию тестов» → `goga-tool-pybuggy-api-automate-design`;
-   - «собрать план тестов / ralphex-план / заставить сборку запускать тесты» → `goga-tool-pybuggy-api-automate-plan`;
-   - «проверить тестовый артефакт / ревью requirements|testcases|cells|design|plan» → `goga-tool-pybuggy-api-automate-review`;
-   - «принять тесты / запустить тесты / разобрать падения / зафиксировать баг» → `goga-tool-pybuggy-api-automate-accept`;
-   - «как вызвать API / как проверить ответ» → `goga-tool-pybuggy-api-usage`;
-   - «правила DSL для тестовых cells» → `goga-tool-pybuggy-api-cookbook`.
-3. Для запуска пайплайна используй **Skill tool** с главным скиллом пайплайна. Не запускай sub-скиллы в обход
-   главного.
-4. Если задача выходит за рамки pybuggy-скиллов — так и скажи; не додумывай несуществующих скиллов.
+1. Print the **skill map** above — the main skills of the pipelines plus the reference skills. Do not list the
+   pipeline sub-skills: they are pipeline internals, the user does not invoke them directly.
+2. If `$ARGUMENTS` contains a concrete task — determine the flow stage the task belongs to and recommend
+   exactly one main pipeline skill (with a short rationale why). Examples:
+   - "collect requirements / decide what to test" → `goga-tool-pybuggy-api-automate-requirements`;
+   - "write test cases / describe scenarios" → `goga-tool-pybuggy-api-automate-testcases`;
+   - "design cells / CODEMANIFEST" → `goga-tool-pybuggy-api-automate-cells`;
+   - "create cells / materialize the plan" → `goga-tool-pybuggy-api-automate-apply`;
+   - "design tests / plan the test generation" → `goga-tool-pybuggy-api-automate-design`;
+   - "build a test plan / ralphex plan / make the build run tests" → `goga-tool-pybuggy-api-automate-plan`;
+   - "verify a test artifact / review requirements|testcases|cells|design|plan" → `goga-tool-pybuggy-api-automate-review`;
+   - "accept tests / run tests / triage failures / record a bug" → `goga-tool-pybuggy-api-automate-accept`;
+   - "how to call the API / how to verify a response" → `goga-tool-pybuggy-api-usage`;
+   - "DSL rules for test cells" → `goga-tool-pybuggy-api-cookbook`.
+3. To launch a pipeline, use the **Skill tool** with the pipeline's main skill. Do not launch sub-skills
+   bypassing the main skill.
+4. If the task falls outside the pybuggy skills — say so; do not invent skills that do not exist.
 
 ## Invariants
 
 ### NEVER
 
-- перечислять sub-скиллы пайплайнов (intake/discovery/plan/write/…) — только главные скиллы
-- вызывать sub-скиллы пайплайна напрямую, минуя его главный скилл
-- придумывать скиллы, отсутствующие в карте
+- list pipeline sub-skills (intake/discovery/plan/write/…) — only the main skills
+- invoke a pipeline's sub-skills directly, bypassing its main skill
+- invent skills missing from the map
 
 ### ALWAYS
 
-- выводить карту скиллов целиком (главные пайплайны + референс)
-- указывать имя скилла для вызова через Skill tool и его артефакт на выходе
-- для задачи с `$ARGUMENTS` — рекомендовать один релевантный скилл с обоснованием
+- print the skill map in full (main pipelines + reference)
+- give the skill name for invocation via the Skill tool and its output artifact
+- for a task with `$ARGUMENTS` — recommend one relevant skill with a justification

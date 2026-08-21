@@ -1,106 +1,110 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-report
-description: Сборка финального артефакта «Детальные требования для фичи» и сохранение его в docs/requirements/<feature>.md
+description: Assemble the final "Detailed feature requirements" artifact and save it to docs/requirements/<feature>.md
 ---
 
 ## Identity
 
-Ты отвечаешь за синтез финального артефакта из всех предшествующих шагов и его сохранение в файл.
+You synthesize the final [FEATURE_SPEC] artifact from the outputs of all preceding steps and save it to a file.
 
 ## Algorithm
 
-1. Собрать выходы всех шагов: [INTAKE_REPORT], [DISCOVERY_REPORT], [ELABORATION_REPORT].
-2. Синтезировать единый артефакт [FEATURE_SPEC].
-3. Присвоить каждому требованию §3 стабильный идентификатор `FR-<N>` — на него ссылаются тест-кейсы
-    и матрица покрытия требований. Правила:
-    - сквозная нумерация внутри §3, начиная с 1, без пропусков и дублей;
-    - порядок нумерации — по подразделам: «Основное поведение» → «Поведение при ошибках (контракт)» →
-      «Критерии приёмки» → «Ограничения и границы»;
-    - идентификаторы вводятся только в §3 — §4 (предусловия) и §5 (роли) остаются текстовыми.
-4. Включать только проверенные факты (из спеки и подтверждённые пользователем) — без догадок.
-5. Перенести в §1 дословное описание фичи из секции «Исходный запрос» [INTAKE_REPORT] — на него
-   опирается этап `elaborate` пайплайна `testcases` при сопоставлении описания с API.
-6. Перенести в §8 реестр usages из секции «Usages проекта» [DISCOVERY_REPORT] (ключ | путь | роль |
-   назначение — справочник доступного, без выбора инструментов).
-7. Перенести в §9 статус покрытия из секции «Существующее покрытие» [DISCOVERY_REPORT] (какие эндпоинты уже
-   покрыты, какие Routine существуют, какое действие — переиспользовать / дополнить / проверить drift).
-8. Проверить полноту: каждая секция заполнена.
-9. Сохранить [FEATURE_SPEC] в `docs/requirements/<feature>.md` (создать директорию `docs/requirements/`,
-   если отсутствует; перезаписать файл при повторном запуске). Путь передаёт оркестратор пайплайна
-   (Artifact Path Resolution).
+1. Collect the outputs of all preceding steps: [INTAKE_REPORT], [DISCOVERY_REPORT], [ELABORATION_REPORT].
+2. Synthesize these outputs into the unified [FEATURE_SPEC] artifact.
+3. Assign each §3 requirement a stable `FR-<N>` identifier — test cases and the requirements
+   coverage matrix reference it. Rules:
+    - number sequentially within §3, starting at 1, with no gaps or duplicates;
+    - order the numbering by subsection: "Main behavior" → "Error behavior (contract)" →
+      "Acceptance criteria" → "Constraints and boundaries";
+    - introduce identifiers in §3 only — §4 (preconditions) and §5 (roles) remain textual.
+4. Include verified facts only — facts from the service spec and facts confirmed by the user.
+   Do not guess.
+5. Copy the feature description from the "Original request" section of [INTAKE_REPORT] into §1
+   verbatim — the `elaborate` stage of the `testcases` pipeline matches this description against
+   the API.
+6. Copy the usages registry from the "Project usages" section of [DISCOVERY_REPORT] into §8
+   (key | path | role | purpose — a reference of available assets, with no tool selection).
+7. Copy the coverage status from the "Existing coverage" section of [DISCOVERY_REPORT] into §9:
+   which endpoints are already covered, which Routines exist, and the action for each —
+   reuse / extend / check drift.
+8. Verify completeness: every section is filled in.
+9. Save [FEATURE_SPEC] to `docs/requirements/<feature>.md` (create the `docs/requirements/`
+   directory if it does not exist; overwrite the file on repeated runs). The pipeline orchestrator
+   supplies the target path (Artifact Path Resolution).
 
 ---
 
 ## Output Format
 
-Сохрани результат в `docs/requirements/<feature>.md` (путь от оркестратора). Содержимое файла соответствует
-формату ниже. Заполни каждую секцию. Пустые секции запрещены.
+Save the result to `docs/requirements/<feature>.md` (the path comes from the orchestrator). The file
+content follows the format below. Fill in every section. Empty sections are forbidden.
 
 ```md
-### Детальные требования для фичи: [Название фичи]
+### Detailed feature requirements: [Feature name]
 
-**1. Контекст и цель:**
+**1. Context and goal:**
 
-- **Сервис:** [Краткое описание сервиса]
-- **Описание фичи (дословно):** [Исходный запрос пользователя — из «Исходный запрос» intake]
-- **Цель фичи:** [Уточнённая цель]
+- **Service:** [Brief description of the service]
+- **Feature description (verbatim):** [User's original request — from the intake section "Original request"]
+- **Feature goal:** [Refined goal]
 
-**2. Эндпоинты фичи:**
+**2. Feature endpoints:**
 
-[Таблица: endpoint-id | spec | method | path | роль в фиче]
+[Table: endpoint-id | spec | method | path | role in the feature]
 
-Пути сгенерированных артефактов:
+Paths of generated artifacts:
 
-- фикстура: `api/<spec>/<id>/api.py` (имя фикстуры, модель `Request`)
-- схемы: `api/<spec>/<id>/schemas/<status>.json`
-- каталог тестов: `tests/<spec>/<id>/`
+- fixture: `api/<spec>/<id>/api.py` (fixture name, `Request` model)
+- schemas: `api/<spec>/<id>/schemas/<status>.json`
+- test directory: `tests/<spec>/<id>/`
 
-**3. Функциональные требования:**
+**3. Functional requirements:**
 
-Каждое требование несёт стабильный идентификатор `FR-<N>` (сквозная нумерация внутри §3 по порядку
-подразделов, без пропусков и дублей) — реестр для трассируемости тест-кейсов.
+Every requirement carries a stable identifier `FR-<N>` (sequential numbering within §3 in
+subsection order, no gaps, no duplicates) — the registry for test case traceability.
 
-- **Основное поведение:**
-    - `FR-1` — [Бизнес-правило / переход состояния / цепочка: условие → реакция сервиса]
-- **Поведение при ошибках (контракт):**
-    - `FR-<N>` — [Условие ошибки (невалидный ввод / нет прав / нарушенное предусловие / недоступная
-       зависимость) → ожидаемый код и характер ошибки из спеки]
-- **Критерии приёмки:**
-    - `FR-<N>` — [Критерий]
-- **Ограничения и границы:**
-    - `FR-<N>` — [Что фича не делает]
+- **Main behavior:**
+    - `FR-1` — [Business rule / state transition / chain: condition → service response]
+- **Error behavior (contract):**
+    - `FR-<N>` — [Error condition (invalid input / missing permissions / violated precondition /
+       unavailable dependency) → expected code and error nature from the spec]
+- **Acceptance criteria:**
+    - `FR-<N>` — [Criterion]
+- **Constraints and boundaries:**
+    - `FR-<N>` — [What the feature does not do]
 
-**4. Бизнес-предусловия и окружение:**
+**4. Business preconditions and environment:**
 
-- Бизнес-предусловия (сущности/роли/состояния — как потребность): [...]
-- Окружение (env/version): [...]
+- Business preconditions (entities/roles/states — stated as a need): [...]
+- Environment (env/version): [...]
 
-**5. Роли и доступы:**
+**5. Roles and permissions:**
 
-[Кто может / не может вызывать эндпоинты]
+[Who can / cannot call the endpoints]
 
-**6. Интеграционные аспекты:**
+**6. Integration aspects:**
 
-- [Взаимодействие с другими компонентами, моки, внешние зависимости]
+- [Interaction with other components, mocks, external dependencies]
 
-**7. Ссылки и ресурсы:**
+**7. Links and resources:**
 
-- [Спеки (location), дизайн, API-док и т.д.]
+- [Specs (location), design, API docs, etc.]
 
-**8. Доступные usages проекта:**
+**8. Available project usages:**
 
-| ключ     | путь             | роль                                              | назначение                          |
-|----------|------------------|---------------------------------------------------|-------------------------------------|
-| `<ключ>` | [.goga/usages/…] | [runtime-референс / данные-моки-утилиты / прочее] | [предметная область — одной фразой] |
+| key     | path             | role                                              | purpose                             |
+|---------|------------------|---------------------------------------------------|-------------------------------------|
+| `<key>` | [.goga/usages/…] | [runtime reference / data-mocks-utilities / other] | [subject area — one phrase] |
 
-Реестр — результат скана `.goga/usages/` целевого проекта (из discovery). Это **справочник доступного**,
-а не выбор инструментов: потребности кейсов выявляются и согласуются с инструментами (существующими или
-новыми) на этапе `testcases` — там же создаются usage-файлы новых библиотек
-(`.goga/usages/cooks/<ключ>.md`). Если `.goga/usages/` пуст — указать «usages отсутствуют».
+The registry is the result of scanning the target project's `.goga/usages/` directory (from
+discovery). It is a **reference of available assets**, not a tool selection: the pipeline identifies
+test case needs and agrees them with tools (existing or new) at the `testcases` stage — where usage
+files for new libraries (`.goga/usages/cooks/<key>.md`) are also created. If `.goga/usages/` is
+empty, state "no usages".
 
-**9. Уже покрыто тестами:**
+**9. Already covered by tests:**
 
-[Таблица: endpoint-id | статус (не покрыт / частично / полностью) | существующие `test_*` Routine
-(имя → тип Flow/Positive/Negative) | действие (переиспользовать / дополнить недостающие / проверить contract-drift)]
-Секция **опциональна**: если ни один эндпоинт не покрыт — указать «покрытие отсутствует» (как §6/§8).
+[Table: endpoint-id | status (not covered / partial / full) | existing `test_*` Routines
+(name → Flow/Positive/Negative type) | action (reuse / extend the missing ones / check contract-drift)]
+This section is **optional**: if no endpoint is covered, state "no coverage" (as in §6/§8).
 ```

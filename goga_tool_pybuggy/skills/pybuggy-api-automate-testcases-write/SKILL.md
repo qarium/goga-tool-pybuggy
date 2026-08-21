@@ -1,151 +1,156 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-write
-description: Сборка детальных тест-кейсов (TC-<N>, поле requirements) и матрицы покрытия требований, сохранение их в docs/testcases/<feature>.md
+description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to docs/testcases/<feature>.md
 ---
 
 ## Identity
 
-Ты собираешь детальные тест-кейсы из предшествующих шагов и сохраняешь их в файл.
+You assemble detailed test cases from the outputs of the preceding pipeline steps and save them to a file.
 
 ## Core Principle
 
-Ты **детализируешь** [TESTCASES_PLAN] данными и контрактами из [TESTCASES_DISCOVERY]. Описывай, **что**
-проверяется, а не **как**; используй только проверенные факты.
+You **detail** [TESTCASES_PLAN] with the data and contracts from [TESTCASES_DISCOVERY]. Describe **what**
+each case verifies, not **how**; use only verified facts.
 
 ---
 
 ## Algorithm
 
-### Step 1. Загрузить контекст
+### Step 1. Load context
 
-1. [TESTCASES_INTAKE] — версия/env, данные/предусловия, роли.
-2. [TESTCASES_DISCOVERY] — контракты эндпоинтов (модель `Request`, параметры, схемы ответов), шкала
-   severity.
-3. [TESTCASES_ELABORATION] — утверждённые трейсы фичи (Вызов → Эффект → Верификация).
-4. [TESTCASES_PLAN] — описание фичи, интеграционные точки, цели, матрица кейсов.
-5. [TOOLS_REPORT] — согласованные инструменты: существующие usage-ключи (§8) и новые
-   (usage-файлы уже созданы шагом `tools`).
+You load five context inputs:
 
-### Step 2. Сформировать заголовок и описание документа
+1. [TESTCASES_INTAKE] — version/env, data/preconditions, roles.
+2. [TESTCASES_DISCOVERY] — endpoint contracts (`Request` model, parameters, response schemas), severity
+   scale.
+3. [TESTCASES_ELABORATION] — approved feature traces (Call → Effect → Verification).
+4. [TESTCASES_PLAN] — feature description, integration points, goals, case matrix.
+5. [TOOLS_REPORT] — agreed tools: existing usage keys (§8) and new ones
+   (usage files are already created by the `tools` step).
 
-1. Шапка: `# Версия сервиса: <значение из требований>`.
-2. Секции из плана: Описание тестируемой фичи, Интеграционные точки фичи, Цели интеграционного тестирования.
-3. Секция «Трейсы фичи» — перенести утверждённые трейсы из [TESTCASES_ELABORATION] дословно: на каждый
-   трейс `## TR-<N>: <название>` с эндпоинтами и нумерованными шагами **Вызов** → **Эффект** →
-   **Верификация**.
+### Step 2. Build the document header and description
 
-### Step 3. Детализировать каждый тест-кейс
+1. Header: `# Service version: <value from requirements>`.
+2. Sections from the plan: Feature Under Test Description, Feature Integration Points, Integration Testing
+   Goals.
+3. "Feature traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
+   trace `## TR-<N>: <name>` with endpoints and numbered steps **Call** → **Effect** →
+   **Verification**.
 
-На каждый кейс из матрицы (`#### TC-<N>: <title>`) заполнить:
+### Step 3. Detail each test case
 
-- **title** — конкретное, отражает суть проверки.
-- **severity** — по шкале discovery.
-- **feature** — краткое описание тестируемой фичи.
-- **requirements** — требования реестра §3, которые проверяет кейс: `FR-<N>`, одно или несколько через
-  запятую. Источник — колонка «требования» матрицы [TESTCASES_PLAN]; каждое значение входит в реестр
-  [TESTCASES_INTAKE]. Кейс из обратного зазора elaborate (возможность API вне описания) — `—`.
+For each case in the matrix (`#### TC-<N>: <title>`), populate:
 
-**description** (многострочно, подсекции):
+- **title** — specific; reflects the essence of the check.
+- **severity** — per the discovery severity scale.
+- **feature** — brief description of the feature under test.
+- **requirements** — §3 registry requirements the case verifies: `FR-<N>`, one or more, comma-separated.
+  Source — the "requirements" column of the [TESTCASES_PLAN] matrix; every value belongs to the §3 registry
+  from [TESTCASES_INTAKE]. A case from the reverse gap of elaborate (an API capability outside the user
+  description) takes `—`.
 
-1. **Предусловия** — состояние системы и данные ДО теста: env/version, дата-сетап (сущности, роли,
-   фабрики, переходы состояний), подготовленные значения. Если дата-сетап кейса выполняется
-   инструментом из [TOOLS_REPORT] — указать в Предусловиях «данные подготавливаются библиотекой
-   `<ключ>`» (ключ — существующий usage из §8 или новый из [TOOLS_REPORT]) **без** деталей
-   реализации (без импортов/вызовов).
-2. **Шаги выполнения** — нумерованные; для кейса-цепочки шаги следуют шагам его трейса `TR-<N>` (Вызов →
-   Эффект → Верификация); каждый шаг:
-    - **Действие:** что делаем — вызов эндпоинта фичи. Для positive — вызов с корректными данными; для
-      negative — вызов, ведущий к ошибке (невалидные данные, нет прав, нарушенное предусловие). Для цепочек —
-      последовательность действий с переходом состояний.
-    - **Данные:** конкретные значения полей `Request` (из модели), path/query-параметры. Не плейсхолдеры.
-    - **Ожидание:** что проверяем после шага — из **Верификации** трейса: ожидаемый статус-код;
-      наличие/отсутствие и значения ключевых полей ответа (напр. «поле `data.id` присутствует и непустое»,
-      «список `data.items` содержит 3 элемента», «`email` соответствует формату», «структура ответа
-      соответствует схеме статуса N»); до-проверка эффектов чтением через смежный эндпоинт; инварианты
-      («что не должно измениться»); для negative — «ответ содержит описание ошибки, данные отсутствуют».
-3. **Ожидаемый результат** — измеримый итог всего кейса, собранный из Верификаций трейса: статус-код,
-   структура ответа, изменения данных, инварианты/побочные эффекты (что не должно измениться).
+**description** (multiline, subsections):
 
-### Правила детализации
+1. **Preconditions** — system state and data BEFORE the test: env/version, data setup (entities, roles,
+   factories, state transitions), prepared values. If a tool from [TOOLS_REPORT] performs the case's data
+   setup, state in the Preconditions "data is prepared by the library `<key>`" (key — an existing usage
+   from §8 or a new one from [TOOLS_REPORT]) **without** implementation details (no imports/calls).
+2. **Execution steps** — numbered; for a chain case the steps follow the steps of its `TR-<N>` trace (Call
+   → Effect → Verification); each step:
+    - **Action:** what we do — a call to a feature endpoint. Positive — a call with valid data; negative —
+      a call leading to an error (invalid data, missing permissions, violated precondition). For chains — a
+      sequence of actions with state transitions.
+    - **Data:** concrete `Request` field values (from the model), path/query parameters. No placeholders.
+    - **Expectation:** what to verify after the step — from the trace **Verification**: expected status
+      code; presence/absence and values of key response fields (e.g. "the `data.id` field is present and
+      non-empty", "the `data.items` list contains 3 elements", "`email` matches the format", "the response
+      structure matches the status N schema"); a follow-up check of effects by reading through an adjacent
+      endpoint; invariants ("what must not change"); for negative — "the response contains an error
+      description; the data is absent".
+3. **Expected result** — a measurable outcome of the whole case, assembled from the trace Verifications:
+   status code, response structure, data changes, invariants/side effects (what must not change).
 
-- **Данные конкретные**: значения полей берутся из модели `Request` и схем `schemas/<status>.json`; граничные
-  и невалидные значения — для negative.
-- **Проверки доскональные**: одного status-кода недостаточно — описывать структуру и значения ключевых полей
-  ответа.
-- **Описательно, без кода**: кейсы не содержат pytest-кода, имён матчёров и вызовов фреймворка — только
-  описание проверяемого поведения и ожиданий.
-- **Только проверенные факты**: статус-коды, поля, схемы — из `DISCOVERY`; ничего не выдумывать.
+### Detailing rules
 
-### Step 4. Сгруппировать, собрать матрицу покрытия и сохранить
+- **Concrete data**: field values come from the `Request` model and the `schemas/<status>.json` schemas;
+  boundary and invalid values — for negative cases.
+- **Thorough checks**: a status code alone is not enough — describe the structure and the values of key
+  response fields.
+- **Descriptive, code-free**: cases contain no pytest code, matcher names, or framework calls — only a
+  description of the verified behavior and expectations.
+- **Verified facts only**: status codes, fields, schemas — from `DISCOVERY`; invent nothing.
 
-1. Кейсы сгруппировать: `### <сценарий>` → `### <Flow|Positive|Negative>` → `#### TC-<N>: <title>`
-   (нумерация TC сквозная по документу, группировка на неё не влияет).
-2. В начале блока тест-кейсов — `## Общее количество тест-кейсов: N`.
-3. Собрать секцию «Матрица покрытия требований» — агрегацию по полям `requirements` кейсов
-   (единственный источник — сами кейсы): строка на каждое FR реестра §3 из [TESTCASES_INTAKE]; в колонку
-   кейсов — все кейсы, указавшие этот FR, с типами; статус «покрыто» / «не покрыто» / «исключено
-   (решением пользователя)» (решения — из «Решений по покрытию требований» [TESTCASES_PLAN]).
-4. Сохранить результат в `docs/testcases/<feature>.md` (путь передаёт оркестратор пайплайна через
-   Artifact Path Resolution; создать директорию `docs/testcases/`, если
-   отсутствует). После любых правок кейсов — пересчитать матрицу и счётчик заново.
+### Step 4. Group the cases, assemble the coverage matrix, and save
 
-### Step 5. Сформировать [FEATURE_TESTCASES]
+1. Group the cases: `### <scenario>` → `### <Flow|Positive|Negative>` → `#### TC-<N>: <title>`
+   (TC numbering is continuous across the document; grouping does not affect it).
+2. Open the test case block with `## Total number of test cases: N`.
+3. Assemble the "Requirements coverage matrix" section — an aggregation over the `requirements` fields of
+   the cases (the cases themselves are the only source): one row for every FR from the §3 registry of
+   [TESTCASES_INTAKE]; the cases column lists every case that names this FR, with its type; status
+   "covered" / "not covered" / "excluded (by user decision)" (decisions — from "Requirements coverage
+   decisions" in [TESTCASES_PLAN]).
+4. Save the result to `docs/testcases/<feature>.md` (the pipeline orchestrator passes the path via
+   Artifact Path Resolution; create the `docs/testcases/` directory if absent). After any edit to the
+   cases, recompute the matrix and the counter.
+
+### Step 5. Produce [FEATURE_TESTCASES]
 
 STOP if:
 
-- не удалось собрать ни одного полного кейса (нет данных модели `Request` или контракта ответа) после
-  уточнения у пользователя.
+- not a single complete case could be assembled (no `Request` model data or response contract) after
+  clarification with the user.
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are forbidden.
 
 ```md
 # [FEATURE_TESTCASES]
 
-## Путь к файлу
+## File path
 
-[docs/testcases/<feature>.md — подтверждение сохранения]
+[docs/testcases/<feature>.md — confirmation of saving]
 
-## Сводка
+## Summary
 
-[Кол-во кейсов всего и по типам: Flow / Positive / Negative; покрытие требований: FR покрыто X из Y,
-не покрыто Z, исключено решением W]
+[Case count in total and by type: Flow / Positive / Negative; requirements coverage: FR covered X of Y,
+not covered Z, excluded by decision W]
 
-## Фрагмент артефакта
+## Artifact excerpt
 
-[Дословный формат сохраняемого файла:]
+[Verbatim format of the saved file:]
 
-# Версия сервиса: <из требований>
+# Service version: <from requirements>
 
-# Описание тестируемой фичи
+# Feature Under Test Description
 ...
 
-# Интеграционные точки фичи
+# Feature Integration Points
 ...
 
-# Цели интеграционного тестирования
+# Integration Testing Goals
 ...
 
-# Трейсы фичи
+# Feature traces
 
-## TR-<N>: <название>
+## TR-<N>: <name>
 
-- Эндпоинты: [endpoint-id(ы), цепочка при наличии]
+- Endpoints: [endpoint-id(s), chain if present]
 
-1. **Вызов:** [<эндпоинт, вход из модели Request, параметры>]
-2. **Эффект:** [<что должно произойти — изменения данных/состояния, побочные эффекты>]
-3. **Верификация:** [<поля/структура по schemas; до-проверка смежным эндпоинтом; инварианты>]
+1. **Call:** [<endpoint, input from the Request model, parameters>]
+2. **Effect:** [<what must happen — data/state changes, side effects>]
+3. **Verification:** [<fields/structure per schemas; follow-up check via an adjacent endpoint; invariants>]
 
-[Повторить для каждого трейса]
+[Repeat for each trace]
 
-# Тест-кейсы для интеграционного тестирования фичи
+# Test cases for feature integration testing
 
-## Общее количество тест-кейсов: N
+## Total number of test cases: N
 
-### <Название сценария>
+### <Scenario name>
 
 ### <Flow|Positive|Negative>
 
@@ -154,21 +159,21 @@ STOP if:
 - **title**
 - **severity** [blocker/critical/normal/minor/trivial]
 - **feature**
-- **requirements** [FR-<N> — одно или несколько, из реестра §3 требований; «—» для кейса из обратного зазора]
+- **requirements** [FR-<N> — one or more, from the §3 requirements registry; "—" for a reverse-gap case]
 - **description**
-    - **Предусловия:**
-        - [<состояние системы и данные для сценария>]
-    - **Шаги выполнения:**
-        1. **Действие:** [<вызов эндпоинта фичи>]
-           **Данные:** [<значения полей Request, параметры>]
-           **Ожидание:** [<статус-код и проверяемые поля/структура ответа — описательно>]
+    - **Preconditions:**
+        - [<system state and data for the scenario>]
+    - **Execution steps:**
+        1. **Action:** [<feature endpoint call>]
+           **Data:** [<Request field values, parameters>]
+           **Expectation:** [<status code and the response fields/structure to verify — descriptive>]
         2. ...
-- **Ожидаемый результат:** [<статус-код, структура, инварианты>]
+- **Expected result:** [<status code, structure, invariants>]
 
-# Матрица покрытия требований
+# Requirements coverage matrix
 
-Агрегация полей `requirements` кейсов выше; строится и пересчитывается только из них.
+Aggregation over the `requirements` fields of the cases above; it is built and recomputed only from them.
 
-[Таблица: FR | требование (кратко) | тип (подраздел §3) | кейсы (TC-<N> + тип) | статус (покрыто /
-не покрыто / исключено (решением пользователя)). Одна строка на каждое FR реестра §3.]
+[Table: FR | requirement (brief) | type (§3 subsection) | cases (TC-<N> + type) | status (covered /
+not covered / excluded (by user decision)). One row for every FR from the §3 registry.]
 ```

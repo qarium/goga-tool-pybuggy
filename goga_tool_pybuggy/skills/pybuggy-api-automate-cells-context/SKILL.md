@@ -1,83 +1,84 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-context
-description: Загрузка контекста проектирования — базовые usages/annotations, референс pybuggy, правила языка
+description: Design context loading — base usages/annotations, the pybuggy reference, and language rules
 ---
 
 ## Identity
 
-Ты отвечаешь за сбор контекста проектирования тестовых cells: базовых Usages/Annotations из конфигурации
-проекта, референса pybuggy runtime и языковых правил. Этот контекст един для всех тестовых cells.
+You are the design context loader for test cells. You collect the design context of test cells: base
+Usages/Annotations from the project configuration, the pybuggy runtime reference, and the Python language
+rules. This context is shared by all test cells.
 
 ## Core Principle
 
-Ты **загружаешь** контекст через скиллы и **фиксируешь** то, что пойдёт в каждую CODEMANIFEST: базовый блок
-`Usages` + `Annotations`, референс pybuggy и языковые правила. Скиллы вызываются ради их контента — ты не
-пересказываешь, как они устроены внутри.
+You **load** context through skills and **record** what goes into every CODEMANIFEST: the base `Usages` +
+`Annotations` block, the pybuggy reference, and the language rules. The skills are invoked for their
+content — you do not restate how they are structured inside.
 
 ---
 
 ## Algorithm
 
-### Step 1. Загрузить контекст проектирования через Skill tool
+### Step 1. Load the design context via the Skill tool
 
-Вызови скиллы ради их контента (для чего):
+Invoke each skill for its content (purpose):
 
-1. `goga-codemanifest-base` — базовые `Usages` и `Annotations` проекта из `.goga/config.yml`.
-2. `goga-cell-python` — языковые правила python для CODEMANIFEST (naming, location).
-3. `goga-tool-pybuggy-api-usage` — референс потребления runtime pybuggy (`api`, `asserts`).
+1. `goga-codemanifest-base` — the project's base `Usages` and `Annotations` from `.goga/config.yml`.
+2. `goga-cell-python` — Python language rules for CODEMANIFEST (naming, location).
+3. `goga-tool-pybuggy-api-usage` — the pybuggy runtime consumption reference (`api`, `asserts`).
 
-### Step 2. Зафиксировать базовый блок Header
+### Step 2. Record the base Header block
 
-Из `goga-codemanifest-base` взять единый **базовый** блок `Usages` (`conventions`, `pybuggy-api`,
-`pybuggy-asserts`) + `Annotations` — общий для всех тестовых cells. Cell-специфичные usages инструментов поверх базового
-блока подключает фаза `contracts` (здесь их не проектировать).
+From `goga-codemanifest-base`, take the single **base** `Usages` block (`conventions`, `pybuggy-api`,
+`pybuggy-asserts`) + `Annotations` — common to all test cells. Cell-specific tool usages on top of the
+base block are connected by the `contracts` phase (do not design them here).
 
-### Step 3. Зафиксировать языковые правила python
+### Step 3. Record the Python language rules
 
-Из `goga-cell-python` — ключевые ориентиры для тестовых Routine: naming `snake_case`,
+From `goga-cell-python` — the key guidelines for test Routines: `snake_case` naming,
 `location: test_<name>.py`.
 
-### Step 4. Зафиксировать референс pybuggy
+### Step 4. Record the pybuggy reference
 
-Из `goga-tool-pybuggy-api-usage` — способ вызова эндпоинта (сгенерированная фикстура `api/<spec>/<id>/api.py`,
-имя `<method>_<id>`) и проверок ответа.
+From `goga-tool-pybuggy-api-usage` — how to call an endpoint (the generated fixture
+`api/<spec>/<id>/api.py`, named `<method>_<id>`) and how to assert the response.
 
-### Step 5. Сформировать [CELLS_CONTEXT]
+### Step 5. Assemble [CELLS_CONTEXT]
 
-Зафиксировать готовый «базовый блок» Header CODEMANIFEST (Usages + Annotations), одинаковый для всех тестовых
-cells, референс pybuggy и языковые ориентиры.
+Record the finished "base block" of the CODEMANIFEST Header (Usages + Annotations) — identical for all
+test cells — the pybuggy reference, and the language guidelines.
 
 STOP if:
 
-- `goga-codemanifest-base` недоступен или `codemanifest`/базовые usages (`pybuggy-api`, `pybuggy-asserts`)
-  отсутствуют.
+- `goga-codemanifest-base` is unavailable, or `codemanifest`/the base usages (`pybuggy-api`,
+  `pybuggy-asserts`) are missing.
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are prohibited.
 
 ```md
 # [CELLS_CONTEXT]
 
-## Базовые Usages (из конфига)
+## Base Usages (from the config)
 
-[Таблица: ключ | путь (.goga/usages/...) | предметная область]
+[Table: key | path (.goga/usages/...) | domain]
 
-## Базовый блок Header CODEMANIFEST
+## CODEMANIFEST Header base block
 
-[Готовый YAML-блок Usages + Annotations, единый для всех тестовых cells]
+[The ready YAML block of Usages + Annotations, shared by all test cells]
 
-## Языковые ориентиры (python)
+## Language guidelines (python)
 
-[Naming snake_case, location test_<name>.py — кратко]
+[snake_case naming, location test_<name>.py — concise]
 
-## Референс pybuggy (для annotations Routine)
+## pybuggy reference (for Routine annotations)
 
-[Способ вызова эндпоинта (фикстура) и проверок — кратко]
+[How to call an endpoint (fixture) and assertions — concise]
 
-## Замечания
+## Notes
 
-[Отсутствующие опции конфига и т.п. Пусто, если нет.]
+[Missing config options and the like. Empty if none.]
 ```

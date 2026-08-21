@@ -1,18 +1,19 @@
-# matchcrest/matchers — механика матчеров
+# matchcrest/matchers — Matcher Mechanics
 
-## Предметная область
+## Domain
 
-Клетка матчеров matchcrest: базис (`BaseContext`, `BaseMatcher`, `MatchResult`) и конкретные матчёры
-для значений, HTTP-ответов и исключений. Аудитория — прямые потребители матчёров и авторы кастомных
-матчёров. Описывает, как подать данные в матча, применить его через `assert_that` и расширить
-`BaseMatcher`.
+The `matchcrest/matchers` cell contains the matcher foundation and concrete matchers. Foundation entities:
+`BaseContext` (data source contract), `BaseMatcher` (base class), `MatchResult` (check outcome). Concrete matchers
+cover values, HTTP responses, and exceptions. The document serves two audiences: direct matcher consumers and
+custom matcher authors. It explains three actions: feed data into a matcher via a context, apply the matcher
+through `assert_that`, and extend `BaseMatcher` with a custom matcher.
 
-Все матчёры построены на PyHamcrest: `BaseMatcher` наследует `hamcrest.core.base_matcher.BaseMatcher`,
-а `assert_that(actual, matcher)` запускает проверку.
+Every matcher builds on PyHamcrest: `BaseMatcher` inherits `hamcrest.core.base_matcher.BaseMatcher`,
+and `assert_that(actual, matcher)` executes the check.
 
 ---
 
-## Фасад
+## Facade
 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import (
@@ -21,16 +22,16 @@ from goga_tool_pybuggy.matchcrest.matchers import (
     MatchResult,
     ValueIsEqualMatcher,
     ResponseCodeMatcher,
-    RaisedExceptionMatcher,  # ...и т.д.
+    RaisedExceptionMatcher,  # ...and so on
 )
 ```
 
 ---
 
-## Контракт источника данных — BaseContext
+## Data Source Contract — BaseContext
 
-Матчёр ничего не знает про HTTP или requests: он читает значение из контекста `item`. Потребитель
-реализует `BaseContext`, открывая `value`, `key` и `update()`:
+A matcher is decoupled from HTTP and `requests`: it reads the value only from the `item` context. The consumer
+implements `BaseContext`, exposing `value`, `key`, and `update()`:
 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import BaseContext
@@ -49,15 +50,15 @@ class ResponseContext(BaseContext):
         return self._response.url
 
     def update(self):
-        self._response = refetch(self._response.url)  # для retry между попытками
+        self._response = refetch(self._response.url)  # refresh the source between retry attempts
 ```
 
-- `value` — проверяемое значение; `key` — метка источника (попадает в сообщения).
-- `update()` вызывается между попытками retry (когда `proofs > 1` или `timeout` задан).
+- `value` — the value under test; `key` — the source label; the engine includes `key` in report messages.
+- The engine calls `update()` between retry attempts (when `proofs > 1` or `timeout` is set).
 
 ---
 
-## Применение матчера через assert_that
+## Applying a Matcher via assert_that
 
 ```python
 from hamcrest import assert_that
@@ -66,29 +67,29 @@ from goga_tool_pybuggy.matchcrest.matchers import ResponseCodeMatcher
 assert_that(ResponseContext(response), ResponseCodeMatcher(200, timeout=10))
 ```
 
-- Конструкция матчера: `(expected_value, *, proofs, timeout, delay)` + опции конкретного матчера.
-- `timeout`/`proofs`/`delay` управляют retry: матч повторяется, пока не станет зелёным или не выйдет timeout.
+- Matcher construction: `(expected_value, *, proofs, timeout, delay)` plus matcher-specific options.
+- `timeout`/`proofs`/`delay` drive the retry loop: the check repeats until it passes or the timeout expires.
 
 ---
 
-## Value-матчёры — модификаторы any / in_array
+## Value Matchers — any / in_array Modifiers
 
-Value-матчёры принимают `any` и `in_array` (оба по умолчанию False):
+Value matchers accept `any` and `in_array` (both default to `False`):
 
-- `in_array=True` — `item.value` трактуется как коллекция; матча проверяет каждый элемент.
-- `any=True` (только вместе с `in_array`) — достаточно первого успешного элемента.
+- `in_array=True` — the matcher treats `item.value` as a collection and checks every element.
+- `any=True` (valid only together with `in_array`) — the first successful element suffices.
 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import ValueIsEqualMatcher
 
-ValueIsEqualMatcher("admin", any=True, in_array=True)  # хотя бы один элемент == "admin"
+ValueIsEqualMatcher("admin", any=True, in_array=True)  # at least one element == "admin"
 ```
 
 ---
 
-## Свой матча — расширение BaseMatcher
+## Custom Matcher — Extending BaseMatcher
 
-Реализуйте единственный хук `_assert(item) -> MatchResult`:
+Implement the single hook `_assert(item) -> MatchResult`:
 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import BaseMatcher, MatchResult
@@ -105,5 +106,5 @@ class StatusCodeInRange(BaseMatcher):
         )
 ```
 
-- `_assert` вызывается движком `BaseMatcher._matches` (retry/timeout/report берётся на себя).
-- Возвращайте `MatchResult(False, errors=..., expectations=...)` при провале — оба списка обязательны.
+- The `BaseMatcher._matches` engine invokes `_assert` and owns retry, timeout, and reporting.
+- On failure, return `MatchResult(False, errors=..., expectations=...)` — both lists are mandatory.

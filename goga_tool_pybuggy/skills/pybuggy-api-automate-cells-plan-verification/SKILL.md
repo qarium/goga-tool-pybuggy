@@ -1,107 +1,110 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-plan-verification
-description: Финальная верификация плана тестовых cells (docs/arch/<feature>.md) против DSL и покрытия кейсов
+description: Final verification of the test cells plan (docs/arch/<feature>.md) against the DSL and case coverage
 ---
 
 ## Identity
 
-Ты отвечаешь за финальную верификацию плана: проверяешь, что каждая CODEMANIFEST в `docs/arch/<feature>.md`
-корректна по `goga-cell` DSL, все тест-кейсы покрыты Routine, а базовые Usages/Annotations на месте. Решение
-утверждается пользователем.
+You are the final verifier of the test cells plan. You verify that every CODEMANIFEST in `docs/arch/<feature>.md`
+conforms to the `goga-cell` DSL, that every test case is covered by a Routine, and that the base Usages/Annotations
+are in place. The user approves the decision.
 
 ## Core Principle
 
-Ты **независимо проверяешь** план против `goga-cell` DSL и входных тест-кейсов, **исправляешь** найденные
-несоответствия и **получаешь финальное approval** пользователя на план.
+You **independently verify** the plan against the `goga-cell` DSL and the input test cases. You **fix** every
+inconsistency you find. You **obtain the user's final approval** of the plan.
 
 ---
 
 ## Algorithm
 
-### Step 1. Загрузить контекст
+### Step 1. Load the context
 
-1. `docs/arch/<feature>.md` — проверяемый план (путь передаёт оркестратор пайплайна через Artifact Path
-   Resolution).
-2. [CELLS_INTAKE] — эталонный набор кейсов для coverage.
-3. `goga-cell` / `goga-cell-python` — правила валидации.
+1. `docs/arch/<feature>.md` — the plan under verification. The pipeline orchestrator passes this path via
+   Artifact Path Resolution.
+2. [CELLS_INTAKE] — the reference set of test cases for the coverage check.
+3. `goga-cell` / `goga-cell-python` — the DSL validation rules.
 
-### Step 2. DSL-валидация каждой CODEMANIFEST
+### Step 2. DSL validation of each CODEMANIFEST
 
-По `goga-cell` проверить для каждой cell:
+For each test cell, verify against `goga-cell`:
 
-1. Структура: Header → `---` → Body → `---` → Footer; case-sensitive ключи.
-2. Header (тестовая cell): базовый блок `Usages` (`conventions`, `pybuggy-api`, `pybuggy-asserts`) +
-   `Annotations` из конфига; поверх него допустимы **cell-специфичные usages** инструментов
-   (`<ключ>: .goga/usages/cooks/<ключ>.md` — файл существует; backtick
-   `` `<ключ>` `` разрешается в контексте cell).
-3. Body: Routine без `methods`/`properties`; сигнатура `test_<name>(<fixture>: Endpoint, ...)` без output
-   (один параметр-фикстура на каждый вызываемый эндпоинт), `location: test_<name>.py`.
-4. Backtick-ссылки разрешаются в контексте CODEMANIFEST.
+1. Structure: Header → `---` → Body → `---` → Footer; case-sensitive keys.
+2. Header (test cell): contains the base `Usages` block (`conventions`, `pybuggy-api`, `pybuggy-asserts`) plus
+   `Annotations` from the config. Cell-specific tool usages may extend the base block:
+   `<key>: .goga/usages/cooks/<key>.md`, where the usage file exists and the backtick
+   `` `<key>` `` resolves within the cell context.
+3. Body: each Routine declares no `methods` and no `properties`. Each Routine signature is
+   `test_<name>(<fixture>: Endpoint, ...)` with no output — one fixture parameter per invoked endpoint —
+   and `location: test_<name>.py`.
+4. Every backtick reference resolves within the CODEMANIFEST context.
 5. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
-### Step 3. Coverage-проверка
+### Step 3. Coverage check
 
-Сравнить Routine в плане с кейсами из [CELLS_INTAKE] (один Routine может покрывать несколько кейсов):
+Compare the Routines in the plan against the test cases from [CELLS_INTAKE]. One Routine may cover several
+test cases:
 
-1. Каждый кейс покрыт — имеет хотя бы один Routine (напрямую или как вариант/параметр).
-2. Нет потерянных кейсов; каждый Routine восходит хотя бы к одному кейсу (нет висячих Routine без кейса).
-3. Имена Routine уникальны в пределах cell.
-4. Варианты параметризованной Routine (>1 кейса) укладываются в единую линейную последовательность
-   `Steps` — совпадающий состав шагов и проверок, различия только в значениях. Расходящиеся варианты в
-   одной Routine — ошибка плана (избыточная параметризация → `if` в теле материализуемого теста):
-   разделяй Routine на отдельные.
+1. Every test case is covered — each case has at least one Routine, directly or as a variant/parameter.
+2. No test case is lost; every Routine traces back to at least one case; no orphan Routine exists without
+   a case.
+3. Routine names are unique within each cell.
+4. The variants of a parameterized Routine (>1 case) fit a single linear `Steps` sequence: the variants share
+   the same steps and checks and differ only in values. Diverging variants inside one Routine are a plan error —
+   excessive parameterization would produce an `if` in the body of the materialized test. Split such a Routine
+   into separate Routines.
 
-### Step 4. Базовый блок
+### Step 4. Base block
 
-Убедиться, что **базовые** `Usages`/`Annotations` присутствуют и идентичны во всех тестовых cells (из конфига).
-Поверх базового блока допустимы **cell-специфичные usages** инструментов — их наличие в одних cell и отсутствие
-в других **не** расхождение. Каждый cell-спец usage-ключ указывает на существующий файл
-`.goga/usages/cooks/<ключ>.md` (несуществующий — ошибка плана).
+Verify that the **base** `Usages`/`Annotations` are present and identical across all test cells, as defined by
+the config. Cell-specific tool usages may extend the base block: their presence in some cells and absence in
+others is **not** a discrepancy. Every cell-specific usage key must point to an existing file
+`.goga/usages/cooks/<key>.md`; a missing file is a plan error.
 
-### Step 5. Исправить несоответствия
+### Step 5. Fix inconsistencies
 
-Исправить найденные ошибки напрямую в `docs/arch/<feature>.md` (только DSL-артефакты; без добавления
-новых требований/кейсов).
+Fix the detected errors directly in `docs/arch/<feature>.md` (DSL artifacts only; without adding new
+requirements or cases).
 
-### Step 6. WAIT — финальное approval
+### Step 6. WAIT — final approval
 
-Представить финальный (исправленный) план и [VERIFICATION_REPORT] пользователю, через `AskUserQuestion`
-получить подтверждение.
+Present the final (fixed) plan and the [VERIFICATION_REPORT] to the user; obtain confirmation
+via `AskUserQuestion`.
 
-### Step 7. Сформировать [VERIFICATION_REPORT]
+### Step 7. Produce the [VERIFICATION_REPORT]
 
 STOP if:
 
-- нерешённые DSL-ошибки после итерации;
-- провал coverage (кейсы потеряны или висячие Routine без кейса);
-- финальное approval denied.
+- DSL errors remain unresolved after the iteration;
+- the coverage check fails (test cases lost, or orphan Routines without a case);
+- the user denies final approval.
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are forbidden.
 
 ```md
 # [VERIFICATION_REPORT]
 
-## Результат DSL-валидации
+## DSL validation result
 
-[На каждую cell: PASS / список исправленных ошибок]
+[Per cell: PASS / list of fixed errors]
 
 ## Coverage
 
-[Покрытие: все кейсы покрыты напрямую или как вариант/параметр Routine; висячие Routine без кейса — да/нет; статус]
+[Coverage: all cases covered directly or as a Routine variant/parameter; orphan Routines without a case — yes/no; status]
 
-## Базовый блок
+## Base block
 
-[Статус: Usages/Annotations идентичны во всех cells / расхождения]
+[Status: Usages/Annotations identical across all cells / discrepancies]
 
-## Внесённые исправления
+## Applied fixes
 
-[Что исправлено в docs/arch/<feature>.md. Пусто, если ничего.]
+[What was fixed in docs/arch/<feature>.md. Empty if nothing.]
 
-## Финальный статус
+## Final status
 
-[PASS / FAIL + путь к утверждённому плану]
+[PASS / FAIL + path to the approved plan]
 ```

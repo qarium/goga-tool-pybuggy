@@ -1,50 +1,44 @@
-# python-dotenv — загрузка .env в os.environ (библиотека)
+# python-dotenv — loading .env into os.environ (library)
 
-## Предметная область
+## Domain
 
-`python-dotenv` — библиотека для чтения `.env`-файлов и применения переменных в `os.environ`. Используется корневой
-ячейкой `goga_tool_pybuggy/` для единой загрузки окружения CLI до запуска команды.
+`python-dotenv` is a library for reading `.env` files and applying their variables to `os.environ`. The root cell `goga_tool_pybuggy/` uses it to load the CLI environment uniformly before a command runs.
 
 ```python
 from dotenv import dotenv_values, load_dotenv
 ```
 
-Эта практика описывает только API `python-dotenv`. Как CLI применяет загрузку — в клеточной `.usages/assembly.md`
-корневой ячейки.
+This practice covers only the `python-dotenv` API. The root cell's `.usages/assembly.md` describes how the CLI applies the loading.
 
 ---
 
-## Применение .env в os.environ
+## Applying .env to os.environ
 
-`load_dotenv` читает файл и применяет пары key=value в `os.environ`. `override=False` (по умолчанию) — уже заданные в
-окружении переменные НЕ перезаписываются:
+`load_dotenv` reads the file and applies key=value pairs to `os.environ`. With `override=False` (the default), variables already present in the environment are NOT overwritten:
 
 ```python
 from dotenv import load_dotenv
 
-load_dotenv("./my.env")                  # применить в os.environ; override=False по умолчанию
-load_dotenv("./my.env", override=True)   # перезаписать существующие (НЕ используется в pybuggy)
-load_dotenv(".env")                      # неявный файл из CWD
+load_dotenv("./my.env")                  # apply to os.environ; override=False by default
+load_dotenv("./my.env", override=True)   # overwrite existing values (NOT used in pybuggy)
+load_dotenv(".env")                      # implicit file from CWD
 ```
 
-`load_dotenv` возвращает `True`, если файл найден и прочитан, и `False`, если файл отсутствует — это позволяет
-различать «явный файл обязан существовать» (отсутствие → ошибка) и «неявный .env опционален» (отсутствие → тихо).
+`load_dotenv` returns `True` when it finds and reads the file, and `False` when the file is absent — this distinguishes "an explicit file must exist" (absence → error) from "an implicit .env is optional" (absence → silent skip).
 
-## Чтение значений без побочных эффектов
+## Reading values without side effects
 
-`dotenv_values` возвращает `dict[str, str | None]` пар без записи в `os.environ` — удобно для формирования
-контекст-объекта (`EnvContext.values`) и контроля применения:
+`dotenv_values` returns a `dict[str, str | None]` of pairs without touching `os.environ` — convenient for building a context object (`EnvContext.values`) and controlling application:
 
 ```python
 from dotenv import dotenv_values
 
-values = dotenv_values("./my.env")   # dict key→value; KEY= → ''; голый ключ (без =) → None
+values = dotenv_values("./my.env")   # dict key→value; KEY= → ''; a bare key (no =) → None
 ```
 
-## Поведение и ограничения
+## Behavior and limitations
 
-- `override=False` (поведение pybuggy): переменные, уже заданные в окружении (shell/CI), не перезаписываются значениями из `.env`.
-- `KEY=` (с `=`, пустое значение) → `''` в `dotenv_values` (пустая строка, **не** `None`); голый ключ `KEY`
-  (без `=`) → `None` (единственный случай `None`); в `os.environ` обе формы задаются как `''`.
-- Комментарии (`# ...`) и пустые строки игнорируются; кавычки вокруг значений снимаются.
-- Файл читается как UTF-8.
+- `override=False` (pybuggy behavior): variables already set in the environment (shell/CI) keep their values; `.env` does not overwrite them.
+- `KEY=` (with `=`, empty value) → `''` in `dotenv_values` (an empty string, **not** `None`); a bare key `KEY` (no `=`) → `None` (the only `None` case); in `os.environ` both forms are set as `''`.
+- The parser ignores comments (`# ...`) and blank lines; quotes around values are stripped.
+- The library reads the file as UTF-8.

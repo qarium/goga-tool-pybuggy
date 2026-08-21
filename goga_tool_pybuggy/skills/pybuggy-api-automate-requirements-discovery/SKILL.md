@@ -1,152 +1,133 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-discovery
-description: Обнаружение и фильтрация эндпоинтов фичи, детект существующего покрытия тестами, кодогенерация
+description: Feature endpoint discovery and filtering, existing test coverage detection, code generation
 ---
 
 ## Identity
 
-Ты отвечаешь за обнаружение и отбор эндпоинтов тестируемого сервиса, релевантных фиче, и генерацию артефактов: фикстур,
-моделей запроса, схем ответов и каталогов под тесты.
+You are responsible for discovering and selecting the endpoints of the service under test that are relevant to the feature, and for generating the artifacts: fixtures, request models, response schemas, and test directories.
 
 ## User Interaction Rule
 
-На этапе отбора эндпоинтов всегда предлагай пользователю подтвердить выбор (2–4 варианта) до того, как генерировать
-артефакты.
+At the endpoint selection stage, always ask the user to confirm the selection (2–4 options) before generating any artifacts.
 
 ---
 
 ## Algorithm
 
-### Step 1. Скачать спецификации (pull)
+### Step 1. Pull specifications (pull)
 
-1. Выполнить: `goga tool pybuggy endpoint pull`.
-2. Спеки без блока `git:` (локальные) пропускаются со статусом WARNING — это нормально; зафиксировать статус каждой
-   spec.
-3. Зафиксировать скачанные `specs` и их `location`.
+1. Run: `goga tool pybuggy endpoint pull`.
+2. Specs without a `git:` block (local) are skipped with a WARNING status — this is normal; record the status of every spec.
+3. Record the pulled `specs` and their `location`.
 
-### Step 2. Скан usages проекта
+### Step 2. Scan project usages
 
-1. Рекурсивно перечислить `.goga/usages/` целевого проекта (`*.md`): базовые usages (`conventions` и др.) и
-   cooks-файлы (`.goga/usages/cooks/**`, включая подпапки вида `pybuggy/`).
-2. Для каждого файла зафиксировать: ключ (имя файла без `.md`, для вложенных — `<папка>-<имя>`),
-   путь, краткое назначение (из первых строк файла — предметная область, не пересказ целиком).
-3. Классифицировать по роли для тестирования: **runtime-референс** (как вызывать инструменты — напр.
-   `pybuggy-api`, `pybuggy-asserts`), **подготовка данных/моки/утилиты** (библиотеки дата-сетапа), **прочее**.
-4. Реестр попадает в §8 требований и далее используется этапом `testcases`: он выявляет потребности кейсов
-   и либо находит инструмент среди существующих usages, либо согласовывает новый (usage-файл создаётся там же).
-   Ничего не спрашивать у пользователя на этом шаге — это только скан.
+1. Recursively enumerate `.goga/usages/` in the target project (`*.md`): base usages (`conventions` and others) and cooks files (`.goga/usages/cooks/**`, including subdirectories such as `pybuggy/`).
+2. For each file, record: the key (file name without `.md`; for nested files, `<folder>-<name>`), the path, and a brief purpose (from the first lines of the file — the subject domain, not a full summary).
+3. Classify each file by its testing role: **runtime reference** (how to invoke the tools — e.g. `pybuggy-api`, `pybuggy-asserts`), **data setup / mocks / utilities** (data setup libraries), **other**.
+4. The usage registry feeds section §8 of the requirements and is consumed later by the `testcases` stage: that stage identifies the tool needs of the test cases and either finds a tool among the existing usages or negotiates a new one (the usage file is created at that stage). Ask the user nothing at this step — this step is a scan only.
 
-### Step 3. Перечислить эндпоинты (list)
+### Step 3. List endpoints (list)
 
-1. Выполнить: `goga tool pybuggy endpoint list` (или с `-s/--spec`, если область уже ограничена одной spec).
-2. Вывод — строки вида `* <endpoint-id> -> [METHOD] <path>`.
-3. Составить полный реестр эндпоинтов (endpoint-id, spec, method, path).
+1. Run: `goga tool pybuggy endpoint list` (or with `-s/--spec` if the scope is already limited to one spec).
+2. The output consists of lines of the form `* <endpoint-id> -> [METHOD] <path>`.
+3. Build the complete endpoint registry (endpoint-id, spec, method, path).
 
-### Step 4. Отфильтровать по фиче
+### Step 4. Filter endpoints by feature
 
-1. По Feature Intake Report сопоставить эндпоинты с фичей (по пути, имени, описанию).
-2. Учесть цепочки: фича может требовать несколько эндпоинтов (например, инициация действия + проверка статуса по `id`).
-3. При нескольких `specs` — определить, к какой spec относится каждый релевантный эндпоинт.
+1. Match the endpoints to the feature using the Feature Intake Report (by path, name, description).
+2. Account for chains: a feature may require several endpoints (for example, action initiation plus a status check by `id`).
+3. When several `specs` exist, determine which spec each relevant endpoint belongs to.
 
-### Step 5. Обнаружить существующее покрытие тестов
+### Step 5. Detect existing test coverage
 
-1. Выполнить `goga schema tests/` (или `goga schema`) в целевом проекте. Вывод — JSON-дерево: каждая cell
-   `tests/<spec>/<id>/` с полем `types` (имена Routine/Entity).
-2. Для каждого отфильтрованного эндпоинта `<spec>/<endpoint-id>` найти его Routine: cell может называться
-   по endpoint-id (`tests/<spec>/<endpoint-id>/`) или объединять несколько эндпоинтов — ищи по всему выводу
-   `goga schema` cells, чьи `test_*` Routine ссылаются на фикстуру этого эндпоинта (`api/<spec>/<endpoint-id>/api.py`).
-   Найденные Routine — существующие покрытые кейсы.
-3. Для каждой существующей `test_*` Routine прочитать аннотацию в CODEMANIFEST её cell и
-   зафиксировать:
-    - имя Routine (`test_<name>`);
-    - тип (Flow / Positive / Negative) и краткую суть из `Purpose` / `Precondition:` / `Data:` / `Steps:`.
-4. Зафиксировать статус покрытия по каждому эндпоинту:
-    - **не покрыт** — Routine эндпоинта не найдены;
-    - **частично покрыт** — часть ожидаемых сценариев представлена Routine; перечислить существующие `test_*` Routine;
-    - **полностью покрыт** — все ожидаемые сценарии эндпоинта уже представлены Routine.
-5. Зафиксировать смежные cells для референса: соседние `tests/<spec>/...` из `goga schema` с готовыми паттернами
-   дата-сетапа / lib-usages / моков.
+1. Run `goga schema tests/` (or `goga schema`) in the target project. The output is a JSON tree: every cell `tests/<spec>/<id>/` carries a `types` field (Routine/Entity names).
+2. For every filtered endpoint `<spec>/<endpoint-id>`, find its Routine: a cell may be named after the endpoint-id (`tests/<spec>/<endpoint-id>/`), or one cell may combine several endpoints — search the entire `goga schema` output for cells whose `test_*` Routines reference the fixture of this endpoint (`api/<spec>/<endpoint-id>/api.py`). The Routines found are the existing covered test cases.
+3. For every existing `test_*` Routine, read the annotation in the CODEMANIFEST of its cell and record:
+    - the Routine name (`test_<name>`);
+    - the type (Flow / Positive / Negative) and a brief summary from `Purpose` / `Precondition:` / `Data:` / `Steps:`.
+4. Record the coverage status of every endpoint:
+    - **not covered** — no Routines of the endpoint are found;
+    - **partially covered** — some of the expected scenarios are represented by Routines; list the existing `test_*` Routines;
+    - **fully covered** — all expected scenarios of the endpoint are already represented by Routines.
+5. Record the adjacent cells for reference: neighboring `tests/<spec>/...` cells from `goga schema` with ready data setup patterns / lib-usages / mocks.
 
-### Step 6. Подтвердить отбор у пользователя
+### Step 6. Confirm the selection with the user
 
-1. Показать отобранные эндпоинты: id, method, path, предполагаемая роль в фиче **и статус покрытия**
-   (не покрыт / частично покрыт с перечнем существующих Routine / полностью покрыт).
-2. Для полностью покрытых эндпоинтов предложить исключить их из дальнейшей генерации (переиспользовать
-   существующие тесты), если пользователь согласен.
-3. Через AskUserQuestion предложить: подтвердить / дополнить / сузить выбор / исключить уже покрытые.
+1. Present the selected endpoints: id, method, path, the intended role in the feature, **and the coverage status** (not covered / partially covered with the list of existing Routines / fully covered).
+2. For fully covered endpoints, offer to exclude them from further generation (the existing tests are reused), subject to user agreement.
+3. Offer the choice via AskUserQuestion: confirm / extend / narrow the selection / exclude the already covered endpoints.
 
-### Step 7. Извлечь детали (info)
+### Step 7. Extract endpoint details (info)
 
-Для каждого подтверждённого эндпоинта:
+For every confirmed endpoint:
 
-1. Выполнить: `goga tool pybuggy endpoint info <endpoint-id>`.
-2. Распарсить JSON: `Method`, `Path`, `Request`, `Response`, `QueryParams`, `Description`.
-3. Зафиксировать контракты: тело запроса (`Request`), коды и схемы ответов (`Response`), параметры (`QueryParams` /
-   path-параметры), описание.
+1. Run: `goga tool pybuggy endpoint info <endpoint-id>`.
+2. Parse the JSON: `Method`, `Path`, `Request`, `Response`, `QueryParams`, `Description`.
+3. Record the contracts: the request body (`Request`), the response codes and schemas (`Response`), the parameters (`QueryParams` / path parameters), and the description.
 
-### Step 8. Сгенерировать артефакты (generate)
+### Step 8. Generate artifacts (generate)
 
-1. Выполнить: `goga tool pybuggy endpoint generate <endpoint-id> [<endpoint-id> ...] -f` для эндпоинтов,
-   оставленных в отборе (в т.ч. частично покрытых — их `api/`-фикстуры обновляются по спеке; полностью покрытые
-   можно пропустить, если пользователь решил их исключить).
-2. Зафиксировать пути созданных артефактов:
-    - фикстура: `api/<spec>/<endpoint-id>/api.py` (имя фикстуры, импортируемая модель `Request`);
-    - схемы: `api/<spec>/<endpoint-id>/schemas/<status>.json`;
-    - каталог тестов: `tests/<spec>/<endpoint-id>/`.
-3. После генерации убедиться, что существующие `tests/<spec>/<endpoint-id>/CODEMANIFEST` и их Routine сохранены.
+1. Run: `goga tool pybuggy endpoint generate <endpoint-id> [<endpoint-id> ...] -f` for the endpoints kept in the selection (including partially covered ones — their `api/` fixtures are updated from the spec; fully covered ones can be skipped if the user decided to exclude them).
+2. Record the paths of the created artifacts:
+    - fixture: `api/<spec>/<endpoint-id>/api.py` (fixture name, importable `Request` model);
+    - schemas: `api/<spec>/<endpoint-id>/schemas/<status>.json`;
+    - test directory: `tests/<spec>/<endpoint-id>/`.
+3. After generation, verify that the existing `tests/<spec>/<endpoint-id>/CODEMANIFEST` files and their Routines remain intact.
 
-### Step 9. Сформировать [DISCOVERY_REPORT]
+### Step 9. Assemble the [DISCOVERY_REPORT]
 
 STOP if:
 
-- `pull` завершился ошибкой и спецификации отсутствуют локально;
-- `list` вернул пустой результат;
-- фильтр по фиче дал 0 эндпоинтов;
-- пользователь не подтвердил ни один эндпоинт;
-- `generate` завершился ошибкой (например, `endpoint-id` не найден в spec).
+- `pull` failed and the specifications are unavailable locally;
+- `list` returned an empty result;
+- filtering by feature produced 0 endpoints;
+- the user confirmed no endpoint;
+- `generate` failed (for example, the `endpoint-id` is not found in the spec).
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are prohibited.
 
 ```md
 # [DISCOVERY_REPORT]
 
-## Спеки (pull)
+## Specs (pull)
 
-[Таблица: spec | location | источник (git/локальная) | статус pull]
+[Table: spec | location | source (git/local) | pull status]
 
-## Usages проекта (скан .goga/usages/)
+## Project usages (.goga/usages/ scan)
 
-[Таблица: ключ | путь | роль (runtime-референс / данные-моки-утилиты / прочее) | краткое назначение.
-Если .goga/usages/ отсутствует или пуст — указать «usages отсутствуют».]
+[Table: key | path | role (runtime reference / data-mocks-utilities / other) | brief purpose.
+If .goga/usages/ is missing or empty — state "usages are missing".]
 
-## Реестр эндпоинтов (list)
+## Endpoint registry (list)
 
-[Таблица: endpoint-id | spec | method | path — весь список]
+[Table: endpoint-id | spec | method | path — the complete list]
 
-## Отобранные эндпоинты фичи
+## Selected feature endpoints
 
-[Таблица: endpoint-id | spec | method | path | роль в фиче (инициатор/проверка/побочный) | статус покрытия
-(не покрыт / частично / полностью)]
+[Table: endpoint-id | spec | method | path | role in the feature (initiator/verification/side-effect) | coverage status
+(not covered / partial / full)]
 
-## Существующее покрытие
+## Existing coverage
 
-[Таблица: endpoint-id | статус (не покрыт / частично / полностью) | существующие test_* Routine
-(имя → тип Flow/Positive/Negative, краткая суть) | смежные cells для референса (паттерны дата-сетапа / lib-usages / моки)]
-Если ни один эндпоинт не покрыт — указать «покрытие отсутствует».
+[Table: endpoint-id | status (not covered / partial / full) | existing test_* Routines
+(name → Flow/Positive/Negative type, brief summary) | adjacent cells for reference (data setup patterns / lib-usages / mocks)]
+If no endpoint is covered — state "no coverage".]
 
-## Детали эндпоинтов (info)
+## Endpoint details (info)
 
-[На каждый эндпоинт: Request (тело) | QueryParams/path-параметры | Response (коды и схемы) | Description]
+[Per endpoint: Request (body) | QueryParams/path parameters | Response (codes and schemas) | Description]
 
-## Сгенерированные артефакты
+## Generated artifacts
 
-[Таблица: endpoint-id | api.py (путь, имя фикстуры, модель Request) | schemas (коды) | каталог tests/]
+[Table: endpoint-id | api.py (path, fixture name, Request model) | schemas (codes) | tests/ directory]
 
-## Замечания
+## Notes
 
-[Локальные спеки без git, предупреждения о существующих артефактах и т.п. Пусто, если нет.]
+[Local specs without git, warnings about existing artifacts, etc. Empty if none.]
 ```

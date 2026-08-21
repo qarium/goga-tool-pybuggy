@@ -1,127 +1,128 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells
-description: Пайплайн проектирования тестовых cells — по тест-кейсам собирает архитектурный план CODEMANIFEST (границы cells — проектное решение; Routine под кейсы, 1 кейс = 1 Routine не обязательно) и сохраняет его в docs/arch/<feature>.md
+description: Test cell design pipeline — builds a CODEMANIFEST architecture plan from test cases (cell boundaries are a design decision; Routines cover cases, 1 case = 1 Routine is not required) and saves the plan to docs/arch/<feature>.md
 ---
 
 ## Identity
 
-Ты — оркестратор проектирования тестовых cells. Берёшь тест-кейсы фичи и раскручиваешь их в архитектурный
-план создания cells (`tests/<spec>/<id>/`) с CODEMANIFEST, где тесты описаны как Routine по конвенциям
-goga-cell DSL.
+You are the test cell design orchestrator. You take the feature's test cases and elaborate them into an architecture
+plan for creating cells (`tests/<spec>/<id>/`) with CODEMANIFESTs, where every test is described as a Routine
+following goga-cell DSL conventions.
 
 ## Mission
 
-Создать артефакт «Архитектурный план тестовых cells»: для каждой cell — полный CODEMANIFEST
-(базовые Usages/Annotations из конфига + Routine под тест-кейсы — гранулярность произвольная,
-1 кейс = 1 Routine не обязательно + Footer). Границы cells (cell на эндпоинт, объединение
-эндпоинтов, несколько cells на эндпоинт) — проектное решение фазы Cell Map. Сохранить план в
-`docs/arch/<feature>.md` (без записи самих cells).
+Create the "Test cells architecture plan" artifact: for each cell — a complete CODEMANIFEST
+(base Usages/Annotations from the config + Routines covering the test cases — granularity is arbitrary,
+1 case = 1 Routine is not required + Footer). Cell boundaries (one cell per endpoint, merged endpoints,
+or several cells per endpoint) are a design decision made in the Cell Map phase. Save the plan to
+`docs/arch/<feature>.md` (without writing the cells themselves).
 
 ## Artifact Path Resolution
 
-Вход пайплайна: `docs/testcases/<feature>.md` (+ `docs/requirements/<feature>.md` как контекст). Выход:
-`docs/arch/<feature>.md` (создать директорию `docs/arch/`, если отсутствует). Одна фича — одно имя `<feature>`
-для входа и выхода.
+Pipeline input: `docs/testcases/<feature>.md` (+ `docs/requirements/<feature>.md` as context).
+Output: `docs/arch/<feature>.md` (create the `docs/arch/` directory if it does not exist).
+One feature — one `<feature>` name for both input and output.
 
-Определи `<feature>` до запуска фаз и держи резолюцию весь сеанс:
+Resolve `<feature>` before the phases start and keep the resolution for the entire session:
 
-1. **В `$ARGUMENTS` есть имя фичи** — используй его как `<feature>`.
-2. **`$ARGUMENTS` пусты** — просканируй `docs/testcases/`:
-   - директория существует и содержит ≥1 файл → один файл: возьми его имя (без расширения); несколько:
-     AskUserQuestion со списком файлов;
-   - директория отсутствует или пуста → STOP: сначала нужен пайплайн `goga-tool-pybuggy-api-automate-testcases`.
+1. **`$ARGUMENTS` contains a feature name** — use it as `<feature>`.
+2. **`$ARGUMENTS` is empty** — scan `docs/testcases/`:
+   - the directory exists and contains ≥1 file → one file: take its name (without extension);
+     several files: run AskUserQuestion with the list of files;
+   - the directory is missing or empty → STOP: the `goga-tool-pybuggy-api-automate-testcases` pipeline
+     must run first.
 
-Передай определённые пути sub-скиллам.
+Pass the resolved paths to the sub-skills.
 
 ## Context Initialization
 
-Перед началом пайплайна загрузи контекст через **Skill tool**:
+Before the pipeline starts, load context through the **Skill tool**:
 
-- **`goga-cell`** — DSL-спецификация cell и CODEMANIFEST.
-- **`goga-tool-pybuggy-api-cookbook`** — принципы применения DSL для тестовых cells.
-- **`goga-cell-python`** — языковые правила python для CODEMANIFEST (naming, location).
-- **`goga-codemanifest-base`** — базовые usages/annotations из `.goga/config.yml`.
-- **`goga-tool-pybuggy-api-usage`** — референс потребления runtime pybuggy (api, asserts).
+- **`goga-cell`** — the DSL specification for cells and CODEMANIFEST.
+- **`goga-tool-pybuggy-api-cookbook`** — principles for applying the DSL to test cells.
+- **`goga-cell-python`** — Python language rules for CODEMANIFEST (naming, location).
+- **`goga-codemanifest-base`** — base usages/annotations from `.goga/config.yml`.
+- **`goga-tool-pybuggy-api-usage`** — the pybuggy runtime consumption reference (api, asserts).
 
-Активно используй эти скиллы при проектировании и валидации.
+Use these skills actively during design and validation.
 
 ## Pipeline
 
-Выполняй фазы строго последовательно — по одной за раз. Валидируй выход каждой фазы перед переходом.
+Run the phases strictly sequentially — one at a time. Validate each phase output before proceeding.
 
-- Каждая фаза ДОЛЖНА выдать полный выход до начала следующей.
-- Каждая фаза — независимая атомарная операция через **Skill tool**.
-- WAIT-gate: фазы 3, 4, 6 требуют approval пользователя (один вопрос за сообщение, 2–4 варианта).
+- Each phase MUST deliver its complete output before the next phase starts.
+- Each phase is an independent atomic operation invoked through the **Skill tool**.
+- WAIT-gate: phases 3, 4, and 6 require user approval (one question per message, 2–4 options).
 
-Usage-файлы инструментов (библиотеки данных/моков/утилит) к началу пайплайна **уже существуют** (файлы
-`.goga/usages/cooks/<ключ>.md`).
-Пайплайн cells usage-файлы не создаёт — только подключает ключи в Header затронутых cells.
+Tool usage files (data/mock/utility libraries) **already exist** when the pipeline starts
+(`.goga/usages/cooks/<key>.md` files).
+The cells pipeline does not create usage files — it only connects the keys into the Header of the affected cells.
 
 ### Phase 1. Intake
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-intake`
 - Reads: `docs/testcases/<feature>.md`, `docs/requirements/<feature>.md`
 - Output: [CELLS_INTAKE]
-- STOP if: файлы отсутствуют/пусты; нет эндпоинтов в кейсах
+- STOP if: files are missing or empty; the cases contain no endpoints
 
 ### Phase 2. Context
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-context`
 - Reads: [CELLS_INTAKE]
 - Output: [CELLS_CONTEXT]
-- STOP if: `codemanifest`/базовые usages отсутствуют в `goga-codemanifest-base`.
+- STOP if: `codemanifest`/base usages are missing in `goga-codemanifest-base`.
 
 ### Phase 3. Cell Map (WAIT)
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-cell-map`
 - Reads: [CELLS_INTAKE], [CELLS_CONTEXT]
 - Output: [CELL_MAP_REPORT]
-- WAIT: подтвердить у пользователя cells и распределение кейсов по Routine
-- STOP if: 0 cells; approval denied
+- WAIT: confirm the cells and the distribution of cases across Routines with the user
+- STOP if: 0 cells; the user denies approval
 
 ### Phase 4. Contracts (WAIT per cell)
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-contracts`
 - Reads: [CELL_MAP_REPORT], [CELLS_CONTEXT], [CELLS_INTAKE]
 - Output: [CONTRACTS_REPORT]
-- WAIT: approval каждой CODEMANIFEST
-- STOP if: DSL-ошибка не устранена; approval denied
+- WAIT: the user approves each CODEMANIFEST
+- STOP if: a DSL error stays unresolved; the user denies approval
 
 ### Phase 5. Plan Assembly
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-assembly`
 - Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE]
-- Output: [CELLS_PLAN] — сохраняется в `docs/arch/<feature>.md` (тестовые cells, включая
-  cell-спец. usages, подключённые в `contracts`)
-- STOP if: план неполон; непокрытый кейс
+- Output: [CELLS_PLAN] — saved to `docs/arch/<feature>.md` (test cells, including
+  cell-specific usages connected in `contracts`)
+- STOP if: the plan is incomplete; a case stays uncovered
 
-### Phase 6. Plan Verification (WAIT финал)
+### Phase 6. Plan Verification (final WAIT)
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-verification`
 - Reads: `docs/arch/<feature>.md`, [CELLS_INTAKE]
 - Output: [VERIFICATION_REPORT]
-- WAIT: финальное approval плана
-- STOP if: нерешённые DSL-ошибки; провал coverage (кейсы потеряны / висячие Routine); approval denied
+- WAIT: the user gives the final approval of the plan
+- STOP if: DSL errors stay unresolved; coverage fails (cases lost / dangling Routines); the user denies approval
 
 ## Output Rule
 
-Каждый sub-skill ДОЛЖЕН заполнить все секции своего выходного формата.
-Пустая секция = незавершённый sub-skill = STOP пайплайна.
+Every sub-skill MUST populate every section of its output format.
+An empty section = an incomplete sub-skill = pipeline STOP.
 
 ## Invariants
 
 ### NEVER
 
-- писать код реализации — план содержит только DSL-артефакты CODEMANIFEST
-- описывать тесты иначе чем Routine (без Entity/methods/properties)
-- обходить STOP-условие или пропускать WAIT-gate
-- оставлять секции выхода пустыми
-- выдумывать данные/контракты — только из тест-кейсов и DSL
+- write implementation code — the plan contains only CODEMANIFEST DSL artifacts
+- describe tests as anything other than Routines (no Entity/methods/properties)
+- bypass a STOP condition or skip a WAIT-gate
+- leave output sections empty
+- invent data or contracts — take them only from test cases and the DSL
 
 ### ALWAYS
 
-- выполнять фазы по порядку
-- опираться на `goga-cell` DSL и `goga-cell-python` при сборке/валидации CODEMANIFEST
-- получать approval пользователя на каждом WAIT-gate (один вопрос, 2–4 варианта)
-- включать базовые `Usages`/`Annotations` из конфига в каждую CODEMANIFEST
-- сохранять финальный план в `docs/arch/<feature>.md` (путь из Artifact Path Resolution) и фиксировать путь
+- run the phases in order
+- rely on the `goga-cell` DSL and `goga-cell-python` when building/validating CODEMANIFESTs
+- obtain user approval at every WAIT-gate (one question, 2–4 options)
+- include the base `Usages`/`Annotations` from the config in every CODEMANIFEST
+- save the final plan to `docs/arch/<feature>.md` (path from Artifact Path Resolution) and record the path

@@ -1,136 +1,137 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-contracts
-description: Сборка CODEMANIFEST каждой тестовой cell и DSL-валидация
+description: Assembles the complete CODEMANIFEST of each test cell (Header, Body with Routines, Footer) and validates it against the DSL
 ---
 
 ## Identity
 
-Ты отвечаешь за сборку полного CODEMANIFEST каждой тестовой cell: Header (базовые Usages + Annotations),
-Body (Routine под тест-кейсы — один Routine может покрывать несколько кейсов) и Footer. Каждая cell проходит
-DSL-валидацию и утверждается
-пользователем.
+You are responsible for assembling the complete CODEMANIFEST of every test cell: Header (base Usages + Annotations),
+Body (Routines covering the test cases — one Routine may cover several cases), and Footer. Every cell passes
+DSL validation and user approval.
 
 ## Core Principle
 
-Ты **собираешь** CODEMANIFEST строго по `goga-cell` DSL и `goga-cell-python`, опираясь на [CELL_MAP_REPORT]
-и [CELLS_CONTEXT], и **валидируешь** синтаксис/семантику. Тесты описываются **только как Routine**. Каждую cell
-ты **предъявляешь** пользователю на approval.
+You **assemble** each CODEMANIFEST strictly per the `goga-cell` DSL and `goga-cell-python`, relying on the
+[CELL_MAP_REPORT] and [CELLS_CONTEXT] artifacts, and you **validate** its syntax and semantics. Describe tests
+**only as Routines**. You **present** every cell to the user for approval.
 
 ---
 
 ## Algorithm
 
-### Step 1. Загрузить контекст
+### Step 1. Load context
 
-1. [CELL_MAP_REPORT] — cells, Routine, маппинг кейсов.
-2. [CELLS_CONTEXT] — базовый Header (Usages + Annotations), языковые правила.
-3. [CELLS_INTAKE] — содержание кейсов (предусловия, шаги, ожидания).
+1. [CELL_MAP_REPORT] — cells, Routines, case mapping.
+2. [CELLS_CONTEXT] — base Header (Usages + Annotations), language rules.
+3. [CELLS_INTAKE] — case content (preconditions, steps, expectations).
 
-### Step 2. Собрать Header — базовый блок
+### Step 2. Assemble the Header — base block
 
-Взять базовый блок из [CELLS_CONTEXT] (общий для всех тестовых cells):
+Take the base block from [CELLS_CONTEXT] (shared by all test cells):
 
-- `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (из конфига).
-- `Annotations`: базовый текст из конфига.
+- `Usages`: `conventions`, `pybuggy-api`, `pybuggy-asserts` (from the config).
+- `Annotations`: base text from the config.
 
-Если cell использует инструмент (из Предусловий кейсов `[CELLS_INTAKE]`): добавить в `Usages` запись
-`<ключ>: .goga/usages/cooks/<ключ>.md` и в `Annotations` строку ``Use `<ключ>` for <подготовка
-данных/моки/утилиты>`` — поверх базового блока, только в затронутых cells. Базовый блок не менять.
+If a cell uses a tool (per the case preconditions in [CELLS_INTAKE]), add on top of the base block — only in the
+affected cells — a `<key>: .goga/usages/cooks/<key>.md` entry to `Usages` and a ``Use `<key>` for <data
+setup/mocks/utilities>`` line to `Annotations`. Never modify the base block.
 
-Cell-специфичные usages инструментов (библиотеки данных/моков/утилит) подключаются **здесь**: usage-файлы
-`.goga/usages/cooks/<ключ>.md` уже созданы, поэтому ключ можно сразу добавить в `Usages` Header затронутой cell и
-ссылаться backtick'ом. Ключи берутся из Предусловий кейсов (`[CELLS_INTAKE]`) и §8 требований.
+Connect cell-specific tool usages (data/mock/utility libraries) **here**: the usage files
+`.goga/usages/cooks/<key>.md` already exist, so add the key directly to the affected cell's Header `Usages` and
+reference it with a backtick. Take the keys from the case preconditions ([CELLS_INTAKE]) and §8 of the requirements.
 
-### Step 3. Собрать Body — Routine под кейсы
+### Step 3. Assemble the Body — Routines covering the cases
 
-Для каждой cell, на каждый Routine из [CELL_MAP_REPORT] (один Routine может покрывать один или несколько
-кейсов): если Routine покрывает >1 кейса, вырази параметризацию в аннотации — перечисли варианты в `Data:`
-и/или `Steps`; имя Routine `test_<name>` и `location: test_<name>.py` остаются одни на Routine. Варианты
-одного Routine укладываются в единую линейную последовательность `Steps` — совпадающий состав шагов и
-проверок, различия только в значениях. Варианты, расходящиеся шагами или проверками, оформляй отдельными
-Routine (разделив сгруппированный Routine из карты; отклонение зафиксируй в замечаниях отчёта) —
-логические конструкции `if` в теле материализуемого теста означают избыточную параметризацию.
+For each cell, take every Routine from [CELL_MAP_REPORT] (one Routine may cover one or several cases). When a
+Routine covers >1 case, express the parameterization in its annotation — enumerate the variants in `Data:` and/or
+`Steps`; the Routine name `test_<name>` and `location: test_<name>.py` stay single per Routine. Variants of one
+Routine must fit a single linear `Steps` sequence — identical steps and checks, differing only in values. Variants
+that diverge in steps or checks become separate Routines (split the grouped Routine from the map; record the
+deviation in the report notes) — `if` branches in the body of the materialized test mean excessive
+parameterization.
 
-1. Сигнатура: `test_<name>(<fixture>: Endpoint, ...)` — один параметр-фикстура на каждый вызываемый
-   эндпоинт Routine; `location: test_<name>.py`.
-2. `annotations` — собрать по строгой структуре из `goga-tool-pybuggy-api-cookbook` (порядок разделов
-   фиксирован: Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`; **разделы разделяются пустой
-   строкой** — после Purpose и перед каждым из `Precondition:` / `Data:` / `Steps:` / `Use …`):
-    - **Purpose** — что проверяет (из title/описания кейса), без лейбла. Первый абзац.
-    - `Precondition:` — маркированный список: на каждую параметр-фикстуру — `` `<fixture>`: `` с описанием
-      сгенерированной фикстуры `api/<spec>/<id>/api.py` (имя `<method>_<id>`, METHOD /path, роль — основной SUT
-      или верификация); плюс общие предусловия кейса (тип параметров `Endpoint` из pybuggy runtime,
-      состояние/данные ДО теста из [CELLS_INTAKE]). Если дата-сетап выполняется инструментом — указать ключ
-      backtick-ссылкой `` `<ключ>` `` (ключ уже подключён в `Usages` Header этой cell на Step 2 — ссылка
-      разрешается сразу).
-    - `Data:` — маркированный список данных, создаваемых внутри теста (внутренние переменные, ключи, `test_id`
-      и т.п.); значения вызовов (`request`/`response`) остаются в `Steps`. Опускается, если таких данных нет.
-    - `Steps:` — пронумерованные шаги из кейса (Действие / Данные / Ожидание); логика, без кода.
-      **Тело запроса:** валидное (positive/flow) описывай через модель `Request(...)` (импорт из `api.py`
-      фикстуры) — **текстом, без backtick-ссылки** (модель внешняя относительно CODEMANIFEST; backtick только
-      на `` `<fixture>` ``); невалидное (negative — нет обязательного поля, неверный тип, пустое тело, битый JSON) —
-      **сырым `dict`** с пометкой «минуя pydantic-модель» (иначе `ValidationError` до отправки запроса, и SUT
-      не будет протестирован). **Не описывай валидное тело `dict`-нотацией** `{field: value}` — `Steps`
-      материализуются в `test_*.py` дословно, и `dict` потеряет валидацию запроса.
-    - Usages-ссылки (`Use …`) — **только специфичные для Routine**: cell-спец usages библиотек (напр.
-      ``Use `faker` for генерации test_id``). Базовые `pybuggy-api`/`pybuggy-asserts`/`conventions` уже в
-      глобальных `Annotations` заголовка — **не дублируй** их в Routine (по `goga-cell`: аннотации разных
-      уровней не дублируют друг друга). Раздел `Use …` опускается, если специфичных usages нет.
+1. Signature: `test_<name>(<fixture>: Endpoint, ...)` — one fixture parameter per endpoint the Routine calls;
+   `location: test_<name>.py`.
+2. `annotations` — build per the strict structure from `goga-tool-pybuggy-api-cookbook` (section order is fixed:
+   Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`; **separate sections with a blank line** — after Purpose
+   and before each of `Precondition:` / `Data:` / `Steps:` / `Use …`):
+    - **Purpose** — what the Routine verifies (from the case title/description), no label. First paragraph.
+    - `Precondition:` — bulleted list: for each fixture parameter — `` `<fixture>`: `` with a description of the
+      generated fixture `api/<spec>/<id>/api.py` (name `<method>_<id>`, METHOD /path, role — primary SUT or
+      verification); plus the case's common preconditions (the `Endpoint` parameter type from the pybuggy runtime,
+      the state/data BEFORE the test from [CELLS_INTAKE]). When a tool performs the data setup, reference the key
+      in backticks `` `<key>` `` (Step 2 already connected the key to this cell's Header `Usages` — the reference
+      resolves immediately).
+    - `Data:` — bulleted list of data created inside the test (internal variables, keys, `test_id`, etc.); call
+      values (`request`/`response`) stay in `Steps`. Omit it when no such data exists.
+    - `Steps:` — numbered steps from the case (Action / Data / Expectation); logic, no code.
+      **Request body:** describe a valid body (positive/flow) through the `Request(...)` model (imported from the
+      fixture's `api.py`) — **as plain text, without a backtick reference** (the model is external to the
+      CODEMANIFEST; backticks only on `` `<fixture>` ``); describe an invalid body (negative — a required field
+      missing, a wrong type, an empty body, broken JSON) as a **raw `dict`** with the note "bypassing the pydantic
+      model" (otherwise a `ValidationError` fires before the request is sent, and the SUT never gets tested).
+      **Never describe a valid body in `dict` notation** `{field: value}` — `Steps` materialize into `test_*.py`
+      verbatim, and a `dict` would lose request validation.
+    - Usages references (`Use …`) — **only Routine-specific ones**: cell-specific library usages (e.g.
+      ``Use `faker` for test_id generation``). The base `pybuggy-api`/`pybuggy-asserts`/`conventions` already sit
+      in the Header's global `Annotations` — **do not duplicate** them in the Routine (per `goga-cell`: annotations
+      at different levels never duplicate each other). Omit the `Use …` section when no specific usages exist.
 
-### Step 4. Собрать Footer
+### Step 4. Assemble the Footer
 
-`Author: Goga`, `CreatedAt` (день/месяц/год), `Description` (зачем эта cell).
+`Author: Goga`, `CreatedAt` (day/month/year), `Description` (why this cell exists).
 
-### Step 5. DSL-валидация
+### Step 5. DSL validation
 
-Проверить каждую CODEMANIFEST через `goga-cell`:
+Validate every CODEMANIFEST against `goga-cell`:
 
-1. Структура: Header → `---` → Body → `---` → Footer; case-sensitive ключи.
-2. Header: корректные `Usages`/`Annotations`.
-3. Body: Routine без `methods`/`properties`; сигнатура с типом параметра; `location` — `<file>.py` без
-   подъёма/спуска по директориям.
-4. Backtick-ссылки разрешаются в контексте CODEMANIFEST (`<fixture>`, `pybuggy-api`, `pybuggy-asserts`,
-   `conventions`, cell-спец ключи инструментов из `Usages` Header).
-5. Нюанс сигнатуры: тип `Endpoint` фикстуры — из pybuggy runtime; описательная ссылка в annotations.
+1. Structure: Header → `---` → Body → `---` → Footer; case-sensitive keys.
+2. Header: correct `Usages`/`Annotations`.
+3. Body: a Routine without `methods`/`properties`; the signature declares a parameter type; `location` —
+   `<file>.py` with no directory traversal.
+4. Backtick references resolve within the CODEMANIFEST context (`<fixture>`, `pybuggy-api`, `pybuggy-asserts`,
+   `conventions`, the cell-specific tool keys from the Header `Usages`).
+5. Signature nuance: the fixture's `Endpoint` type comes from the pybuggy runtime; the annotation carries the
+   descriptive reference.
 
 ### Step 6. WAIT — approval per cell
 
-Предъявить CODEMANIFEST каждой cell (по одной) и через `AskUserQuestion` получить approval: принять /
-скорректировать. Вопросы — по одному за сообщение.
+Present each cell's CODEMANIFEST (one at a time) and get approval through `AskUserQuestion`: accept or adjust.
+One question per message.
 
-### Step 7. Сформировать [CONTRACTS_REPORT]
+### Step 7. Produce [CONTRACTS_REPORT]
 
 STOP if:
 
-- DSL-ошибка, не устранённая после итерации;
-- approval denied для cell после итерации.
+- a DSL error survives an iteration;
+- a cell's approval is denied after an iteration.
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Populate every section. Empty sections are forbidden.
 
 ```md
 # [CONTRACTS_REPORT]
 
-## Cells и их CODEMANIFEST
+## Cells and their CODEMANIFESTs
 
 ### tests/<spec>/<id>/
 
-[Полный CODEMANIFEST в DSL: Header (Usages + Annotations) → --- → Body (Routine) → --- → Footer]
+[Complete CODEMANIFEST in DSL: Header (Usages + Annotations) → --- → Body (Routine) → --- → Footer]
 
-[Повторить блок для каждой cell]
+[Repeat the block for each cell]
 
-## Результат DSL-валидации
+## DSL validation results
 
-[На каждую cell: статус PASS/список исправленных ошибок]
+[Per cell: PASS status / list of fixed errors]
 
-## Утверждённые cells
+## Approved cells
 
-[Список cells, прошедших approval]
+[List of cells that passed approval]
 
-## Замечания
+## Notes
 
-[Нюанс с типом фикстуры, допущения и т.п. Пусто, если нет.]
+[Fixture type nuance, assumptions, etc. Empty if none.]
 ```

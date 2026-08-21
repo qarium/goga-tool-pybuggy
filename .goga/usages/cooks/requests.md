@@ -1,10 +1,10 @@
 # requests
 
-Библиотека HTTP для Python. matchcrest использует её напрямую (не через resq) в двух местах.
+An HTTP library for Python. matchcrest uses it directly (not through resq) in two places.
 
-## Коды статусов — requests.codes
+## Status codes — requests.codes
 
-`requests.codes` — реестр имён HTTP-кодов; доступ по имени возвращает числовой код.
+`requests.codes` is a registry of HTTP code names; access by name returns the numeric code.
 
 ```python
 import requests
@@ -13,10 +13,9 @@ requests.codes["ok"]          # 200
 requests.codes["not_found"]   # 404
 ```
 
-Используется в `matchcrest.matchers.response.ResponseCodeMatcher` — принимает имя кода
-строкой и резолвит его в число через `requests.codes[name]`.
+`matchcrest.matchers.response.ResponseCodeMatcher` uses this registry — the matcher accepts a code name as a string and resolves it to a number via `requests.codes[name]`.
 
-## Выполнение запроса — requests.get
+## Issuing a request — requests.get
 
 ```python
 import requests
@@ -25,4 +24,4 @@ response = requests.get(url)
 response.status_code   # int
 ```
 
-Используется в `matchcrest.utils.utils.url_is_live` — liveness-проба GET'ом; 2xx = «жив».
+`matchcrest.utils.utils.url_is_live` uses this call — a liveness probe over GET; 2xx counts as "alive".

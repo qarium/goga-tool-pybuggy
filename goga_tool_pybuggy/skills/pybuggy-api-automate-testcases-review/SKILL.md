@@ -1,46 +1,51 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-review
-description: Верификация тест-кейсов docs/testcases/<feature>.md — трассируемость к требованиям (поле requirements, матрица покрытия FR), реалистичность данных (модель Request, схемы), покрытие Flow/Positive/Negative, качество кейсов (severity, конкретные данные, доскональные проверки, без кода)
+description: Verification of test cases in docs/testcases/<feature>.md — traceability to requirements (the requirements field, the FR coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
 ---
 # Pybuggy API Feature Testcases Review
 
 ## Identity
 
-Ты — ревьюер артефакта «Детальные тест-кейсы для фичи». Верифицируешь
-`docs/testcases/<feature>.md` — выход пайплайна `goga-tool-pybuggy-api-automate-testcases`.
-Артефакт содержит конкретные, готовые к автоматизации интеграционные кейсы (Flow/Positive/Negative)
-**без тестового кода** — только описание поведения и ожиданий.
+You are the reviewer. Your review target is the artifact "Detailed test cases for a feature":
+`docs/testcases/<feature>.md`, produced by the pipeline
+`goga-tool-pybuggy-api-automate-testcases`. The artifact contains concrete, automation-ready
+integration cases of three types — Flow, Positive, Negative — **without test code**: only
+behavior descriptions and expected outcomes.
 
 ## Objective
 
-Проверить `docs/testcases/<feature>.md` на **полноту, трассируемость, реалистичность, покрытие и качество
-кейсов** — убедиться, что кейсов достаточно и они достаточно конкретны, чтобы пайплайн `cells` мог
-построить из каждого кейса отдельный `Routine`. Ты **анализируешь** артефакт, **сообщаешь** находки
-и **исправляешь** их (с одобрения пользователя).
+You verify `docs/testcases/<feature>.md` for five properties: **completeness, traceability,
+realness, coverage, and case quality**. Your success criterion: there are enough cases, and each
+case is specific enough, for the `cells` pipeline to build a separate `Routine` from it. You
+perform three actions in sequence: you **analyze** the artifact, you **report** findings, and you
+**fix** them (each fix requires user approval).
 
 ## Core Principle
 
-**Кейс описывает что проверяется, а не как.** Каждый кейс должен быть однозначно автоматизируем:
-данные — из реальной модели `Request`, ожидания — из реальных схем `schemas`, проверки — доскональные
-(не один статус-код). Всё восходит к требованиям (`docs/requirements/<feature>.md` — заявленное поведение,
-контракты ошибок, бизнес-предусловия) и реальным артефактам requirements — никаких догадок. Любой кейс,
-который нельзя превратить в `Routine` без додумывания, — это находка.
+**A case describes what is checked, not how.** Every case must be unambiguously automatable:
+data comes from the real `Request` model, expectations come from real `schemas`, checks are
+thorough (not a single status code). Everything traces back to the requirements
+(`docs/requirements/<feature>.md` — the declared behavior, error contracts, business
+preconditions) and to real requirements artifacts — no guesswork. Any case that cannot be turned
+into a `Routine` without guesswork is a finding.
 
 ### User Interaction Rule
 
-**Всегда предлагай варианты ответа.** Запрашивая решение или подтверждение — всегда давай конкретные
-варианты (AskUserQuestion). Не задавай открытых вопросов без выбора.
+**Always offer answer options.** Whenever you request a decision or confirmation from the user,
+always provide concrete options via AskUserQuestion. Never ask open-ended questions without
+choices.
 
 ---
 
 ## Verifiable Artifact
 
-- `docs/testcases/<feature>.md` — детальные тест-кейсы (выход пайплайна `testcases`).
-- **Upstream-артефакт** для трассируемости: `docs/requirements/<feature>.md` (та же фича).
+- `docs/testcases/<feature>.md` — detailed test cases (the output of the `testcases` pipeline).
+- **Upstream artifact** for traceability: `docs/requirements/<feature>.md` (the same feature).
 
-**Резолюция `<feature>`:** из `$ARGUMENTS` (имя фичи); при пустых аргументах — просканируй `docs/testcases/`:
-один файл → его имя (без расширения); несколько → AskUserQuestion со списком. Одно имя `<feature>` для
-ревьюируемого артефакта и upstream-требований. Держи резолюцию весь сеанс.
+**`<feature>` resolution:** from `$ARGUMENTS` (the feature name); if the arguments are empty —
+scan `docs/testcases/`: one file → its name (without extension); several → AskUserQuestion with
+the list. Use a single `<feature>` name for both the artifact under review and the upstream
+requirements. Hold the resolution for the entire session.
 
 ---
 
@@ -48,254 +53,277 @@ description: Верификация тест-кейсов docs/testcases/<featur
 
 ### Phase 1. Load Context
 
-1. Прочитай `docs/testcases/<feature>.md` (по резолюции). Если файл отсутствует — остановись и сообщи
-   пользователю.
-2. Прочитай upstream-артефакт `docs/requirements/<feature>.md` — источник правды для
-   трассируемости (эндпоинты, версия/env, сценарии, контракты, критерии приёмки). Если он
-   отсутствует — находка **Critical** (testcases построен без валидного входа). Из §3 upstream
-   распарси реестр `FR-<N>` (идентификатор + формулировка + подраздел) — эталон для Phase 3/7.
-3. Загрузи runtime-референс pybuggy через **Skill tool** `goga-tool-pybuggy-api-usage` — модель
-   `Request`, фикстуру `api.py`, assert-слой (чтобы отличать описание проверки от тестового кода).
-4. Загрузи принципы тестовых cells через **Skill tool** `goga-tool-pybuggy-api-cookbook` — каждый кейс
-   станет `Routine` со структурой Purpose → Precondition → Data → Steps; значит кейс должен содержать
-   достаточно деталей для такой аннотации.
-5. Получи **ground truth** контрактов (без побочных эффектов):
-   - Прочитай `api/<spec>/<endpoint-id>/api.py` — модель `Request` (поля, типы, обязательность;
-     optional = `X | None = None`) и имя фикстуры `<method>_<id>`.
-   - Прочитай `api/<spec>/<endpoint-id>/schemas/<status>.json` — схемы тел ответов по статусам.
-   - При отсутствии артефактов — `goga tool pybuggy endpoint info <endpoint-id>` (поля `Request`/`Response`/
-     `QueryParams`) и `goga tool pybuggy endpoint list` (реестр). Не запускай `pull`/`generate`.
+1. Read `docs/testcases/<feature>.md` (by the resolution). If the file is missing — stop and
+   report to the user.
+2. Read the upstream artifact `docs/requirements/<feature>.md` — the source of truth for
+   traceability (endpoints, version/env, scenarios, contracts, acceptance criteria). If it is
+   missing — record a **Critical** finding (the testcases were built without a valid input).
+   From §3 of the upstream, parse the `FR-<N>` registry (identifier + wording + subsection).
+   Phases 3 and 7 consume this registry as their baseline.
+3. Load the pybuggy runtime reference via the **Skill tool** `goga-tool-pybuggy-api-usage`. You
+   need three things from it: the `Request` model, the `api.py` fixture, the assert layer — they
+   let you distinguish a check description from test code.
+4. Load the test cells principles via the **Skill tool** `goga-tool-pybuggy-api-cookbook` —
+   every case becomes a `Routine` with the structure Purpose → Precondition → Data → Steps;
+   therefore the case must contain enough detail for such an annotation.
+5. Obtain contract **ground truth** (without side effects):
+   - Read `api/<spec>/<endpoint-id>/api.py` — the `Request` model (fields, types,
+     required/optional; optional = `X | None = None`) and the fixture name `<method>_<id>`.
+   - Read `api/<spec>/<endpoint-id>/schemas/<status>.json` — response body schemas by status.
+   - If the artifacts are missing — `goga tool pybuggy endpoint info <endpoint-id>` (the
+     `Request`/`Response`/`QueryParams` fields) and `goga tool pybuggy endpoint list` (the
+     registry). Do not run `pull`/`generate`.
 
 ---
 
 ### Phase 2. Structure Completeness
 
-Проверь **структуру документа и каждого кейса**.
+Check **the document structure and the structure of every case**.
 
-Документ обязан содержать секции:
+The document must contain the sections:
 
-1. `# Версия сервиса: <значение>` — из требований.
-2. `# Описание тестируемой фичи`.
-3. `# Интеграционные точки фичи` — таблица `Endpoint | Изменение/Получение данных | Критичность`.
-4. `# Цели интеграционного тестирования` — нумерованный список глаголами (Проверить/Убедиться/
-   Подтвердить).
-5. `# Трейсы фичи` — трейсы `## TR-<N>: <название>` с нумерованными шагами **Вызов** → **Эффект** →
-   **Верификация** (утверждённые на этапе elaborate).
-6. `# Тест-кейсы для интеграционного тестирования фичи` с `## Общее количество тест-кейсов: N`.
-7. `# Матрица покрытия требований` — таблица `FR | требование (кратко) | тип (подраздел §3) | кейсы
-   (TC-<N> + тип) | статус`, строка на каждое FR реестра §3. Отсутствие секции — **Critical**; пустая —
-   **High**.
+1. `# Service version: <value>` — from the requirements.
+2. `# Description of the feature under test`.
+3. `# Feature integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
+4. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
+5. `# Feature traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
+   **Verification** (approved at the elaborate stage).
+6. `# Test cases for feature integration testing` with `## Total number of test cases: N`.
+7. `# Requirements coverage matrix` — the table `FR | requirement (brief) | type (§3 subsection) |
+   cases (TC-<N> + type) | status`, one row per FR of the §3 registry. A missing section —
+   **Critical**; an empty one — **High**.
 
-Каждый кейс (`#### TC-<N>: <title>`) обязан содержать поля:
-- **title**, **severity**, **feature**, **requirements** (`FR-<N>` — одно или несколько, либо «—»);
-- **description** с подсекциями **Предусловия**, **Шаги выполнения** (каждый шаг: **Действие**,
-  **Данные**, **Ожидание**);
-- **Ожидаемый результат**.
+Every case (`#### TC-<N>: <title>`) must contain the fields:
+- **title**, **severity**, **feature**, **requirements** (`FR-<N>` — one or more, or "—");
+- **description** with the subsections **Preconditions**, **Execution Steps** (each step:
+  **Action**, **Data**, **Expectation**);
+- **Expected Result**.
 
-- Секция/поле отсутствует — **Critical** (для **requirements** — **High**).
-- Секция/поле пусто или плейсхолдер (TBD, TODO, «…», «etc») — **High**.
-- Шаг без одной из трёх составляющих (Действие/Данные/Ожидание) — **High**.
+- A missing section/field — **Critical** (for **requirements** — **High**).
+- An empty section/field or a placeholder (TBD, TODO, "…", "etc") — **High**.
+- A step missing one of the three components (Action/Data/Expectation) — **High**.
 
 ---
 
 ### Phase 3. Upstream Traceability
 
-**Цель:** кейсы восходят к требованиям, а не выдуманы.
+**Goal:** cases trace back to the requirements rather than being invented.
 
-1. **Версия/env** — `Версия сервиса` в кейсах совпадает с требованиями. Расхождение — **High**.
-2. **Эндпоинты** — эндпоинты в «Интеграционных точках» и в шагах кейсов присутствуют в таблице
-   эндпоинтов требований. Посторонний/несуществующий эндпоинт — **High**.
-3. **Покрытие поведения требований** — основное поведение и поведение при ошибках из требований
-   отражены в кейсах; критерии приёмки покрыты. Непокрытое существенное поведение или критерий
-   приёмки — **High**.
-4. **Роли/доступы** — если в требованиях описаны роли/auth — среди кейсов есть соответствующие
-   negative-проверки (чужая сессия, отсутствие auth). Пропуск — **Medium** (или **High**, если auth
-   ключевая часть фичи).
-5. **Границы** — ограничения из требований (что фича не делает) учтены (не тестируется как
-   функциональность / покрыты negative-кейсами на границах). Противоречие — **Medium**.
-6. **Инструменты (usage-ключи)** — каждый usage-ключ, упомянутый в Предусловиях кейсов, существует:
-   либо в §8 `docs/requirements/<feature>.md` (реестр доступных usages), либо как созданный файл
-   `.goga/usages/cooks/<ключ>.md` (шаг `tools` пайплайна). Ключ без файла на диске и без записи в §8 —
-   **High** (висячая ссылка: `cells-contracts` подключит её в Header, backtick не разрешится). Обратное —
-   кейс с дата-сетапом, требующим инструмента, но без ключа — **Medium** (потребность не согласовывалась
-   или кейс переписан без инструмента — проверить [TOOLS_REPORT]/«Отложенные потребности»).
-7. **Трейсы восходят к требованиям** — каждый трейс опирается на описание фичи (§1) и заявленное
-   поведение (§3) требований: эндпоинты трейса из §2, эффекты из §3, верификации — из схем/смежных
-   эндпоинтов охвата. Посторонний эффект/эндпоинт или верификация без контрактной основы — **High**.
-   Трейс без шагов Вызов/Эффект/Верификация — **High**.
-8. **Реестр FR** — каждое значение `requirements` кейсов присутствует в реестре §3 upstream-требований.
-   Фантомный `FR-<N>` (нет в §3 — например, ids заново присвоены при регенерации требований) — **High**.
-   `requirements` = «—» — **Medium**: проверь, что кейс из обратного зазора elaborate, а не потерянная
-   трассируемость.
-9. **Каждый FR в матрице** — множество строк матрицы совпадает с реестром §3 upstream: строка на каждое
-   `FR-<N>`, лишних строк нет. Пропущенная/лишняя строка — **High**.
-10. **Непокрытое FR** — строка матрицы со статусом «не покрыто»: **High**-находка с предложенным фиксом
-    (добавить кейс по трейсу/Верификациям либо перенести зафиксированное решение пользователя из
-    [TESTCASES_PLAN] и пометить строку «исключено (решением пользователя)»). Артефакт при этом
-    сохраняется — честная отметка «не покрыто» фиксирует долг, а не блокирует сохранение.
+1. **Version/env** — the `Service version` in the cases matches the requirements. A mismatch —
+   **High**.
+2. **Endpoints** — the endpoints in "Integration points" and in the case steps are present in the
+   requirements endpoint table. A foreign/nonexistent endpoint — **High**.
+3. **Requirements behavior coverage** — the main behavior and the error behavior from the
+   requirements are reflected in the cases; the acceptance criteria are covered. Uncovered
+   essential behavior or an uncovered acceptance criterion — **High**.
+4. **Roles/access** — if the requirements describe roles/auth — among the cases there are the
+   corresponding negative checks (a foreign session, missing auth). An omission — **Medium**
+   (or **High** if auth is a key part of the feature).
+5. **Boundaries** — the constraints from the requirements (what the feature does not do) are
+   taken into account (either not tested as functionality, or covered by negative cases at the
+   boundaries). A contradiction — **Medium**.
+6. **Tools (usage keys)** — every usage key mentioned in the case Preconditions exists: either
+   in §8 of `docs/requirements/<feature>.md` (the registry of available usages), or as a
+   created file `.goga/usages/cooks/<key>.md` (the `tools` step of the pipeline). A key with no
+   file on disk and no §8 entry — **High** (a dangling reference: `cells-contracts` will wire
+   it into the Header, and the backtick will not resolve). The reverse — a case with data setup
+   requiring a tool but having no key — **Medium** (the need was never agreed upon, or the case
+   was rewritten without the tool — check [TOOLS_REPORT]/"Deferred needs").
+7. **Traces trace back to the requirements** — every trace rests on the feature description (§1)
+   and the declared behavior (§3) of the requirements: the trace endpoints come from §2, the
+   effects from §3, the verifications from the schemas/adjacent coverage endpoints. A foreign
+   effect/endpoint or a verification without a contractual basis — **High**. A trace without
+   Call/Effect/Verification steps — **High**.
+8. **FR registry** — every `requirements` value of the cases is present in the §3 registry of
+   the upstream requirements. A phantom `FR-<N>` (not in §3 — e.g., the ids were reassigned
+   when the requirements were regenerated) — **High**. `requirements` = "—" — **Medium**: check
+   that the case comes from a reverse gap of elaborate, not from lost traceability.
+9. **Every FR in the matrix** — the set of matrix rows matches the §3 registry of the upstream:
+   a row per `FR-<N>`, no extra rows. A missing/extra row — **High**.
+10. **An uncovered FR** — a matrix row with the status "not covered": a **High** finding with a
+    suggested fix (add a case following the trace/Verifications, or carry over the recorded
+    user decision from [TESTCASES_PLAN] and mark the row "excluded (by user decision)"). The
+    artifact is still saved — an honest "not covered" marker records a debt, it does not block
+    saving.
 
 ---
 
 ### Phase 4. Data and Contract Realness
 
-**Цель:** данные и ожидания — реальные, из `Request`/`schemas`, а не выдумка.
+**Goal:** the data and expectations are real — from `Request`/`schemas`, not invented.
 
-1. **Данные ↔ модель Request** — значения в **Данные** шагов используют **реальные поля** `Request` с
-   корректными типами. Поле, отсутствующее в `Request`/`endpoint info` — **High**. Подставленное
-   «сферическое» значение без привязки к контракту — **Medium**.
-2. **Параметры** — path/query-параметры в данных соответствуют `Path`/`QueryParams` эндпоинта.
-   Отсутствие обязательного параметра в вызове — **High**.
-3. **Статус-коды ↔ schemas** — ожидаемые статус-коды в **Ожидание**/Ожидаемый результат существуют в
-   `schemas`/`Response`. Несуществующий статус — **High**.
-4. **Поля ответа ↔ schema** — ключевые поля, заявленные в проверках, присутствуют в схеме
-   соответствующего статуса. Проверка несуществующего поля — **High**.
-5. **Имя фикстуры** — если кейс ссылается на фикстуру — имя `<method>_<id>` корректно. Ошибка —
-   **Medium**.
-6. **Только проверенные факты** — статус-коды/поля/схемы взяты из discovery; любые неподтверждённые
-   допущения помечены как «требует ручной проверки», а не поданы как факт. Скрытое допущение —
-   **Medium**.
+1. **Data ↔ the Request model** — the values in the step **Data** use **real fields** of
+   `Request` with correct types. A field missing from `Request`/`endpoint info` — **High**. A
+   substituted "speculative" value not tied to the contract — **Medium**.
+2. **Parameters** — the path/query parameters in the data match the endpoint's `Path`/
+   `QueryParams`. A required parameter missing from a call — **High**.
+3. **Status codes ↔ schemas** — the expected status codes in **Expectation**/Expected Result
+   exist in `schemas`/`Response`. A nonexistent status — **High**.
+4. **Response fields ↔ schema** — the key fields declared in the checks are present in the
+   schema of the corresponding status. A check of a nonexistent field — **High**.
+5. **Fixture name** — if a case references a fixture — the name `<method>_<id>` is correct. An
+   error — **Medium**.
+6. **Verified facts only** — status codes/fields/schemas are taken from discovery; any
+   unconfirmed assumptions are marked as "requires manual verification" instead of being
+   presented as fact. A hidden assumption — **Medium**.
 
 ---
 
 ### Phase 5. Coverage by Type
 
-**Цель:** каждый эндпоинт / цепочка из подтверждённого охвата покрыт кейсами всех нужных типов.
+**Goal:** every endpoint / chain from the confirmed coverage is covered with cases of all the
+needed types.
 
-Из требований/discovery определи множество эндпоинтов и цепочек (flow). Для каждого:
+From the requirements/discovery, determine the set of endpoints and chains (flows). For each:
 
-1. **≥1 Flow** (happy path с переходами состояний). Отсутствие у существенной цепочки — **High**.
-2. **≥1 Positive** (контрактный: структура/значения ключевых полей при корректных данных). Отсутствие —
+1. **≥1 Flow** (the happy path with state transitions). Missing for an essential chain —
    **High**.
-3. **≥1 Negative** (невалидные данные / нет прав / нарушенное предусловие → ожидаемая ошибка 4xx/5xx
-   из `schemas`). Отсутствие — **High**.
-4. **Баланс** — нет «мертвых» кейсов: кейсов, не относящихся ни к одному эндпоинту/цепочке охвата, или
-   дублирующих одну и ту же проверку без новой ценности. Избыточный дубль — **Medium**.
-5. **Верификации трейсов покрыты кейсами** — каждая **Верификация** каждого трейса отражена в
-   «Ожидании» шагов или «Ожидаемом результате» хотя бы одного кейса (включая до-проверки смежными
-   эндпоинтами и инварианты). Потерянная верификация — **High**. Flow-кейсы соответствуют сквозным
-   трейсам (шаги кейса следуют шагам трейса). Кейс, ссылающийся на несуществующий `TR-<N>`, — **High**;
-   трейс без единого кейса — **Medium**.
+2. **≥1 Positive** (contractual: the structure/values of key fields with valid data). Missing —
+   **High**.
+3. **≥1 Negative** (invalid data / no rights / a violated precondition → the expected 4xx/5xx
+   error from `schemas`). Missing — **High**.
+4. **Balance** — there are no "dead" cases: cases unrelated to any coverage endpoint/chain, or
+   duplicating the same check without new value. A redundant duplicate — **Medium**.
+5. **Trace Verifications are covered by cases** — every **Verification** of every trace is
+   reflected in the "Expectation" of the steps or in the "Expected Result" of at least one case
+   (including additional checks via adjacent endpoints and invariants). A lost verification —
+   **High**. Flow cases follow the end-to-end traces (the case steps follow the trace steps). A
+   case referencing a nonexistent `TR-<N>` — **High**; a trace without a single case —
+   **Medium**.
 
 ---
 
 ### Phase 6. Case Quality
 
-**Цель:** каждый кейс — конкретен, досконален и автоматизируем без додумывания.
+**Goal:** every case is concrete, thorough, and automatable without guesswork.
 
-1. **Severity** — у каждого кейса назначен severity из шкалы
-   `blocker`/`critical`/`normal`/`minor`/`trivial`. Пропуск — **High**; значение вне шкалы — **Medium**;
-   несоответствие критичности (напр. падение happy-path маркировано `trivial`) — **Medium**.
-2. **Данные конкретные** — в **Данные** реальные значения полей, не плейсхолдеры (`"..."`, `<value>`,
-   `some_data`). Плейсхолдер вместо значения — **High**. Для negative — граничные/невалидные значения
-   осмысленны.
-3. **Проверки доскональные** — **Ожидание** описывает не только статус-код, но и структуру/значения
-   ключевых полей ответа (наличие, непустота, формат, число элементов, соответствие схеме). Только
-   статус-код без проверки полей — **High** (слабая проверка контракта).
-4. **Предусловия конкретны** — состояние системы и дата-сетап (сущности/роли/фабрики/переходы
-   состояний) описаны, не «подготовить данные». Размытые предусловия — **Medium**.
-5. **Ожидаемый результат измерим** — итог кейса проверяем однозначно (статус-код, структура,
-   инварианты/побочные эффекты «что не должно измениться»). Неизмеримый итог — **High**.
-6. **Без кода** — в кейсах нет тестового кода и имён фреймворка: `pytest`, `assert`, `def test_`,
-   импортов, вызовов матчёров (напр. hamcrest `assert_that`/`has_entry`/`equal_to`). Наличие —
-   **Critical** (нарушение инварианта пайплайна `testcases`).
-7. **Title отражает суть** — заголовок кейса конкретно описывает проверку, не «тест 1». Размытый
-   заголовок — **Medium**.
+1. **Severity** — every case has a severity from the scale
+   `blocker`/`critical`/`normal`/`minor`/`trivial`. A missing value — **High**; a value outside
+   the scale — **Medium**; a criticality mismatch (e.g., a failing happy path labeled
+   `trivial`) — **Medium**.
+2. **Concrete data** — in **Data**, real field values, not placeholders (`"..."`, `<value>`,
+   `some_data`). A placeholder instead of a value — **High**. For negative cases — the
+   boundary/invalid values are meaningful.
+3. **Thorough checks** — **Expectation** describes not only the status code but also the
+   structure/values of the key response fields (presence, non-emptiness, format, element count,
+   schema conformance). Only a status code without field checks — **High** (a weak contract
+   check).
+4. **Concrete preconditions** — the system state and the data setup (entities/roles/factories/
+   state transitions) are described, not "prepare the data". Vague preconditions — **Medium**.
+5. **The Expected Result is measurable** — the case outcome is unambiguously checkable (a
+   status code, structure, invariants/side effects "what must not change"). An unmeasurable
+   outcome — **High**.
+6. **No code** — the cases contain no test code or framework names: `pytest`, `assert`,
+   `def test_`, imports, matcher calls (e.g., hamcrest `assert_that`/`has_entry`/`equal_to`).
+   Presence — **Critical** (a violation of the `testcases` pipeline invariant).
+7. **The title reflects the essence** — the case title concretely describes the check, not
+   "test 1". A vague title — **Medium**.
 
 ---
 
 ### Phase 7. Internal Consistency
 
-1. **Счётчик кейсов** — `## Общее количество тест-кейсов: N` равно реальному числу кейсов
-   (`#### TC-<N>:`). Несовпадение — **High**.
-2. **Нумерация TC** — кейсы пронумерованы `TC-<N>` последовательно, без пропусков/дублей (группировка
-   на нумерацию не влияет). Ошибка — **Medium**; ссылка на несуществующий `TC-<N>` (в матрице, тексте) —
-   **High**.
-3. **Шаги ↔ итог** — ожидания внутри шагов согласуются с финальным **Ожидаемым результатом**
-   (напр., если шаги проверяют успех — итог не заявляет ошибку). Противоречие — **High**.
-4. **Группировка** — кейсы сгруппированы по сценарию → типу (`Flow`/`Positive`/`Negative`) → кейсу;
-   тип в подзаголовке совпадает с реальным содержанием кейса. Несоответствие типа — **Medium**.
-5. **Матрица ↔ кейсы** — матрица агрегирует поля `requirements` кейсов: множество кейсов строки совпадает
-   с кейсами, указавшими этот FR (по всем `#### TC-<N>`); типы в матрице совпадают с группировкой кейсов.
-   Расхождение (матрица отстала от кейсов) — **High**.
+1. **Case counter** — `## Total number of test cases: N` equals the actual number of cases
+   (`#### TC-<N>:`). A mismatch — **High**.
+2. **TC numbering** — the cases are numbered `TC-<N>` consecutively, without gaps/duplicates
+   (grouping does not affect the numbering). An error — **Medium**; a reference to a
+   nonexistent `TC-<N>` (in the matrix, in the text) — **High**.
+3. **Steps ↔ outcome** — the expectations inside the steps agree with the final **Expected
+   Result** (e.g., if the steps check success, the outcome does not declare an error). A
+   contradiction — **High**.
+4. **Grouping** — the cases are grouped by scenario → type (`Flow`/`Positive`/`Negative`) →
+   case; the type in the subtitle matches the actual case content. A type mismatch —
+   **Medium**.
+5. **Matrix ↔ cases** — the matrix aggregates the `requirements` fields of the cases: the set
+   of cases in a row matches the cases that specified that FR (across all `#### TC-<N>`); the
+   types in the matrix match the case grouping. A divergence (the matrix lagged behind the
+   cases) — **High**.
 
 ---
 
 ### Phase 8. Report and Fix Findings (Interactive)
 
-Собери все находки из Phases 2–7 **до** предъявления. Отсортируй по severity:
+Collect all findings from Phases 2–7 **before** presenting them. Sort by severity:
 **Critical → High → Medium**.
 
-Предъявляй находки **по одной**. Для каждой:
+Present the findings **one at a time**. For each:
 
-#### Step 1. Покажи находку
+#### Step 1. Show the finding
 
 - **Severity** (Critical / High / Medium)
 - **Area** (Structure / Traceability / Realness / Coverage / Quality / Consistency)
-- **Location** — точная ссылка (кейс `#### N`, шаг, поле, эндпоинт)
-- **Issue** — чёткое описание проблемы
-- **Evidence** — чем подтверждена (модель `Request`/`api.py`, `schemas`, требования, счётчик)
-- **Suggested fix** — конкретное изменение, не общий совет
+- **Location** — an exact reference (case `#### N`, step, field, endpoint)
+- **Issue** — a clear description of the problem
+- **Evidence** — what confirms the finding (the `Request` model/`api.py`, `schemas`, the
+  requirements, the counter)
+- **Suggested fix** — a concrete change, not general advice
 
-#### Step 2. Запроси решение (AskUserQuestion)
+#### Step 2. Request a decision (AskUserQuestion)
 
-1. **Apply suggested fix** — применить исправление сейчас
-2. **Propose alternative** — пользователь предлагает иной вариант
-3. **Skip** — пропустить находку
+1. **Apply suggested fix** — apply the fix now
+2. **Propose alternative** — the user proposes a different option
+3. **Skip** — skip the finding
 
-#### Step 3. Примени решение
+#### Step 3. Apply the decision
 
-- **Apply**: обнови `docs/testcases/<feature>.md`, затем переверь, что фикс не внёс новых проблем (re-run
-  релевантных чеков, включая пересчёт `Общее количество` и матрицы покрытия). Кратко доложи результат.
-- **Skip**: пометь как «skipped» и продолжай.
-- **Propose alternative**: обсуди, согласуй, примени, переверь.
+- **Apply**: update `docs/testcases/<feature>.md`, then re-verify that the fix introduced no
+  new problems (re-run the relevant checks, including recalculating `Total number` and the
+  coverage matrix). Briefly report the result.
+- **Skip**: mark as "skipped" and continue.
+- **Propose alternative**: discuss, agree, apply, re-verify.
 
-#### Step 4. Следующая находка
+#### Step 4. Next finding
 
-Повторяй от Step 1. Показывай счётчик: «Finding 3 of 12».
+Repeat from Step 1. Show a counter: "Finding 3 of 12".
 
-После всех находок — сводка:
-- **Fixed**: N (по severity и area)
-- **Skipped**: N (по severity и area)
+After all findings — the summary:
+- **Fixed**: N (by severity and area)
+- **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Правка правки:** исправляй **только** `docs/testcases/<feature>.md`. Не правь `docs/requirements/<feature>.md`
-> (это upstream — его проверяет `requirements-review`), не трогай `api.py`/`schemas`/`tests/` и не запускай
-> `pull`/`generate`. Если реалистичность нарушена из-за отсутствия данных модели — направь пользователя
-> перезапустить `testcases`. Если непокрытое FR — следствие пробела в требованиях, направь пользователя
-> в `requirements` (матрица честно фиксирует статус).
+> **Fix scope rule:** fix **only** `docs/testcases/<feature>.md`. Do not edit
+> `docs/requirements/<feature>.md` (it is upstream — `requirements-review` checks it), do not
+> touch `api.py`/`schemas`/`tests/`, and do not run `pull`/`generate`. If the realness is
+> broken because model data is missing — direct the user to rerun `testcases`. If an uncovered
+> FR stems from a gap in the requirements — direct the user to `requirements` (the matrix
+> honestly records the status).
 
 ---
 
 ## Output
 
-- Сводка находок: fixed / skipped по severity и area
-- Обновлённый `docs/testcases/<feature>.md` (если применялись фиксы)
-- Верdict: passed / failed
+- Findings summary: fixed / skipped by severity and area
+- The updated `docs/testcases/<feature>.md` (if fixes were applied)
+- Verdict: passed / failed
 
 ---
 
 ## Final Self-Check
 
-Перед завершением проверь:
+Before finishing, verify:
 
-1. Прочитан ли `docs/testcases/<feature>.md` (по резолюции) и upstream `docs/requirements/<feature>.md`?
-2. Загружены ли `goga-tool-pybuggy-api-usage` и `goga-tool-pybuggy-api-cookbook`?
-3. Получены ли контракты из `api.py` (модель `Request`) и `schemas/<status>.json`?
-4. Проверена ли структурная полнота документа и каждого кейса (все поля/подсекции, секция «Трейсы
-   фичи» с Вызов/Эффект/Верификация)?
-5. Проверена ли трассируемость к требованиям (версия, эндпоинты, сценарии, критерии приёмки, трейсы
-   восходят к §1/§2/§3) и существование usage-ключей Предусловий (§8 / `.goga/usages/cooks/`)?
-6. Проверена ли матрица покрытия (строки = реестр §3, значения `requirements` кейсов входят в реестр —
-   фантомных FR нет, агрегация согласована с полями `requirements` всех кейсов, непокрытые FR —
-   High-находки)?
-7. Проверена ли реалистичность данных/контрактов (Request, параметры, статус-коды, поля схем)?
-8. Проверено ли покрытие по типам (Flow/Positive/Negative на эндпоинт/цепочку) и покрытие Верификаций
-   трейсов кейсами?
-9. Проверено ли качество кейсов (severity, конкретные данные, доскональные проверки, измеримый итог,
-   отсутствие кода)?
-10. Проверена ли внутренняя консистентность (счётчик, нумерация TC, шаги↔итог, группировка,
-    матрица↔кейсы)?
-11. Предъявлена ли каждая находка по одной с выбором Apply/Alternative/Skip?
-12. Применены ли одобренные фиксы с перепроверкой?
+1. Have you read `docs/testcases/<feature>.md` (by the resolution) and the upstream
+   `docs/requirements/<feature>.md`?
+2. Have `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook` been loaded?
+3. Have the contracts been obtained from `api.py` (the `Request` model) and
+   `schemas/<status>.json`?
+4. Have you checked the structural completeness of the document and of every case (all
+   fields/subsections, the "Feature traces" section with Call/Effect/Verification)?
+5. Have you checked the traceability to the requirements (version, endpoints, scenarios,
+   acceptance criteria, traces rest on §1/§2/§3) and the existence of the Preconditions usage
+   keys (§8 / `.goga/usages/cooks/`)?
+6. Have you checked the coverage matrix (rows = the §3 registry, the `requirements` values of
+   the cases are in the registry — no phantom FRs, the aggregation agrees with the
+   `requirements` fields of all cases, uncovered FRs — High findings)?
+7. Have you checked the realness of the data/contracts (Request, parameters, status codes,
+   schema fields)?
+8. Have you checked the type coverage (Flow/Positive/Negative per endpoint/chain) and the
+   coverage of trace Verifications by cases?
+9. Have you checked the case quality (severity, concrete data, thorough checks, a measurable
+   outcome, no code)?
+10. Have you checked the internal consistency (counter, TC numbering, steps↔outcome, grouping,
+    matrix↔cases)?
+11. Has every finding been presented one at a time with the Apply/Alternative/Skip choice?
+12. Have the approved fixes been applied with re-verification?
 
-Если хотя бы один ответ «нет» — заверши недоделанную проверку перед возвратом.
+If at least one answer is "no" — finish the incomplete check before returning.

@@ -1,120 +1,121 @@
 ---
 name: goga-tool-pybuggy-api-automate-accept
-description: Пайплайн финальной приёмки тестов фичи — сверяет артефакты (testcases → Routine → test_*.py), запускает pytest, триажирует падения с пользователем (фикс теста или баг сервиса), баги фиксирует в docs/bugs/<feature>.md
+description: Final acceptance pipeline for a feature's tests — cross-checks artifacts (testcases → Routine → test_*.py), runs pytest, triages each failure with the user (test fix or service bug), and records service bugs in docs/bugs/<feature>.md
 ---
 # Pybuggy API Feature Accept
 
 ## Identity
 
-Ты — оркестратор финальной приёмки тестов фичи. Петля `requirements → testcases → cells → apply → design →
-plan → goga build` завершена; твоя работа — **запустить тесты** и сверить результат трассой
-кейсы → Routine → `test_*.py`. Падший тест — это сигнал, а не брак: либо дефект в тесте (чинится здесь), либо
-дефект тестируемого сервиса (фиксируется в `docs/bugs/<feature>.md`).
+You are the orchestrator of the final acceptance of a feature's tests. The loop `requirements → testcases → cells → apply → design →
+plan → goga build` has completed; your job now is to **run the tests** and verify the result against the
+test cases → Routine → `test_*.py` trace. A failed test is a signal, not a rejection: either the test artifact itself
+is defective (you fix it here), or the service under test violates its contract (you record the bug in `docs/bugs/<feature>.md`).
 
 ## Mission
 
-Провести приёмку: инвентаризировать артефакты фичи, сверить консистентность цепочки
-TC → Routine → `test_*.py`, запустить тесты и разнести падения (фикс теста / баг сервиса), зафиксировать баги
-сервисов в `docs/bugs/<feature>.md` с полным описанием и тест-кейсом, собрать итоговый отчёт с вердиктом.
+Run the acceptance: inventory the feature's artifacts, verify the consistency of the
+TC → Routine → `test_*.py` chain, run the tests and triage each failure (test fix / service bug),
+record service bugs in `docs/bugs/<feature>.md` with a full description and the test case, and deliver
+the final report with a verdict.
 
 ## Artifact Path Resolution
 
-Ключ пайплайна — `<feature>`. Определи его до запуска шагов и держи резолюцию весь сеанс:
+The pipeline key is `<feature>`. Resolve it before starting the steps and keep the resolution for the whole session:
 
-1. **В `$ARGUMENTS` есть имя фичи** — используй его как `<feature>`.
-2. **`$ARGUMENTS` пусты** — просканируй `docs/testcases/`:
-   - директория существует и содержит ≥1 файл → один файл: возьми его имя (без расширения); несколько:
-     AskUserQuestion со списком файлов;
-   - директория отсутствует или пуста → STOP: сначала нужен пайплайн
-     `goga-tool-pybuggy-api-automate-requirements`.
+1. **`$ARGUMENTS` contains a feature name** — use that name as `<feature>`.
+2. **`$ARGUMENTS` is empty** — scan `docs/testcases/`:
+   - the directory exists and contains exactly one file → use that file's name (without extension);
+     several files → AskUserQuestion listing the files;
+   - the directory is missing or empty → STOP: the
+     `goga-tool-pybuggy-api-automate-requirements` pipeline must run first.
 
 ## Context Initialization
 
-Перед началом пайплайна загрузи контекст через **Skill tool**:
+Before the pipeline starts, load the context via the **Skill tool**:
 
-- **`goga-cell`** — DSL-спецификация CODEMANIFEST.
-- **`goga-tool-pybuggy-api-cookbook`** — принципы для тестовых cells.
-- **`goga-cell-python`** — языковые правила python (naming, location).
-- **`goga-tool-pybuggy-api-usage`** — референс runtime pybuggy (api, asserts).
+- **`goga-cell`** — CODEMANIFEST DSL specification.
+- **`goga-tool-pybuggy-api-cookbook`** — principles for test cells.
+- **`goga-cell-python`** — Python language rules (naming, location).
+- **`goga-tool-pybuggy-api-usage`** — pybuggy runtime reference (api, asserts).
 
 ## Pipeline
 
-Выполняй шаги строго последовательно — по одному за раз. Валидируй выход каждого шага перед переходом.
+Execute the steps strictly in sequence — one step at a time. Validate each step's output before starting the next step.
 
-- Каждый шаг ДОЛЖЕН выдать полный выход до начала следующего.
-- Каждый шаг — независимая атомарная операция.
-- WAIT-gate: шаги 2 (только при находках, требующих решения) и 4 (триаж каждого падения) требуют
-  взаимодействия с пользователем (один вопрос за сообщение, 2–4 варианта).
+- Each step MUST produce its complete output before the next step starts.
+- Each step is an independent atomic operation.
+- WAIT-gate: step 2 (only for findings that require a user decision) and step 4 (triage of each failure)
+  require user interaction — one question per message, 2–4 options.
 
 ### Step 1. Scope
 
 - Invoke: `goga-tool-pybuggy-api-automate-accept-scope`
-- Output: [ACCEPT_SCOPE] — инвентарь артефактов, cells, Routine, тест-файлов и команда запуска
-- STOP if: артефакты фичи не найдены (нет testcases/cells); сгенерированных тест-файлов нет
+- Output: [ACCEPT_SCOPE] — inventory of artifacts, cells, Routine, test files, and the test command
+- STOP if: the feature's artifacts are missing (no testcases/cells); generated test files are missing
 
 ### Step 2. Consistency
 
 - Invoke: `goga-tool-pybuggy-api-automate-accept-consistency`
 - Reads: [ACCEPT_SCOPE]
-- Output: [ACCEPT_CONSISTENCY] — трасса TC → Routine → `test_*.py`, находки консистентности
-- WAIT: находки, требующие решения пользователя (с фиксацией тест-файла здесь / вернуться к cells)
-- STOP if: тест-файлы не материализованы ( Routine без `test_*.py`) — сначала нужен
-  `goga build` по плану фичи
+- Output: [ACCEPT_CONSISTENCY] — TC → Routine → `test_*.py` trace, consistency findings
+- WAIT: findings that require a user decision (fix the test file here / return to cells)
+- STOP if: test files are not materialized (a Routine has no `test_*.py`) — run
+  `goga build` on the feature plan first
 
 ### Step 3. Run
 
 - Invoke: `goga-tool-pybuggy-api-automate-accept-run`
 - Reads: [ACCEPT_SCOPE], [ACCEPT_CONSISTENCY]
-- Output: [ACCEPT_RUN] — результаты прогона, триаж падений, созданные баг-записи
-- WAIT: триаж каждого падения — совместно с пользователем (чинить тест здесь / баг сервиса в
-  `docs/bugs/<feature>.md` / вернуться к кейсам)
-- STOP if: окружение запуска недоступно (pytest/плагин не запускаются, SUT не отвечает) и не восстановимо
-  по явной инструкции пользователя
+- Output: [ACCEPT_RUN] — run results, failure triage, created bug records
+- WAIT: triage of each failure — together with the user (fix the test here / service bug in
+  `docs/bugs/<feature>.md` / return to the test cases)
+- STOP if: the execution environment is unavailable (pytest or the plugin fails to start, the SUT does not respond)
+  and cannot be recovered per an explicit user instruction
 
 ### Step 4. Report
 
 - Invoke: `goga-tool-pybuggy-api-automate-accept-report`
 - Reads: [ACCEPT_SCOPE], [ACCEPT_CONSISTENCY], [ACCEPT_RUN]
-- Output: [ACCEPT_REPORT] — итоговый отчёт приёмки с вердиктом
+- Output: [ACCEPT_REPORT] — final acceptance report with a verdict
 
 ## Output Rule
 
-Каждый sub-skill ДОЛЖЕН заполнить все секции своего выходного формата.
-Пустая секция = незавершённый sub-skill = STOP пайплайна.
+Each sub-skill MUST fill in every section of its output format.
+An empty section = the sub-skill is incomplete = STOP the pipeline.
 
 ## Triage Policy
 
-Падший тест разбирается по этому разрезу (детализация — в sub-skill `accept-run`):
+Triage each failed test along these categories (details in the `accept-run` sub-skill):
 
-| Категория падения | Что это | Действие |
+| Failure category | Meaning | Action |
 |---|---|---|
-| **Test defect** | артефакт неверен: кривая материализация, неверный assert, битый импорт, неверные данные | чинится здесь, в `test_*.py`, с одобрения пользователя |
-| **Service bug** | тест корректен, SUT ведёт себя не по контракту | баг-запись в `docs/bugs/<feature>.md` с описанием и тест-кейсом |
-| **Ambiguous** | данных для решения нет | совместный разбор с пользователем (WAIT) |
+| **Test defect** | the test artifact is wrong: broken materialization, incorrect assert, broken import, wrong data | fixed here, in `test_*.py`, with user approval |
+| **Service bug** | the test is correct; the SUT violates its contract | bug record in `docs/bugs/<feature>.md` with a description and the test case |
+| **Ambiguous** | insufficient data to decide | joint analysis with the user (WAIT) |
 
-Валидное падение теста (нашедший баг сервиса) **блокирует вердикт ACCEPTED_WITH_NOTES**, но не
-останавливает пайплайн: остальные тесты запускаются, баг фиксируется в артефакте.
+A valid test failure (a failure that exposed a service bug) **blocks the ACCEPTED_WITH_NOTES verdict** but does not
+stop the pipeline: the remaining tests still run, and the bug is recorded in the artifact.
 
 ## Invariants
 
 ### NEVER
 
-- принимать приёмку без запуска тестов — прогон pytest обязателен
-- править CODEMANIFEST тест-cells — это контракт только для чтения; рассинхрон Routine/test-файлов
-  лечится правкой `test_*.py` или возвратом к `cells`/`apply`
-- маскировать падения (`pytest.skip`, skip-markers, `xfail`) — падение остаётся видимым
-- записывать баг сервиса без подробного описания и тест-кейса
-- решать триаж (фикс теста / баг сервиса) без пользователя
-- обходить STOP-условие или пропускать WAIT-gate
-- оставлять секции выхода пустыми
+- declare acceptance without running the tests — the pytest run is mandatory
+- edit the CODEMANIFEST of test cells — the CODEMANIFEST is a read-only contract; a Routine/test-file desync
+  is fixed by editing `test_*.py` or returning to `cells`/`apply`
+- mask failures (`pytest.skip`, skip-markers, `xfail`) — every failure stays visible
+- record a service bug without a detailed description and the test case
+- decide the triage (test fix / service bug) without the user
+- bypass a STOP condition or skip a WAIT-gate
+- leave output sections empty
 
 ### ALWAYS
 
-- выполнять шаги по порядку
-- строить трассу TC → Routine → `test_*.py` из артефактов фичи
-- запускать тесты командой из [ACCEPT_SCOPE] и фиксировать фактический результат каждого
-- проводить триаж каждого падения совместно с пользователем (AskUserQuestion, 2–4 варианта)
-- баги сервисов записывать в `docs/bugs/<feature>.md` (создать директорию при отсутствии) с полным
-  описанием проблемы и тест-кейсом
-- чинить тест-дефекты в `test_*.py` только с одобрения пользователя и перезапускать тест после фикса
-- включать в итоговый отчёт вердикт, список баг-записей и применённые фиксы тестов
+- execute the steps in order
+- build the TC → Routine → `test_*.py` trace from the feature's artifacts
+- run the tests with the command from [ACCEPT_SCOPE] and record the actual result of each test
+- triage every failure together with the user (AskUserQuestion, 2–4 options)
+- record service bugs in `docs/bugs/<feature>.md` (create the directory if missing) with a full
+  description of the problem and the test case
+- fix test defects in `test_*.py` only with user approval and re-run the test after the fix
+- include the verdict, the list of bug records, and the applied test fixes in the final report

@@ -1,36 +1,35 @@
-# goga_tool_pybuggy.config — чтение конфигурации
+# goga_tool_pybuggy.config — Configuration Loading
 
-## Предметная область
+## Domain
 
-Шаблоны потребления cell `goga_tool_pybuggy/config`: загрузка `.goga/tools/pybuggy/config.yml` в типизированные модели и доступ к spec-записям. Аудитория — команды-потребители и CLI-фасад.
+Cell `goga_tool_pybuggy/config` provides consumption patterns for loading `.goga/tools/pybuggy/config.yml` into typed models and accessing spec entries. Target audience: consumer commands and the CLI facade.
 
-## Загрузка конфигурации
+## Loading the configuration
 
 ```python
 from goga_tool_pybuggy.config import load_config
 
-config = load_config(path)  # path — от корня проекта; None → фиксированный путь .goga/tools/pybuggy/config.yml
+config = load_config(path)  # path is project-root-relative; None → fixed path .goga/tools/pybuggy/config.yml
 ```
 
-`load_config` читает YAML (`yaml.safe_load`) и валидирует в `Config`. Невалидный конфиг падает с ошибкой валидации pydantic.
+The `load_config` function reads the YAML file via `yaml.safe_load` and validates the result into the `Config` model. If the configuration is invalid, `load_config` raises a pydantic validation error.
 
-## Доступ к spec-записям
+## Accessing spec entries
 
 ```python
 for name, entry in config.specs.items():
-    location = entry.location  # путь от корня проекта до файла спеки
-    git = entry.git  # Optional[GitEntry]; None → spec локальная
-    if git is not None:
-        clone_url = git.url  # clone URL (без встроенных токенов)
-        repo_path = git.location  # путь внутри репозитория
-        repo_ref = git.ref  # Optional[str]; ветка/тег для клонирования; None → default branch
+    location = entry.location  # project-root-relative path to the spec file
+    git = entry.git  # Optional[GitEntry]; None → local spec
+    clone_url = git.url  # clone URL (no embedded tokens)
+    repo_path = git.location  # path inside the repository
+    repo_ref = git.ref  # Optional[str]; branch/tag to clone; None → default branch
 ```
 
-- `name` (ключ dict) используется потребителями в выводе и в фильтре `--spec`.
-- `entry.git` может быть `None` — такая spec считается локальной; потребитель пропускает её с WARNING.
-- `git.ref` — значение по умолчанию для клонирования; потребитель может переопределить его опцией `--ref` (приоритет `--ref` > `git.ref` > default branch).
+- `name` (the dict key) is used by consumers for output and for the `--spec` filter.
+- `entry.git` can be `None` — the consumer treats such a spec as local and skips it with a WARNING.
+- `git.ref` is the default ref for cloning; the consumer can override it with the `--ref` option (priority order: `--ref` > `git.ref` > default branch).
 
-## Предусловия
+## Preconditions
 
-- Путь к конфигу — от корня проекта (cwd); значение по умолчанию `.goga/tools/pybuggy/config.yml`.
-- Поле `type` декларативное — не влияет на разбор (Prance авто-детектит версию).
+- The configuration path is resolved relative to the project root (cwd); the default value is `.goga/tools/pybuggy/config.yml`.
+- The `type` field is declarative — it does not affect parsing (Prance auto-detects the version).

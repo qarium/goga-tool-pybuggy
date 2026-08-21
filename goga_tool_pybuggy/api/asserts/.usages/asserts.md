@@ -1,169 +1,174 @@
-# goga_tool_pybuggy.api.asserts — полный референс ассертов
+# goga_tool_pybuggy.api.asserts — complete assert reference
 
-## Предметная область
+## Domain
 
-Sub-cell `goga_tool_pybuggy/api/asserts` — полный assert-слой pybuggy на базе matchcrest.
-Аудитория — автор тестового проекта, проверяющий ответы через сгенерированные
-фикстуры. Практика описывает **как потреблять** ассерты (response-level и
-field-level), а не как они реализованы.
+The sub-cell `goga_tool_pybuggy/api/asserts` provides the complete pybuggy assert layer
+built on matchcrest. The target reader is a test project author who verifies responses
+through generated fixtures. The practice describes **how to consume** asserts
+(response-level and field-level), not how pybuggy implements them.
 
-Слой собран из трёх сущностей:
+The layer consists of three entities:
 
-- `AssertConfig` — статический конфиг проверок (все поля опциональны);
-- `Expected` — двухуровневый диспетчер: response-level проверки + field-level
-  вход через `Expected.__call__(search)`; он же — response-level класс по
-  умолчанию;
-- `AssertField` — field-level ассерт над значением поля тела ответа; он же —
-  field-level класс по умолчанию.
+- `AssertConfig` — a static check configuration (all fields optional);
+- `Expected` — a two-level dispatcher: response-level checks plus the field-level entry
+  via `Expected.__call__(search)`; it is also the default response-level class;
+- `AssertField` — a field-level assert over a response body field value; it is also the
+  default field-level class.
 
-Эти объекты потребитель **не создаёт вручную**: `AssertConfig` собирается при
-вызове endpoint-а, `Expected` строится лениво при первом доступе к
-`response.expected`, field-level ассерт получается из `response.expected('path')`.
+The consumer never creates these objects manually: pybuggy assembles `AssertConfig` when
+the consumer calls the endpoint, builds `Expected` lazily on first access to
+`response.expected`, and the consumer obtains the field-level assert from
+`response.expected('path')`.
 
 ---
 
-## Точка входа
+## Entry point
 
 ```python
-from goga_tool_pybuggy.api.asserts import AssertField  # для type-hint'а
+from goga_tool_pybuggy.api.asserts import AssertField  # for a type hint
 ```
 
-`AssertField` оборачивает внутренний search-context и предоставляет matchcrest-матчёры над разрешённым значением. `Expected`, `AssertConfig` и `load_assert_class`
-также реэкспортируются, но в типовом тесте они приходят из `response.expected`.
+`AssertField` wraps the internal search context and provides matchcrest matchers over the
+resolved value. The module also re-exports `Expected`, `AssertConfig`, and
+`load_assert_class`, but a typical test receives them from `response.expected`.
 
 ---
 
-## Общие параметры всех check-методов
+## Common parameters of all check methods
 
-Каждый check-метод `Expected` и `AssertField` построен по одному шаблону:
-`assert_that(context, matcher, reason=...)`, возвращает свой объект (`Expected`
-или `AssertField`) для цепочек.
+Every check method on `Expected` and every check method on `AssertField` follows one
+template: the method calls `assert_that(context, matcher, reason=...)` and returns its own
+object (`Expected` or `AssertField`) for chaining.
 
-Универсальные kwargs:
+Universal kwargs:
 
-- `reason: str = ""` — префикс сообщения об ошибке (на каждой проверке).
-- `any: bool = False` — управление перебором элементов; действует **только**
-  вместе с `in_array=True` (флаг уровня поля, задаётся на входе в поле или при
-  drill-down). Два режима при `in_array=True`: `any=False` (умолчание) —
-  совпадение требуется для **всех** элементов списка; `any=True` — достаточно
-  **хотя бы одного** совпадающего. Передавать `any=True` без `in_array=True`
-  нельзя — это бросает `ValueError` (`"any" can be used with "in_array" only`).
-  Параметра нет у `raise_exc`/`not_raise_exc`.
-- `timeout: int | float | None = None` / `delay: int | float | None = None` —
-  per-call override бейзлайна из `AssertConfig` для **одной** проверки (см. Polling).
+- `reason: str = ""` — the error message prefix (applied on every check).
+- `any: bool = False` — controls element iteration; it takes effect **only** together
+  with `in_array=True` (a field-level flag set on field entry or on drill-down). Under
+  `in_array=True` there are two modes: `any=False` (default) requires a match for **all**
+  list elements; `any=True` accepts **at least one** matching element. Passing `any=True`
+  without `in_array=True` raises `ValueError` (`"any" can be used with "in_array" only`).
+  `raise_exc`/`not_raise_exc` do not accept this parameter.
+- `timeout: int | float | None = None` / `delay: int | float | None = None` — per-call
+  override of the `AssertConfig` baseline for a **single** check (see Polling).
 
-`.value` (свойство `AssertField`) отдаёт разрешённое значение **без проверки**.
-Вызов поля (`field(index=0)`, `field(search=...)`) drills на уровень глубже и
-возвращает новый `AssertField`.
-
----
-
-## AssertConfig — статический конфиг
-
-| Поле                    | Тип                    | Назначение                                                                                                  |
-|-------------------------|------------------------|-------------------------------------------------------------------------------------------------------------|
-| `status`                | `int \| None`          | Ожидаемый код успеха; `None` отключает статус-автопроверку                                                  |
-| `data_key`              | `str \| None`          | Ключ тела «успех»: positive — присутствует, negative — отсутствует; корень field-поиска на позитивном пути  |
-| `error_key`             | `str \| None`          | Ключ тела «ошибка»: positive — отсутствует, negative — присутствует; корень field-поиска на негативном пути |
-| `schemas_dir`           | `Path \| None`         | Каталог json-схем `<status>*.json` для авто-валидации; `None`/отсутствие — пропуск                          |
-| `timeout`               | `int \| float \| None` | Бейзлайн polling-таймаута (сек.); `None` — одна попытка                                                     |
-| `delay`                 | `int \| float \| None` | Пауза между polling-попытками (сек.); `None` — дефолт матчёра                                               |
-| `assert_field_class`    | `str \| None`          | Dotted `module:Class` кастомного подкласса `AssertField`; `None` — встроенный                               |
-| `assert_response_class` | `str \| None`          | Dotted `module:Class` кастомного подкласса `Expected`; `None` — встроенный                                  |
+`.value` (an `AssertField` property) returns the resolved value **without running a
+check**. Calling the field (`field(index=0)`, `field(search=...)`) drills one level deeper
+and returns a new `AssertField`.
 
 ---
 
-## Expected — response-level диспетчер
+## AssertConfig — static configuration
 
-Получается из `response.expected`. Response-level методы работают по целому
-ответу (статус/заголовки/тело) и возвращают `Expected` для цепочек.
+| Field                  | Type                    | Purpose                                                                                                     |
+|------------------------|-------------------------|-------------------------------------------------------------------------------------------------------------|
+| `status`               | `int \| None`          | Expected success code; `None` disables the status autocheck                                                  |
+| `data_key`             | `str \| None`          | "success" body key: present on positive, absent on negative; field-search root on the positive path          |
+| `error_key`            | `str \| None`          | "error" body key: absent on positive, present on negative; field-search root on the negative path           |
+| `schemas_dir`          | `Path \| None`         | Directory of `<status>*.json` schemas for auto-validation; `None`/missing — skip                            |
+| `timeout`              | `int \| float \| None` | Polling timeout baseline (sec.); `None` — single attempt                                                    |
+| `delay`                | `int \| float \| None` | Pause between polling attempts (sec.); `None` — matcher default                                             |
+| `assert_field_class`   | `str \| None`          | Dotted `module:Class` of a custom `AssertField` subclass; `None` — built-in                                 |
+| `assert_response_class`| `str \| None`          | Dotted `module:Class` of a custom `Expected` subclass; `None` — built-in                                    |
 
-### Response-level проверки (полный список)
+---
 
-| Метод                                            | Матчёр                                                          | Что проверяет                                                                         |
-|--------------------------------------------------|-----------------------------------------------------------------|---------------------------------------------------------------------------------------|
-| `has_status_code(code)`                          | `ResponseCodeMatcher`                                           | Код ответа равен `code` (`int`, строка `requests.codes.<name>` или `Enum`)            |
-| `has_header(key, value=None, ...)`               | `ResponseHeadersByKeyMatcher` / `ResponseHeadersByValueMatcher` | Заголовок `key` есть; при `value` — значение совпадает                                |
-| `json_has_data_by_key(key)`                      | `JsonHasDataByKeyMatcher`                                       | В теле есть ключ `key` со значением не `None`                                         |
-| `json_has_not_data_by_key(key)`                  | `JsonHasNotDataByKeyMatcher`                                    | В теле нет ключа `key` (или он `None`)                                                |
-| `json_contains_key(key)`                         | `JsonContainsKeyMatcher`                                        | В теле есть ключ `key` (вложенный, если передан список)                               |
-| `jsonschema_is_valid(schema)`                    | `JsonschemaMatcher`                                             | Тело валидно против json-схемы (dict или путь к `.json`)                              |
-| `jsonschemas_is_valid(schemas_dir, status_code)` | `JsonschemaMatcher`                                             | Тело валидно против первого файла `<status_code>*` в каталоге; пропуск при отсутствии |
+## Expected — response-level dispatcher
 
-Детали параметров:
+The consumer obtains `Expected` from `response.expected`. Response-level methods operate
+on the whole response (status/headers/body); each method returns `Expected` for chaining.
 
-- `has_status_code(code, *, reason="", timeout=None, delay=None)`: `code` —
-  `int` (напр. `200`), строка-имя из `requests.codes` (напр. `"ok"`→200), либо
-  `Enum` (берётся `.value`).
+### Response-level checks (complete list)
+
+| Method                                           | Matcher                                                          | What it checks                                                                      |
+|--------------------------------------------------|------------------------------------------------------------------|-------------------------------------------------------------------------------------|
+| `has_status_code(code)`                          | `ResponseCodeMatcher`                                           | Response code equals `code` (`int`, a `requests.codes.<name>` string, or an `Enum`) |
+| `has_header(key, value=None, ...)`               | `ResponseHeadersByKeyMatcher` / `ResponseHeadersByValueMatcher` | Header `key` exists; with `value` — the header value matches                         |
+| `json_has_data_by_key(key)`                      | `JsonHasDataByKeyMatcher`                                       | Body contains key `key` with a non-`None` value                                     |
+| `json_has_not_data_by_key(key)`                  | `JsonHasNotDataByKeyMatcher`                                    | Body lacks key `key` (or the key value is `None`)                                   |
+| `json_contains_key(key)`                         | `JsonContainsKeyMatcher`                                        | Body contains key `key` (nested when passed a list)                                 |
+| `jsonschema_is_valid(schema)`                    | `JsonschemaMatcher`                                             | Body validates against a json schema (dict or path to `.json`)                      |
+| `jsonschemas_is_valid(schemas_dir, status_code)` | `JsonschemaMatcher`                                             | Body validates against the first `<status_code>*` file in the directory; skips when absent |
+
+Parameter details:
+
+- `has_status_code(code, *, reason="", timeout=None, delay=None)`: `code` is an `int`
+  (e.g. `200`), a name string from `requests.codes` (e.g. `"ok"`→200), or an `Enum` (the
+  method takes `.value`).
 - `has_header(key, value=None, *, contains=None, startswith=None, endswith=None, count=None, reason="", timeout=None, delay=None)`:
-  - без `value` — факт наличия заголовка (опц. фильтр по подстроке/префиксу/суффиксу, опц. `count` — ровно столько совпадений);
-  - с `value` — значение заголовка совпадает (по умолчанию точное равенство, либо `contains`/`startswith`/`endswith`);
-  - сравнение **case-insensitive** и для **ключей**, и для **значений** (и ключ, и ожидаемое значение приводятся к нижнему регистру);
-  - `count` вместе с `value` → `ValueError`.
-- `json_contains_key(key)`: `key` — одна строка или упорядоченный список для
-  спуска во вложенные объекты.
-- `jsonschema_is_valid(schema)`: `schema` — `dict`, либо путь к `.json` (читается UTF-8).
-- `jsonschemas_is_valid(schemas_dir, status_code)`: берётся **первый** по сортировке
-  файл, чьё имя начинается со строки статуса; нет каталога/файла — тихий пропуск.
+  - without `value` — checks header presence (optional substring/prefix/suffix filter; optional `count` — exactly that many matches);
+  - with `value` — checks the header value (exact equality by default, or `contains`/`startswith`/`endswith`);
+  - the method compares **case-insensitively** for **both keys and values** (it lowercases the key and the expected value);
+  - `count` combined with `value` → `ValueError`.
+- `json_contains_key(key)`: `key` is a single string or an ordered list that the method
+  uses to descend into nested objects.
+- `jsonschema_is_valid(schema)`: `schema` is a `dict` or a path to a `.json` file (read
+  as UTF-8).
+- `jsonschemas_is_valid(schemas_dir, status_code)`: the method takes the **first** file
+  in sort order whose name starts with the status string; a missing directory/file means
+  a silent skip.
 
-### Field-level вход
+### Field-level entry
 
 ```python
-field = response.expected("items")  # dotted-путь под data_key
-field = response.expected("$.items[*]")  # jsonpath под data_key
-field = response.expected()  # целиком значение под data_key (массив/объект)
+field = response.expected("items")  # dotted path under data_key
+field = response.expected("$.items[*]")  # jsonpath under data_key
+field = response.expected()  # the whole value under data_key (array/object)
 ```
 
 `Expected.__call__(search=None, *, index=None, hook=None, in_array=False)`:
 
-- `search` — dotted-путь (`a.b.c`) **или** jsonpath (`$.a.b[*]`), разрешаемые под
-  корневым ключом: на позитивном пути — `data_key`, на негативном — `error_key`.
-  `None` — значение под этим ключом целиком (не «всё тело ответа»); без
-  `data_key`/`error_key` корнем служит само тело ответа;
-- `index` — опц. индекс списка после поиска;
-- `hook` — опц. callable, применяется к разрешённому значению (не-callable → `TypeError`);
-- `in_array` — трактовать значение как список для поэлементных `any`.
+- `search` — a dotted path (`a.b.c`) **or** a jsonpath (`$.a.b[*]`); pybuggy resolves it
+  under the root key: `data_key` on the positive path, `error_key` on the negative path.
+  `None` selects the whole value under that key (not "the whole response body"); when
+  `data_key`/`error_key` are absent, the response body itself is the root;
+- `index` — an optional list index that pybuggy applies after the search;
+- `hook` — an optional callable applied to the resolved value (a non-callable →
+  `TypeError`);
+- `in_array` — makes pybuggy treat the value as a list for per-element `any`.
 
-**Важно про jsonpath**: `$` отсчитывается **от значения корневого ключа**, а не от
-тела ответа. При `data_key="data"` выражение `$.items[*]` → `body["data"]["items"]`,
-а `$[0].name` → `body["data"][0]["name"]`. Это единое правило для dotted и jsonpath.
+**Important jsonpath rule**: `$` counts **from the root key value**, not from the
+response body. When `data_key="data"`, the expression `$.items[*]` resolves to
+`body["data"]["items"]`, and `$[0].name` resolves to `body["data"][0]["name"]`. This one
+rule governs both dotted paths and jsonpath.
 
-Возвращает `AssertField` для цепочек.
+The call returns `AssertField` for chaining.
 
-### autocheck (внутренний)
+### autocheck (internal)
 
-`Expected.autocheck()` вызывается обёрткой ответа один раз при ленивом доступе,
-если `use_autocheck=True`. Путь выбирается флагом `is_negative`:
+The response wrapper calls `Expected.autocheck()` exactly once — at the lazy access
+point — when `use_autocheck=True`. The `is_negative` flag selects the path:
 
-- **positive:** статус (если задан) → `error_key` отсутствует → `data_key`
-  присутствует → валидация по `<status>*` схеме (пропуск при отсутствии);
-- **negative:** `data_key` отсутствует → `error_key` присутствует (статус и
-  json-схема **не** проверяются).
+- **positive:** status (when configured) → `error_key` absent → `data_key` present →
+  validation against the `<status>*` schema (skip when the schema is absent);
+- **negative:** `data_key` absent → `error_key` present (the path checks neither status
+  nor json schema).
 
 ---
 
-## AssertField — field-level матчёры (полный список)
+## AssertField — field-level matchers (complete list)
 
-Field-level ассерт над разрешённым значением поля. Каждый метод — matchcrest
-`assert_that`, возвращает `AssertField` для цепочек. Все (кроме `raise_exc`/
-`not_raise_exc`) принимают `reason`/`any`/`timeout`/`delay`; у методов со звёздочкой
-есть дополнительные параметры.
+`AssertField` is a field-level assert over the resolved field value. Each method wraps a
+matchcrest `assert_that` call and returns `AssertField` for chaining. All methods except
+`raise_exc`/`not_raise_exc` accept `reason`/`any`/`timeout`/`delay`; methods with
+additional parameters list them in the tables below.
 
-Путь разрешается контекстом: на позитивном пути — под `data_key`, на негативном —
-под `error_key`; без ключей — относительно тела целиком. Это относится **и к dotted,
-и к jsonpath**: jsonpath вычисляется после префиксирования корневым ключом.
+The context resolves the path: under `data_key` on the positive path, under `error_key`
+on the negative path; when both keys are absent, the path is relative to the whole body.
+This rule covers **both dotted paths and jsonpath**: pybuggy evaluates jsonpath after it
+prefixes the root key.
 
-### Вхождение и содержание
+### Membership and containment
 
-| Метод                 | Доп. параметры | Что проверяет                                                                                                       |
-|-----------------------|----------------|---------------------------------------------------------------------------------------------------------------------|
-| `contains(value)`     | —              | Значение **содержит** `value` (Python `in`: для str — подстрока, для list — членство, для dict — наличие **ключа**) |
-| `not_contains(value)` | —              | Значение **не содержит** `value` (обратная семантика `in`)                                                          |
-| `contains_dict(dct)`  | `dct: dict`    | Dict содержит **все** пары key/value из `dct`                                                                       |
-| `is_in(value)`        | —              | Значение является **элементом** `value` (`value` — контейнер)                                                       |
-| `is_not_in(value)`    | —              | Значение **не** является элементом `value`                                                                          |
-| `is_subset(value)`    | —              | Итерируемое значение — подмножество `value`                                                                         |
-| `is_disjoint(value)`  | —              | Итерируемое значение не имеет общих элементов с `value`                                                             |
+| Method                | Additional params | What it checks                                                                                                  |
+|-----------------------|-------------------|-----------------------------------------------------------------------------------------------------------------|
+| `contains(value)`     | —                 | Value **contains** `value` (Python `in`: substring for str, membership for list, **key** presence for dict)     |
+| `not_contains(value)` | —                 | Value does **not** contain `value` (inverse of `in`)                                                            |
+| `contains_dict(dct)`  | `dct: dict`       | Dict contains **all** key/value pairs from `dct`                                                                |
+| `is_in(value)`        | —                 | Value is an **element of** `value` (`value` is a container)                                                     |
+| `is_not_in(value)`    | —                 | Value is **not** an element of `value`                                                                          |
+| `is_subset(value)`    | —                 | Iterable value is a subset of `value`                                                                           |
+| `is_disjoint(value)`  | —                 | Iterable value shares no elements with `value`                                                                  |
 
 ```python
 response.expected("name").contains("abc")
@@ -171,20 +176,20 @@ response.expected("tags").is_in(["x", "y"])
 response.expected("filters").is_subset({"a": 1, "b": 2})
 ```
 
-> Внимание на направление аргумента: `is_in(value)` / `is_subset(value)` /
-> `is_disjoint(value)` — `value` это **второй** операнд (контейнер/надмножество),
-> а разрешённое поле — первый. `is_subset`/`is_disjoint` строят множества через
-> `set()`, поэтому и разрешённое значение, и `value` должны быть **итерируемыми
-> и хешируемыми**; не-итерируемое значение → `ValueError`.
+> Mind the argument direction: in `is_in(value)` / `is_subset(value)` /
+> `is_disjoint(value)`, `value` is the **second** operand (the container/superset),
+> while the resolved field is the first operand. `is_subset`/`is_disjoint` build sets
+> via `set()`; therefore both the resolved value and `value` must be **iterable and
+> hashable**; a non-iterable value → `ValueError`.
 
-### Равенство и пустота
+### Equality and emptiness
 
-| Метод                 | Доп. параметры       | Что проверяет                                   |
-|-----------------------|----------------------|-------------------------------------------------|
-| `equal_to(value)`     | `strict: bool=False` | Равно `value`; `strict=True` → тождество (`is`) |
-| `not_equal_to(value)` | `strict: bool=False` | Не равно `value`                                |
-| `empty()`             | —                    | Пусто/falsy                                     |
-| `not_empty()`         | —                    | Не пусто/truthy                                 |
+| Method                | Additional params    | What it checks                                     |
+|-----------------------|----------------------|----------------------------------------------------|
+| `equal_to(value)`     | `strict: bool=False` | Equals `value`; `strict=True` → identity (`is`)    |
+| `not_equal_to(value)` | `strict: bool=False` | Not equal to `value`                               |
+| `empty()`             | —                    | Empty/falsy                                        |
+| `not_empty()`         | —                    | Non-empty/truthy                                   |
 
 ```python
 response.expected("name").equal_to("abc")
@@ -192,39 +197,39 @@ response.expected("count").equal_to(1, strict=True)
 response.expected("items").not_empty()
 ```
 
-### Сравнение чисел
+### Number comparison
 
-| Метод                 | Доп. параметры         | Что проверяет                       |
-|-----------------------|------------------------|-------------------------------------|
-| `greater_than(value)` | `or_equal: bool=False` | `>` `value`; `or_equal=True` → `>=` |
-| `lesser_than(value)`  | `or_equal: bool=False` | `<` `value`; `or_equal=True` → `<=` |
+| Method                | Additional params      | What it checks                        |
+|-----------------------|------------------------|---------------------------------------|
+| `greater_than(value)` | `or_equal: bool=False` | `>` `value`; `or_equal=True` → `>=`   |
+| `lesser_than(value)`  | `or_equal: bool=False` | `<` `value`; `or_equal=True` → `<=`   |
 
 ```python
 response.expected("count").greater_than(0)
 response.expected("count").greater_than(0, or_equal=True)
 ```
 
-### Длина
+### Length
 
-| Метод                       | Что проверяет            |
-|-----------------------------|--------------------------|
-| `has_length(value)`         | `len(значение) == value` |
-| `has_length_greater(value)` | `len(значение) > value`  |
-| `has_length_lesser(value)`  | `len(значение) < value`  |
+| Method                      | What it checks                 |
+|-----------------------------|--------------------------------|
+| `has_length(value)`         | `len(resolved value) == value` |
+| `has_length_greater(value)` | `len(resolved value) > value`  |
+| `has_length_lesser(value)`  | `len(resolved value) < value`  |
 
 ```python
 response.expected("items").has_length(3)
 response.expected("items").has_length_greater(0)
 ```
 
-### Строки и URL
+### Strings and URLs
 
-| Метод                  | Доп. параметры                                                     | Что проверяет                                                                                                                  |
-|------------------------|--------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `startswith(value)`    | —                                                                  | Строка начинается с `value`                                                                                                    |
-| `endswith(value)`      | —                                                                  | Строка заканчивается на `value`                                                                                                |
-| `match_regex(pattern)` | `pattern: str`                                                     | Соответствует регулярке; семантика `re.match` — совпадение с **начала** строки (не `search`/`fullmatch`)                       |
-| `is_url()`             | `is_live: bool=False`, `allowed_protocols: list[str] \| None=None` | Валидный URL; `is_live=True` — достижим (GET → 2xx); `allowed_protocols` — разрешённые схемы (по умолчанию `['https','http']`) |
+| Method                 | Additional params                                                  | What it checks                                                                                                              |
+|------------------------|--------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------|
+| `startswith(value)`    | —                                                                  | String starts with `value`                                                                                                  |
+| `endswith(value)`      | —                                                                  | String ends with `value`                                                                                                    |
+| `match_regex(pattern)` | `pattern: str`                                                     | Matches the regex; `re.match` semantics — anchored to the **start** of the string (not `search`/`fullmatch`)                 |
+| `is_url()`             | `is_live: bool=False`, `allowed_protocols: list[str] \| None=None` | Valid URL; `is_live=True` — reachable (GET → 2xx); `allowed_protocols` — allowed schemes (defaults to `['https','http']`)   |
 
 ```python
 response.expected("email").match_regex(r"^[\w.]+@[\w.]+$")
@@ -232,17 +237,17 @@ response.expected("avatar").is_url()
 response.expected("avatar").is_url(is_live=True, allowed_protocols=["https"])
 ```
 
-### Даты
+### Dates
 
-| Метод                     | Что проверяет                                   |
-|---------------------------|-------------------------------------------------|
-| `has_date(value)`         | Дата/datetime равна `value` (`date`/`datetime`) |
-| `has_date_greater(value)` | Дата больше `value`                             |
-| `has_date_lesser(value)`  | Дата меньше `value`                             |
+| Method                    | What it checks                                    |
+|---------------------------|---------------------------------------------------|
+| `has_date(value)`         | Date/datetime equals `value` (`date`/`datetime`)  |
+| `has_date_greater(value)` | Date is greater than `value`                      |
+| `has_date_lesser(value)`  | Date is less than `value`                         |
 
-> Сравнение выполняется **по timestamp** (`date_to_timestamp`): `date` приводится
-> к полуночи, `datetime` — к своему timestamp. Поэтому `date` и `datetime` с
-> разным временем могут не совпасть — сравнивайте значения в одном типе.
+> The method compares **by timestamp** (`date_to_timestamp`): a `date` converts to
+> midnight; a `datetime` converts to its own timestamp. Therefore a `date` and a
+> `datetime` with different times may not match — compare values of the same type.
 
 ```python
 from datetime import date
@@ -251,19 +256,19 @@ response.expected("created_at").has_date(date(2026, 1, 1))
 response.expected("created_at").has_date_greater(date(2025, 1, 1))
 ```
 
-### Исключения (context managers)
+### Exceptions (context managers)
 
-| Метод                     | Доп. параметры                | Что проверяет                                   |
-|---------------------------|-------------------------------|-------------------------------------------------|
-| `raise_exc(expected_exc)` | `expected_exc: type \| tuple` | Доступ к значению raises один из `expected_exc` |
-| `not_raise_exc()`         | —                             | Доступ к значению не raises ничего              |
+| Method                    | Additional params             | What it checks                                     |
+|---------------------------|-------------------------------|----------------------------------------------------|
+| `raise_exc(expected_exc)` | `expected_exc: type \| tuple` | Accessing the value raises one of `expected_exc`  |
+| `not_raise_exc()`         | —                             | Accessing the value raises nothing                 |
 
-Это **контекстные менеджеры**: yield'ят разрешённое значение и проверяют, что
-выброшено (или не выброшено) внутри блока. Не принимают `any`.
+These methods are **context managers**: they yield the resolved value and verify that the
+block raises (or does not raise) an exception. They do not accept `any`.
 
 ```python
 with response.expected("missing").raise_exc(KeyError):
-    ...  # обращение к полю внутри блока должно выбросить KeyError
+    ...  # field access inside the block must raise KeyError
 
 with response.expected("ok").not_raise_exc() as value:
     assert value == "abc"
@@ -271,53 +276,52 @@ with response.expected("ok").not_raise_exc() as value:
 
 ---
 
-## Drill-down и массивы
+## Drill-down and arrays
 
-- **Drill:** вызов `field(search=..., index=..., hook=...)` (или `field(index=0)`)
-  возвращает новый `AssertField` на расширенном контексте; бейзлайн
-  `timeout`/`delay` наследуется. Dotted-шаги применяются по очереди, затем
-  `index`, затем `hook`.
-- **in_array:** флаг уровня поля (через `Expected.__call__(in_array=True)` или при
-  drill-down). С `in_array=True` значение трактуется как список: `any=False`
-  (умолчание) требует совпадения **всех** элементов, `any=True` — **хотя бы одного**.
-- **Все элементы массива** (jsonpath с `[*]` возвращает список значений): чтобы
-  проверить, что **каждый** элемент входит в допустимое множество, примените
-  `is_in`/`is_subset` над списком. Это «все удовлетворяют», в отличие от `any=True`
-  («хотя бы один»).
-- **Элемент отсутствует среди элементов массива**: выберите список значений
-  jsonpath-ом `$[*].field` и проверьте `not_contains` (для скалярных значений)
-  или `is_disjoint` (множественная семантика). `not_contains` над списком без
-  `in_array` — это членство значения в списке, то есть «значение не встречается
-  ни у одного элемента». Для строковых значений это точная проверка равенства
-  отсутствия — в отличие от `in_array=True`, где `in` для строк работает как
-  подстрока.
-- **Кастомный поиск элемента массива**: когда элемент находится по предикату
-  (несколько полей совпадают), а не по индексу, напишите обычную функцию
-  поиска и подайте её hook-ом над корнем массива (`expected()` без search —
-  значение под `data_key` целиком). Hook возвращает найденный элемент (`None`,
-  если не нашли) — ассерт остаётся во фреймворке, `None` валит проверку, что
-  даёт и «найдено», и «равно ожидаемому» одной цепочкой.
-- **Пустой результат jsonpath** (в т.ч. `$[*]` по пустому массиву) бросает
-  `AssertionError` («No results»). Для проверки пустоты используйте `has_length(0)`
-  по корню, а не jsonpath.
+- **Drill:** when the consumer calls `field(search=..., index=..., hook=...)` (or
+  `field(index=0)`), the call returns a new `AssertField` over the extended context; the
+  new context inherits the `timeout`/`delay` baseline. pybuggy applies dotted steps in
+  order, then `index`, then `hook`.
+- **in_array:** a field-level flag (set via `Expected.__call__(in_array=True)` or on
+  drill-down). Under `in_array=True` pybuggy treats the value as a list: `any=False`
+  (default) requires **all** elements to match; `any=True` — **at least one**.
+- **All elements of an array** (jsonpath with `[*]` returns a list of values): when the
+  consumer needs to verify that **every** element belongs to the allowed set, the
+  consumer applies `is_in`/`is_subset` over the list. This is the "all satisfy" pattern,
+  unlike `any=True` ("at least one").
+- **Element absent among array elements**: the consumer selects the value list with
+  jsonpath `$[*].field` and checks `not_contains` (for scalar values) or `is_disjoint`
+  (set semantics). `not_contains` over a list without `in_array` checks membership of a
+  value in the list — i.e. "the value occurs in no element". For string values this is
+  an exact absence-equality check — unlike `in_array=True`, where `in` over strings
+  works as a substring test.
+- **Custom array element lookup**: when the test locates an element by predicate (several
+  fields must match) rather than by index, the consumer writes a regular lookup function
+  and passes it as a hook over the array root (`expected()` without search — the whole
+  value under `data_key`). The hook returns the found element (`None` when nothing
+  matches) — the assert stays inside the framework, and `None` fails the check; one chain
+  therefore delivers both "found" and "equals the expected value".
+- **Empty jsonpath result** (including `$[*]` over an empty array) raises
+  `AssertionError` ("No results"). To check emptiness, the consumer uses
+  `has_length(0)` over the root, not jsonpath.
 
 ```python
-response.expected("items", in_array=True).equal_to(2, any=True)  # хотя бы один == 2
-response.expected("items")(index=0).equal_to(1)  # drill по индексу
-response.expected("name")(hook=str.upper).equal_to("ABC")  # hook перед сравнением
+response.expected("items", in_array=True).equal_to(2, any=True)  # at least one == 2
+response.expected("items")(index=0).equal_to(1)  # drill by index
+response.expected("name")(hook=str.upper).equal_to("ABC")  # hook runs before comparison
 
-# data_key — массив: непустота / конкретный элемент
-response.expected().has_length_greater(0)  # значение под data_key (массив) непусто
+# data_key is an array: non-emptiness / a specific element
+response.expected().has_length_greater(0)  # the value under data_key (array) is non-empty
 response.expected("$[0].name").equal_to("abc")  # data[0].name
 
-# все элементы: data[*].status — список; is_subset гарантирует, что каждый входит в множество
-response.expected("$[*].status").is_subset(["active", "idle"])  # каждый status ∈ множество
+# all elements: data[*].status is a list; is_subset guarantees every element belongs to the set
+response.expected("$[*].status").is_subset(["active", "idle"])  # every status ∈ the set
 
-# элемент отсутствует: data[*].request.test_id — список значений, not_contains — ни один не равен
+# element absent: data[*].request.test_id is a value list; not_contains — none equals
 response.expected("$[*].request.test_id").not_contains(test_id_b)
 
 
-# кастомный поиск элемента по предикату: hook над корнем массива, дальше — штатные ассерты
+# custom predicate-based element lookup: a hook over the array root, then regular asserts
 def _mock_body(items: list, test_id: str, path: str, method: str):
     for item in items:
         req = item["request"]
@@ -333,30 +337,30 @@ response.expected()(hook=lambda items: _mock_body(items, test_id_a, "/api/shared
 
 ## Polling
 
-`timeout`/`delay` из `AssertConfig` — бейзлайн. matchcrest повторяет проверку
-(рефетчая ответ между попытками через `resq.http.Response.reload()` — повтор того
-же запроса in-place) до успеха или истечения `timeout`, делая паузу `delay`.
-Per-call `timeout`/`delay` kwargs переопределяют бейзлайн для одной проверки;
-`None` (по умолчанию) — одна попытка без polling. Источник бейзлайна — `AssertConfig`
-(`timeout`/`delay`).
+`timeout`/`delay` from `AssertConfig` form the baseline. matchcrest repeats the check
+until success or `timeout` expiry; between attempts matchcrest re-fetches the response
+via `resq.http.Response.reload()` (an in-place replay of the same request) and pauses for
+`delay`. Per-call `timeout`/`delay` kwargs override the baseline for a single check;
+`None` (the default) means one attempt without polling. `AssertConfig`
+(`timeout`/`delay`) is the source of the baseline.
 
-## Pluggable классы
+## Pluggable classes
 
-`assert_field_class`/`assert_response_class` (dotted `module:Class`) подключают
-кастомные подклассы `AssertField`/`Expected` (должны наследовать встроенные);
-оба грузятся через `load_assert_class` в точке построения field/response-класса.
-`None` — встроенные классы.
+`assert_field_class`/`assert_response_class` (dotted `module:Class`) plug in custom
+`AssertField`/`Expected` subclasses; the subclasses must inherit the built-in classes.
+pybuggy loads both via `load_assert_class` at the point where it builds the
+field/response class. `None` selects the built-in classes.
 
 ```python
 Api(base_url=..., assert_field_class="myproj.asserts:StrictAssertField")
 ```
 
-## Особенности pybuggy
+## pybuggy specifics
 
-- контексты оборачивают `resq.http.Response`;
-- polling (`timeout`/`delay`): между попытками ответ рефетчится повтором того же
-  запроса in-place;
-- pybuggy — plain-классы, без слоя отчётности (ассерты не зависят от pytest и не
-  ведут отчёт по шагам);
-- конфигурация проверок собрана в `AssertConfig` и доходит до матчёров через
-  диспетчеры.
+- contexts wrap `resq.http.Response`;
+- polling (`timeout`/`delay`): between attempts pybuggy re-fetches the response by
+  replaying the same request in place;
+- pybuggy uses plain classes without a reporting layer (asserts depend on neither pytest
+  nor step reporting);
+- check configuration lives in `AssertConfig`; the dispatchers deliver it to the
+  matchers.

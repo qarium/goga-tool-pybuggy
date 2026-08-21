@@ -1,32 +1,28 @@
 # PyHamcrest
 
-Библиотека декларативных матчёров (Hamcrest для Python). matchcrest построен поверх неё.
+A library of declarative matchers (Hamcrest for Python). matchcrest is built on top of it.
 
-## Точка проверки — assert_that
+## The assertion point — assert_that
 
 ```python
 from hamcrest import assert_that
 
-assert_that(actual, matcher)        # базовая форма
-assert_that(actual, matcher, reason)  # с префиксом сообщения
+assert_that(actual, matcher)          # base form
+assert_that(actual, matcher, reason)  # with a message prefix
 ```
 
-Применяет `matcher` к `actual`; при несовпадении поднимает `AssertionError` с описанием
-ожидания и реального значения (из `describe_to` / `describe_mismatch` матчера).
+`assert_that` applies `matcher` to `actual`; on a mismatch it raises an `AssertionError` carrying a description of the expectation and the actual value (produced by the matcher's `describe_to` / `describe_mismatch`).
 
-## Базовый матчёр — BaseMatcher
+## The base matcher — BaseMatcher
 
-`hamcrest.core.base_matcher.BaseMatcher` — базовый класс для кастомных матчёров.
+`hamcrest.core.base_matcher.BaseMatcher` is the base class for custom matchers.
 
-- `_matches(self, item) -> bool` — ядро проверки; вызывается движком `assert_that`.
-- `describe_to(self, description)` — записывает ожидание в `Description`.
-- `describe_mismatch(self, item, mismatch_description)` — записывает фактическое расхождение.
+- `_matches(self, item) -> bool` — the core of the check; the `assert_that` engine invokes it.
+- `describe_to(self, description)` — writes the expectation into `Description`.
+- `describe_mismatch(self, item, mismatch_description)` — writes the actual mismatch.
 
-`hamcrest.core.description.Description` — объект для накопления текста описания
-(`append_text`, и т.п.).
+`hamcrest.core.description.Description` is the object that accumulates description text (`append_text`, etc.).
 
-## Использование в matchcrest
+## Usage in matchcrest
 
-`matchcrest.matchers.base.BaseMatcher` наследует `hamcrest.core.base_matcher.BaseMatcher` и
-переопределяет `_matches` (retry/timeout-цикл), делегируя саму проверку хуку `_assert`.
-Корневой фасад реэкспортит `assert_that` из `hamcrest` как точку входа проверок.
+`matchcrest.matchers.base.BaseMatcher` inherits from `hamcrest.core.base_matcher.BaseMatcher` and overrides `_matches` (a retry/timeout loop), delegating the check itself to the `_assert` hook. The matchcrest root facade re-exports `assert_that` from `hamcrest` as the entry point for checks.

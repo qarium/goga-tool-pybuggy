@@ -1,20 +1,20 @@
-# goga_tool_pybuggy.spec — разбор спек и извлечение эндпоинтов
+# goga_tool_pybuggy.spec — spec parsing and endpoint extraction
 
-## Предметная область
+## Domain
 
-Шаблоны потребления cell `goga_tool_pybuggy/spec`: разбор spec-файла в dict и извлечение эндпоинтов (метод+путь + развёрнутые схемы) для спецификаций **Swagger 2.0 и OpenAPI 3.x**. Формат определяется автоматически по содержимому спеки. Аудитория — команды-потребители и клетка форматирования.
+Consumption patterns of the cell `goga_tool_pybuggy.spec`: parsing a spec file into a dict and extracting endpoints (method+path plus expanded schemas) for **Swagger 2.0 and OpenAPI 3.x** specifications. The cell detects the format automatically from the spec content. Target audience: consumer teams and the formatting cell.
 
-## Разбор spec-файла
+## Spec file parsing
 
 ```python
 from goga_tool_pybuggy.spec import load_spec
 
-spec = load_spec(spec_path)  # pathlib.Path; $ref уже инлайнированы Prance
+spec = load_spec(spec_path)  # pathlib.Path; $ref already inlined by Prance
 ```
 
-При ошибке разбора `load_spec` бросает `click.ClickException` (маппинг `SpecParseError` из swax).
+On a parse error, `load_spec` raises `click.ClickException` (a mapping of `SpecParseError` from swax).
 
-## Определение версии
+## Version detection
 
 ```python
 from goga_tool_pybuggy.spec import detect_spec_version
@@ -22,36 +22,36 @@ from goga_tool_pybuggy.spec import detect_spec_version
 version = detect_spec_version(spec)  # "swagger" (Swagger 2.0) | "openapi" (OpenAPI 3.x)
 ```
 
-Версия определяется по наличию top-level ключа `swagger` против `openapi`, а не по декларативному `SpecEntry.type`. Спека без обоих ключей некорректна — `detect_spec_version` выбрасывает `ValueError`. Выбор пути извлечения управляется этой версией внутри `extract_endpoints` — потребителю обычно не нужно вызывать `detect_spec_version` вручную.
+The version is detected by the presence of a top-level `swagger` key versus `openapi` — not by the declarative `SpecEntry.type`. A spec with neither key is invalid — `detect_spec_version` raises `ValueError`. This version drives the choice of the extraction path inside `extract_endpoints`; the consumer usually does not need to call `detect_spec_version` manually.
 
-## Извлечение эндпоинтов
+## Endpoint extraction
 
 ```python
 from goga_tool_pybuggy.spec import extract_endpoints
 
-endpoints = extract_endpoints(spec)  # list[Endpoint], один на метод+путь
+endpoints = extract_endpoints(spec)  # list[Endpoint], one per method+path
 for ep in endpoints:
-    ep.id  # 'clients_startup_get' — computed через build_endpoint_id
-    ep.method  # 'get' (нижний регистр)
+    ep.id  # 'clients_startup_get' — computed via build_endpoint_id
+    ep.method  # 'get' (lowercase)
     ep.path  # '/clients/{id}'
-    ep.request  # развёрнутая схема request body (или {})
+    ep.request  # expanded request body schema (or {})
     ep.response  # {status: schema}
     ep.query_params  # {name: schema}
 ```
 
-Семантика по форматам одинакова на выходе: для OpenAPI 3.x request/response/query извлекаются из структуры `requestBody`/`responses[code].content`/`parameters[].schema`; для Swagger 2.0 — из параметра `in: body`/`responses[code].schema`/инлайн-полей параметра `in: query`. Оба формата дают одну и ту же нормализованную модель `Endpoint` при одинаковой семантике операций.
+The output semantics are identical across formats: for OpenAPI 3.x, the cell extracts request/response/query from the `requestBody`/`responses[code].content`/`parameters[].schema` structure; for Swagger 2.0 — from the `in: body` parameter/`responses[code].schema`/inline fields of the `in: query` parameter. Given the same operation semantics, both formats produce the same normalized `Endpoint` model.
 
-## Nullable-нормализация
+## Nullable normalization
 
-Схемы в `request`, `response`, `query_params` уже **nullable-нормализованы** для JSON-Schema: OpenAPI `nullable: true` и Swagger `x-nullable: true` переписаны в union-форму (`type` со списком, включающим `"null"`, с anyOf-фолбэком при невозможности разместить union в одном `type`), ключи `nullable`/`x-nullable` удалены. Валидатор `jsonschema` игнорирует оба ключевых слова, поэтому нормализация выполнена на границе разбора — потребителю не нужно нормализовать схемы повторно.
+The schemas in `request`, `response`, and `query_params` are already **nullable-normalized** for JSON-Schema: OpenAPI `nullable: true` and Swagger `x-nullable: true` are rewritten into union form (`type` as a list that includes `"null"`, with an `anyOf` fallback when a single `type` cannot express the union), and the `nullable`/`x-nullable` keys are removed. The `jsonschema` validator ignores both keywords, so the cell performs the normalization once, at the parsing boundary — the consumer does not need to normalize the schemas again.
 
-## Идентификатор эндпоинта
+## Endpoint identifier
 
-`build_endpoint_id(method, path)` — чистая функция; `Endpoint.id` вычисляется из неё. Детерминирован: одинаковые метод+путь → одинаковый id; коллизии обрабатываются потребителем.
+`build_endpoint_id(method, path)` is a pure function; `Endpoint.id` is computed from it. It is deterministic: the same method+path yields the same id; collisions are handled by the consumer.
 
-`Endpoint.id` гарантированно является **валидным Python-идентификатором**: дефисы в пути нормализуются в `_` (например `/clients/payment-details` → `clients_payment_details_post`). Это важно, так как id используется как имя pytest-фикстуры и как имя директории-пакета при генерации фикстур — без нормализации сгенерированный модуль был бы синтаксически некорректен.
+`Endpoint.id` is guaranteed to be a **valid Python identifier**: path hyphens are normalized to `_` (for example, `/clients/payment-details` → `clients_payment_details_post`). This guarantee matters because the fixture generator uses the id as the pytest fixture name and as the package directory name during fixture generation — without the normalization, the generated module would be syntactically invalid.
 
-## Предусловия
+## Preconditions
 
-- `spec` должен быть полностью разыменован (используйте `load_spec`; не разыменяйте `$ref` вручную).
-- Извлечение — чистая логика над dict, тестируется без моков.
+- `spec` must be fully dereferenced (use `load_spec`; do not dereference `$ref` manually).
+- Extraction is pure logic over a dict, tested without mocks.

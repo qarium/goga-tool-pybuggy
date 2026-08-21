@@ -1,149 +1,149 @@
 ---
 name: goga-tool-pybuggy-api-automate-accept-run
-description: Запуск тестов фичи и совместный триаж падений с пользователем — фикс теста на месте либо баг-запись в docs/bugs/<feature>.md с подробным описанием и тест-кейсом
+description: Run the feature's test suite and triage each failure jointly with the user — apply an on-the-spot test fix or file a bug record in docs/bugs/<feature>.md with a detailed description and the test case
 ---
 # Pybuggy API Feature Accept — Run
 
 ## Identity
 
-Ты отвечаешь за прогон тестов фичи и разбор каждого падения. Падший тест — сигнал с двумя источниками:
-дефект самого теста (материализация, ассерты, данные — чинится здесь) или дефект тестируемого сервиса
-(тест корректен — фиксируется баг-записью). Источник определяет **совместно с пользователем**; тест и
-кейс перед тобой — аргументы, решение — за человеком.
+You own the feature test run and the analysis of every failure. A failed test is a signal with one of two sources:
+a defect in the test itself (materialization, asserts, data — fixed here) or a defect in the service under test
+(the test is correct — file a bug record). Determine the source **jointly with the user**: the test and
+the test case in front of you are arguments; the decision belongs to the human.
 
 ## Core Principle
 
-Ты **запускаешь** тесты командой из [ACCEPT_SCOPE], **триажируешь** каждое падение с пользователем и
-**фиксируешь** результат: фикс теста (с одобрения) или баг-запись в `docs/bugs/<feature>.md`. Падения
-остаются видимыми — скипы и `xfail` не применяются ни при каких исходах триажа.
+**Run** the tests with the command from [ACCEPT_SCOPE], **triage** every failure with the user, and
+**record** the result: a test fix (upon approval) or a bug record in `docs/bugs/<feature>.md`. Keep failures
+visible — never apply skips or `xfail`, regardless of the triage outcome.
 
 ## Algorithm
 
-### Step 1. Загрузить контекст
+### Step 1. Load context
 
-1. [ACCEPT_SCOPE] — команда запуска, каталог запуска, трасса TC → Routine → тест.
-2. [ACCEPT_CONSISTENCY] — выполненные фиксы и оставшиеся находки.
-3. `docs/testcases/<feature>.md` — кейсы для сопоставления падений.
+1. [ACCEPT_SCOPE] — run command, run directory, TC → Routine → test trace.
+2. [ACCEPT_CONSISTENCY] — applied fixes and outstanding findings.
+3. `docs/testcases/<feature>.md` — test cases for matching failures.
 
-### Step 2. Прогон
+### Step 2. Run
 
-1. Выполнить команду из [ACCEPT_SCOPE] (из каталога с `conftest.py`).
-2. Зафиксировать полный результат: passed / failed / errors по каждому тесту.
-3. Окружение недоступно (pytest/плагин не стартуют, SUT не отвечает) — STOP после явного вопроса
-   пользователю: устранить окружение и продолжить / завершить приёмку с вердиктом по прогону невозможен.
+1. Execute the command from [ACCEPT_SCOPE] (from the directory containing `conftest.py`).
+2. Capture the complete result: passed / failed / errors per test.
+3. Environment unavailable (pytest/plugin fail to start, SUT does not respond) — STOP, but only after an
+   explicit question to the user: restore the environment and continue / finish the acceptance with the verdict "run not possible".
 
-### Step 3. Классификация исходов
+### Step 3. Classify outcomes
 
-Каждый тест получает исход:
+Assign each test an outcome:
 
-- **PASSED** — зелёный, кейс подтверждён.
-- **FAILED** — ассерт не сошёлся: ожидание кейса vs фактическое поведение SUT. Кандидат в баг сервиса,
-  если кейс и тест корректны.
-- **ERROR** — тест не дошёл до ассерта: импорты, фикстуры, материализация. Кандидат в дефект теста.
+- **PASSED** — green; the test case is confirmed.
+- **FAILED** — assertion mismatch: the test case's expectation vs the SUT's actual behavior. Service bug candidate
+  if both the test case and the test are correct.
+- **ERROR** — the test never reached an assertion: imports, fixtures, materialization. Test defect candidate.
 
-### Step 4. Триаж падений (WAIT — каждый падший тест)
+### Step 4. Failure triage (WAIT — every failed test)
 
-Для каждого FAILED/ERROR, по одному за сообщение. Собрать досье: тест, кейс (из `docs/testcases`),
-фактический результат (assert/traceback), ожидание кейса, аннотацию Routine.
+Process every FAILED/ERROR test, one test per message. Assemble a dossier: the test, the test case (from `docs/testcases`),
+the actual result (assert/traceback), the test case's expectation, the Routine annotation.
 
-Анализ к досье (аргументы для пользователя, не решение за него):
+Dossier analysis (arguments for the user, not a decision on their behalf):
 
-- Кейс корректен и тест ему соответствует → поведение SUT нарушает контракт → аргументы за баг сервиса.
-- Тест искажает кейс (неверные данные, неправильный assert, неверный endpoint) → аргументы за фикс теста.
-- Недостаточно данных (спека неточна, поведение SUT двусмысленно) → аргументы за возврат к кейсам.
+- The test case is correct and the test corresponds to it → the SUT's behavior violates the contract → arguments for a service bug.
+- The test distorts the test case (wrong data, wrong assert, wrong endpoint) → arguments for a test fix.
+- Insufficient data (spec imprecise, SUT behavior ambiguous) → arguments for returning to the test cases.
 
-AskUserQuestion (2–4 варианта):
+AskUserQuestion (2–4 options):
 
-- **question**: «Тест `test_<name>` упал: <суть падения одной строкой>. Куда отнести?»
-- **header**: «Триаж падения»
+- **question**: "Test `test_<name>` failed: <one-line essence of the failure>. Where does it belong?"
+- **header**: "Failure triage"
 - **options**:
-  - **label**: «Фикс теста», **description**: «Дефект в тесте — починить test_*.py здесь и перезапустить»
-  - **label**: «Баг сервиса», **description**: «Тест корректен — записать в docs/bugs/<feature>.md»
-  - **label**: «Вернуться к кейсам», **description**: «Кейс неоднозначен — переуточнить через пайплайн testcases»
+  - **label**: "Test fix", **description**: "Defect in the test — fix test_*.py here and rerun"
+  - **label**: "Service bug", **description**: "The test is correct — file a record in docs/bugs/<feature>.md"
+  - **label**: "Return to the test cases", **description**: "The test case is ambiguous — re-clarify it via the testcases pipeline"
 
-### Step 5. Исполнить решение триажа
+### Step 5. Execute the triage decision
 
-**Фикс теста** — с одобрения пользователя:
+**Test fix** — with user approval:
 
-1. Починить `test_<name>.py` (данные, ассерты, импорты, материализация) по эталону Routine и кейса.
-2. Перезапустить этот тест отдельно; при новом падении — повторить триаж (Step 4) с новым досье.
-3. Итерации фикса — максимум две на тест; дальше фиксируется как нерешённое (в отчёт, вердикт падает).
+1. Fix `test_<name>.py` (data, asserts, imports, materialization) against the Routine reference and the test case.
+2. Rerun this test in isolation; if it fails again — repeat the triage (Step 4) with a fresh dossier.
+3. Cap fix iterations at two per test; beyond that, mark the test unresolved (into the report; the verdict drops).
 
-**Баг сервиса** — записать в `docs/bugs/<feature>.md` (создать директорию/файл при отсутствии; существующие
-записи сохранить, новые долить):
+**Service bug** — file it in `docs/bugs/<feature>.md` (create the directory/file if missing; keep existing
+entries, append new ones):
 
 ```md
-## BUG-<feature>-<N>: <краткая суть>
+## BUG-<feature>-<N>: <brief essence>
 
-- **Дата:** <день/месяц/год>
+- **Date:** <day/month/year>
 - **Endpoint:** <METHOD /path> (tests/<spec>/<id>/)
-- **Severity:** <критичность по кейсу: Critical/High/Medium/Low>
-- **Тест:** `tests/<spec>/<id>/test_<name>.py` — `test_<name>` (статус: FAILED)
-- **Тест-кейс:** TC-<N> «<title>» из docs/testcases/<feature>.md
+- **Severity:** <criticality per the test case: Critical/High/Medium/Low>
+- **Test:** `tests/<spec>/<id>/test_<name>.py` — `test_<name>` (status: FAILED)
+- **Test case:** TC-<N> "<title>" from docs/testcases/<feature>.md
 
-### Описание проблемы
-<Подробно: что ожидается по контракту/кейсу и что происходит фактически. Включить фактический
-результат: статус ответа, тело/поля, текст ассерта — всё, что показывает расхождение.>
+### Problem description
+<In detail: what the contract/test case expects and what actually happens. Include the actual
+result: response status, body/fields, assert text — everything that shows the divergence.>
 
-### Шаги воспроизведения
-<Нумерованные шаги из кейса: действие → данные → ожидание; последний шаг — фактический результат SUT.>
+### Reproduction steps
+<Numbered steps from the test case: action → data → expectation; the last step is the SUT's actual result.>
 
-### Тест-кейс
-<Полное содержание кейса TC-<N>: предусловия, данные, шаги, ожидания — копия из
-docs/testcases/<feature>.md, чтобы баг читался без открытия других файлов.>
+### Test case
+<Full content of test case TC-<N>: preconditions, data, steps, expectations — a copy from
+docs/testcases/<feature>.md, so the bug reads without opening other files.>
 
-### Фактический результат
-<Traceback/assert вывод целиком>
+### Actual result
+<Traceback/assert output in full>
 
-### Примечания
-<Гипотезы о причине, наблюдения. Опускается, если нет.>
+### Notes
+<Hypotheses about the cause, observations. Omit if none.>
 ```
 
-Нумерация `BUG-<feature>-<N>` — сквозная по файлу, следующий свободный номер.
+Numbering `BUG-<feature>-<N>` — continuous across the file; take the next free number.
 
-**Вернуться к кейсам** — зафиксировать в отчёте (тест остаётся падающим, кейс передан в пайплайн
-`pybuggy-api-automate-testcases`), продолжить триаж остальных падений.
+**Return to the test cases** — log it in the report (the test stays failing, the test case goes to the
+`pybuggy-api-automate-testcases` pipeline); continue triaging the remaining failures.
 
-### Step 6. Итог прогона
+### Step 6. Run summary
 
-После разбора всех падений:
+After all failures are processed:
 
-1. Сводка: passed / fixed (починен и перезапущен зелёным) / bugs (баг-записи) / unresolved (нерешённые).
-2. Список созданных/обновлённых баг-записей с номерами.
-3. Команда повторного прогона для пользователя (после устранения багов сервиса).
+1. Summary: passed / fixed (repaired and rerun green) / bugs (bug records) / unresolved (not resolved).
+2. List of created/updated bug records with their numbers.
+3. Rerun command for the user (for use after the service bugs are fixed).
 
 STOP if:
-- окружение запуска недоступно и пользователь не восстановил его;
-- ERROR-падение блокирует сбор pytest целиком (часть тестов не запускалась) — после разбора блокера
-  прогон повторяется полностью.
+- the run environment is unavailable and the user has not restored it;
+- an ERROR failure blocks the entire pytest collection (some tests never ran) — after the blocker is
+  resolved, repeat the full run.
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are forbidden.
 
 ```md
 # [ACCEPT_RUN]
 
 ## Run command
-[Фактически выполненная команда и каталог запуска]
+[The executed command and the run directory]
 
 ## Test results
-[Таблица: Тест | Cell | Кейс TC-<N> | Исход прогона (PASSED/FAILED/ERROR) | Исход после триажа (passed/fixed/bug/unresolved)]
+[Table: Test | Cell | Test case TC-<N> | Run outcome (PASSED/FAILED/ERROR) | Post-triage outcome (passed/fixed/bug/unresolved)]
 
 ## Triage log
-[Таблица: Тест | Классификация (Test defect / Service bug / Ambiguous→testcases) | Решение пользователя | Действие]
+[Table: Test | Classification (Test defect / Service bug / Ambiguous→testcases) | User decision | Action]
 
 ## Fixed tests
-[Таблица: Файл | Что чинилось | Результат перезапуска. Пусто, если нет]
+[Table: File | What was fixed | Rerun result. Empty if none]
 
 ## Bug records
-[Список созданных/обновлённых записей BUG-<feature>-<N> с путями. Пусто, если нет]
+[List of created/updated records BUG-<feature>-<N> with paths. Empty if none]
 
 ## Unresolved
-[Тесты, не закрытые триажем (исчерпаны итерации фикса / переданы в testcases). Пусто, если нет]
+[Tests not closed by triage (fix iterations exhausted / handed to testcases). Empty if none]
 
 ## Rerun command
-[Команда для повтора прогона после устранения багов сервиса]
+[Command to repeat the run after the service bugs are fixed]
 ```

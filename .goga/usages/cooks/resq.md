@@ -1,41 +1,33 @@
-# resq — HTTP-клиент pybuggy (sync)
+# resq — the pybuggy HTTP client (sync)
 
-## Предметная область
+## Domain
 
-`resq` — HTTP-клиент проекта, используется ячейкой `goga_tool_pybuggy/api` как транспорт под капотом
-`Api`. Sync-направление resq построено поверх `requests` (держит `requests.Session`), поэтому
-аутентификация `requests.auth.AuthBase` применяется напрямую — без адаптеров.
+`resq` is the project's HTTP client; cell `goga_tool_pybuggy/api` uses it as the transport behind `Api`. The sync side of resq is built on top of `requests` (resq holds a `requests.Session`), so `requests.auth.AuthBase` authentication applies directly — without adapters.
 
-Импорт в коде:
+Import in code:
 ```python
 import resq
-from resq import Session          # фасад реэкспортит Session
-from resq.http import Response    # тип ответа для аннотаций
+from resq import Session          # the facade re-exports Session
+from resq.http import Response    # the response type for annotations
 ```
 
 ---
 
-## Session — клиент с base_url
+## Session — a client with base_url
 
-`Session` — «persistent»-флавор: один `requests.Session`, переиспользуемый между sync-вызовами
-(пул соединений, cookies). Режим sync/async задаётся **по экземпляру** обязательным аргументом
-`adapter` (не по глаголу):
+`Session` is the "persistent" flavor: a single `requests.Session` reused across sync calls (connection pool, cookies). The consumer selects the sync/async mode **per instance** through the mandatory `adapter` argument (not per verb):
 
 ```python
 session = resq.Session("https://api.example.com", "requests", timeout=10.0)
 ```
 
 - `Session(base_url: str, adapter: str, timeout: float | None = None)`.
-- `adapter` — обязательный селектор режима, 2-й позиционный: `"requests"` = sync, `"httpx"` = async;
-  неизвестное значение → `ValueError`. pybuggy делает `adapter` конфигурируемым на `Api` (по умолчанию
-  `"requests"`) с optional per-endpoint переопределением на `Endpoint`, но sync-рантайм pybuggy
-  поддерживает только `"requests"` — `"httpx"` (async) отвергается `Api._validate_adapter` до появления
-  async-стека. `Api` строит и кэширует по одной `resq.Session` на каждое используемое имя адаптера.
-- `timeout` — сетевой таймаут (3-й позиционный); `None` отключает.
-- `base_url` доступен как свойство `session.base_url` (строка; resq хранит её как есть).
-- resq сам склеивает `base_url` + `path` (нормализует base до закрывающего `/` через `urljoin`).
+- `adapter` — the mandatory mode selector, 2nd positional argument: `"requests"` = sync, `"httpx"` = async; an unknown value → `ValueError`. pybuggy makes `adapter` configurable on `Api` (default `"requests"`) with an optional per-endpoint override on `Endpoint`, but the pybuggy sync runtime supports only `"requests"` — `Api._validate_adapter` rejects `"httpx"` (async) until an async stack exists. `Api` builds and caches one `resq.Session` per adapter name in use.
+- `timeout` — the network timeout (3rd positional argument); `None` disables it.
+- `base_url` is exposed as the `session.base_url` property (a string; resq stores it as is).
+- resq itself joins `base_url` + `path` (normalizing the base to a trailing `/` via `urljoin`).
 
-Глаголы — по одному на HTTP-метод:
+Verbs — one per HTTP method:
 ```python
 session.get(path, **kwargs)
 session.post(path, **kwargs)
@@ -46,36 +38,28 @@ session.head(path, **kwargs)
 session.options(path, **kwargs)
 ```
 
-Каждый глагол: `(path, timeout=None, delay=1.0, **kwargs)`. `timeout`/`delay` относятся к
-polling-окну resq — для одиночного запроса pybuggy их в глагол **не пробрасывает**; `**kwargs`
-уходит в `requests.Session.request` (params, json, headers, cookies, auth, …).
+Each verb takes `(path, timeout=None, delay=1.0, **kwargs)`. `timeout`/`delay` belong to resq's polling window — pybuggy does **not** forward them for a single request; `**kwargs` passes through to `requests.Session.request` (params, json, headers, cookies, auth, …).
 
-Глагол выбирается динамически: `getattr(session, method.lower())`.
+The verb is dispatched dynamically: `getattr(session, method.lower())`.
 
-### Жизненный цикл и close()
+### Lifecycle and close()
 
-`Session` предоставляет **публичный** `close()` и sync context manager (`__enter__`/`__exit__`).
-В sync-режиме (`adapter="requests"`) `close()` — **no-op по дизайну resq**: удерживаемый
-`requests.Session` освобождается сборщиком мусора, а не закрывается явно (контракт resq:
-«Do NOT close the requests.Session held by the `Session` flavor»). `Api.close()` делегирует
-в этот публичный `session.close()`.
+`Session` exposes a **public** `close()` and a sync context manager (`__enter__`/`__exit__`). In sync mode (`adapter="requests"`), `close()` is a **no-op by resq design**: the garbage collector releases the held `requests.Session` — it is not closed explicitly (resq contract: "Do NOT close the requests.Session held by the `Session` flavor"). `Api.close()` delegates to this public `session.close()`.
 
 ```python
 session = resq.Session("https://api.example.com", "requests")
-session.close()  # sync: no-op (пул requests.Session — на GC)
+session.close()  # sync: no-op (the requests.Session pool is left to GC)
 
-# либо sync context manager:
+# or a sync context manager:
 with resq.Session("https://api.example.com", "requests") as s:
     s.get("/path")
 ```
 
 ---
 
-## AuthBase работает напрямую
+## AuthBase applies directly
 
-Sync resq = `requests` под капотом, поэтому `requests.auth.AuthBase` (любой callable-объект
-`(PreparedRequest) -> PreparedRequest`) подключается штатным аргументом `auth=` и применяется к
-`PreparedRequest`. Это основа для `CombineAuth`/`AuthWrapper` в `goga_tool_pybuggy/api`.
+Sync resq runs `requests` under the hood, so `requests.auth.AuthBase` — any callable object `(PreparedRequest) -> PreparedRequest` — plugs in through the standard `auth=` argument and applies to the `PreparedRequest`. This mechanism is the foundation for `CombineAuth`/`AuthWrapper` in `goga_tool_pybuggy/api`.
 
 ```python
 from requests.auth import AuthBase
@@ -88,13 +72,11 @@ class TokenAuth(AuthBase):
 
 ---
 
-## Response — поверхность ответа
+## Response — the response surface
 
-`resq.http.Response` (sync) проксирует **явные** свойства/методы — без `__getattr__`:
+`resq.http.Response` (sync) proxies **explicit** properties/methods only — no `__getattr__` passthrough:
 
-- свойства: `status_code`, `text`, `content`, `headers`, `url`, `encoding`, `ok`.
-- методы: `json()`, `raise_for_status()`, `reload()` (повторный запрос).
+- properties: `status_code`, `text`, `content`, `headers`, `url`, `encoding`, `ok`.
+- methods: `json()`, `raise_for_status()`, `reload()` (re-issues the request).
 
-У `resq.http.Response` **нет** свойства `.request` (`PreparedRequest`) — не использовать.
-Обёртка `ResponseWrapper` в pybuggy **не проксирует** атрибуты `resq.http.Response`: доступ
-к сырому ответу — только через свойство `.response` (например, `wrapper.response.status_code`).
+`resq.http.Response` has **no** `.request` property (`PreparedRequest`) — do not use it. The pybuggy `ResponseWrapper` does **not** proxy `resq.http.Response` attributes: reach the raw response only through the `.response` property (e.g., `wrapper.response.status_code`).

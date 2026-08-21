@@ -1,36 +1,36 @@
 ---
 name: goga-tool-pybuggy-api-usage
-description: Загрузка и предоставление документации о pybuggy (api, asserts) из .goga/usages/cooks/pybuggy/ — референс для скиллов и задач, работающих с pybuggy
+description: Loads and provides pybuggy documentation (api, asserts) from .goga/usages/cooks/pybuggy/ — the reference for skills and tasks that work with pybuggy
 ---
 # Pybuggy Runtime Usage
 
 ## Purpose
 
-Этот скилл предоставляет документацию о потреблении runtime pybuggy — ячейки `pybuggy/api` (HTTP-запросы из
-тестовых фикстур и работа с ответом) и `pybuggy/api/asserts` (response-level и field-level проверки ответа).
-Это единый источник контекста по реальному API pybuggy.
+This skill provides documentation on consuming the pybuggy runtime. The documentation covers two cells:
+`pybuggy/api` (HTTP requests from test fixtures and response handling) and `pybuggy/api/asserts`
+(response-level and field-level response checks). This skill is the single source of context on the real pybuggy API.
 
-Другие скиллы и задачи (например, этап автоматизации тестов) вызывают этот скилл, чтобы получить актуальный
-референс API и ассертов, опираясь на cooks-файлы проекта, а не на догадки.
+Other skills and tasks (for example, the test automation stage) invoke this skill to obtain the current
+reference for the API and the asserts. The reference is grounded in the project's cooks files, not in guesswork.
 
 ---
 
 ## Behavior
 
-1. Проверь директорию `.goga/usages/cooks/pybuggy/`. Если она отсутствует или пуста — cooks-файлы pybuggy не
-   загружены: сообщи, что нужно выполнить `goga tool pybuggy init` (он копирует usages-документацию pybuggy и
-   регистрирует её в `.goga/config.yml` под `pybuggy-<stem>`), и остановись.
+1. Check the directory `.goga/usages/cooks/pybuggy/`. If this directory is missing or empty, the pybuggy
+   cooks files are not loaded: tell the user to run `goga tool pybuggy init` (this command copies the pybuggy
+   usages documentation and registers it in `.goga/config.yml` under `pybuggy-<stem>`), and stop.
 
-2. Перечисли все `*.md` в `.goga/usages/cooks/pybuggy/` (рекурсивно, если появятся поддиректории) и прочитай
-   их. Каждый файл соответствует usage-ключу `pybuggy-<stem>` (напр. `api` → `pybuggy-api`,
+2. List all `*.md` files in `.goga/usages/cooks/pybuggy/` (recursively when subdirectories appear) and read
+   every file. Each file maps to the usage key `pybuggy-<stem>` (e.g. `api` → `pybuggy-api`,
    `asserts` → `pybuggy-asserts`).
 
-3. Если передан `$ARGUMENTS` (тема: `api` / `asserts` / иной stem) — ограничься релевантными файлами; иначе
-   бери все.
+3. If `$ARGUMENTS` is passed (topic: `api` / `asserts` / any other stem), use only the files relevant to that
+   topic; otherwise use all files.
 
-4. Применяй прочитанную документацию в контексте вызывающего: предоставляй сущности, методы, сигнатуры и
-   примеры потребления (`Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth` и assert-слой).
-   Опирайся только на реальное содержание файлов — не выдумывай API. Не пересказывай файлы дословно, давай
-   применимый референс.
+4. Apply the documentation you have read to the caller's context: provide entities, methods, signatures, and
+   consumption examples (`Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth`, and the assert layer).
+   Use only the actual content of the files as the source — never invent API details. Do not retell the files
+   verbatim; provide an applicable reference instead.
 
-5. Указывай пути к файлам, чтобы вызывающий мог прочитать полную детализацию при необходимости.
+5. Reference file paths so that the caller can read the full details when needed.

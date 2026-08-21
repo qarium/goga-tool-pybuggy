@@ -1,107 +1,103 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-tools
-description: Выявление потребностей тест-кейсов в инструментах (данные/моки/утилиты), согласование инструментов и создание usage-файлов .goga/usages/cooks/<ключ>.md
+description: Identifying the tool needs of test cases (data/mocks/utilities), agreeing on the tools, and creating usage files .goga/usages/cooks/<key>.md
 ---
 
 ## Identity
 
-Ты выявляешь потребности кейсов в данных, моках и утилитах, сопоставляешь их с usages, согласовываешь
-инструменты и создаёшь usage-файлы новых инструментов.
+You identify the test cases' needs in data, mocks, and utilities, map them onto the usages, agree on the tools, and create usage files for the new tools.
 
 ## Core Principle
 
-Ты **анализируешь** [TESTCASES_PLAN], сопоставляешь потребности с §8 и согласуешь решение через
-AskUserQuestion. Новые инструменты получают `.goga/usages/cooks/<ключ>.md` здесь же. API берётся у
-пользователя или из dependency-файла; неизвестное помечается «требует уточнения».
+You **analyze** [TESTCASES_PLAN], map the needs onto §8, and agree on the decision via AskUserQuestion. New tools receive their `.goga/usages/cooks/<key>.md` file right here. The API is taken from the user or from the project's dependency file; anything unknown is marked "requires clarification".
 
 ---
 
 ## Algorithm
 
-### Step 1. Загрузить контекст
+### Step 1. Load context
 
-1. [TESTCASES_PLAN] — матрица кейсов (типы, эндпоинты, дата-сетап, ожидания).
-2. `docs/requirements/<feature>.md` §8 «Доступные usages проекта» — реестр существующих usages (путь передаёт
-   оркестратор пайплайна через Artifact Path Resolution)
-   (ключ | путь | роль | назначение).
-3. При §8 «usages отсутствуют» — выполнить скан `.goga/usages/` самостоятельно (как в
-   `requirements-discovery`, Step 2) и использовать его результат.
+1. [TESTCASES_PLAN] — the case matrix (types, endpoints, data setup, expectations).
+2. `docs/requirements/<feature>.md` §8 "Available project usages" — the registry of the existing usages (the pipeline
+   orchestrator passes the path via Artifact Path Resolution)
+   (key | path | role | purpose).
+3. If §8 says "usages are missing" — scan `.goga/usages/` yourself (as in `requirements-discovery`, Step 2) and use
+   the scan result.
 
-### Step 2. Выявить потребности кейсов
+### Step 2. Identify case needs
 
-Пройти по матрице [TESTCASES_PLAN] и по каждой потребности зафиксировать: кейс/сценарий →
-потребность → тип (данные / моки / утилиты). Типовые сигналы:
+Walk the [TESTCASES_PLAN] matrix and record each need: case/scenario →
+need → type (data / mocks / utilities). Typical signals:
 
-- **данные** — уникальные/случайные значения (email, test_id), фабрики сущностей, предсозданные наборы;
-- **моки** — внешняя зависимость должна быть недоступна/возвращать ошибку/заданное состояние;
-- **утилиты** — чистка состояния между кейсами, ожидание/поллинг, генерация токенов.
+- **data** — unique/random values (email, test_id), entity factories, pre-created datasets;
+- **mocks** — an external dependency must be unavailable / return an error / hold a given state;
+- **utilities** — state cleanup between cases, waiting/polling, token generation.
 
-Потребности без инструментов — нормальная ситуация на этом шаге: они и есть предмет согласования.
+Needs without a tool are a normal situation at this step: they are precisely the subject of the agreement.
 
-### Step 3. Сопоставить с существующими usages
+### Step 3. Match against existing usages
 
-Для каждой потребности найти покрывающий usage в реестре §8 (по роли «данные-моки-утилиты» и
-назначению). Зафиксировать: потребность → существующий ключ (покрыта) | нет покрытия (кандидат на
-новый инструмент).
+For each need, find a covering usage in the §8 registry (by the "data-mocks-utilities" role and
+the purpose). Record: need → existing key (covered) | no coverage (candidate for a new tool).
 
-### Step 4. Согласовать инструменты с пользователем (WAIT)
+### Step 4. Agree on the tools with the user (WAIT)
 
-Через AskUserQuestion (один вопрос за сообщение, 2–4 варианта):
+Via AskUserQuestion (one question per message, 2–4 options):
 
-1. Для непокрытых потребностей предложить кандидатов: типовые библиотеки экосистемы (напр. `faker`, `responses` и тд —
-   если применимы к стеку проекта), переиспользование существующего usage с расширением, или отказ (кейс переписывается
-   без инструмента).
-2. Для каждой предложенной кандидатуры указать: ключ, назначение, какие кейсы обслуживает.
-3. Кандидат без известного API — запросить у пользователя (ключевые функции/классы, паттерн вызова,
-   версия) или предложить отложить потребность (кейс помечается, инструмент не подключается).
+1. For uncovered needs, propose candidates: standard ecosystem libraries (e.g. `faker`, `responses`, etc. —
+   if applicable to the project's stack), reusing an existing usage with an extension, or declining the tool
+   (the case is rewritten without a tool).
+2. For each proposed candidate, specify: the key, the purpose, and which cases it serves.
+3. For a candidate with no known API — request the API from the user (key functions/classes,
+   call pattern, version) or propose deferring the need (the case is marked, the tool is not connected).
 
-### Step 5. Создать usage-файлы согласованных инструментов
+### Step 5. Create usage files for the agreed tools
 
-Для каждого **нового** инструмента (существующие не трогаются):
+For each **new** tool (the existing ones are not touched):
 
-1. Ключ — короткое имя, согласованный с пользователем; путь `.goga/usages/cooks/<ключ>.md`.
-2. Структура файла: **Предметная область → Как вызывать → Поведение → Что НЕ делать**.
-3. Контент — из данных пользователя (Step 4) или dependency-файла проекта (pyproject/requirements —
-   имя и версия пакета); не выдумывать. Недоступное API — секция помечается «требует уточнения».
-4. Записать файл в проекте `.goga/usages/cooks/<ключ>.md`. 
+1. The key is a short name agreed with the user; the path is `.goga/usages/cooks/<key>.md`.
+2. File structure: **Domain → How to call → Behavior → What NOT to do**.
+3. Content — from the user's data (Step 4) or from the project's dependency file (pyproject/requirements —
+   package name and version); do not invent it. If the API is unavailable, the section is marked "requires clarification".
+4. Write the file into the project at `.goga/usages/cooks/<key>.md`.
 
-### Step 6. Сформировать [TOOLS_REPORT]
+### Step 6. Produce [TOOLS_REPORT]
 
 STOP if:
 
-- согласование не состоялось (пользователь отклонил все варианты по непокрытой потребности, без
-  которой кейсы не строятся);
-- API нового инструмента неизвестно и пользователь отказался его предоставить, при этом потребность
-  блокирующая для кейсов.
+- the agreement failed (the user rejected every option for an uncovered need without which
+  the cases cannot be built);
+- the new tool's API is unknown and the user refused to provide it, while the need
+  is blocking for the cases.
 
 ---
 
 ## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Populate every section. Empty sections are forbidden.
 
 ```md
 # [TOOLS_REPORT]
 
-## Потребности кейсов
+## Case needs
 
-[Таблица: потребность | тип (данные/моки/утилиты) | кейсы/сценарии]
+[Table: need | type (data/mocks/utilities) | cases/scenarios]
 
-## Покрытие существующими usages
+## Coverage by existing usages
 
-[Таблица: потребность | usage-ключ (из §8) | статус (покрыта / нет)]
+[Table: need | usage key (from §8) | status (covered / not covered)]
 
-## Согласованные новые инструменты
+## Agreed new tools
 
-[Таблица: ключ | инструмент | назначение | обслуживаемые потребности | статус usage-файла
-(создан .goga/usages/cooks/<ключ>.md | отложено)]
-Если новых нет — «нет».
+[Table: key | tool | purpose | needs served | usage file status
+(created .goga/usages/cooks/<key>.md | deferred)]
+If there are no new ones — "none".
 
-## Отложенные потребности
+## Deferred needs
 
-[Потребности без инструмента (кейс переписан или инструмент отложен) + причина. Пусто, если нет.]
+[Needs without a tool (the case rewritten or the tool deferred) + the reason. Empty if none.]
 
-## Замечания
+## Notes
 
-[API «требует уточнения», версии и т.п. Пусто, если нет.]
+[API "requires clarification", versions, etc. Empty if none.]
 ```

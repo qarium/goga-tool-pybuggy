@@ -1,86 +1,59 @@
-# goga — in-process инициализация goga-проекта (Python API)
+# goga — in-process initialization of a goga project (Python API)
 
-## Предметная область
+## Domain
 
-Пакет `goga` предоставляет Python-API для интерактивной инициализации goga-проекта — то же, что делает CLI-команда
-`goga init`, но in-process. Аудитория — ячейки pybuggy, которые под капотом инициализируют goga-проект
-(напр. `goga_tool_pybuggy/commands/init`). API сборочное: `Questionnaire` опрашивает поля конфига по одному, `FileGenerator`
-пишет файлы по собранным ответам.
+The `goga` package provides a Python API for interactively initializing a goga project — the same flow the `goga init` CLI command runs, but in-process. The intended consumers are pybuggy cells that initialize a goga project under the hood (e.g. `goga_tool_pybuggy/commands/init`). The API is a construction kit: `Questionnaire` asks the config fields one by one; `FileGenerator` writes the files from the collected answers.
 
-## Контракт инициализации
+## The initialization contract
 
-Типы из `goga.onboarding`:
+Types from `goga.onboarding`:
 
-- `Questionnaire()` — интерактивный опросник через click. Без аргументов конструктора. Предоставляет per-field методы
-  (по одному на каждое поле конфига) — pybuggy оркестрирует их вручную:
-  - `ask_language() -> str` — один из python/golang/kotlin/swift/javascript (**pybuggy НЕ вызывает — язык хардкод**).
-  - `ask_base_convention() -> tuple[dict | None, str | None]` — пара (usages_prefill, annotations_prefill).
-    **pybuggy НЕ вызывает** — вопрос «Download base convention» не задаётся; ключ `conventions` не попадает
-    в ответы (слот `conventions` в потребителе заполняет тестовая конвенция pybuggy из ассета пакета,
-    не goga-скачивание).
+- `Questionnaire()` — an interactive questionnaire built on click. No constructor arguments. The class provides per-field methods (one per config field) — pybuggy orchestrates them manually:
+  - `ask_language() -> str` — one of python/golang/kotlin/swift/javascript (**pybuggy does NOT call this method — pybuggy hardcodes the language**).
+  - `ask_base_convention() -> tuple[dict | None, str | None]` — the pair (usages_prefill, annotations_prefill). **pybuggy does NOT call this method** — the "Download base convention" question is never asked; the `conventions` key never enters the answers (the consumer fills its `conventions` slot with pybuggy's test convention from a package asset, not with a goga download).
   - `ask_codemanifest_usages(prefill: dict | None = None) -> dict | None`.
   - `ask_codemanifest_annotations(prefill: str | None = None) -> str | None`.
   - `ask_agent() -> str | None`.
-  - `ask_image(language: str) -> str` — pre-built Docker-образ для **PULL (случай без Dockerfile)**; список подсказок
-    ограничен `_IMAGE_MAP[language]` (для `python` — `qarium/goga-python-3.10:1.1` … `qarium/goga-python-3.14:1.1`),
-    **default — последний**, принимает произвольный ввод. **pybuggy НЕ вызывает** — Dockerfile обязателен.
-  - `ask_image_name(language: str) -> str` — **имя (tag) образа, собранного из Dockerfile** (top-level поле `image`,
-    используется `docker build -t`); свободный ввод с placeholder default `{language}-image:latest`. **pybuggy
-    вызывает** — даёт имя собранному образу.
-  - `ask_base_image(language: str) -> str` — **базовый образ для `FROM` в Dockerfile** (поле `dockerfile_base_image`);
-    список подсказок ограничен `_IMAGE_MAP[language]`, **default — последний**. **pybuggy вызывает** — даёт baseline
-    для Dockerfile; в `config.yml` НЕ пишется (только строка `FROM`).
-  - `ask_dockerfile_path() -> str | None` — путь к Dockerfile (default `.goga/Dockerfile`) или None (пропуск).
-    **pybuggy НЕ вызывает** — Dockerfile обязателен, `dockerfile_path` хардкодится как `.goga/Dockerfile`.
+  - `ask_image(language: str) -> str` — a pre-built Docker image for **PULL (the no-Dockerfile case)**; the suggestion list is limited to `_IMAGE_MAP[language]` (for `python` — `qarium/goga-python-3.10:1.1` … `qarium/goga-python-3.14:1.1`), **the default is the last list entry**; arbitrary input is accepted. **pybuggy does NOT call this method** — a Dockerfile is mandatory.
+  - `ask_image_name(language: str) -> str` — **the name (tag) of the image built from the Dockerfile** (top-level `image` field, used by `docker build -t`); free input with placeholder default `{language}-image:latest`. **pybuggy calls this method** — the answer names the built image.
+  - `ask_base_image(language: str) -> str` — **the base image for `FROM` in the Dockerfile** (field `dockerfile_base_image`); the suggestion list is limited to `_IMAGE_MAP[language]`, **the default is the last list entry**. **pybuggy calls this method** — the answer provides the Dockerfile baseline; the value is NOT written to `config.yml` (only the `FROM` line uses it).
+  - `ask_dockerfile_path() -> str | None` — the path to the Dockerfile (default `.goga/Dockerfile`) or None (skip). **pybuggy does NOT call this method** — a Dockerfile is mandatory; pybuggy hardcodes `dockerfile_path` as `.goga/Dockerfile`.
   - `ask_env(agent: str | None) -> dict | None`.
-  - `ask_pipeline_agent() -> str | None` — **без аргументов**; опционален (confirm-gate, default None — НЕ наследует
-    build-агента).
+  - `ask_pipeline_agent() -> str | None` — **takes no arguments**; optional (a confirm-gate; default None — does NOT inherit the build agent).
   - `ask_pipeline_env(pipeline_agent: str | None) -> dict | None`.
-  - Оркестраторы `ask_goga_config() -> GogaConfigAnswers` и `ask() -> InitAnswers` (полный универсальный поток —
-    **pybuggy НЕ использует**, т.к. они зовут `ask_language`).
-- `FileGenerator()` — генератор файлов проекта. Без аргументов конструктора.
-  - `generate(answers: InitAnswers) -> None` — пишет `.goga/config.yml`; при `dockerfile_path` сначала создаёт Dockerfile
-    `FROM {dockerfile_base_image}` (базовый образ), а top-level `image` — имя собранного образа; при
-    `codemanifest_usages` со ключом `"conventions"` скачивает конвенцию языка (requests) в
-    `.goga/usages/conventions.md`. Бросает `RuntimeError` при сбое скачивания (config.yml НЕ создаётся).
-- `InitLogic(questionnaire, generator).run() -> int` — оркестратор «полный универсальный поток»; **pybuggy НЕ
-  использует** (требует `ask_language`). Приведён только как референс error-handling: ловит `click.Abort`→1,
-  `Exception`→log+echo+1.
+  - The orchestrators `ask_goga_config() -> GogaConfigAnswers` and `ask() -> InitAnswers` implement the full universal flow — **pybuggy does NOT use them**, because both call `ask_language`.
+- `FileGenerator()` — the project file generator. No constructor arguments.
+  - `generate(answers: InitAnswers) -> None` — writes `.goga/config.yml`; when `dockerfile_path` is set, first creates a Dockerfile `FROM {dockerfile_base_image}` (base image), with top-level `image` holding the built image's name; when `codemanifest_usages` contains the key `"conventions"`, downloads the language convention (via requests) into `.goga/usages/conventions.md`. Raises `RuntimeError` on a download failure (config.yml is NOT created).
+- `InitLogic(questionnaire, generator).run() -> int` — the "full universal flow" orchestrator; **pybuggy does NOT use it** (it requires `ask_language`). Included only as an error-handling reference: catches `click.Abort`→1, `Exception`→log+echo+1.
 
-Контейнеры ответов (frozen dataclasses, `kw_only=True`):
+Answer containers (frozen dataclasses, `kw_only=True`):
 
-- `GogaConfigAnswers` — поля: `language: str`, `image: str`, `agent: str | None`, `pipeline_agent: str | None`,
-  `pipeline_env: dict | None`, `env: dict | None`, `codemanifest_usages: dict | None`,
-  `codemanifest_annotations: str | None`, `dockerfile_path: str | None`, `dockerfile_base_image: str | None`.
-- `InitAnswers` — поле `goga_config: GogaConfigAnswers`.
+- `GogaConfigAnswers` — fields: `language: str`, `image: str`, `agent: str | None`, `pipeline_agent: str | None`, `pipeline_env: dict | None`, `env: dict | None`, `codemanifest_usages: dict | None`, `codemanifest_annotations: str | None`, `dockerfile_path: str | None`, `dockerfile_base_image: str | None`.
+- `InitAnswers` — field `goga_config: GogaConfigAnswers`.
 
-## Генерируемые файлы (side effects, в cwd)
+## Generated files (side effects, in cwd)
 
-- `.goga/config.yml` — полный goga-конфиг (language, image, dockerfile, build, pipeline, codemanifest).
-- `.goga/usages/conventions.md` — скачивается (requests) **только когда ключ `conventions` присутствует в
-  `codemanifest_usages` ответов**; pybuggy его не передаёт (residual: ручной ввод имени `conventions` в опроснике
-  снова триггерит скачивание; при сбое — `RuntimeError`, `config.yml` не создаётся).
-- `Dockerfile` (по пути `dockerfile_path`) — `FROM {dockerfile_base_image}`; создаётся когда `dockerfile_path` задан
-  (со стороны pybuggy он передаётся всегда — Dockerfile обязателен). После этого pybuggy дописывает
-  `RUN goga install pybuggy -v 1.0.x`.
+- `.goga/config.yml` — the full goga config (language, image, dockerfile, build, pipeline, codemanifest).
+- `.goga/usages/conventions.md` — downloaded (via requests) **only when the `conventions` key is present in the answers' `codemanifest_usages`**; pybuggy never passes the key (residual: manually entering a `conventions` name in the questionnaire re-triggers the download; on failure — `RuntimeError`, and `config.yml` is not created).
+- `Dockerfile` (at `dockerfile_path`) — `FROM {dockerfile_base_image}`; `generate` creates the file when `dockerfile_path` is set (pybuggy always passes it — a Dockerfile is mandatory). Afterwards pybuggy appends `RUN goga install pybuggy -v 1.0.x`.
 
-## Шаблон: in-process вызов (per-field сборка)
+## Pattern: in-process invocation (per-field assembly)
 
       from goga.onboarding import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
 
       questionnaire = Questionnaire()
       generator = FileGenerator()
 
-      language = "python"  # хардкод — pybuggy это Python-проект; ask_language НЕ вызывается
+      language = "python"  # hardcoded — pybuggy is a Python project; ask_language is NOT called
 
-      codemanifest_usages = questionnaire.ask_codemanifest_usages()        # без prefill — pybuggy не вызывает ask_base_convention
+      codemanifest_usages = questionnaire.ask_codemanifest_usages()        # no prefill — pybuggy skips ask_base_convention
       codemanifest_annotations = questionnaire.ask_codemanifest_annotations()
       agent = questionnaire.ask_agent()
-      image = questionnaire.ask_image_name(language)        # имя образа, собранного из Dockerfile (top-level image)
-      dockerfile_base_image = questionnaire.ask_base_image(language)  # FROM baseline для Dockerfile
-      dockerfile_path = ".goga/Dockerfile"             # хардкод — Dockerfile обязателен; ask_dockerfile_path НЕ вызывается
+      image = questionnaire.ask_image_name(language)        # name of the image built from the Dockerfile (top-level image)
+      dockerfile_base_image = questionnaire.ask_base_image(language)  # FROM baseline for the Dockerfile
+      dockerfile_path = ".goga/Dockerfile"             # hardcoded — a Dockerfile is mandatory; ask_dockerfile_path is NOT called
       env = questionnaire.ask_env(agent)
-      pipeline_agent = questionnaire.ask_pipeline_agent()   # без аргумента; опционален (default None)
+      pipeline_agent = questionnaire.ask_pipeline_agent()   # no argument; optional (default None)
       pipeline_env = questionnaire.ask_pipeline_env(pipeline_agent)
 
       config = GogaConfigAnswers(
@@ -97,27 +70,21 @@
       )
 
       try:
-          generator.generate(InitAnswers(goga_config=config))  # 0 успех
+          generator.generate(InitAnswers(goga_config=config))  # 0 on success
       except click.Abort:
-          ...  # отмена пользователя → вернуть 1
+          ...  # user cancellation → return 1
       except Exception:
-          ...  # сбой генерации → залогировать + вернуть 1
+          ...  # generation failure → log + return 1
 
-## Особенности для вызывающей стороны
+## Notes for the calling side
 
-- **Интерактивен** (TTY-промпты через click). В тестах вызывающая сторона подменяет точку вызова (monkeypatch), чтобы
-  не поднимать промпты (реальные `Questionnaire()`/`FileGenerator()` в тестах не поднимаются — TTY/сеть; только mocks).
-- Возвращает **число, не бросает исключение** при отмене/сбое (`click.Abort`→1, прочая `Exception`→log+echo+1 —
-  паритет со старым `InitLogic.run()`); диагностику вызывающая сторона печатает сама.
-- `InitLogic`/`ask`/`ask_goga_config` **не используются** — оркестрация per-field вручную фиксирует `language="python"`
-  и разделяет образ на имя собранного (`ask_image_name`) и `FROM` baseline (`ask_base_image`); `ask_image` (pre-built
-  pull, без Dockerfile) **не вызывается** — Dockerfile обязателен.
-- Инициализация через pybuggy проходит офлайн: ключ `conventions` не попадает в ответы, сетевых вызовов нет.
-- Это внешний пакет — подключается в CODEMANIFEST через `Usages`, **не** через `Imports` (Imports связывает только
-  ячейки проекта); абсолютный импорт наверху модуля, third-party группа isort.
+- The API is **interactive** (TTY prompts via click). In tests, the caller substitutes the call site (monkeypatch) so that the prompts never appear — tests never construct real `Questionnaire()`/`FileGenerator()` instances (TTY/network; mocks only).
+- The flow returns **a number and never raises an exception** on cancellation/failure (`click.Abort`→1, any other `Exception`→log+echo+1 — parity with the old `InitLogic.run()`); the caller prints the diagnostics itself.
+- `InitLogic`/`ask`/`ask_goga_config` **are not used** — manual per-field orchestration pins `language="python"` and splits the image into the built image's name (`ask_image_name`) and the `FROM` baseline (`ask_base_image`); `ask_image` (pre-built pull, no Dockerfile) **is never called** — a Dockerfile is mandatory.
+- pybuggy-driven initialization stays offline: the `conventions` key never enters the answers; the flow makes no network calls.
+- This is an external package — reference it in CODEMANIFEST via `Usages`, **not** via `Imports` (Imports binds only project cells); place the absolute import at the top of the module, isort third-party group.
 
-## Зависимости
+## Dependencies
 
-- Требует `goga` в `pyproject.toml` зависимостей вызывающего пакета.
-- В dev `goga` резолвится из `.libs/goga` симлинком в `site-packages` (dev-snapshot новее 1.1.2, метаданных версии
-  нет); **НЕ `uv sync`** — он пересоздаст зависимости и вернёт устаревший резолвер.
+- The calling package's `pyproject.toml` must list `goga` among its dependencies.
+- In dev, `goga` resolves from `.libs/goga` via a symlink into `site-packages` (dev snapshot newer than 1.1.2, no version metadata); **do NOT run `uv sync`** — it would recreate the dependencies and bring back an outdated resolver.
