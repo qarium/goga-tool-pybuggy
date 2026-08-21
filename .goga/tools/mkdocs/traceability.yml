@@ -1,0 +1,53 @@
+docs/index.md:
+  - goga_tool_pybuggy
+docs/getting-started.md:
+  - goga_tool_pybuggy
+  - goga_tool_pybuggy/commands/init
+docs/cli/init.md:
+  - goga_tool_pybuggy/commands/init
+  - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/plugin
+docs/cli/pull.md:
+  - goga_tool_pybuggy/commands/pull
+  - goga_tool_pybuggy/config
+docs/cli/list.md:
+  - goga_tool_pybuggy/commands/list
+  - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/spec
+  - goga_tool_pybuggy/output
+docs/cli/info.md:
+  - goga_tool_pybuggy/commands/info
+  - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/spec
+  - goga_tool_pybuggy/output
+docs/cli/generate.md:
+  - goga_tool_pybuggy/commands/generate
+  - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/spec
+docs/configuration.md:
+  - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/plugin
+docs/api/index.md:
+  - goga_tool_pybuggy/api
+docs/api/asserts.md:
+  - goga_tool_pybuggy/api/asserts
+  - goga_tool_pybuggy/matchcrest
+docs/matchcrest/index.md:
+  - goga_tool_pybuggy/matchcrest
+docs/matchcrest/matchers.md:
+  - goga_tool_pybuggy/matchcrest/matchers
+docs/matchcrest/helpers.md:
+  - goga_tool_pybuggy/matchcrest/utils
+docs/plugin/index.md:
+  - goga_tool_pybuggy/plugin
+  - goga_tool_pybuggy/api
+  - goga_tool_pybuggy
+docs/plugin/loaders.md:
+  - goga_tool_pybuggy/plugin/loaders
+docs/lifecycle.md:
+  - goga_tool_pybuggy
+docs/internals/spec.md:
+  - goga_tool_pybuggy/spec
+docs/internals/output.md:
+  - goga_tool_pybuggy/output
+  - goga_tool_pybuggy/spec
