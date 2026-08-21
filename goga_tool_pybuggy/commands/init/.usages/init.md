@@ -30,6 +30,13 @@ consumer-usages ячейки `api` (и её подклеток) в проект,
 добавляется; строки без совпавшей ссылки сохраняются дословно. Источник usages — установленный пакет (не cwd);
 поведение идемпотентно.
 
+Помимо этого, команда **всегда** приводит `.goga/config.yml` к обязательному виду `build.review_executor.skip: true`
+(флаг goga: пропускать стадию review-executor при сборке). Правка идемпотентна и выполняется round-trip (ruamel.yaml):
+отсутствующие отображения `build`/`review_executor` создаются, остальное содержимое `build` (напр. `task_executor`
+с env-якорями), комментарии и порядок ключей сохраняются дословно; установленное `skip: false` исправляется на `true`;
+при уже установленном `skip: true` файл не пишется вовсе (байт-идентично). Блок добавляется и в существующий конфиг
+при отказе от пересоздания goga-проекта — проекты, инициализированные ранее, мигрируют автоматически.
+
 ---
 
 ## Построение .goga/tools/pybuggy/config.yml
@@ -86,7 +93,7 @@ plugin.install()
 - Консольная команда (top-level, не под `endpoint`): `pybuggy init`
 - Модульный запуск: `python -m goga_tool_pybuggy init`
 - Программный импорт фасада:
-      from goga_tool_pybuggy.commands.init import run_init, run_goga_init, init_cmd, register_usages, register_annotations, write_test_convention
+      from goga_tool_pybuggy.commands.init import run_init, run_goga_init, init_cmd, register_usages, register_annotations, ensure_review_executor_skip, write_test_convention
 
 ---
 
@@ -95,14 +102,15 @@ plugin.install()
 В проекте без `.goga/config.yml`:
 1. Команда **интерактивно** инициализирует goga-проект (вопросы об агенте/образе/...; язык зафиксирован `python`;
    вопрос «Download base convention» не задаётся — сетевых вызовов нет, инициализация офлайн).
-2. По завершении создаётся полный `.goga/config.yml`, затем доставляется тестовая конвенция и регистрируются usages.
+2. По завершении создаётся полный `.goga/config.yml`, затем доставляется тестовая конвенция, устанавливается флаг
+   `build.review_executor.skip: true` и регистрируются usages.
 
       cd my-consumer-project
-      pybuggy init        # → опросник goga (без базовой конвенции), затем слот conventions + регистрация usages
+      pybuggy init        # → опросник goga (без базовой конвенции), затем слот conventions + флаг review_executor + регистрация usages
 
 Результат:
-- `.goga/config.yml` — полный goga-конфиг (включая top-level поле `dockerfile`) + блок `codemanifest.usages` с
-  `conventions`/`pybuggy-api`/`pybuggy-asserts` + блок `codemanifest.annotations` со ссылающимися строками (строка
+- `.goga/config.yml` — полный goga-конфиг (включая top-level поле `dockerfile`) + блок `build.review_executor.skip: true`
+  + блок `codemanifest.usages` с `conventions`/`pybuggy-api`/`pybuggy-asserts` + блок `codemanifest.annotations` со ссылающимися строками (строка
   `conventions`: «Use `conventions` for test code: pytest configuration, logging, and Allure reporting.»).
 - `.goga/Dockerfile` — обязательный Dockerfile: `FROM {dockerfile_base_image}` + `RUN goga install pybuggy -v 1.0.x`
   (установка pybuggy через goga-installer с захардкоженной версией `1.0.x`; дописывается после генерации goga),
@@ -118,8 +126,9 @@ plugin.install()
 
 Если `.goga/config.yml` уже существует — `run_init` спрашивает `click.confirm` (по умолчанию `no`), пересоздавать ли
 goga-проект (перезапись `.goga/config.yml`; пользовательские codemanifest-записи сверх pybuggy могут быть потеряны).
-При отказе опросник goga **не запускается**; слот `conventions` всё равно приводится к версии пакета, затем
-выполняется round-trip регистрация usages. Аналогично для `.goga/tools/pybuggy/config.yml`:
+При отказе опросник goga **не запускается**; слот `conventions` всё равно приводится к версии пакета, в конфиг
+добавляется `build.review_executor.skip: true` (при отсутствии), затем выполняется round-trip регистрация usages.
+Аналогично для `.goga/tools/pybuggy/config.yml`:
 
       # .goga/config.yml до запуска (с пользовательскими ключами)
       codemanifest:
@@ -128,7 +137,8 @@ goga-проект (перезапись `.goga/config.yml`; пользовате
         annotations: |
           Use `conventions` for code writing rules and testing.   # legacy-goga строка — будет заменена
       # pybuggy init → спрашивает пересоздание goga/pybuggy конфигов; при отказе: .goga/usages/conventions.md
-      # перезаписывается ассетом пакета, ключ conventions пропускается (уже есть), legacy-строка аннотации
+      # перезаписывается ассетом пакета, в конфиг добавляется build.review_executor.skip: true (при отсутствии),
+      # ключ conventions пропускается (уже есть), legacy-строка аннотации
       # заменяется строкой pybuggy («Use `conventions` for test code: ...»), добавляются pybuggy-api/pybuggy-asserts;
       # прочие строки аннотаций и комментарии на месте
 
@@ -139,7 +149,8 @@ goga-проект (перезапись `.goga/config.yml`; пользовате
 Повторный `pybuggy init` в уже инициализированном проекте: `run_init` спрашивает, пересоздавать ли goga-конфиг,
 pybuggy-конфиг и перезаписывать ли `conftest.py` (`click.confirm`, по умолчанию `no`); при отказе всех — goga-init,
 сборка pybuggy-конфига и запись conftest пропускаются, существующий `conftest.py` не изменяется; скопированные `.md`
-(вкл. `conventions.md`) перезаписываются версиями пакета; уже зарегистрированные ключи пропускаются; строки
+(вкл. `conventions.md`) перезаписываются версиями пакета; `build.review_executor.skip: true` при уже установленном
+значении оставляет файл без записи (no-op); уже зарегистрированные ключи пропускаются; строки
 аннотаций заменяются на идентичные (no-op) либо дописываются. Флаги `--force`/`--dry-run` не предусмотрены.
 
 ---
@@ -147,8 +158,8 @@ pybuggy-конфиг и перезаписывать ли `conftest.py` (`click.
 ## Exit codes
 
 - `0` — успех (goga-проект готов/уже был готов + слот conventions + usages зарегистрированы).
-- ненулевой код goga (`1`) — отмена/ошибка инициализации goga: в этом случае слот `conventions` и usages **не
-  доставляются/не регистрируются**, `pybuggy init` завершается кодом goga.
+- ненулевой код goga (`1`) — отмена/ошибка инициализации goga: в этом случае слот `conventions`, флаг
+  `build.review_executor` и usages **не доставляются/не регистрируются**, `pybuggy init` завершается кодом goga.
 - Ошибки bootstrap usages (вкл. доставка конвенции) и ошибки записи conftest → `click.ClickException` (ненулевой exit).
 
 ---
@@ -194,7 +205,9 @@ pybuggy-конфиг и перезаписывать ли `conftest.py` (`click.
 
 Для прямой регистрации usages без discovery/копирования — `register_usages`; для регистрации
 строк аннотаций в `codemanifest.annotations` — `register_annotations` (round-trip, идемпотентно по бэктик-ссылке:
-совпавшая строка заменяется при отличии текста, иначе no-op; возвращает `changed_keys`). Интерактивное построение
+совпавшая строка заменяется при отличии текста, иначе no-op; возвращает `changed_keys`); для обеспечения
+`build.review_executor.skip: true` в произвольном конфиге — `ensure_review_executor_skip` (round-trip, идемпотентно:
+возвращает `True` при изменении, `False` при уже установленном флаге, файл не пишется). Интерактивное построение
 `.goga/tools/pybuggy/config.yml` изолировано в `build_pybuggy_config`; чистую эмиссию YAML тестируют напрямую через
 `write_pybuggy_config`; чистую запись conftest — через `write_pybuggy_conftest` (образцы — в разделах выше).
 
@@ -220,6 +233,6 @@ pybuggy-конфиг и перезаписывать ли `conftest.py` (`click.
 - Копирует только usages ячейки `api`; внутренние ячейки разработки (`config`/`spec`/`output`/...) не копируются.
 - goga-init запускается при отсутствии `.goga/config.yml` (эвристика «не инициализирован») либо при согласии на
   пересоздание (`click.confirm`, по умолчанию `no`).
-- Цели записи — goga-project-конфиг `.goga/config.yml` (блоки `codemanifest.usages` и `codemanifest.annotations`),
-  `.goga/usages/conventions.md`, `.goga/usages/cooks/pybuggy/*.md`, `.goga/tools/pybuggy/config.yml` и корневой
-  `<cwd>/conftest.py`.
+- Цели записи — goga-project-конфиг `.goga/config.yml` (блоки `build.review_executor`, `codemanifest.usages` и
+  `codemanifest.annotations`), `.goga/usages/conventions.md`, `.goga/usages/cooks/pybuggy/*.md`,
+  `.goga/tools/pybuggy/config.yml` и корневой `<cwd>/conftest.py`.

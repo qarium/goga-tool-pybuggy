@@ -233,6 +233,52 @@ def register_annotations(config_path: Path, annotation_lines: dict[str, str]) ->
     return changed_keys
 
 
+def ensure_review_executor_skip(config_path: Path) -> bool:
+    """Ensure ``build.review_executor.skip: true`` in the consumer ``.goga/config.yml``.
+
+    Round-trip edits the file with ``ruamel.yaml`` so comments, key order, quotes, anchors, and
+    block-scalars are preserved. Idempotent: when ``skip`` already holds ``True`` the file is not
+    written at all (a repeat run is byte-identical). The nested ``build``/``review_executor``
+    mappings are created when missing, so the flag lands even in a config goga emitted without a
+    ``build`` block (no build agent configured). Any other ``build`` content (e.g.
+    ``task_executor``) is preserved verbatim; a present ``skip: false`` is corrected to ``true``.
+
+    Args:
+        config_path: Path to the consumer ``.goga/config.yml``.
+
+    Returns:
+        ``True`` when the flag was added or corrected (file written); ``False`` when it already
+        held ``True`` (no write).
+
+    Raises:
+        ValueError: If ``build`` or ``build.review_executor`` exists but is not a mapping.
+        YAMLError: If an existing file contains invalid YAML.
+    """
+    yaml = YAML()
+    yaml.preserve_quotes = True
+
+    if config_path.exists():
+        data = yaml.load(config_path)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    build = _ensure_map(data, "build")
+    review_executor = _ensure_map(build, "review_executor")
+
+    if review_executor.get("skip") is True:
+        return False
+
+    review_executor["skip"] = True
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    yaml.dump(data, config_path)
+    logger.info("review executor skip enabled", extra={"path": str(config_path)})
+
+    return True
+
+
 # Commented example blocks for the complex ``headers``/``loader`` plugin members. These members
 # cannot be captured as plain scalars by the interactive build, so their shape is emitted as a
 # ``# ``-prefixed example (pinned to the next active key via the ruamel ``before`` comment) instead
@@ -825,9 +871,9 @@ def _write_root_conftest(cwd: Path) -> None:
 
 def run_init() -> int:
     """Initialize the goga-project, occupy the conventions slot, bootstrap the api usages, build the tool
-    config, generate the conftest.
+    config, enforce the review-executor skip flag, generate the conftest.
 
-    Algorithm (11 steps):
+    Algorithm (12 steps):
 
     1. Resolve the output root as the current working directory.
     2. Goga-project config: when ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive
@@ -845,24 +891,30 @@ def run_init() -> int:
     6. Occupy the ``conventions`` slot: always (over)write ``<cwd>/.goga/usages/conventions.md``
        with the packaged test-convention asset via :func:`write_test_convention` — no existence
        check, no confirmation, so a project with any prior slot content migrates automatically.
-    7. Register the usage keys in ``<cwd>/.goga/config.yml`` under ``codemanifest.usages`` via
+    7. Ensure ``build.review_executor.skip: true`` in ``<cwd>/.goga/config.yml`` via
+       :func:`ensure_review_executor_skip` — an idempotent round-trip edit creating the nested
+       ``build``/``review_executor`` mappings when missing and preserving the rest of ``build``
+       (e.g. ``task_executor``) verbatim; a declined goga-config rebuild migrates the flag into
+       the existing config all the same.
+    8. Register the usage keys in ``<cwd>/.goga/config.yml`` under ``codemanifest.usages`` via
        :func:`register_usages`: the discovered ``pybuggy-<stem>`` keys AND the key ``conventions``
        → ``.goga/usages/conventions.md`` (idempotent, skip-existing).
-    8. Register the annotation lines under ``codemanifest.annotations`` via
+    9. Register the annotation lines under ``codemanifest.annotations`` via
        :func:`register_annotations`: the ``pybuggy-<stem>`` lines AND the ``conventions`` line
        (``_CONVENTION_LINE``) — idempotent by backtick reference, an existing line carrying the
        reference is replaced.
-    9. Log INFO for added/changed keys and WARNING for skipped ones.
-    10. Root ``conftest.py``: resolve ``<cwd>/conftest.py``; when absent, write it via
+    10. Log INFO for added/changed keys and WARNING for skipped ones.
+    11. Root ``conftest.py``: resolve ``<cwd>/conftest.py``; when absent, write it via
        :func:`write_pybuggy_conftest`; when it exists, ask (``click.confirm``, default ``no``) —
        ``yes`` overwrites it, ``no`` logs INFO (step skipped, file untouched) and continues. The
        decision lives here, in the orchestrator (:func:`_write_root_conftest`); the routine itself
        always writes without any check.
-    11. Return 0.
+    12. Return 0.
 
     Each config is created when absent and only recreated on explicit confirmation when present, so a
     plain repeat run (all confirms declined) still re-copies the usages, re-delivers the conventions
-    slot (unconditionally), and skips already-registered keys/annotation lines — idempotent. Steps 2
+    slot (unconditionally), re-checks the review-executor skip flag (a byte-identical no-op when
+    already true), and skips already-registered keys/annotation lines — idempotent. Steps 2
     and 3 are called outside this routine's own try/except — they rely on
     :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code on
     cancellation/failure); a non-zero code from either returns before the bootstrap block, so no
@@ -903,6 +955,10 @@ def run_init() -> int:
         # The conventions slot is package-owned and delivered unconditionally on every successful
         # pass — a project with any prior (legacy or locally modified) slot content migrates here.
         write_test_convention(cwd / ".goga" / "usages" / "conventions.md")
+
+        # The review-executor flag is enforced unconditionally on every successful pass — the
+        # block is created in a fresh config and migrated into an existing one alike.
+        ensure_review_executor_skip(cwd / ".goga" / "config.yml")
 
         usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem, _ in discovered}
         usage_keys["conventions"] = ".goga/usages/conventions.md"

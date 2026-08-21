@@ -12,6 +12,7 @@ import pytest
 import yaml
 from goga_tool_pybuggy.commands.init import (
     build_pybuggy_config,
+    ensure_review_executor_skip,
     init_cmd,
     install_pybuggy,
     register_annotations,
@@ -122,6 +123,27 @@ def test_register_annotations_signature() -> None:
     assert params == ("config_path", "annotation_lines")
 
 
+def test_ensure_review_executor_skip_importable_from_facade() -> None:
+    """ensure_review_executor_skip should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import ensure_review_executor_skip as imported
+
+    assert imported is ensure_review_executor_skip
+
+
+def test_ensure_review_executor_skip_is_public_in_facade() -> None:
+    """ensure_review_executor_skip is exposed on the facade __all__ (public contract)."""
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+
+    assert "ensure_review_executor_skip" in facade_all
+
+
+def test_ensure_review_executor_skip_signature() -> None:
+    """ensure_review_executor_skip has signature (config_path)."""
+    params = ensure_review_executor_skip.__code__.co_varnames[: ensure_review_executor_skip.__code__.co_argcount]
+
+    assert params == ("config_path",)
+
+
 def test_write_pybuggy_conftest_importable_from_facade() -> None:
     """write_pybuggy_conftest should be importable from the goga_tool_pybuggy.commands.init facade."""
     assert callable(write_pybuggy_conftest) is True
@@ -201,7 +223,7 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
 
 
 def test_run_init_occupies_conventions_slot_in_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """In a fresh project run_init delivers the slot, key, and annotation line end-to-end (steps 6-8)."""
+    """In a fresh project run_init delivers the slot, key, and annotation line end-to-end (steps 6-9)."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
@@ -213,6 +235,56 @@ def test_run_init_occupies_conventions_slot_in_fresh_project(tmp_path: Path, mon
     assert set(cfg["codemanifest"]["usages"]) == {"conventions", "pybuggy-api", "pybuggy-asserts"}
     assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
     assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
+
+
+def test_run_init_ensures_review_executor_skip_in_fresh_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Step 7: a fresh run leaves build.review_executor.skip: true in the consumer .goga/config.yml."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 0
+
+    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
+    assert cfg["build"]["review_executor"]["skip"] is True
+
+
+def test_run_init_migrates_review_executor_skip_into_existing_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A declined goga-config rebuild still migrates the flag into the existing build block."""
+    config = tmp_path / ".goga" / "config.yml"
+    config.parent.mkdir(parents=True, exist_ok=True)
+    config.write_text(
+        "build:\n"
+        "  task_executor:\n"
+        "    agent: claude\n"
+        "codemanifest:\n"
+        "  usages:\n"
+        "    conventions: .goga/usages/conventions.md\n"
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
+
+    assert run_init() == 0
+
+    cfg = yaml.safe_load(config.read_text())
+    assert cfg["build"]["task_executor"]["agent"] == "claude"  # existing build content preserved
+    assert cfg["build"]["review_executor"]["skip"] is True
+
+
+def test_run_init_does_not_ensure_flag_when_goga_init_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A non-zero run_goga_init code returns before the bootstrap block: the flag is not ensured."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    assert run_init() == 1
+    assert not (tmp_path / ".goga/config.yml").exists()
 
 
 def test_run_init_leaves_divergent_conventions_key_untouched(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -352,7 +424,7 @@ def test_run_init_migrates_legacy_slot_when_recreates_declined(tmp_path: Path, m
 
 
 def test_run_init_generates_root_conftest_in_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Step 10: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
+    """Step 11: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
@@ -413,7 +485,7 @@ def test_run_init_maps_conftest_write_failure_to_click_exception(
 
 
 def test_run_init_does_not_write_conftest_when_goga_init_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A non-zero run_goga_init code returns before step 10: no conftest, no usages bootstrapped."""
+    """A non-zero run_goga_init code returns before step 11: no conftest, no usages bootstrapped."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
@@ -426,7 +498,7 @@ def test_run_init_does_not_write_conftest_when_goga_init_fails(tmp_path: Path, m
 def test_run_init_does_not_write_conftest_when_config_build_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A non-zero build_pybuggy_config code returns before step 10: no conftest is written."""
+    """A non-zero build_pybuggy_config code returns before step 11: no conftest is written."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
@@ -436,7 +508,7 @@ def test_run_init_does_not_write_conftest_when_config_build_fails(
 
 
 def test_run_init_does_not_write_conftest_when_bootstrap_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A bootstrap ClickException returns before step 10: no conftest is written."""
+    """A bootstrap ClickException returns before step 11: no conftest is written."""
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
@@ -1212,6 +1284,116 @@ def test_register_annotations_non_scalar_annotations_raises(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="not a scalar"):
         register_annotations(config, _ANNOTATION_LINES)
+
+
+# ensure_review_executor_skip logic tests --------------------------------------
+
+
+def test_ensure_review_executor_skip_creates_block_when_file_absent(tmp_path: Path) -> None:
+    """ensure_review_executor_skip creates a minimal config carrying build.review_executor.skip: true."""
+    config = tmp_path / "config.yml"
+
+    changed = ensure_review_executor_skip(config)
+
+    assert changed is True
+    assert yaml.safe_load(config.read_text()) == {"build": {"review_executor": {"skip": True}}}
+
+
+def test_ensure_review_executor_skip_creates_nested_maps_preserving_other_keys(tmp_path: Path) -> None:
+    """A config without a build block gains the nested maps; other top-level content stays."""
+    config = tmp_path / "config.yml"
+    config.write_text(
+        "language: python\n"
+        "image: demo:latest\n"
+        "codemanifest:\n"
+        "  usages:\n"
+        "    conventions: .goga/usages/conventions.md  # пользовательский\n"
+    )
+
+    changed = ensure_review_executor_skip(config)
+
+    assert changed is True
+    text = config.read_text()
+    assert "# пользовательский" in text  # round-trip preserved the comment
+    cfg = yaml.safe_load(text)
+    assert cfg["language"] == "python"
+    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
+    assert cfg["build"]["review_executor"]["skip"] is True
+
+
+def test_ensure_review_executor_skip_preserves_existing_build_content(tmp_path: Path) -> None:
+    """An existing build block (task_executor with env anchors) survives verbatim; the flag joins it."""
+    config = tmp_path / "config.yml"
+    config.write_text(
+        ".claude-env: &claude-env\n"
+        "  ANTHROPIC_MODEL: opus\n"
+        "build:\n"
+        "  task_executor:\n"
+        "    agent: claude\n"
+        "    env:\n"
+        "      <<: *claude-env\n"
+        "      ANTHROPIC_DEFAULT_OPUS_MODEL: glm\n"
+    )
+
+    changed = ensure_review_executor_skip(config)
+
+    assert changed is True
+    text = config.read_text()
+    assert "&claude-env" in text  # anchor preserved
+    assert "<<: *claude-env" in text  # merge key preserved
+    cfg = yaml.safe_load(text)
+    assert cfg["build"]["task_executor"]["agent"] == "claude"
+    assert cfg["build"]["task_executor"]["env"]["ANTHROPIC_MODEL"] == "opus"  # merged anchor value intact
+    assert cfg["build"]["review_executor"]["skip"] is True
+
+
+def test_ensure_review_executor_skip_idempotent_no_rewrite(tmp_path: Path) -> None:
+    """When skip already holds true nothing is written — the file stays byte-identical."""
+    config = tmp_path / "config.yml"
+    config.write_text("build:\n  review_executor:\n    skip: true\n")
+
+    changed = ensure_review_executor_skip(config)
+
+    assert changed is False
+    assert config.read_text() == "build:\n  review_executor:\n    skip: true\n"
+
+
+def test_ensure_review_executor_skip_corrects_false_to_true(tmp_path: Path) -> None:
+    """A present skip: false is corrected to true (the enforced value is exactly true)."""
+    config = tmp_path / "config.yml"
+    config.write_text("build:\n  review_executor:\n    skip: false\n")
+
+    changed = ensure_review_executor_skip(config)
+
+    assert changed is True
+    assert yaml.safe_load(config.read_text())["build"]["review_executor"]["skip"] is True
+
+
+def test_ensure_review_executor_skip_non_map_build_raises(tmp_path: Path) -> None:
+    """A non-mapping build raises ValueError (never overwrites user data)."""
+    config = tmp_path / "config.yml"
+    config.write_text("build: not-a-map")
+
+    with pytest.raises(ValueError, match="not a mapping"):
+        ensure_review_executor_skip(config)
+
+
+def test_ensure_review_executor_skip_non_map_review_executor_raises(tmp_path: Path) -> None:
+    """A non-mapping build.review_executor raises ValueError (never overwrites user data)."""
+    config = tmp_path / "config.yml"
+    config.write_text("build:\n  review_executor: not-a-map")
+
+    with pytest.raises(ValueError, match="not a mapping"):
+        ensure_review_executor_skip(config)
+
+
+def test_ensure_review_executor_skip_invalid_yaml_raises(tmp_path: Path) -> None:
+    """ensure_review_executor_skip propagates a YAML error for an invalid existing file."""
+    config = tmp_path / "config.yml"
+    config.write_text("build: [unclosed")
+
+    with pytest.raises(YAMLError):
+        ensure_review_executor_skip(config)
 
 
 # _annotation_for (pybuggy usage stem → annotation line) tests ----------------

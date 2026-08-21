@@ -19,17 +19,20 @@ Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the command wrapper, interactive prompts (plugin scalar keys + specs survey), overwrite gates
     (default no), and mapping domain errors to click.ClickException.
-  Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing) AND for emitting
-    .goga/tools/pybuggy/config.yml with active values plus commented records (skipped optional fields and headers/loader examples).
+  Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing, ensure the
+    build.review_executor.skip flag) AND for emitting .goga/tools/pybuggy/config.yml with active values plus commented
+    records (skipped optional fields and headers/loader examples).
   Use `goga` for the in-process initialization of the goga-project via goga.onboarding per-field Questionnaire methods + FileGenerator.
 
   Top-level bootstrap command pybuggy init — initializes the goga-project (created when absent, recreated only on
   confirmation), occupies the `conventions` slot of the consumer with the pybuggy test convention (package asset,
   no network), ships the consumer usages of the api cell into the project, interactively builds
-  .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), AND generates the root conftest.py
+  .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), always enforces
+  build.review_executor.skip: true in the consumer .goga/config.yml, AND generates the root conftest.py
   of the target project from a fixed template (written when absent, overwritten only on confirmation). The handler
   `run_init` is the testable entry point; the click wrapper `init_cmd` delegates to `run_init`. The goga-project
   initialization is delegated to `run_goga_init`; the test-convention slot delivery to `write_test_convention`; the
+  review-executor skip enforcement to the pure `ensure_review_executor_skip`; the
   interactive config build to `build_pybuggy_config` (testable seam for the TTY survey), which delegates file emission
   to the pure `write_pybuggy_config`; the conftest emission to the pure `write_pybuggy_conftest`. The recreate/overwrite
   decisions for both configs and the conftest live in `run_init` (click.confirm, default no); the writers themselves
@@ -43,7 +46,8 @@ Annotations: |
   annotations: |
     Handler for the init command: ensure the goga-project is initialized, build the pybuggy tool config, occupy the
     `conventions` slot of the consumer with the pybuggy test convention, bootstrap the consumer usages of the api cell
-    into the project where the command is invoked, and generate the root conftest.py of the target project.
+    into the project where the command is invoked, enforce the build.review_executor.skip flag in the consumer
+    .goga/config.yml, and generate the root conftest.py of the target project.
 
     `exit_code`: 0 on success; non-zero goga-init/config-build exit code propagated on failure/cancel.
 
@@ -60,17 +64,21 @@ Annotations: |
     5. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md.
     6. Occupy the `conventions` slot: call `write_test_convention` with <cwd>/.goga/usages/conventions.md — the file
        is always overwritten with the package asset version (no existence check, no confirmation).
-    7. Register usage keys via `register_usages` with <cwd>/.goga/config.yml: the discovered pybuggy-<stem> keys AND
+    7. Ensure build.review_executor.skip: true in <cwd>/.goga/config.yml via `ensure_review_executor_skip` — an
+       idempotent round-trip edit creating the nested build/review_executor mappings when missing and preserving the
+       rest of build (e.g. task_executor) verbatim; a declined goga-config rebuild migrates the flag into the
+       existing config all the same.
+    8. Register usage keys via `register_usages` with <cwd>/.goga/config.yml: the discovered pybuggy-<stem> keys AND
        the key conventions -> .goga/usages/conventions.md (idempotent, skip-existing).
-    8. Register annotation lines via `register_annotations` with <cwd>/.goga/config.yml: the pybuggy-<stem> lines AND
+    9. Register annotation lines via `register_annotations` with <cwd>/.goga/config.yml: the pybuggy-<stem> lines AND
        the conventions line "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
        (idempotent by backtick reference — an existing line carrying the reference is replaced).
-    9. Log INFO for added/changed, WARNING for skipped.
-    10. Root conftest: resolve the path <cwd>/conftest.py; when it does NOT exist, call `write_pybuggy_conftest` with
+    10. Log INFO for added/changed, WARNING for skipped.
+    11. Root conftest: resolve the path <cwd>/conftest.py; when it does NOT exist, call `write_pybuggy_conftest` with
        it; when it DOES exist, ask via click.confirm (default no) whether to overwrite it — on yes call
        `write_pybuggy_conftest`, on no log INFO (step skipped, file untouched) and continue. The overwrite decision
        lives here in the orchestrator — `write_pybuggy_conftest` itself always (over)writes without checking.
-    11. Return 0.
+    12. Return 0.
 
     Requirements:
     - Each config (goga .goga/config.yml and pybuggy .goga/tools/pybuggy/config.yml) is created when absent and
@@ -80,9 +88,12 @@ Annotations: |
       gate is `run_init`'s, not the builder's.
     - After every successful run the `conventions` slot is consistent: <cwd>/.goga/usages/conventions.md carries the
       package asset text, the key conventions -> .goga/usages/conventions.md is registered, and codemanifest.annotations
-      carries the conventions line from step 8.
+      carries the conventions line from step 9.
     - The `conventions` slot delivery runs on every successful pass — including a declined goga-config rebuild — so a
       project with any prior slot content migrates automatically.
+    - After every successful run the consumer .goga/config.yml carries build.review_executor.skip: true — the block is
+      created in a fresh config and migrated into an existing one (a declined goga-config rebuild included) without
+      touching any other build content; when the flag already holds true the file is left byte-identical.
     - The usages/annotations bootstrap is idempotent.
     - The root conftest.py is created when absent and only overwritten on explicit click.confirm (default no) when
       present; declining skips the step (file untouched) so a repeat run stays idempotent.
@@ -95,8 +106,9 @@ Annotations: |
     - Do not generate the conftest when an earlier step failed or was cancelled with a non-zero exit.
     - Do not merge into an existing conftest — either a confirmed overwrite or a skip.
 
-    Use `run_goga_init`, `build_pybuggy_config`, `write_test_convention`, `register_usages`, `register_annotations`,
-    `write_pybuggy_conftest`. Use `click` for the overwrite gates and error mapping. Use `conventions` for logging/testing.
+    Use `run_goga_init`, `build_pybuggy_config`, `write_test_convention`, `ensure_review_executor_skip`,
+    `register_usages`, `register_annotations`, `write_pybuggy_conftest`. Use `click` for the overwrite gates and error
+    mapping. Use `conventions` for logging/testing.
 
 "build_pybuggy_config() -> exit_code:int":
   location: init.py
@@ -434,6 +446,43 @@ Annotations: |
     Use `ruamel-yaml` for the round-trip load/modify/dump and the LiteralScalarString block-scalar construction.
     Use `conventions` for type hints and relative imports.
 
+"ensure_review_executor_skip(config_path: Path) -> changed:bool":
+  location: init.py
+  annotations: |
+    Round-trip edit of the consumer .goga/config.yml enforcing build.review_executor.skip: true — the flag telling
+    goga to skip the review-executor stage of the build in pybuggy-initialized projects. Pure (no TTY); `run_init`
+    calls it unconditionally on every successful pass, so the block is created in a fresh config and migrated into
+    an existing one alike (a declined goga-config rebuild included).
+
+    `config_path`: path to the consumer .goga/config.yml.
+    `changed`: true when the flag was added or corrected (file written); false when it already held true (no write).
+
+    Algorithm:
+    1. Configure ruamel YAML with preserve_quotes=True.
+    2. When `config_path` exists, load it; when the load yields None (empty file), treat the document as empty.
+       When `config_path` does not exist, build a fresh CommentedMap.
+    3. Navigate to build.review_executor via nested map resolution, creating each missing/null mapping level (a
+       config goga emitted without a build agent carries no build block at all).
+    4. When review_executor.skip already is true, return false without writing (idempotent).
+    5. Set review_executor.skip to true, ensure the parent directory of `config_path` exists, dump the document
+       back, log INFO; return true.
+
+    Requirements:
+    - The enforced value is exactly true — a present false (or non-boolean) value is corrected.
+    - The rest of build (e.g. task_executor with its env anchors) and any other config content, comments, key
+      order, and quotes are preserved verbatim.
+    - Idempotent: when the flag already holds true the file is not written at all, so a repeat run leaves the file
+      byte-identical.
+    - When the file is absent, a minimal valid file carrying the build.review_executor block is created.
+
+    Constraints:
+    - Do not use pyyaml — it would reformat the file and drop comments.
+    - Do not touch keys outside build.review_executor.skip.
+    - Do not prompt — pure (TTY-free); the run gate lives in `run_init`.
+
+    Use `ruamel-yaml` for the round-trip load/modify/dump and the CommentedMap construction.
+    Use `conventions` for type hints and structured logging.
+
 "init_cmd(ctx: click.Context)":
   location: init.py
   annotations: |
@@ -450,4 +499,5 @@ Author: Goga
 CreatedAt: 27/07/26
 Description: |
   Init command cell — initializes the consumer's goga-project and bootstraps the pybuggy test environment:
-  test-convention slot, api-cell consumer usages, tool config, Dockerfile install line, root conftest.
+  test-convention slot, api-cell consumer usages, tool config, Dockerfile install line, review-executor skip flag,
+  root conftest.

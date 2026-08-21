@@ -2,6 +2,7 @@
 
 from .init import (
     build_pybuggy_config,
+    ensure_review_executor_skip,
     init_cmd,
     install_pybuggy,
     register_annotations,
@@ -15,6 +16,7 @@ from .init import (
 
 __all__ = [
     "build_pybuggy_config",
+    "ensure_review_executor_skip",
     "init_cmd",
     "install_pybuggy",
     "register_annotations",
