@@ -6,7 +6,7 @@ site_description: >-
 site_url: https://qarium.github.io/goga-tool-pybuggy/
 repo_url: https://github.com/qarium/goga-tool-pybuggy
 repo_name: qarium/goga-tool-pybuggy
-edit_uri: edit/0.0.x/docs/
+edit_uri: edit/1.0.x/docs/
 
 theme:
   name: material
