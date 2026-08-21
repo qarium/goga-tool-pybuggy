@@ -1,10 +1,10 @@
-# CLI — `pybuggy endpoint list`
+# CLI — `goga tool pybuggy endpoint list`
 
 Prints the endpoints of the configured specs, grouped by spec.
 
 ```bash
-pybuggy endpoint list                  # all specs
-pybuggy endpoint list --spec client    # a single spec
+goga tool pybuggy endpoint list                  # all specs
+goga tool pybuggy endpoint list --spec client    # a single spec
 ```
 
 ## Output

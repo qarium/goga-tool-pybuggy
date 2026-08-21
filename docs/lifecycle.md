@@ -42,6 +42,6 @@ tests/<spec>/<id>/               # the materialized test code
 - The generated [`api/`](cli/generate.md) fixtures and the
   [`Api` runtime](api/index.md) are what the materialized tests consume.
 - The pipeline stages are goga skills (`goga-tool-pybuggy-api-automate-*`) driven by the
-  goga agent in the consumer project — the same project `pybuggy init` bootstraps
+  goga agent in the consumer project — the same project `goga tool pybuggy init` bootstraps
   (usage keys `pybuggy-api` / `pybuggy-asserts` teach the consumer's agent the runtime
   contracts).

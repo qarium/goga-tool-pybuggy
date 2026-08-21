@@ -1,10 +1,10 @@
-# CLI — `pybuggy init`
+# CLI — `goga tool pybuggy init`
 
 Initializes the goga project and bootstraps the consumer's pybuggy environment. Top-level
 command (not under `endpoint`); also available as `python -m goga_tool_pybuggy init`.
 
 ```bash
-pybuggy init
+goga tool pybuggy init
 ```
 
 ## What the command does
@@ -30,7 +30,7 @@ pybuggy init
 
 ## Interactive tool-config build
 
-`pybuggy init` builds `.goga/tools/pybuggy/config.yml` immediately when the file is
+`goga tool pybuggy init` builds `.goga/tools/pybuggy/config.yml` immediately when the file is
 missing, after a confirmation (default: no) when it exists.
 
 What is prompted:
@@ -50,7 +50,7 @@ loading.
 
 ## Idempotency
 
-A repeated `pybuggy init` asks before re-creating the goga config, the tool config, and
+A repeated `goga tool pybuggy init` asks before re-creating the goga config, the tool config, and
 `conftest.py` (all default: no). When everything is refused, the copied `.md` files
 (including `conventions.md`) are still refreshed from the package, the
 `build.review_executor.skip` flag is ensured, and registration no-ops. There are no

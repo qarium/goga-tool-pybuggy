@@ -2,12 +2,12 @@
 
 This walkthrough takes a project from zero to a running API test suite.
 
-## 1. Initialize: `pybuggy init`
+## 1. Initialize: `goga tool pybuggy init`
 
 Run in the target project root:
 
 ```bash
-pybuggy init
+goga tool pybuggy init
 ```
 
 The command (see [CLI — init](cli/init.md)):
@@ -64,9 +64,9 @@ specs:
 ## 3. Pull the specs
 
 ```bash
-pybuggy endpoint pull               # all specs
-pybuggy endpoint pull --spec shop   # a single spec
-PYBUGGY_REF=v2 pybuggy endpoint pull   # pin every spec to ref v2
+goga tool pybuggy endpoint pull               # all specs
+goga tool pybuggy endpoint pull --spec shop   # a single spec
+PYBUGGY_REF=v2 goga tool pybuggy endpoint pull   # pin every spec to ref v2
 ```
 
 Each spec with a `git` block is shallow-cloned at the effective ref, and `git.location`
@@ -75,14 +75,14 @@ is copied into the local `location` path. Details: [CLI — pull](cli/pull.md).
 ## 4. Inspect endpoints
 
 ```bash
-pybuggy endpoint list                    # id, method and path per spec
-pybuggy endpoint info clients_startup_get   # full endpoint details as JSON
+goga tool pybuggy endpoint list                    # id, method and path per spec
+goga tool pybuggy endpoint info clients_startup_get   # full endpoint details as JSON
 ```
 
 ## 5. Generate fixtures
 
 ```bash
-pybuggy endpoint generate -s shop
+goga tool pybuggy endpoint generate -s shop
 ```
 
 This scaffolds, per endpoint (see [CLI — generate](cli/generate.md)):

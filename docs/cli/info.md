@@ -1,12 +1,12 @@
-# CLI — `pybuggy endpoint info`
+# CLI — `goga tool pybuggy endpoint info`
 
 Prints endpoint details as JSON — by endpoint id (one or more).
 
 ```bash
-pybuggy endpoint info clients_startup_get                   # one id, search across all specs
-pybuggy endpoint info -s client clients_startup_get         # within a single spec
-pybuggy endpoint info clients_startup_get health_get        # several ids
-pybuggy endpoint info                                       # all endpoints of the selected specs
+goga tool pybuggy endpoint info clients_startup_get                   # one id, search across all specs
+goga tool pybuggy endpoint info -s client clients_startup_get         # within a single spec
+goga tool pybuggy endpoint info clients_startup_get health_get        # several ids
+goga tool pybuggy endpoint info                                       # all endpoints of the selected specs
 ```
 
 ## Options and arguments

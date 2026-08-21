@@ -2,9 +2,11 @@
 
 pytest plugin and CLI that bootstrap a goga-project for API testing with pybuggy.
 
-## Getting started: `pybuggy init`
+**Documentation**: <https://qarium.github.io/goga-tool-pybuggy/>
 
-Run `pybuggy init` in the target project root. It interactively initializes the
+## Getting started: `goga tool pybuggy init`
+
+Run `goga tool pybuggy init` in the target project root. It interactively initializes the
 goga-project, builds the tool config, and generates the wiring the plugin needs
 (`.goga/config.yml`, `.goga/Dockerfile`, `.goga/tools/pybuggy/config.yml`, root
 `conftest.py`).

@@ -1,13 +1,13 @@
-# CLI — `pybuggy endpoint generate`
+# CLI — `goga tool pybuggy endpoint generate`
 
 Scaffolds the `api/` fixture tree from specifications: response JSON schemas, a pytest
 fixture module `api.py` per endpoint, empty `__init__.py` package markers along the path,
 and empty `tests/` directories.
 
 ```bash
-pybuggy endpoint generate                          # all specs, skip existing
-pybuggy endpoint generate -s shop -f               # single spec, overwrite
-pybuggy endpoint generate clients_startup_get      # only the listed endpoints
+goga tool pybuggy endpoint generate                          # all specs, skip existing
+goga tool pybuggy endpoint generate -s shop -f               # single spec, overwrite
+goga tool pybuggy endpoint generate clients_startup_get      # only the listed endpoints
 ```
 
 ## Options and arguments

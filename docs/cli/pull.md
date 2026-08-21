@@ -1,14 +1,14 @@
-# CLI — `pybuggy endpoint pull`
+# CLI — `goga tool pybuggy endpoint pull`
 
 Downloads specs from git sources into local `location` directories.
 
 ```bash
-pybuggy endpoint pull                          # pull all specs
-pybuggy endpoint pull --spec client            # only a single spec
-pybuggy endpoint pull --ref v2                 # a global ref for all pulled specs
-pybuggy endpoint pull --spec client --ref v2
-pybuggy endpoint pull --ref client:v1 --ref server:v2   # per-spec refs
-pybuggy endpoint pull --ref v2 --ref server:v3          # global v2, server pinned to v3
+goga tool pybuggy endpoint pull                          # pull all specs
+goga tool pybuggy endpoint pull --spec client            # only a single spec
+goga tool pybuggy endpoint pull --ref v2                 # a global ref for all pulled specs
+goga tool pybuggy endpoint pull --spec client --ref v2
+goga tool pybuggy endpoint pull --ref client:v1 --ref server:v2   # per-spec refs
+goga tool pybuggy endpoint pull --ref v2 --ref server:v3          # global v2, server pinned to v3
 ```
 
 ## Options
@@ -24,7 +24,7 @@ pybuggy endpoint pull --ref v2 --ref server:v3          # global v2, server pinn
 
 ```bash
 export PYBUGGY_REF=v2
-pybuggy endpoint pull        # all specs at ref v2 (if there is no --ref / git.ref)
+goga tool pybuggy endpoint pull        # all specs at ref v2 (if there is no --ref / git.ref)
 ```
 
 `PYBUGGY_REF` may live in the shell environment or in `.env` (the root CLI group loads

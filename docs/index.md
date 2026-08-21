@@ -7,9 +7,9 @@ consumer's test suite.
 
 ## What you get
 
-- **CLI `pybuggy`** — initialize the environment (`pybuggy init`), pull specs from git
-  (`pybuggy endpoint pull`), inspect endpoints (`list`, `info`) and scaffold fixtures
-  (`pybuggy endpoint generate`).
+- **CLI `goga tool pybuggy`** — initialize the environment (`goga tool pybuggy init`), pull specs from git
+  (`goga tool pybuggy endpoint pull`), inspect endpoints (`list`, `info`) and scaffold fixtures
+  (`goga tool pybuggy endpoint generate`).
 - **pytest plugin** — a function-scoped `api` fixture (an `Api` HTTP client built from
   configuration), automatic recursive loading of the generated endpoint fixtures, CLI
   options for the test run, and flaky-rerun wiring.
@@ -24,10 +24,10 @@ consumer's test suite.
 
 ```bash
 # in the target project root
-pybuggy init                    # goga project + tool config + root conftest.py
-pybuggy endpoint pull           # download specs from git sources
-pybuggy endpoint list           # inspect available endpoints
-pybuggy endpoint generate -s shop   # scaffold api/<spec>/<endpoint>/ fixtures
+goga tool pybuggy init                    # goga project + tool config + root conftest.py
+goga tool pybuggy endpoint pull           # download specs from git sources
+goga tool pybuggy endpoint list           # inspect available endpoints
+goga tool pybuggy endpoint generate -s shop   # scaffold api/<spec>/<endpoint>/ fixtures
 pytest                          # run the suite (plugin auto-loads fixtures)
 ```
 
@@ -48,7 +48,7 @@ pytest                          # run the suite (plugin auto-loads fixtures)
 The console command and the module form are equivalent:
 
 ```bash
-pybuggy endpoint list
+goga tool pybuggy endpoint list
 python -m goga_tool_pybuggy endpoint list
 ```
 
@@ -56,8 +56,8 @@ A global option `--env-file` loads environment variables **before** any subcomma
 (the flag must precede the subcommand):
 
 ```bash
-pybuggy --env-file ./my.env endpoint list   # explicit file (must exist)
-pybuggy endpoint list                       # implicit .env from CWD (absence is fine)
+goga tool pybuggy --env-file ./my.env endpoint list   # explicit file (must exist)
+goga tool pybuggy endpoint list                       # implicit .env from CWD (absence is fine)
 ```
 
 Loaded values never override variables already set in the environment (`override=False`).

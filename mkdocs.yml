@@ -68,11 +68,11 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - CLI Reference:
-      - pybuggy init: cli/init.md
-      - pybuggy endpoint pull: cli/pull.md
-      - pybuggy endpoint list: cli/list.md
-      - pybuggy endpoint info: cli/info.md
-      - pybuggy endpoint generate: cli/generate.md
+      - goga tool pybuggy init: cli/init.md
+      - goga tool pybuggy endpoint pull: cli/pull.md
+      - goga tool pybuggy endpoint list: cli/list.md
+      - goga tool pybuggy endpoint info: cli/info.md
+      - goga tool pybuggy endpoint generate: cli/generate.md
   - Configuration: configuration.md
   - HTTP API:
       - Api & Endpoints: api/index.md
