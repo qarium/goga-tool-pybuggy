@@ -38,7 +38,7 @@ class Endpoint:
         api: the ``Api`` client used to issue the request.
         url_path: route path forwarded to ``Api.request``.
         method: HTTP verb forwarded to ``Api.request``.
-        status: expected success status code; an Enum is normalized to its value.
+        expected_status: expected success status code; an Enum is normalized to its value.
         use_autocheck: whether the lazy auto-check fires on first ``expect``.
         adapter: per-endpoint resq adapter override forwarded to ``api.request``;
             ``None`` falls back to the ``Api``-level default adapter.
@@ -49,14 +49,14 @@ class Endpoint:
         api: Api,
         url_path: str,
         method: str,
-        status: int | None = 200,
+        expected_status: int | None = 200,
         use_autocheck: bool = True,
         adapter: str | None = None,
     ) -> None:
         self.api = api
         self._url_path = url_path
         self._method = method
-        self.status = status.value if isinstance(status, Enum) else status
+        self.expected_status = expected_status.value if isinstance(expected_status, Enum) else expected_status
         self.use_autocheck = use_autocheck
         self._adapter = adapter
         caller_file = inspect.stack()[1].frame.f_globals.get("__file__")
@@ -152,7 +152,7 @@ class Endpoint:
             call_kwargs["auth"] = self._resolve_call_auth(call_auth)
         call_kwargs["adapter"] = self._adapter
         config = AssertConfig(
-            status=self.status,
+            status=self.expected_status,
             schemas_dir=self.schemas_dir,
             timeout=self.api.assert_timeout,
             delay=self.api.assert_delay,

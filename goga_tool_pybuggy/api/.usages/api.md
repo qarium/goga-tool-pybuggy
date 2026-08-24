@@ -104,7 +104,7 @@ Endpoint(
     api: Api,
     url_path: str,
     method: str,
-    status: int | None = 200,
+    expected_status: int | None = 200,
     use_autocheck: bool = True,
     adapter: str | None = None,
 )
@@ -115,7 +115,7 @@ Endpoint(
 | `api` | The `Api` client the request is made with |
 | `url_path` | Route path (`:name` placeholders are possible, substituted by `Api.request`) |
 | `method` | HTTP verb |
-| `status` | Expected success code; an Enum is normalized to `.value`; `None` disables the status auto-check |
+| `expected_status` | Expected success code; an Enum is normalized to `.value`; `None` disables the status auto-check |
 | `use_autocheck` | Runs the lazy auto-check on first access to `response.expect` |
 | `adapter` | Per-endpoint resq adapter; passed to `api.request`. `None` → falls back to the `Api` default. Only `"requests"` (sync) — `"httpx"` is async and is rejected until an async stack exists |
 
@@ -297,7 +297,7 @@ endpoint(json=Request(id=1), params={":id": "42", "q": "x"}, auth=MyAuth())
 Runs once on lazy access to `response.expect`, if `use_autocheck=True`. The path is
 determined by the `is_negative` flag:
 
-- **Positive** (`endpoint(...)`): status (if set) → body parsed as JSON → validation
+- **Positive** (`endpoint(...)`): the expected status (if set) → body parsed as JSON → validation
   against the first `schemas/<status>*.json` (skipped if the directory/file does not exist).
 - **Negative** (`endpoint.error(...)`): the body is parsed as JSON only.
   Status and JSON schema are **not** checked.

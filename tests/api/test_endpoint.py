@@ -345,7 +345,7 @@ class TestCallConfigAndAutocheck:
             CREATED = 201
 
         api = Api(base_url="https://x")
-        ep = Endpoint(api, "/p", method="GET", status=_Status.CREATED)
+        ep = Endpoint(api, "/p", method="GET", expected_status=_Status.CREATED)
 
         with (
             mock.patch.object(api, "request"),
@@ -354,6 +354,40 @@ class TestCallConfigAndAutocheck:
             ep()
 
         assert rw.call_args.args[1].status == 201
+
+    def test_constructor_rejects_legacy_status_kwarg(self) -> None:
+        """The legacy ``status`` kwarg is rejected; the parameter is ``expected_status``."""
+        api = Api(base_url="https://x")
+
+        with pytest.raises(TypeError, match="status"):
+            Endpoint(api, "/p", method="GET", status=201)
+
+    def test_expected_status_default_is_200(self) -> None:
+        """``expected_status`` defaults to 200 and feeds AssertConfig assembly."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET")
+
+        assert ep.expected_status == 200
+
+    def test_expected_status_positional_arg_stays_fourth(self) -> None:
+        """The expected status keeps its position as the 4th constructor argument."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", "GET", 201)
+
+        assert ep.expected_status == 201
+
+    def test_expected_status_none_wires_to_config(self) -> None:
+        """``expected_status=None`` disables the status auto-check via AssertConfig."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET", expected_status=None)
+
+        with (
+            mock.patch.object(api, "request"),
+            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
+        ):
+            ep()
+
+        assert rw.call_args.args[1].status is None
 
     def test_schemas_dir_resolved_from_caller_frame(self) -> None:
         """schemas_dir resolves to the caller module's parent dir joined with 'schemas'.
