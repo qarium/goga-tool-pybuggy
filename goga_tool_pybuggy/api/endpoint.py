@@ -152,7 +152,7 @@ class Endpoint:
             call_kwargs["auth"] = self._resolve_call_auth(call_auth)
         call_kwargs["adapter"] = self._adapter
         config = AssertConfig(
-            status=self.expected_status,
+            expected_status=self.expected_status,
             schemas_dir=self.schemas_dir,
             timeout=self.api.assert_timeout,
             delay=self.api.assert_delay,

@@ -29,8 +29,8 @@ class AssertConfig(BaseModel):
     skip that check".
 
     Attributes:
-        status: expected success status code; ``None`` disables the status
-            auto-check.
+        expected_status: expected success status code; ``None`` disables the
+            status auto-check.
         schemas_dir: directory of json-schema files (``<status>*.json``) for
             auto-validation; ``None`` or a missing directory skips it.
         timeout: baseline polling timeout in seconds — when set, matchcrest
@@ -44,9 +44,9 @@ class AssertConfig(BaseModel):
             ``Expect`` subclass; ``None`` uses the built-in ``Expect``.
     """
 
-    model_config = ConfigDict(kw_only=True)
+    model_config = ConfigDict(kw_only=True, extra="forbid")
 
-    status: int | None = None
+    expected_status: int | None = None
     schemas_dir: Path | None = None
     timeout: int | float | None = None
     delay: int | float | None = None

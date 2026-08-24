@@ -15,7 +15,7 @@ Annotations: |
   Use `conventions` for code writing rules, relative imports, pydantic usage, and testing.
   Use `resq` for the HTTP client contract — `Api` composes a resq.Session and issues a single request per call (no polling).
 
-  HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expect` (response-level dispatcher and field-level entry, paths rooted at the response body), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling status/schemas_dir) — comes from `asserts`; matchcrest is reached only through `asserts`.
+  HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expect` (response-level dispatcher and field-level entry, paths rooted at the response body), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling expected_status/schemas_dir) — comes from `asserts`; matchcrest is reached only through `asserts`.
   Use `asserts` for `Expect`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expect` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own expected_status and schemas_dir plus the assert-polling / pluggable-class options read off the `Api`.
   Sync-only. `Api` is a composition over resq.Session (not a subclass): auth/headers/cookies live on `Api` and are injected into each request.
   `Api` owns the resq adapter: it builds one cached resq.Session per adapter name (the default adapter uses the composed session) and routes each request to the session matching the effective adapter. Only adapter="requests" (sync) is supported in the sync runtime; adapter="httpx" is async in resq (verbs return coroutines, wrapper is AsyncResponse) and is rejected by the adapter validation. `Endpoint` may carry a per-endpoint adapter override (None falls back to the `Api` default); the override is opt-in via the default.
@@ -169,7 +169,7 @@ Annotations: |
     Context manager wrapping a resq.http.Response and dispatching response-level checks to `Expect`.
 
     `response`: the raw resq.http.Response being wrapped.
-    `config`: the static check configuration (`AssertConfig`) — status/schemas_dir/timeout/delay/assert_field_class/assert_response_class (each optional; None skips/disables that check).
+    `config`: the static check configuration (`AssertConfig`) — expected_status/schemas_dir/timeout/delay/assert_field_class/assert_response_class (each optional; None skips/disables that check).
     `use_autocheck`: when True, the auto-check runs once on first access to response.expect.
     `is_negative`: selects the negative auto-check path (no status, no schema).
 

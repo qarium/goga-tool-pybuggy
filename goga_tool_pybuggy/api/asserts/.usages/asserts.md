@@ -62,7 +62,7 @@ and returns a new `AssertField`.
 
 | Field                  | Type                    | Purpose                                                                                                     |
 |------------------------|-------------------------|-------------------------------------------------------------------------------------------------------------|
-| `status`               | `int \| None`          | Expected success code; `None` disables the status autocheck                                                  |
+| `expected_status`     | `int \| None`          | Expected success code; `None` disables the status autocheck                                                  |
 | `schemas_dir`          | `Path \| None`         | Directory of `<status>*.json` schemas for auto-validation; `None`/missing — skip                            |
 | `timeout`              | `int \| float \| None` | Polling timeout baseline (sec.); `None` — single attempt                                                    |
 | `delay`                | `int \| float \| None` | Pause between polling attempts (sec.); `None` — matcher default                                             |
@@ -136,7 +136,7 @@ The call returns `AssertField` for chaining.
 The response wrapper calls `Expect.autocheck()` exactly once — at the lazy access
 point — when `use_autocheck=True`. The `is_negative` flag selects the path:
 
-- **positive:** status (when configured) → body parsed as JSON → validation against the
+- **positive:** the expected status (when configured) → body parsed as JSON → validation against the
   `<status>*` schema (skip when the schema is absent);
 - **negative:** the body is parsed as JSON only (the path checks neither status nor json
   schema).

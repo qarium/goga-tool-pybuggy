@@ -29,7 +29,7 @@ def _expect(body: dict | None = None, *, is_negative: bool = False) -> Expect:
 
     return Expect(
         FakeResponse(status_code=200, body=body),
-        AssertConfig(status=200),
+        AssertConfig(expected_status=200),
         is_negative=is_negative,
     )
 
@@ -141,7 +141,7 @@ class TestFieldMatchers:
     def test_empty_and_not_empty(self) -> None:
         """``empty``/``not_empty`` on falsy/truthy values."""
         body = {"data": {"blank": "", "filled": "x"}, "error": None}
-        Expect(FakeResponse(body=body), AssertConfig(status=200))("data.blank").empty()
+        Expect(FakeResponse(body=body), AssertConfig(expected_status=200))("data.blank").empty()
         _expect()("data.name").not_empty()
 
 
@@ -172,7 +172,7 @@ class TestFieldValueAndDate:
     def test_has_date(self) -> None:
         """``has_date`` compares dates by timestamp."""
         body = {"data": {"d": date(2024, 1, 15)}, "error": None}
-        expect = Expect(FakeResponse(body=body), AssertConfig(status=200))
+        expect = Expect(FakeResponse(body=body), AssertConfig(expected_status=200))
 
         expect("data.d").has_date(date(2024, 1, 15))
         expect("data.d").has_date_greater(date(2024, 1, 1))

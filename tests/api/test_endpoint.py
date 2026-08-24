@@ -21,8 +21,10 @@ from unittest import mock
 
 import pytest
 from goga_tool_pybuggy.api.api import Api
+from goga_tool_pybuggy.api.asserts.config import AssertConfig
 from goga_tool_pybuggy.api.auth import AuthWrapper, CombineAuth
 from goga_tool_pybuggy.api.endpoint import Endpoint
+from pydantic import ValidationError
 from requests.auth import AuthBase
 
 from tests.api.conftest import HeaderAuth, StubRequest
@@ -336,8 +338,8 @@ class TestCallConfigAndAutocheck:
 
         assert rw.call_args.args[3] is True
 
-    def test_status_normalizes_enum_value(self) -> None:
-        """An Enum status is normalized to its value before wiring ResponseWrapper."""
+    def test_expected_status_normalizes_enum_value(self) -> None:
+        """An Enum expected_status is normalized to its value before wiring ResponseWrapper."""
 
         class _Status(Enum):
             """Stand-in status Enum."""
@@ -353,7 +355,7 @@ class TestCallConfigAndAutocheck:
         ):
             ep()
 
-        assert rw.call_args.args[1].status == 201
+        assert rw.call_args.args[1].expected_status == 201
 
     def test_constructor_rejects_legacy_status_kwarg(self) -> None:
         """The legacy ``status`` kwarg is rejected; the parameter is ``expected_status``."""
@@ -361,6 +363,11 @@ class TestCallConfigAndAutocheck:
 
         with pytest.raises(TypeError, match="status"):
             Endpoint(api, "/p", method="GET", status=201)
+
+    def test_assert_config_rejects_legacy_status_kwarg(self) -> None:
+        """The legacy ``AssertConfig(status=...)`` kwarg is rejected via extra="forbid"."""
+        with pytest.raises(ValidationError, match="status"):
+            AssertConfig(status=200)
 
     def test_expected_status_default_is_200(self) -> None:
         """``expected_status`` defaults to 200 and feeds AssertConfig assembly."""
@@ -387,7 +394,7 @@ class TestCallConfigAndAutocheck:
         ):
             ep()
 
-        assert rw.call_args.args[1].status is None
+        assert rw.call_args.args[1].expected_status is None
 
     def test_schemas_dir_resolved_from_caller_frame(self) -> None:
         """schemas_dir resolves to the caller module's parent dir joined with 'schemas'.

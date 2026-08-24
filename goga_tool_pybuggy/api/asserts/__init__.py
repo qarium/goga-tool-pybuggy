@@ -2,7 +2,7 @@
 
 Exposes the two assert dispatchers, their static configuration, and the
 pluggable-class loader: ``AssertConfig`` carries the static check configuration
-(status/schemas_dir/timeout/delay/assert_field_class/
+(expected_status/schemas_dir/timeout/delay/assert_field_class/
 assert_response_class); ``Expect`` is the response-level dispatcher (and the
 field-level entry via ``__call__``); ``AssertField`` is the field-level assert;
 ``load_assert_class`` imports a custom assert class by dotted path (used by

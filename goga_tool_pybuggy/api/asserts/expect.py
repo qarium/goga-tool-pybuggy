@@ -8,7 +8,7 @@
   (dotted-path or jsonpath search through the body, always resolved from the
   response-body root).
 
-The check configuration (status/schemas_dir/timeout/delay/
+The check configuration (expected_status/schemas_dir/timeout/delay/
 assert_field_class/assert_response_class) is carried by an :class:`AssertConfig`
 value; ``is_negative`` is a runtime flag selecting the negative auto-check path.
 Every check is a matchcrest ``assert_that`` returning ``self``
@@ -74,7 +74,7 @@ class Expect(BaseAssert):
 
     Args:
         response: the raw ``resq.http.Response`` under inspection.
-        config: the static check configuration — status/
+        config: the static check configuration — expected_status/
             schemas_dir/timeout/delay/assert_field_class/assert_response_class
             (each optional; ``None`` skips/disables that check).
         is_negative: selects the negative auto-check path.
@@ -310,8 +310,8 @@ class Expect(BaseAssert):
             self._autocheck_positive()
 
     def _autocheck_positive(self) -> None:
-        if self._config.status is not None:
-            self.has_status_code(self._config.status)
+        if self._config.expected_status is not None:
+            self.has_status_code(self._config.expected_status)
 
         self._response.json()
 
