@@ -497,12 +497,6 @@ def write_test_convention(path: Path) -> None:
 # ``HEADERS``/``LOADER`` are complex members and never surveyed here.
 _SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
     PluginConfigKeys.TIMEOUT: ("timeout — request timeout in seconds for HTTP calls (optional). Enter to skip"),
-    PluginConfigKeys.DATA_KEY: (
-        "data_key — response body key treated as the success payload (optional). Enter to skip"
-    ),
-    PluginConfigKeys.ERROR_KEY: (
-        "error_key — response body key treated as the error payload (optional). Enter to skip"
-    ),
     PluginConfigKeys.RETRIES: (
         "retries — flaky rerun count for failing tests across the suite (optional). Enter to skip"
     ),

@@ -63,8 +63,6 @@ and returns a new `AssertField`.
 | Field                  | Type                    | Purpose                                                                                                     |
 |------------------------|-------------------------|-------------------------------------------------------------------------------------------------------------|
 | `status`               | `int \| None`          | Expected success code; `None` disables the status autocheck                                                  |
-| `data_key`             | `str \| None`          | "success" body key: present on positive, absent on negative; field-search root on the positive path          |
-| `error_key`            | `str \| None`          | "error" body key: absent on positive, present on negative; field-search root on the negative path           |
 | `schemas_dir`          | `Path \| None`         | Directory of `<status>*.json` schemas for auto-validation; `None`/missing — skip                            |
 | `timeout`              | `int \| float \| None` | Polling timeout baseline (sec.); `None` — single attempt                                                    |
 | `delay`                | `int \| float \| None` | Pause between polling attempts (sec.); `None` — matcher default                                             |
@@ -111,26 +109,25 @@ Parameter details:
 ### Field-level entry
 
 ```python
-field = response.expect("items")  # dotted path under data_key
-field = response.expect("$.items[*]")  # jsonpath under data_key
-field = response.expect()  # the whole value under data_key (array/object)
+field = response.expect("data.items")  # dotted path from the body root
+field = response.expect("$.data.items[*]")  # jsonpath from the body root
+field = response.expect()  # the whole response body (array/object)
 ```
 
 `Expect.__call__(search=None, *, index=None, hook=None, in_array=False)`:
 
 - `search` — a dotted path (`a.b.c`) **or** a jsonpath (`$.a.b[*]`); pybuggy resolves it
-  under the root key: `data_key` on the positive path, `error_key` on the negative path.
-  `None` selects the whole value under that key (not "the whole response body"); when
-  `data_key`/`error_key` are absent, the response body itself is the root;
+  **from the root of the response body** — there is no configurable root key, so the full
+  path (including the envelope key, when the API wraps its payload) must be spelled out.
+  `None` selects the whole response body;
 - `index` — an optional list index that pybuggy applies after the search;
 - `hook` — an optional callable applied to the resolved value (a non-callable →
   `TypeError`);
 - `in_array` — makes pybuggy treat the value as a list for per-element `any`.
 
-**Important jsonpath rule**: `$` counts **from the root key value**, not from the
-response body. When `data_key="data"`, the expression `$.items[*]` resolves to
-`body["data"]["items"]`, and `$[0].name` resolves to `body["data"][0]["name"]`. This one
-rule governs both dotted paths and jsonpath.
+**Important jsonpath rule**: `$` counts **from the response body root**. The expression
+`$.data.items[*]` resolves to `body["data"]["items"]`, and `$.data[0].name` resolves to
+`body["data"][0]["name"]`. This one rule governs both dotted paths and jsonpath.
 
 The call returns `AssertField` for chaining.
 
@@ -139,10 +136,13 @@ The call returns `AssertField` for chaining.
 The response wrapper calls `Expect.autocheck()` exactly once — at the lazy access
 point — when `use_autocheck=True`. The `is_negative` flag selects the path:
 
-- **positive:** status (when configured) → `error_key` absent → `data_key` present →
-  validation against the `<status>*` schema (skip when the schema is absent);
-- **negative:** `data_key` absent → `error_key` present (the path checks neither status
-  nor json schema).
+- **positive:** status (when configured) → body parsed as JSON → validation against the
+  `<status>*` schema (skip when the schema is absent);
+- **negative:** the body is parsed as JSON only (the path checks neither status nor json
+  schema).
+
+Envelope keys are not checked by the autocheck; assert them explicitly via
+`json_has_data_by_key`/`json_has_not_data_by_key` when needed.
 
 ---
 
@@ -153,10 +153,9 @@ matchcrest `assert_that` call and returns `AssertField` for chaining. All method
 `raise_exc`/`not_raise_exc` accept `reason`/`any`/`timeout`/`delay`; methods with
 additional parameters list them in the tables below.
 
-The context resolves the path: under `data_key` on the positive path, under `error_key`
-on the negative path; when both keys are absent, the path is relative to the whole body.
-This rule covers **both dotted paths and jsonpath**: pybuggy evaluates jsonpath after it
-prefixes the root key.
+The context resolves the path **from the root of the response body** on every path
+(positive and negative alike). This rule covers **both dotted paths and jsonpath**:
+pybuggy evaluates both against the whole body.
 
 ### Membership and containment
 
@@ -297,8 +296,8 @@ with response.expect("ok").not_raise_exc() as value:
   works as a substring test.
 - **Custom array element lookup**: when the test locates an element by predicate (several
   fields must match) rather than by index, the consumer writes a regular lookup function
-  and passes it as a hook over the array root (`expect()` without search — the whole
-  value under `data_key`). The hook returns the found element (`None` when nothing
+  and passes it as a hook over the array root (`expect("data")` — the array under the
+  envelope key, or `expect()` for a root-level array). The hook returns the found element (`None` when nothing
   matches) — the assert stays inside the framework, and `None` fails the check; one chain
   therefore delivers both "found" and "equals the expected value".
 - **Empty jsonpath result** (including `$[*]` over an empty array) raises
@@ -306,22 +305,22 @@ with response.expect("ok").not_raise_exc() as value:
   `has_length(0)` over the root, not jsonpath.
 
 ```python
-response.expect("items", in_array=True).equal_to(2, any=True)  # at least one == 2
-response.expect("items")(index=0).equal_to(1)  # drill by index
-response.expect("name")(hook=str.upper).equal_to("ABC")  # hook runs before comparison
+response.expect("data.items", in_array=True).equal_to(2, any=True)  # at least one == 2
+response.expect("data.items")(index=0).equal_to(1)  # drill by index
+response.expect("data.name")(hook=str.upper).equal_to("ABC")  # hook runs before comparison
 
-# data_key is an array: non-emptiness / a specific element
-response.expect().has_length_greater(0)  # the value under data_key (array) is non-empty
-response.expect("$[0].name").equal_to("abc")  # data[0].name
+# the data envelope is an array: non-emptiness / a specific element
+response.expect("data").has_length_greater(0)  # the value under data (array) is non-empty
+response.expect("$.data[0].name").equal_to("abc")  # data[0].name
 
 # all elements: data[*].status is a list; is_subset guarantees every element belongs to the set
-response.expect("$[*].status").is_subset(["active", "idle"])  # every status ∈ the set
+response.expect("$.data[*].status").is_subset(["active", "idle"])  # every status ∈ the set
 
 # element absent: data[*].request.test_id is a value list; not_contains — none equals
-response.expect("$[*].request.test_id").not_contains(test_id_b)
+response.expect("$.data[*].request.test_id").not_contains(test_id_b)
 
 
-# custom predicate-based element lookup: a hook over the array root, then regular asserts
+# custom predicate-based element lookup: a hook over the array under the envelope key
 def _mock_body(items: list, test_id: str, path: str, method: str):
     for item in items:
         req = item["request"]
@@ -330,7 +329,7 @@ def _mock_body(items: list, test_id: str, path: str, method: str):
     return None
 
 
-response.expect()(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to({"owner": "A1"})
+response.expect("data")(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to({"owner": "A1"})
 ```
 
 ---

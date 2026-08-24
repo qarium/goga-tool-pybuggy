@@ -1,10 +1,8 @@
 """HTTP client of the `goga_tool_pybuggy.api` cell.
 
 ``Api`` composes a ``resq.Session`` over a base URL, stores the per-client
-authenticator, default headers/cookies, a request timeout, and the success/error
-body keys, and exposes them as properties. ``data_key``/``error_key`` are
-read-only fallbacks consulted by ``Endpoint._call`` when an endpoint has no
-per-endpoint key; ``auth`` is read/write.
+authenticator, default headers/cookies, a request timeout, and the assert
+settings, and exposes them as properties. ``auth`` is read/write.
 
 ``Api`` owns the adapter: it holds one cached ``resq.Session`` per adapter name
 (the default session is the composed ``_client``) and routes each request to the
@@ -50,8 +48,6 @@ class Api:
         cookies: default request cookies.
         timeout: network timeout forwarded to resq.Session; not re-sent per
             request.
-        data_key: success-body key fallback for endpoints without one.
-        error_key: error-body key fallback for endpoints without one.
         assert_timeout: baseline assert-polling timeout in seconds (distinct
             from the network ``timeout``); forwarded to ``AssertConfig``.
         assert_delay: baseline assert-polling delay in seconds; forwarded to
@@ -72,8 +68,6 @@ class Api:
         headers: dict[str, str] | None = None,
         cookies: SimpleCookie | None = None,
         timeout: float | None = None,
-        data_key: str | None = None,
-        error_key: str | None = None,
         assert_timeout: int | float | None = None,
         assert_delay: int | float | None = None,
         assert_field_class: str | None = None,
@@ -89,8 +83,6 @@ class Api:
         self._auth = auth
         self._headers = headers or {}
         self._cookies = cookies
-        self._data_key = data_key
-        self._error_key = error_key
         self._assert_timeout = assert_timeout
         self._assert_delay = assert_delay
         self._assert_field_class = assert_field_class
@@ -124,16 +116,6 @@ class Api:
     def cookies(self) -> SimpleCookie | None:
         """Default request cookies, or None."""
         return self._cookies
-
-    @property
-    def data_key(self) -> str | None:
-        """Success-body key fallback for endpoints without a per-endpoint key."""
-        return self._data_key
-
-    @property
-    def error_key(self) -> str | None:
-        """Error-body key fallback for endpoints without a per-endpoint key."""
-        return self._error_key
 
     @property
     def assert_timeout(self) -> int | float | None:

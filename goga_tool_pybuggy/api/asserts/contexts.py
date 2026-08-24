@@ -6,12 +6,13 @@ from ``value`` and use ``key`` only as a label in mismatch messages.
 pybuggy-specific constraints:
 
 - wraps a ``resq.http.Response``;
+- field paths always resolve from the root of the response body — there is no
+  configurable root key, so a search must spell out the full path;
 - pybuggy ships plain classes (no reporting layer), but polling is supported:
   ``update()`` re-fetches the response in place via
   ``resq.http.Response.reload()`` so matchcrest's retry loop observes fresh data;
 - ``resq.http.Response`` has no ``.request``, so the response-level ``key`` is
-  derived from the response URL rather than ``[method] path_url``;
-- ``data_key`` / ``error_key`` are passed directly (no ``AssertConfig``).
+  derived from the response URL rather than ``[method] path_url``.
 """
 
 from __future__ import annotations
@@ -45,7 +46,7 @@ class SearchItem:
 
 
 class BaseContext(_BaseContext):
-    """Base context holding a response, the body keys, and a search history.
+    """Base context holding a response and a search history.
 
     Calling a context (``ctx(search=..., index=..., hook=...)``) returns a new
     context with the step appended to the history — enabling fluent drill-down
@@ -53,24 +54,15 @@ class BaseContext(_BaseContext):
 
     Args:
         response: the raw ``resq.http.Response`` under inspection.
-        data_key: success-body key (used by field contexts on the positive path).
-        error_key: error-body key (used by field contexts on the negative path).
-        is_negative: selects the error-key/data-key path.
         search_history: ordered list of ``SearchItem`` steps.
     """
 
     def __init__(
         self,
         response: resq.http.Response,
-        data_key: str | None = None,
-        error_key: str | None = None,
-        is_negative: bool = False,
         search_history: list[SearchItem] | None = None,
     ) -> None:
         self._response = response
-        self._data_key = data_key
-        self._error_key = error_key
-        self._is_negative = is_negative
         self._search_history: list[SearchItem] = [] if search_history is None else search_history
 
     def __call__(
@@ -93,9 +85,6 @@ class BaseContext(_BaseContext):
 
         return self.__class__(
             self._response,
-            data_key=self._data_key,
-            error_key=self._error_key,
-            is_negative=self._is_negative,
             search_history=self._search_history,
         )
 
@@ -152,21 +141,15 @@ class ResponseContext(BaseContext):
 
 
 class JsonFieldContext(BaseContext):
-    """Field context resolving a dotted path (``a.b.c``) against the body.
+    """Field context resolving a dotted path (``a.b.c``) against the body root.
 
-    On the positive path the body is read under ``data_key`` (when set); on the
-    negative path under ``error_key`` (when set). Each history step drills by
-    dotted keys, then optional ``index``, then optional ``hook``.
+    Each history step drills by dotted keys from the response-body root, then
+    optional ``index``, then optional ``hook``.
     """
 
     @property
     def value(self) -> Any:
         data = self._response.json()
-
-        if self._is_negative and self._error_key is not None:
-            data = data[self._error_key]
-        if not self._is_negative and self._data_key is not None:
-            data = data[self._data_key]
 
         for item in self._search_history:
             if item.search is not None:
@@ -186,16 +169,11 @@ class JsonFieldContext(BaseContext):
     def key(self) -> str | None:
         search_list = [item.search for item in self._search_history if item.search is not None]
 
-        if self._is_negative and self._error_key is not None:
-            search_list.insert(0, self._error_key)
-        if not self._is_negative and self._data_key is not None:
-            search_list.insert(0, self._data_key)
-
         return ".".join(search_list)
 
 
 class JsonPathFieldContext(BaseContext):
-    """Field context resolving a jsonpath (``$.a.b[*]``) against the body.
+    """Field context resolving a jsonpath (``$.a.b[*]``) against the body root.
 
     Uses ``jsonpath_ng.ext``; the first match is taken (or the full list when the
     expression contains a slice/``*``). Falls back to dotted-style ``index`` and
@@ -221,11 +199,6 @@ class JsonPathFieldContext(BaseContext):
         assert self.__matches is not None
         search_list = [self._match_to_string(match) for match in self.__matches]
 
-        if self._is_negative and self._error_key is not None:
-            search_list.insert(0, self._error_key)
-        if not self._is_negative and self._data_key is not None:
-            search_list.insert(0, self._data_key)
-
         return ".".join(search_list)
 
     def _init_data_if_not_exists(self) -> None:
@@ -233,11 +206,6 @@ class JsonPathFieldContext(BaseContext):
             return
 
         self.__data = self._response.json()
-
-        if self._is_negative and self._error_key is not None:
-            self.__data = self.__data[self._error_key]
-        if not self._is_negative and self._data_key is not None:
-            self.__data = self.__data[self._data_key]
 
         self.__matches = []
 

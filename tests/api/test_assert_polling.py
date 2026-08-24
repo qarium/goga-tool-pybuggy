@@ -85,7 +85,7 @@ class TestConfigPolling:
     def test_retries_until_pass_via_reload(self, fake_clock) -> None:
         """A body that fails then, after one reload, passes — assert succeeds."""
         response = ReloadableResponse([{"other": 1}, {"data": [1, 2, 3]}])
-        config = AssertConfig(status=200, data_key="data", timeout=5, delay=1)
+        config = AssertConfig(status=200, timeout=5, delay=1)
 
         Expect(response, config).json_has_data_by_key("data")
 
@@ -94,7 +94,7 @@ class TestConfigPolling:
     def test_times_out_when_never_satisfied(self, fake_clock) -> None:
         """A body that never satisfies raises AssertionError after the timeout."""
         response = ReloadableResponse([{"other": 1}])
-        config = AssertConfig(status=200, data_key="data", timeout=3, delay=1)
+        config = AssertConfig(status=200, timeout=3, delay=1)
 
         with pytest.raises(AssertionError):
             Expect(response, config).json_has_data_by_key("data")
@@ -104,7 +104,7 @@ class TestConfigPolling:
     def test_no_timeout_does_single_attempt_no_reload(self) -> None:
         """Without a timeout, the matcher runs once and never reloads."""
         response = ReloadableResponse([{"data": [1]}])
-        config = AssertConfig(status=200, data_key="data")
+        config = AssertConfig(status=200)
 
         Expect(response, config).json_has_data_by_key("data")
 
@@ -117,7 +117,7 @@ class TestPerCheckTimeoutOverride:
     def test_per_check_timeout_drives_polling_without_config(self, fake_clock) -> None:
         """A check-level timeout polls even when ``AssertConfig.timeout`` is None."""
         response = ReloadableResponse([{"other": 1}, {"data": [1]}])
-        config = AssertConfig(status=200, data_key="data")
+        config = AssertConfig(status=200)
 
         Expect(response, config).json_has_data_by_key("data", timeout=5, delay=1)
 
@@ -126,7 +126,7 @@ class TestPerCheckTimeoutOverride:
     def test_field_check_timeout_drives_polling(self, fake_clock) -> None:
         """An ``AssertField`` check polls via its per-check ``timeout`` kwarg."""
         response = ReloadableResponse([{"items": [1]}, {"items": [1, 2, 3]}])
-        config = AssertConfig(status=200, data_key=None)
+        config = AssertConfig(status=200)
 
         field = Expect(response, config)("items")
         assert isinstance(field, AssertField)
@@ -143,7 +143,6 @@ class TestPluggableFieldClass:
         response = FakeResponse(body={"data": [1, 2, 3]})
         config = AssertConfig(
             status=200,
-            data_key="data",
             assert_field_class="tests.api.test_assert_polling:CustomAssertField",
         )
 
@@ -157,7 +156,6 @@ class TestPluggableFieldClass:
         response = ReloadableResponse([{"data": [1]}, {"data": [1, 2, 3]}])
         config = AssertConfig(
             status=200,
-            data_key="data",
             timeout=5,
             delay=1,
             assert_field_class="tests.api.test_assert_polling:CustomAssertField",
@@ -176,7 +174,6 @@ class TestPluggableResponseClass:
         response = FakeResponse(status_code=200, body={"data": [1]})
         config = AssertConfig(
             status=200,
-            data_key="data",
             assert_response_class="tests.api.test_assert_polling:CustomExpect",
         )
 

@@ -36,7 +36,7 @@ missing, after a confirmation (default: no) when it exists.
 What is prompted:
 
 - Scalar plugin keys, one at a time: `base_url` (required, a Jinja2 URL template — empty
-  input is re-prompted), `timeout`, `data_key`, `error_key`, `retries`, `assert_timeout`,
+  input is re-prompted), `timeout`, `retries`, `assert_timeout`,
   `assert_delay`, `assert_field_class`, `assert_response_class`. Optional keys are skipped
   with Enter.
 - `headers` and `loader` are **not** prompted — written as commented examples.

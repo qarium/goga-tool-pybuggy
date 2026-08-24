@@ -81,11 +81,11 @@ yaml.preserve_quotes = True
 doc = CommentedMap()
 # ACTIVE keys only; never add skipped fields as keys
 doc["base_url"] = "https://{{ host }}/api"
-doc["data_key"] = "data"
+doc["timeout"] = 30.0
 
 # (1) a one-line commented-out entry BEFORE the next active key:
-doc.yaml_set_comment_before_after_key("data_key", before="timeout: (skipped optional scalar)")
-#     ->  "# timeout: (skipped optional scalar)" on the line above data_key
+doc.yaml_set_comment_before_after_key("timeout", before="retries: (skipped optional scalar)")
+#     ->  "# retries: (skipped optional scalar)" on the line above timeout
 
 # (2) a multi-line commented block (a complex section) — "\n"-joined text; every line gets the "# " prefix:
 doc.yaml_set_comment_before_after_key(

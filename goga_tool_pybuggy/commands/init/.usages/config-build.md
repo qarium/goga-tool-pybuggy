@@ -10,7 +10,7 @@ consumer's goga agent.
 ## What is prompted
 
 - Scalar plugin keys (sourced from `PluginConfigKeys`, the scalar members): base_url (required, a Jinja2 template),
-  timeout, data_key, error_key, retries, assert_timeout, assert_delay, assert_field_class, assert_response_class.
+  timeout, retries, assert_timeout, assert_delay, assert_field_class, assert_response_class.
   Each key is prompted one at a time; optional keys can be skipped (Enter).
 - headers and loader are NOT prompted — they are written as commented examples.
 - specs — interactively: name, type (swagger|openapi), location (required), and an optional git block

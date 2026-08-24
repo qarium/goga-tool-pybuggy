@@ -109,8 +109,6 @@ class TestApiPluginContract:
             "base_url",
             "headers",
             "timeout",
-            "data_key",
-            "error_key",
             "retries",
             "assert_timeout",
             "assert_delay",
@@ -120,6 +118,11 @@ class TestApiPluginContract:
     )
     def test_api_plugin_has_option_descriptor(self, option):
         assert hasattr(ApiPlugin, option)
+
+    def test_api_plugin_has_no_body_key_options(self):
+        """The removed data_key/error_key options are absent from the plugin."""
+        assert not hasattr(ApiPlugin, "data_key")
+        assert not hasattr(ApiPlugin, "error_key")
 
     def test_api_plugin_has_api_method(self):
         assert callable(ApiPlugin.api)
@@ -156,13 +159,28 @@ class TestApiPluginContract:
         assert PluginConfigKeys.BASE_URL.value == "base_url"
         assert PluginConfigKeys.HEADERS.value == "headers"
         assert PluginConfigKeys.TIMEOUT.value == "timeout"
-        assert PluginConfigKeys.DATA_KEY.value == "data_key"
-        assert PluginConfigKeys.ERROR_KEY.value == "error_key"
         assert PluginConfigKeys.RETRIES.value == "retries"
+        assert PluginConfigKeys.LOADER.value == "loader"
         assert PluginConfigKeys.ASSERT_TIMEOUT.value == "assert_timeout"
         assert PluginConfigKeys.ASSERT_DELAY.value == "assert_delay"
         assert PluginConfigKeys.ASSERT_FIELD_CLASS.value == "assert_field_class"
         assert PluginConfigKeys.ASSERT_RESPONSE_CLASS.value == "assert_response_class"
+
+    def test_plugin_config_keys_set_is_fixed(self):
+        """The key set is exactly the nine canonical members (no body keys)."""
+        from goga_tool_pybuggy.plugin.plugin import PluginConfigKeys
+
+        assert {member.name for member in PluginConfigKeys} == {
+            "BASE_URL",
+            "HEADERS",
+            "TIMEOUT",
+            "RETRIES",
+            "LOADER",
+            "ASSERT_TIMEOUT",
+            "ASSERT_DELAY",
+            "ASSERT_FIELD_CLASS",
+            "ASSERT_RESPONSE_CLASS",
+        }
 
 
 class TestApiPluginLogic:
@@ -200,8 +218,6 @@ class TestApiPluginLogic:
             "base_url": "https://x.example",
             "headers": {},
             "timeout": 5.0,
-            "data_key": None,
-            "error_key": None,
             "assert_timeout": 10,
             "assert_delay": 0.5,
             "assert_field_class": "mod:FieldCls",

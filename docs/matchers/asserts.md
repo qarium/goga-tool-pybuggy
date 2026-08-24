@@ -47,29 +47,28 @@ Keys and values compare **case-insensitively**; `count` combined with `value` �
 ## Field-level entry
 
 ```python
-field = response.expect("items")      # dotted path under the root key
-field = response.expect("$.items[*]") # jsonpath under the root key
-field = response.expect()             # the whole value under the root key
+field = response.expect("data.items")      # dotted path from the body root
+field = response.expect("$.data.items[*]") # jsonpath from the body root
+field = response.expect()                  # the whole response body
 ```
 
 `Expect.__call__(search=None, *, index=None, hook=None, in_array=False)`:
 
-- `search` — a dotted path (`a.b.c`) **or** a jsonpath; resolved under the root key:
-  `data_key` on the positive path, `error_key` on the negative path. `None` selects the
-  whole value under that key; when the keys are absent, the response body is the root.
+- `search` — a dotted path (`a.b.c`) **or** a jsonpath; always resolved **from the root
+  of the response body** — spell out the full path including the envelope key when the
+  API wraps its payload. `None` selects the whole response body.
 - `index` — an optional list index applied after the search.
 - `hook` — a callable applied to the resolved value (a non-callable → `TypeError`).
 - `in_array` — treat the value as a list for per-element `any`.
 
-**jsonpath rule**: `$` counts **from the root key value**, not from the response body.
-With `data_key="data"`: `$.items[*]` → `body["data"]["items"]`; `$[0].name` →
+**jsonpath rule**: `$` counts **from the response body root**.
+`$.data.items[*]` → `body["data"]["items"]`; `$.data[0].name` →
 `body["data"][0]["name"]`.
 
 ## `AssertField` — field-level check catalog
 
-The context resolves the path under `data_key` (positive) or `error_key` (negative);
-without both keys — relative to the whole body. All methods except `raise_exc` /
-`not_raise_exc` accept `reason`/`any`/`timeout`/`delay`.
+The context resolves the path **from the root of the response body** on every path.
+All methods except `raise_exc` / `not_raise_exc` accept `reason`/`any`/`timeout`/`delay`.
 
 ### Membership and containment
 
@@ -154,23 +153,24 @@ with response.expect("ok").not_raise_exc() as value:
   extended context (dotted steps → `index` → `hook`, in that order).
 - **`in_array`**: `any=False` (default) requires **all** elements to match; `any=True` —
   at least one.
-- **All elements satisfy a set**: select the value list with jsonpath `$[*].field` and
-  apply `is_subset` / `is_in` over the list.
-- **Element absent among array elements**: `$[*].field` + `not_contains` (scalars) or
+- **All elements satisfy a set**: select the value list with jsonpath `$.data[*].field`
+  and apply `is_subset` / `is_in` over the list.
+- **Element absent among array elements**: `$.data[*].field` + `not_contains` (scalars) or
   `is_disjoint` (set semantics).
 - **Custom element lookup by predicate**: pass a regular lookup function as a `hook` over
-  the array root (`expect()` without search); the hook returns the found element
+  the array (`expect("data")` for the array under the envelope key, or `expect()` for a
+  root-level array); the hook returns the found element
   (`None` on no match — `None` fails the check).
 - **Empty jsonpath result** (including `$[*]` over an empty array) raises
   `AssertionError` ("No results") — check emptiness via `has_length(0)` over the root.
 
 ```python
-response.expect("items", in_array=True).equal_to(2, any=True)   # at least one == 2
-response.expect("items")(index=0).equal_to(1)                   # drill by index
-response.expect("name")(hook=str.upper).equal_to("ABC")         # hook before comparison
+response.expect("data.items", in_array=True).equal_to(2, any=True)   # at least one == 2
+response.expect("data.items")(index=0).equal_to(1)                   # drill by index
+response.expect("data.name")(hook=str.upper).equal_to("ABC")         # hook before comparison
 
-response.expect().has_length_greater(0)          # the data_key value is non-empty
-response.expect("$[0].name").equal_to("abc")     # data[0].name
+response.expect("data").has_length_greater(0)        # the data value is non-empty
+response.expect("$.data[0].name").equal_to("abc")    # data[0].name
 
 response.expect("$[*].status").is_subset(["active", "idle"])          # every ∈ set
 response.expect("$[*].request.test_id").not_contains(test_id_b)       # none equals

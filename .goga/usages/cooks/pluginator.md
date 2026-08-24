@@ -77,8 +77,6 @@ def api(self, request: pytest.FixtureRequest):
         base_url=self.base_url,
         headers=self.headers,
         timeout=self.timeout,
-        data_key=self.data_key,
-        error_key=self.error_key,
     )
 ```
 

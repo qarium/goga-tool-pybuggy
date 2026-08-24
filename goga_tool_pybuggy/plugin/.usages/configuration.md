@@ -12,8 +12,6 @@ configuration.
 | base_url              | str            | `QA_BASE_URL`    | `--base-url`           | base_url              | required |
 | headers               | dict[str, str] | —                | —                      | headers               | `{}`     |
 | timeout               | float          | `QA_API_TIMEOUT` | `--api-timeout`        | timeout               | None     |
-| data_key              | str            | —                | —                      | data_key              | None     |
-| error_key             | str            | —                | —                      | error_key             | None     |
 | retries               | int            | —                | `--retries`            | retries               | 0        |
 | assert_timeout        | int            | —                | `--api-assert-timeout` | assert_timeout        | None     |
 | assert_delay          | float          | —                | `--api-assert-delay`   | assert_delay          | None     |
@@ -124,8 +122,6 @@ base_url: https://api.example.com
 headers:
   X-Custom: value
 timeout: 10.0
-data_key: data
-error_key: error
 retries: 2
 assert_timeout: 10        # baseline assert-polling timeout (seconds)
 assert_delay: 0.5         # delay between polling attempts (seconds)

@@ -49,7 +49,7 @@ is missing, after confirmation when it exists.
 
 What is prompted (the interactive step isolated in `build_pybuggy_config`):
 - Scalar plugin keys: `base_url` (required — a Jinja2 URL template; empty input is re-prompted and cannot be
-  skipped), `timeout`, `data_key`, `error_key`, `retries`, `assert_timeout`, `assert_delay`,
+  skipped), `timeout`, `retries`, `assert_timeout`, `assert_delay`,
   `assert_field_class`, `assert_response_class` — one at a time; optional keys can be skipped
   (Enter → skip).
 - `headers` and `loader` are NOT prompted — written as commented examples.

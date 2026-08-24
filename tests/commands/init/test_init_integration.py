@@ -141,7 +141,7 @@ def test_write_pybuggy_config_emits_config_cell_validates_with_git(tmp_path: Pat
     scalar_values = {
         "base_url": "https://{{ host }}/api",
         "timeout": "30",
-        # data_key / error_key / retries / assert_* left out -> None (skipped commented records)
+        # retries / assert_* left out -> None (skipped commented records)
     }
     specs = {
         "api": SpecEntry(
@@ -188,8 +188,6 @@ def test_build_pybuggy_config_full_chain_validates(tmp_path: Path, monkeypatch: 
             side_effect=[
                 "https://{{ host }}/api",  # base_url (required)
                 "30",  # timeout
-                "",  # data_key -> None
-                "errors",  # error_key
                 "",  # retries -> None
                 "",  # assert_timeout -> None
                 "",  # assert_delay -> None

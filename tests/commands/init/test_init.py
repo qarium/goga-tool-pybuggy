@@ -1460,12 +1460,10 @@ def test_build_pybuggy_config_in_all_public_and_returns_int() -> None:
 
 # write_pybuggy_config logic tests --------------------------------------------
 
-# The 9 scalar plugin members (enum minus the complex HEADERS/LOADER), in declaration order.
+# The 7 scalar plugin members (enum minus the complex HEADERS/LOADER), in declaration order.
 _ALL_SCALAR_KEYS = [
     "base_url",
     "timeout",
-    "data_key",
-    "error_key",
     "retries",
     "assert_timeout",
     "assert_delay",
@@ -1488,7 +1486,7 @@ def _spec_entry(git: bool = False) -> SpecEntry:
 def test_write_pybuggy_config_all_scalars_answered_emits_active_and_commented_complex(
     tmp_path: Path,
 ) -> None:
-    """All 9 scalars answered + specs: complex headers/loader still commented, scalars active.
+    """All 7 scalars answered + specs: complex headers/loader still commented, scalars active.
 
     Numeric scalars (``timeout``/``retries``/``assert_timeout``/``assert_delay``) are emitted as
     numbers matching their ``ApiPlugin`` option types; the remaining string scalars stay strings.
@@ -1523,8 +1521,8 @@ def test_write_pybuggy_config_all_scalars_answered_emits_active_and_commented_co
     assert isinstance(cfg["assert_delay"], float)
     assert cfg["assert_delay"] == 0.5
     # the remaining answered scalars stay plain strings
-    assert isinstance(cfg["data_key"], str)
-    assert cfg["data_key"] == "v-data_key"
+    assert isinstance(cfg["assert_field_class"], str)
+    assert cfg["assert_field_class"] == "v-assert_field_class"
 
     from goga_tool_pybuggy.config import load_config
 
@@ -1532,7 +1530,7 @@ def test_write_pybuggy_config_all_scalars_answered_emits_active_and_commented_co
 
 
 def test_write_pybuggy_config_skipped_scalars_become_commented_records(tmp_path: Path) -> None:
-    """Only base_url answered: the 8 optional scalars become '# <skipped>: (skipped ...)' records."""
+    """Only base_url answered: the 6 optional scalars become '# <skipped>: (skipped ...)' records."""
     config = tmp_path / "config.yml"
 
     write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
@@ -1627,7 +1625,7 @@ def test_write_pybuggy_config_long_git_url_not_wrapped(tmp_path: Path) -> None:
 
 def test_write_pybuggy_config_is_deterministic(tmp_path: Path) -> None:
     """Two calls with identical inputs and order produce byte-identical output."""
-    scalar_values = {"base_url": "https://{{ host }}/api", "timeout": "30", "data_key": "data"}
+    scalar_values = {"base_url": "https://{{ host }}/api", "timeout": "30", "retries": "2"}
     specs = {"api": _spec_entry(), "admin": _spec_entry(git=True)}
     one = tmp_path / "one.yml"
     two = tmp_path / "two.yml"
@@ -1901,7 +1899,7 @@ def test_build_pybuggy_config_overwrites_existing_without_confirm(
         mock.Mock(
             side_effect=[
                 "https://{{ host }}/api",  # base_url (required)
-                *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+                *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
                 "api",  # first spec name (required)
                 "openapi",  # type (click.Choice)
                 "specs/api.yaml",  # location (required)
@@ -1945,8 +1943,6 @@ def test_build_pybuggy_config_returns_nonzero_on_write_failure(tmp_path: Path, m
             side_effect=[
                 "https://{{ host }}/api",  # base_url (required)
                 "",  # timeout -> None
-                "",  # data_key -> None
-                "",  # error_key -> None
                 "",  # retries -> None
                 "",  # assert_timeout -> None
                 "",  # assert_delay -> None
@@ -1976,9 +1972,9 @@ def test_build_pybuggy_config_returns_nonzero_on_write_failure(tmp_path: Path, m
     assert "boom" in echo.call_args.args[0]
 
 
-# The 8 optional scalar plugin members (everything except base_url, HEADERS, LOADER), in declaration
+# The 6 optional scalar plugin members (everything except base_url, HEADERS, LOADER), in declaration
 # order. Empty answers map to ``None`` (a skipped commented record).
-_OPTIONAL_SCALAR_EMPTIES = [""] * 8
+_OPTIONAL_SCALAR_EMPTIES = [""] * 6
 
 
 def _prompt_texts(prompt_mock: mock.Mock) -> list[str]:
@@ -1996,7 +1992,7 @@ def test_build_pybuggy_config_reprompts_empty_required_base_url(
         side_effect=[
             "",  # base_url empty -> re-prompt
             "https://{{ host }}/api",  # base_url valid
-            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
             "api",  # first spec name
             "openapi",  # type
             "specs/api.yaml",  # location
@@ -2027,7 +2023,7 @@ def test_build_pybuggy_config_reprompts_empty_required_location(
     prompt = mock.Mock(
         side_effect=[
             "https://{{ host }}/api",  # base_url
-            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
             "api",  # first spec name
             "openapi",  # type
             "",  # location empty -> re-prompt
@@ -2056,7 +2052,7 @@ def test_build_pybuggy_config_reprompts_empty_required_first_spec_name(
     prompt = mock.Mock(
         side_effect=[
             "https://{{ host }}/api",  # base_url
-            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
             "",  # first spec name empty -> re-prompt
             "api",  # first spec name valid
             "openapi",  # type
@@ -2084,7 +2080,7 @@ def test_build_pybuggy_config_reprompts_whitespace_git_url_and_location(
     prompt = mock.Mock(
         side_effect=[
             "https://{{ host }}/api",  # base_url
-            *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
             "api",  # first spec name
             "openapi",  # type
             "specs/api.yaml",  # location
@@ -2127,7 +2123,7 @@ def test_build_pybuggy_config_base_url_emitted_as_block_scalar(tmp_path: Path, m
         mock.Mock(
             side_effect=[
                 base_url,  # base_url (required)
-                *_OPTIONAL_SCALAR_EMPTIES,  # 8 optional scalars -> None
+                *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
                 "api",  # first spec name
                 "openapi",  # type
                 "specs/api.yaml",  # location

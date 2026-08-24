@@ -15,8 +15,6 @@ section (generated-fixture discovery).
 | `base_url`            | `str`          | `QA_BASE_URL`    | `--base-url`           | required |
 | `headers`             | `dict[str, str]` | —              | —                      | `{}`     |
 | `timeout`             | `float`        | `QA_API_TIMEOUT` | `--api-timeout`        | `None`   |
-| `data_key`            | `str`          | —                | —                      | `None`   |
-| `error_key`           | `str`          | —                | —                      | `None`   |
 | `retries`             | `int`          | —                | `--retries`            | `0`      |
 | `assert_timeout`      | `int`          | —                | `--api-assert-timeout` | `None`   |
 | `assert_delay`        | `float`        | —                | `--api-assert-delay`   | `None`   |

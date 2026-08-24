@@ -36,8 +36,6 @@ The command (see [CLI — init](cli/init.md)):
     ```yaml
     base_url: https://{{ env }}.svc.example/api
     timeout: 10.0
-    data_key: data
-    error_key: error
     specs:
       shop:
         type: openapi

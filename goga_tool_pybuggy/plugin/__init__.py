@@ -3,8 +3,8 @@
 Exposes the contract entities of the pybuggy pytest-plugin cell:
 
 - ``ApiPlugin`` — pluginator plugin class providing the configurable options
-  (``base_url``/``headers``/``timeout``/``data_key``/``error_key`` for the
-  ``api`` fixture, plus ``retries`` for test-run flaky reruns) and the
+  (``base_url``/``headers``/``timeout`` for the ``api`` fixture, plus
+  ``retries`` for test-run flaky reruns) and the
   function-scope ``api`` fixture that builds an ``Api`` from those options.
   Re-exported from ``.plugin``.
 - ``install`` — entry point that wires the plugin into pytest and synchronously

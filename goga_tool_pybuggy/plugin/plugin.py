@@ -15,16 +15,15 @@ Entities realized in this module:
 - ``PluginConfigKeys`` — the yaml config-file keys for the ``ApiPlugin``
   options (an implementation-hint enum, co-located here).
 - ``ApiPlugin`` — pluginator plugin class exposing the configurable options
-  (``base_url``/``headers``/``timeout``/``data_key``/``error_key`` for the
-  ``api`` fixture, plus ``retries`` for test-run flaky reruns, and
-  ``assert_timeout``/``assert_delay``/``assert_field_class``/
-  ``assert_response_class`` for assert polling and pluggable assert classes) and
-  the ``api`` fixture.
+  (``base_url``/``headers``/``timeout`` for the ``api`` fixture, plus
+  ``retries`` for test-run flaky reruns, and ``assert_timeout``/``assert_delay``/
+  ``assert_field_class``/``assert_response_class`` for assert polling and
+  pluggable assert classes) and the ``api`` fixture.
 
-Only the minimal fixture profile (``base_url``, ``headers``, ``timeout``,
-``data_key``, ``error_key``) plus the assert-polling/pluggable-class options
-(``assert_timeout``/``assert_delay``/``assert_field_class``/
-``assert_response_class``) is fed to ``Api`` — no auth, no cookies. The
+Only the minimal fixture profile (``base_url``, ``headers``, ``timeout``) plus
+the assert-polling/pluggable-class options (``assert_timeout``/``assert_delay``/
+``assert_field_class``/``assert_response_class``) is fed to ``Api`` — no auth,
+no cookies. The
 fixture yields the ``Api`` and closes it afterwards (``Api.close()``, delegating to
 the underlying resq.Session's public close()). ``retries`` is orthogonal to the
 ``api`` fixture: when resolved to a
@@ -74,8 +73,6 @@ class PluginConfigKeys(str, Enum):
     BASE_URL = "base_url"
     HEADERS = "headers"
     TIMEOUT = "timeout"
-    DATA_KEY = "data_key"
-    ERROR_KEY = "error_key"
     RETRIES = "retries"
     LOADER = "loader"
     ASSERT_TIMEOUT = "assert_timeout"
@@ -148,8 +145,6 @@ class ApiPlugin:
         headers: default request headers (default ``{}``).
         timeout: request timeout in seconds (nullable; ``QA_API_TIMEOUT`` env /
             ``--api-timeout`` CLI).
-        data_key: success-body key fallback (nullable).
-        error_key: error-body key fallback (nullable).
         retries: flaky rerun count for the test run (default ``0``/no reruns;
             ``--retries`` CLI). When positive, ``pytest_collection_modifyitems``
             stamps unmarked items with ``pytest.mark.flaky(max_runs=retries)``.
@@ -185,8 +180,6 @@ class ApiPlugin:
         command_line=CommandLine("--api-timeout", action="store", help="Network timeout"),
         nullable=True,
     )
-    data_key = define.option(str, plugin_config_key=PluginConfigKeys.DATA_KEY, nullable=True)
-    error_key = define.option(str, plugin_config_key=PluginConfigKeys.ERROR_KEY, nullable=True)
     retries = define.option(
         int,
         default_from="_default_retries",
@@ -299,11 +292,11 @@ class ApiPlugin:
     def api(self) -> t.Iterator[Api]:
         """Build an :class:`Api` from the resolved plugin options and tear it down.
 
-        Minimal profile only: ``base_url``/``headers``/``timeout``/
-        ``data_key``/``error_key`` — no auth, no cookies. Yields the ``Api`` for
-        the test, then closes it afterwards via ``Api.close()`` (delegating to the
-        underlying resq.Session's public close()). ``base_url`` is the value rendered once in
-        ``configure()`` (stored back on ``self.base_url``).
+        Minimal profile only: ``base_url``/``headers``/``timeout`` — no auth,
+        no cookies. Yields the ``Api`` for the test, then closes it afterwards
+        via ``Api.close()`` (delegating to the underlying resq.Session's public
+        close()). ``base_url`` is the value rendered once in ``configure()``
+        (stored back on ``self.base_url``).
 
         Yields:
             An :class:`Api` constructed from the resolved options.
@@ -313,8 +306,6 @@ class ApiPlugin:
             base_url=self.base_url,
             headers=self.headers,
             timeout=self.timeout,
-            data_key=self.data_key,
-            error_key=self.error_key,
             assert_timeout=self.assert_timeout,
             assert_delay=self.assert_delay,
             assert_field_class=self.assert_field_class,

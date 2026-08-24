@@ -9,10 +9,9 @@ returns a ``ResponseWrapper``.
 authenticator, combining it with the stored ``Api`` auth via ``CombineAuth`` /
 ``AuthWrapper`` in the precedence order ``AuthBase`` → ``Auth`` protocol →
 callable → ``TypeError``. It copies the caller's kwargs without mutating them,
-pops the call-level ``auth``/``use_autocheck``, resolves the data/error keys with
-fallback to the ``Api``-level keys, injects the effective adapter (this
-``Endpoint``'s override falling back to the ``Api`` default), issues the request
-through ``api.request``, and wraps the raw response.
+pops the call-level ``auth``/``use_autocheck``, injects the effective adapter
+(this ``Endpoint``'s override falling back to the ``Api`` default), issues the
+request through ``api.request``, and wraps the raw response.
 """
 
 from __future__ import annotations
@@ -41,8 +40,6 @@ class Endpoint:
         method: HTTP verb forwarded to ``Api.request``.
         status: expected success status code; an Enum is normalized to its value.
         use_autocheck: whether the lazy auto-check fires on first ``expect``.
-        data_key: per-endpoint data key; falls back to ``api.data_key``.
-        error_key: per-endpoint error key; falls back to ``api.error_key``.
         adapter: per-endpoint resq adapter override forwarded to ``api.request``;
             ``None`` falls back to the ``Api``-level default adapter.
     """
@@ -54,8 +51,6 @@ class Endpoint:
         method: str,
         status: int | None = 200,
         use_autocheck: bool = True,
-        data_key: str | None = None,
-        error_key: str | None = None,
         adapter: str | None = None,
     ) -> None:
         self.api = api
@@ -63,8 +58,6 @@ class Endpoint:
         self._method = method
         self.status = status.value if isinstance(status, Enum) else status
         self.use_autocheck = use_autocheck
-        self.data_key = data_key
-        self.error_key = error_key
         self._adapter = adapter
         caller_file = inspect.stack()[1].frame.f_globals.get("__file__")
         self.schemas_dir = Path(caller_file).parent / "schemas" if caller_file is not None else None
@@ -139,10 +132,10 @@ class Endpoint:
     def _call(self, is_negative: bool, **kwargs: Any) -> ResponseWrapper:
         """Shared internal call routine for ``__call__`` and ``error``.
 
-        Resolves the call-level auth and the data/error keys, injects the
-        effective adapter, issues the request via ``api.request``, and wraps the
-        raw response. The caller's kwargs dict is never mutated: a copy is made
-        and ``auth``/``use_autocheck`` are popped from it.
+        Resolves the call-level auth, injects the effective adapter, issues the
+        request via ``api.request``, and wraps the raw response. The caller's
+        kwargs dict is never mutated: a copy is made and
+        ``auth``/``use_autocheck`` are popped from it.
 
         Args:
             is_negative: selects the negative ``ResponseWrapper`` path.
@@ -158,12 +151,8 @@ class Endpoint:
         if call_auth is not None:
             call_kwargs["auth"] = self._resolve_call_auth(call_auth)
         call_kwargs["adapter"] = self._adapter
-        data_key = self.data_key if self.data_key is not None else self.api.data_key
-        error_key = self.error_key if self.error_key is not None else self.api.error_key
         config = AssertConfig(
             status=self.status,
-            data_key=data_key,
-            error_key=error_key,
             schemas_dir=self.schemas_dir,
             timeout=self.api.assert_timeout,
             delay=self.api.assert_delay,

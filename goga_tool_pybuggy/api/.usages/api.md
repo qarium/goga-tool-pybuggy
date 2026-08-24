@@ -21,7 +21,7 @@ from goga_tool_pybuggy.api import Api, Endpoint, ResponseWrapper, Expect, Assert
 
 | Entity | Purpose |
 |----------|------------|
-| `Api` | HTTP client (a composition over `resq.Session`); stores auth/headers/cookies/`data_key`/`error_key` and assert settings, and injects them into every request |
+| `Api` | HTTP client (a composition over `resq.Session`); stores auth/headers/cookies and assert settings, and injects them into every request |
 | `Endpoint` | A callable route: `endpoint(json=...)` performs the request and returns a `ResponseWrapper` |
 | `ResponseWrapper` | A context manager over the response; `.response` is the raw `resq.http.Response`, `.expect` is the `Expect` |
 | `Expect` | A two-level assertion dispatcher built on matchcrest (response-level methods + `__call__` for field-level) |
@@ -44,8 +44,6 @@ Api(
     headers: dict[str, str] | None = None,
     cookies: SimpleCookie | None = None,
     timeout: float | None = None,
-    data_key: str | None = None,
-    error_key: str | None = None,
     assert_timeout: int | float | None = None,
     assert_delay: int | float | None = None,
     assert_field_class: str | None = None,
@@ -61,8 +59,6 @@ Api(
 | `headers` | Default headers merged into every request (call-level wins) |
 | `cookies` | Default cookies |
 | `timeout` | Network timeout (passed to `resq.Session`, not re-supplied per request) |
-| `data_key` | The "success" body key (e.g. `"data"`): a fallback for an `Endpoint` without its own `data_key`; **defines the root of field assertions and of the auto-check on the positive path** — always set it, otherwise the checks look past the envelope |
-| `error_key` | The "error" body key (e.g. `"error"`): a fallback for an `Endpoint` without its own `error_key`; **defines the root of field assertions and of the auto-check on the negative path** — always set it |
 | `assert_timeout` | Baseline assertion polling timeout (distinct from the network `timeout`); goes into every `AssertConfig` |
 | `assert_delay` | Baseline pause between polling attempts; goes into every `AssertConfig` |
 | `assert_field_class` | Dotted `module:Class` of a custom `AssertField` subclass |
@@ -78,8 +74,6 @@ Api(
 | `auth` | `AuthBase \| None` | **RW** | Stored auth (getter/setter) |
 | `headers` | `dict[str, str]` | RO | Default headers (an empty dict if not set) |
 | `cookies` | `SimpleCookie \| None` | RO | Default cookies |
-| `data_key` | `str \| None` | RO | Success-key fallback for endpoints |
-| `error_key` | `str \| None` | RO | Error-key fallback for endpoints |
 | `assert_timeout` | `int \| float \| None` | RO | Baseline assertion polling timeout |
 | `assert_delay` | `int \| float \| None` | RO | Baseline polling pause |
 | `assert_field_class` | `str \| None` | RO | Dotted path of the custom `AssertField` |
@@ -112,8 +106,6 @@ Endpoint(
     method: str,
     status: int | None = 200,
     use_autocheck: bool = True,
-    data_key: str | None = None,
-    error_key: str | None = None,
     adapter: str | None = None,
 )
 ```
@@ -125,8 +117,6 @@ Endpoint(
 | `method` | HTTP verb |
 | `status` | Expected success code; an Enum is normalized to `.value`; `None` disables the status auto-check |
 | `use_autocheck` | Runs the lazy auto-check on first access to `response.expect` |
-| `data_key` | Per-endpoint success key; `None` → falls back to `api.data_key` |
-| `error_key` | Per-endpoint error key; `None` → falls back to `api.error_key` |
 | `adapter` | Per-endpoint resq adapter; passed to `api.request`. `None` → falls back to the `Api` default. Only `"requests"` (sync) — `"httpx"` is async and is rejected until an async stack exists |
 
 `schemas_dir` is resolved automatically via frame inspection (see below).
@@ -141,9 +131,9 @@ Endpoint(
   `Api` default.
 
 Both paths delegate to the internal `_call`, which copies kwargs (without mutating the
-caller's dict), pops `auth`/`use_autocheck`, injects its own `adapter`, resolves the
-data/error key, assembles the `AssertConfig` (with the `assert_*` options from `Api`),
-performs the request, and wraps the response.
+caller's dict), pops `auth`/`use_autocheck`, injects its own `adapter`, assembles the
+`AssertConfig` (with the `assert_*` options from `Api`), performs the request, and wraps
+the response.
 
 ---
 
@@ -201,9 +191,10 @@ def test_initiate(post_clients_calls_initiate: Endpoint):
 ```
 
 On first access to `response.expect` (if `use_autocheck=True`) the auto-check fires
-**once**. **Positive path:** status == expected → `error_key` absent → `data_key` present →
-body validation against `schemas/<status>*.json`. An explicit `has_status_code(200)`
-duplicates only the status part — that is normal.
+**once**. **Positive path:** status == expected → body parsed as JSON → validation against
+`schemas/<status>*.json`. Envelope keys are not checked — assert them explicitly via
+`json_has_data_by_key`/`json_has_not_data_by_key` when needed. An explicit
+`has_status_code(200)` duplicates only the status part — that is normal.
 
 ---
 
@@ -213,13 +204,13 @@ duplicates only the status part — that is normal.
 def test_initiate_error(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate.error(json=Request(order_id=-1)) as response:
         response.expect.has_status_code(400)
-        response.expect("message").not_empty()
+        response.expect("error.message").not_empty()
 ```
 
 `.error(...)` is the negative path: status and JSON schema are **not
 checked** in the auto-check, so the status must be verified explicitly. **Negative auto-check
-path:** `data_key` absent → `error_key` present. Field paths resolve under
-`error_key` (e.g. `response.expect("message")` → `body["error"]["message"]`).
+path:** the body is parsed as JSON and nothing else. Field paths resolve from the body root
+(e.g. `response.expect("error.message")` → `body["error"]["message"]`).
 
 If the body is schema-invalid (a missing required field, a wrong type, an empty body,
 malformed JSON), the `Request` model cannot be built — bypass pydantic by passing a raw
@@ -246,24 +237,24 @@ with post_clients_calls_initiate.error(data="{", headers={"Content-Type": "appli
 ## Template: field-level value check
 
 Calling `response.expect(path)` (the dispatcher used as a function) returns an `AssertField`
-for checks on a specific field. The path is **relative to the root**: on the positive path
-the root is `data_key`, on the negative path — `error_key`; without `data_key`/`error_key`
-the path is absolute to the response body.
+for checks on a specific field. The path is always **resolved from the root of the response
+body** — there is no configurable root key, so spell out the full path including the
+envelope key (`data`, `error`, ...) when the API wraps its payload.
 
 ```python
 def test_initiate(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate(json=Request(order_id=1)) as response:
-        # the path is relative to data_key ("data"): items → body["data"]["items"]
-        response.expect("items").has_length(3)
-        response.expect("items", in_array=True).equal_to(2, any=True)
-        response.expect("name").equal_to("abc")
+        # paths are absolute to the body root: data.items → body["data"]["items"]
+        response.expect("data.items").has_length(3)
+        response.expect("data.items", in_array=True).equal_to(2, any=True)
+        response.expect("data.name").equal_to("abc")
 
         # drill-down: index/hook
-        response.expect("items")(index=0).equal_to(1)
-        response.expect("name")(hook=str.upper).equal_to("ABC")
+        response.expect("data.items")(index=0).equal_to(1)
+        response.expect("data.name")(hook=str.upper).equal_to("ABC")
 
         # jsonpath — for nested arrays/filters
-        response.expect("$.items[*]", in_array=True).equal_to(2, any=True)
+        response.expect("$.data.items[*]", in_array=True).equal_to(2, any=True)
 ```
 
 ---
@@ -306,10 +297,9 @@ endpoint(json=Request(id=1), params={":id": "42", "q": "x"}, auth=MyAuth())
 Runs once on lazy access to `response.expect`, if `use_autocheck=True`. The path is
 determined by the `is_negative` flag:
 
-- **Positive** (`endpoint(...)`): status (if set) → `error_key` absent → `data_key`
-  present → validation against the first `schemas/<status>*.json`
-  (skipped if the directory/file does not exist).
-- **Negative** (`endpoint.error(...)`): `data_key` absent → `error_key` present.
+- **Positive** (`endpoint(...)`): status (if set) → body parsed as JSON → validation
+  against the first `schemas/<status>*.json` (skipped if the directory/file does not exist).
+- **Negative** (`endpoint.error(...)`): the body is parsed as JSON only.
   Status and JSON schema are **not** checked.
 
 `use_autocheck=False` (on the `Endpoint` or on a call) disables the auto-check entirely —

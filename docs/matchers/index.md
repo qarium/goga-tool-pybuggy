@@ -27,12 +27,12 @@ and exposes every check as a chained method:
 
 ```python
 with post_clients_startup_get(json=Request(order_id=1)) as response:
-    response.expect.has_status_code(200)          # response-level
-    response.expect("items").has_length(3)         # field-level (dotted path)
-    response.expect("$[0].name").equal_to("abc")   # field-level (jsonpath)
+    response.expect.has_status_code(200)               # response-level
+    response.expect("data.items").has_length(3)        # field-level (dotted path)
+    response.expect("$.data[0].name").equal_to("abc")  # field-level (jsonpath)
 ```
 
-The facade handles the plumbing: paths are rooted at `data_key` / `error_key`, the
+The facade handles the plumbing: paths are rooted at the response body root, the
 auto-check fires on first access to `response.expect`, and the polling baseline
 (`assert_timeout` / `assert_delay`) comes from the configuration. The full method
 catalog: [Assertions](asserts.md).
@@ -44,10 +44,10 @@ judgement to a matcher — under the hood `has_length(3)` ends in
 `assert_that(context, ValueLengthEqualMatcher(3))`:
 
 ```
-response.expect("items").has_length(3)
-        │                │
-        │                └─ matcher: HOW to check (comparison, messages, retry)
-        └─ assert layer: WHAT to check (path resolution, data_key rooting, polling)
+response.expect("data.items").has_length(3)
+        │                    │
+        │                    └─ matcher: HOW to check (comparison, messages, retry)
+        └─ assert layer: WHAT to check (path resolution, polling)
 ```
 
 - the **matcher** never touches HTTP — it only sees a context: `value` (what is
@@ -100,8 +100,9 @@ response.expect("name")(hook=str.upper).equal_to("ABC")
 response.expect("price")(hook=lambda cents: cents / 100).equal_to(19.99)
 ```
 
-The powerful pattern is **lookup by predicate over an array**: select the array root
-(`expect()` without search) and let the hook find the element; `None` (no match)
+The powerful pattern is **lookup by predicate over an array**: select the array
+(`expect("data")` for the array under the envelope key, or `expect()` without search for
+a root-level array) and let the hook find the element; `None` (no match)
 fails the check:
 
 ```python
@@ -112,7 +113,7 @@ def _find_call(items, test_id):
     return None
 
 
-response.expect()(hook=lambda items: _find_call(items, tid)).equal_to({"owner": "A1"})
+response.expect("data")(hook=lambda items: _find_call(items, tid)).equal_to({"owner": "A1"})
 ```
 
 Notes: a non-callable hook raises `TypeError`; `search`, `index` and `hook` combine in
@@ -133,7 +134,7 @@ assert_that(ValCtx(tags), ValueIsEqualMatcher("admin", any=True, in_array=True))
 ```
 
 ```python
-response.expect("items", in_array=True).equal_to(2, any=True)   # at least one == 2
+response.expect("data.items", in_array=True).equal_to(2, any=True)   # at least one == 2
 ```
 
 ## Also worth knowing
@@ -146,8 +147,8 @@ response.expect("items", in_array=True).equal_to(2, any=True)   # at least one =
   it to name the intent of the check.
 - **Exception checks** — `raise_exc(expected_exc)` / `not_raise_exc()` context managers
   over a field: assert that accessing the value raises (or does not raise).
-- **jsonpath rooting** — `$` in a jsonpath counts from the root key value
-  (`data_key`/`error_key`), not from the whole body.
+- **jsonpath rooting** — `$` in a jsonpath counts from the root of the response body;
+  spell out the full path including the envelope key (`$.data.items[*]`).
 - **Pluggable assert classes** — `assert_field_class` / `assert_response_class` swap in
   your own `AssertField`/`Expect` subclasses (see
   [Configuration — pluggable assert classes](../configuration.md#pluggable-assert-classes)).

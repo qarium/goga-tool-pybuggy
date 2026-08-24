@@ -156,7 +156,7 @@ class TestExpectCallFieldDispatch:
 
         response = FakeResponse(body={"data": {"name": "abc"}})
 
-        field = Expect(response, AssertConfig(status=200, data_key="data"))("name")
+        field = Expect(response, AssertConfig(status=200))("data.name")
 
         assert isinstance(field, AssertField)
         field.equal_to("abc")
@@ -170,10 +170,10 @@ class TestExpectCallFieldDispatch:
 
 
 class TestAutocheckPositive:
-    """Autocheck positive path: status, error absent, data present, schema."""
+    """Autocheck positive path: status, JSON parse, schema."""
 
     def test_full_positive_passes(self) -> None:
-        """Status match + error absent + data present all pass."""
+        """Status match + JSON parse pass regardless of body envelope keys."""
         response = FakeResponse(
             status_code=200,
             body={"data": {"x": 1}, "error": None},
@@ -181,7 +181,7 @@ class TestAutocheckPositive:
 
         wrapper = ResponseWrapper(
             response,
-            AssertConfig(status=200, data_key="data", error_key="error"),
+            AssertConfig(status=200),
             use_autocheck=True,
         )
         wrapper.expect  # noqa: B018 — triggers autocheck
@@ -190,33 +190,7 @@ class TestAutocheckPositive:
         """A status mismatch fails the autocheck."""
         response = FakeResponse(status_code=500, body={"data": 1})
 
-        wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=True)
-
-        with pytest.raises(AssertionError):
-            _ = wrapper.expect
-
-    def test_positive_error_present_raises(self) -> None:
-        """A present error_key fails the positive autocheck."""
-        response = FakeResponse(status_code=200, body={"data": 1, "error": "boom"})
-
-        wrapper = ResponseWrapper(
-            response,
-            AssertConfig(status=200, data_key="data", error_key="error"),
-            use_autocheck=True,
-        )
-
-        with pytest.raises(AssertionError):
-            _ = wrapper.expect
-
-    def test_positive_data_absent_raises(self) -> None:
-        """An absent data_key fails the positive autocheck."""
-        response = FakeResponse(status_code=200, body={"other": 1})
-
-        wrapper = ResponseWrapper(
-            response,
-            AssertConfig(status=200, data_key="data", error_key="error"),
-            use_autocheck=True,
-        )
+        wrapper = ResponseWrapper(response, AssertConfig(status=200), use_autocheck=True)
 
         with pytest.raises(AssertionError):
             _ = wrapper.expect
@@ -228,7 +202,7 @@ class TestAutocheckPositive:
 
         wrapper = ResponseWrapper(
             response,
-            AssertConfig(status=200, data_key="data", schemas_dir=tmp_path),
+            AssertConfig(status=200, schemas_dir=tmp_path),
             use_autocheck=True,
         )
         wrapper.expect  # noqa: B018
@@ -240,7 +214,7 @@ class TestAutocheckPositive:
 
         wrapper = ResponseWrapper(
             response,
-            AssertConfig(status=200, data_key="data", schemas_dir=tmp_path),
+            AssertConfig(status=200, schemas_dir=tmp_path),
             use_autocheck=True,
         )
 
@@ -251,38 +225,31 @@ class TestAutocheckPositive:
         """``status=None`` skips the status check in autocheck."""
         response = FakeResponse(status_code=500, body={"data": 1})
 
-        wrapper = ResponseWrapper(response, AssertConfig(data_key="data"), use_autocheck=True)
+        wrapper = ResponseWrapper(response, AssertConfig(), use_autocheck=True)
         wrapper.expect  # noqa: B018 — no raise despite 500
+
+    def test_positive_error_payload_does_not_raise(self) -> None:
+        """No envelope-key checks: an error-like body passes the autocheck."""
+        response = FakeResponse(status_code=200, body={"error": "boom"})
+
+        wrapper = ResponseWrapper(response, AssertConfig(status=200), use_autocheck=True)
+        wrapper.expect  # noqa: B018 — no raise
 
 
 class TestAutocheckNegative:
-    """Autocheck negative path: no status/schema; data absent, error present."""
+    """Autocheck negative path: no status/schema — JSON parse only."""
 
     def test_full_negative_passes(self) -> None:
-        """data_key absent + error_key present pass the negative autocheck."""
+        """A negative-path body passes without status or key checks."""
         response = FakeResponse(status_code=400, body={"error": {"msg": "bad"}})
 
         wrapper = ResponseWrapper(
             response,
-            AssertConfig(status=400, data_key="data", error_key="error"),
+            AssertConfig(status=400),
             use_autocheck=True,
             is_negative=True,
         )
         wrapper.expect  # noqa: B018
-
-    def test_negative_data_present_raises(self) -> None:
-        """A present data_key fails the negative autocheck."""
-        response = FakeResponse(status_code=400, body={"data": 1, "error": {"msg": "bad"}})
-
-        wrapper = ResponseWrapper(
-            response,
-            AssertConfig(status=400, data_key="data", error_key="error"),
-            use_autocheck=True,
-            is_negative=True,
-        )
-
-        with pytest.raises(AssertionError):
-            _ = wrapper.expect
 
     def test_negative_does_not_check_status(self) -> None:
         """The negative path ignores the status code."""
@@ -290,11 +257,23 @@ class TestAutocheckNegative:
 
         wrapper = ResponseWrapper(
             response,
-            AssertConfig(status=400, data_key="data", error_key="error"),
+            AssertConfig(status=400),
             use_autocheck=True,
             is_negative=True,
         )
         wrapper.expect  # noqa: B018 — 200 != 400 but negative skips status
+
+    def test_negative_data_payload_does_not_raise(self) -> None:
+        """No envelope-key checks: a data-like body passes the negative autocheck."""
+        response = FakeResponse(status_code=400, body={"data": 1, "error": {"msg": "bad"}})
+
+        wrapper = ResponseWrapper(
+            response,
+            AssertConfig(status=400),
+            use_autocheck=True,
+            is_negative=True,
+        )
+        wrapper.expect  # noqa: B018
 
 
 class TestResponseWrapperWiring:
@@ -303,7 +282,7 @@ class TestResponseWrapperWiring:
     def test_expect_is_lazy_and_memoized(self) -> None:
         """``expect`` builds once and returns the same ``Expect``."""
         response = FakeResponse(status_code=200, body={"data": 1})
-        wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=False)
+        wrapper = ResponseWrapper(response, AssertConfig(status=200), use_autocheck=False)
 
         first = wrapper.expect
         second = wrapper.expect
@@ -314,13 +293,13 @@ class TestResponseWrapperWiring:
         """``use_autocheck=False`` never runs the autocheck (even on failure)."""
         response = FakeResponse(status_code=500, body={})
 
-        wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=False)
+        wrapper = ResponseWrapper(response, AssertConfig(status=200), use_autocheck=False)
         wrapper.expect  # noqa: B018 — no raise; autocheck skipped
 
     def test_context_manager_returns_self_and_propagates(self) -> None:
         """``__enter__`` returns the wrapper; ``__exit__`` does not suppress."""
         response = FakeResponse(status_code=200, body={"data": 1})
-        wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=False)
+        wrapper = ResponseWrapper(response, AssertConfig(status=200), use_autocheck=False)
 
         with wrapper as ctx:
             assert ctx is wrapper
@@ -330,16 +309,16 @@ class TestResponseWrapperWiring:
 
     def test_autocheck_runs_once_per_wrapper(self) -> None:
         """Repeated ``expect`` access runs the autocheck exactly once."""
-        response = FakeResponse(status_code=200, body={"data": 1, "error": None})
+        response = FakeResponse(status_code=200, body={"data": 1})
         wrapper = ResponseWrapper(
             response,
-            AssertConfig(status=200, data_key="data", error_key="error"),
+            AssertConfig(status=200),
             use_autocheck=True,
         )
 
         _ = wrapper.expect
         _ = wrapper.expect
 
-        # flip the body so a second autocheck would now fail; it must not re-run
-        response._body = {"data": 1, "error": "now-present"}
+        # flip the status so a second autocheck would now fail; it must not re-run
+        response.status_code = 500
         _ = wrapper.expect  # no raise; autocheck did not re-run

@@ -2,8 +2,8 @@
 
 Exposes the contract entities of the runtime HTTP cell:
 
-- ``Api`` — HTTP client composing a ``resq.Session``; holds auth/headers/cookies/
-  data_key/error_key and injects them into each request.
+- ``Api`` — HTTP client composing a ``resq.Session``; holds auth/headers/cookies
+  and the assert settings, and injects them into each request.
 - ``Endpoint`` — callable route over an ``Api``; ``__call__`` (positive) and
   ``error`` (negative) issue a single request per call and return a
   ``ResponseWrapper``.

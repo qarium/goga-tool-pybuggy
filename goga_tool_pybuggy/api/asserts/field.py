@@ -58,8 +58,6 @@ class AssertField(BaseAssert):
 
     Args:
         context: the search context providing ``value``/``key``.
-        is_negative: negative-path flag (error-key/data-key resolution is done
-            by the context; kept here for drill-down propagation).
         in_array: when True, the resolved value is treated as a list and each
             matcher option (``any``) applies element-wise.
         timeout: baseline polling timeout (seconds) inherited from
@@ -72,13 +70,11 @@ class AssertField(BaseAssert):
         self,
         context: BaseContext,
         *,
-        is_negative: bool = False,
         in_array: bool = False,
         timeout: int | float | None = None,
         delay: int | float | None = None,
     ) -> None:
         self._context = context
-        self._is_negative = is_negative
         self._in_array = in_array
         self._timeout = timeout
         self._delay = delay
@@ -99,7 +95,6 @@ class AssertField(BaseAssert):
 
         return AssertField(
             self._context(*args, **kwargs),
-            is_negative=self._is_negative,
             in_array=in_array,
             timeout=self._timeout,
             delay=self._delay,

@@ -33,8 +33,8 @@ variables win).
 - **CLI options** — `--base-url` (resolves `base_url`, required; a typed flag overrides
   the config-file and `QA_BASE_URL` value), `--api-timeout` (resolves `timeout`),
   `--retries` (the flaky rerun count), `--api-assert-timeout` / `--api-assert-delay`
-  (the assert-polling baseline). The remaining options (`headers`, `data_key`,
-  `error_key`, `assert_field_class`, `assert_response_class`) have no CLI flag —
+  (the assert-polling baseline). The remaining options (`headers`,
+  `assert_field_class`, `assert_response_class`) have no CLI flag —
   config-file only. See [Configuration](../configuration.md).
 - **`base_url` template** — a Jinja2 template rendered once at `pytest_configure`
   against `os.environ` + the CLI options you actually passed. Placeholders fed from the

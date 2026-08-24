@@ -1,12 +1,12 @@
 """Contract and logic tests for `goga_tool_pybuggy.api.api`.
 
 Contract tests (``TestApi``) lock the facade/API shape: importability,
-construction, the set of stored-field properties, the read-only nature of
-``data_key``/``error_key``, the read/write ``auth`` property, and the ``request``
-signature. Logic tests (``TestApiProperties``) cover the property values and
-defaults. ``request`` serialization behavior (pydantic dump, ``:name``
-substitution, headers/cookies merge, auth precedence, verb dispatch) is asserted
-in ``tests/api/test_api_request.py``.
+construction, the set of stored-field properties, the removed
+``data_key``/``error_key`` parameters, the read/write ``auth`` property, and the
+``request`` signature. Logic tests (``TestApiProperties``) cover the property
+values and defaults. ``request`` serialization behavior (pydantic dump,
+``:name`` substitution, headers/cookies merge, auth precedence, verb dispatch)
+is asserted in ``tests/api/test_api_request.py``.
 """
 
 from __future__ import annotations
@@ -28,40 +28,26 @@ class TestApi:
         """Api is importable from goga_tool_pybuggy.api.api."""
         assert isinstance(Api, type)
 
-    def test_constructs_with_keys(self) -> None:
-        """Api stores the given data_key/error_key."""
-        api = Api(base_url="https://x", data_key="d", error_key="e")
-
-        assert api.data_key == "d"
-        assert api.error_key == "e"
-
-    def test_data_key_error_key_default_to_none(self) -> None:
-        """Api defaults data_key/error_key to None when omitted."""
+    def test_constructs_without_body_keys(self) -> None:
+        """Api constructs with the base profile (no body-key parameters)."""
         api = Api(base_url="https://x")
 
-        assert api.data_key is None
-        assert api.error_key is None
+        assert api.base_url == "https://x"
+
+    def test_data_key_error_key_rejected(self) -> None:
+        """The removed data_key/error_key parameters raise TypeError."""
+        with pytest.raises(TypeError):
+            Api(base_url="https://x", data_key="d")
+
+        with pytest.raises(TypeError):
+            Api(base_url="https://x", error_key="e")
 
     def test_properties_present(self) -> None:
         """All stored-field properties are exposed on the facade."""
         api = Api(base_url="https://x")
 
-        for name in ("base_url", "auth", "headers", "cookies", "data_key", "error_key"):
+        for name in ("base_url", "auth", "headers", "cookies"):
             assert hasattr(api, name)
-
-    def test_data_key_is_read_only(self) -> None:
-        """data_key has no setter: assignment raises AttributeError."""
-        api = Api(base_url="https://x")
-
-        with pytest.raises(AttributeError):
-            api.data_key = "x"
-
-    def test_error_key_is_read_only(self) -> None:
-        """error_key has no setter: assignment raises AttributeError."""
-        api = Api(base_url="https://x")
-
-        with pytest.raises(AttributeError):
-            api.error_key = "x"
 
     def test_auth_is_read_write(self) -> None:
         """auth is read/write: the setter updates and the getter returns it."""
@@ -101,26 +87,6 @@ class TestApiProperties:
         api = Api(base_url="https://api.example.com")
 
         assert api.base_url == "https://api.example.com"
-
-    def test_data_key_returns_stored_value(self) -> None:
-        """data_key returns the value passed at construction."""
-        api = Api(base_url="https://x", data_key="payload")
-
-        assert api.data_key == "payload"
-
-    def test_error_key_returns_stored_value(self) -> None:
-        """error_key returns the value passed at construction."""
-        api = Api(base_url="https://x", error_key="errors")
-
-        assert api.error_key == "errors"
-
-    def test_data_key_defaults_to_none(self) -> None:
-        """data_key defaults to None."""
-        assert Api(base_url="https://x").data_key is None
-
-    def test_error_key_defaults_to_none(self) -> None:
-        """error_key defaults to None."""
-        assert Api(base_url="https://x").error_key is None
 
     def test_assert_options_return_stored_values(self) -> None:
         """The assert-polling / pluggable-class options are exposed read-only."""

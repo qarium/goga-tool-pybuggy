@@ -1,9 +1,9 @@
 """Tests for ``goga_tool_pybuggy.api.asserts.field.AssertField``.
 
 Covers the field-level assert entry produced by ``Expect.__call__``: dotted and
-jsonpath search, drill-down (``index``/``hook``), the ``data_key``/``error_key``
-root prefix, ``in_array`` element-wise mode, a representative set of matchcrest
-matchers, the ``value`` property, and the ``raise_exc``/``not_raise_exc`` context
+jsonpath search against the body root, drill-down (``index``/``hook``),
+``in_array`` element-wise mode, a representative set of matchcrest matchers,
+the ``value`` property, and the ``raise_exc``/``not_raise_exc`` context
 managers. A ``FakeResponse`` stands in for ``resq.http.Response``.
 """
 
@@ -23,41 +23,34 @@ _DEFAULT_BODY = {
 }
 
 
-def _expect(
-    body: dict | None = None,
-    *,
-    data_key: str = "data",
-    error_key: str = "error",
-    is_negative: bool = False,
-) -> Expect:
-    """Build an ``Expect`` over a canned body with data/error keys."""
+def _expect(body: dict | None = None, *, is_negative: bool = False) -> Expect:
+    """Build an ``Expect`` over a canned body (paths resolve from the root)."""
     body = _DEFAULT_BODY if body is None else body
 
     return Expect(
         FakeResponse(status_code=200, body=body),
-        AssertConfig(status=200, data_key=data_key, error_key=error_key),
+        AssertConfig(status=200),
         is_negative=is_negative,
     )
 
 
 class TestFieldSearchModes:
-    """Dotted path vs jsonpath vs absolute (no data_key)."""
+    """Dotted path vs jsonpath, both against the body root."""
 
-    def test_dotted_path_relative_to_data_key(self) -> None:
-        """A dotted search resolves under the data_key root."""
-        _expect()("name").equal_to("abc")
-        _expect()("items").has_length(3)
+    def test_dotted_path_resolves_from_root(self) -> None:
+        """A dotted search includes the envelope key and resolves from the root."""
+        _expect()("data.name").equal_to("abc")
+        _expect()("data.items").has_length(3)
 
     def test_jsonpath_search(self) -> None:
         """A jsonpath expression resolves through jsonpath_ng."""
-        _expect()("$.items[*]", in_array=True).equal_to(2, any=True)
+        _expect()("$.data.items[*]", in_array=True).equal_to(2, any=True)
 
-    def test_absolute_path_without_data_key(self) -> None:
-        """With no data_key, the search is absolute against the full body."""
-        body = {"a": {"b": {"c": 5}}}
-        expect = Expect(FakeResponse(body=body), AssertConfig(status=200))
+    def test_no_search_targets_whole_body(self) -> None:
+        """No search targets the whole body from the root."""
+        body = {"data": {"items": [1, 2, 3]}}
 
-        expect("a.b.c").equal_to(5)
+        _expect(body)().contains_dict({"data": {"items": [1, 2, 3]}})
 
     def test_missing_dotted_path_raises(self) -> None:
         """A missing dotted path raises AssertionError."""
@@ -75,42 +68,34 @@ class TestFieldDrillDown:
 
     def test_index_drill_down(self) -> None:
         """``field(index=n)`` selects a list element."""
-        _expect()("items")(index=0).equal_to(1)
-        _expect()("items")(index=2).equal_to(3)
+        _expect()("data.items")(index=0).equal_to(1)
+        _expect()("data.items")(index=2).equal_to(3)
 
     def test_hook_applied(self) -> None:
         """A hook transforms the resolved value before asserting."""
-        _expect()("name")(hook=lambda value: value.upper()).equal_to("ABC")
+        _expect()("data.name")(hook=lambda value: value.upper()).equal_to("ABC")
 
     def test_drill_returns_new_assert_field(self) -> None:
         """Drilling returns a distinct AssertField (immutable chain)."""
         from goga_tool_pybuggy.api import AssertField
 
-        base = _expect()("items")
+        base = _expect()("data.items")
         drilled = base(index=0)
 
         assert isinstance(drilled, AssertField)
         assert drilled is not base
 
 
-class TestFieldRootPrefix:
-    """``data_key``/``error_key`` root selection by path polarity."""
+class TestFieldRootIsBodyRoot:
+    """Path polarity does not change the root — it is always the body root."""
 
-    def test_positive_roots_at_data_key(self) -> None:
-        """Positive path searches under data_key."""
-        _expect()("obj.k").equal_to("v")
-
-    def test_negative_roots_at_error_key(self) -> None:
-        """Negative path searches under error_key."""
+    def test_negative_path_uses_same_root(self) -> None:
+        """The negative path resolves the same root as the positive one."""
         body = {"data": None, "error": {"msg": "bad", "code": 42}}
-        expect = Expect(
-            FakeResponse(body=body),
-            AssertConfig(status=400, data_key="data", error_key="error"),
-            is_negative=True,
-        )
+        expect = _expect(body, is_negative=True)
 
-        expect("msg").equal_to("bad")
-        expect("code").equal_to(42)
+        expect("error.msg").equal_to("bad")
+        expect("error.code").equal_to(42)
 
 
 class TestFieldMatchers:
@@ -118,46 +103,46 @@ class TestFieldMatchers:
 
     def test_equal_to_and_not_equal_to(self) -> None:
         """``equal_to`` passes/fails; ``not_equal_to`` inverts."""
-        _expect()("name").equal_to("abc")
+        _expect()("data.name").equal_to("abc")
         with pytest.raises(AssertionError):
-            _expect()("name").equal_to("zzz")
-        _expect()("name").not_equal_to("zzz")
+            _expect()("data.name").equal_to("zzz")
+        _expect()("data.name").not_equal_to("zzz")
 
     def test_greater_and_lesser(self) -> None:
         """Numeric comparisons with ``or_equal``."""
-        _expect()("items")(index=0).lesser_than(2)
-        _expect()("items")(index=0).lesser_than(1, or_equal=True)
-        _expect()("items")(index=2).greater_than(2)
-        _expect()("items")(index=2).greater_than(3, or_equal=True)
+        _expect()("data.items")(index=0).lesser_than(2)
+        _expect()("data.items")(index=0).lesser_than(1, or_equal=True)
+        _expect()("data.items")(index=2).greater_than(2)
+        _expect()("data.items")(index=2).greater_than(3, or_equal=True)
 
     def test_starts_ends_contains(self) -> None:
         """String prefix/suffix/substring matchers."""
-        _expect()("name").startswith("ab")
-        _expect()("name").endswith("bc")
-        _expect()("name").contains("b")
+        _expect()("data.name").startswith("ab")
+        _expect()("data.name").endswith("bc")
+        _expect()("data.name").contains("b")
 
     def test_match_regex(self) -> None:
         """A compiled regex matches the value."""
-        _expect()("name").match_regex(r"^a.c$")
+        _expect()("data.name").match_regex(r"^a.c$")
         with pytest.raises(AssertionError):
-            _expect()("name").match_regex(r"^z")
+            _expect()("data.name").match_regex(r"^z")
 
     def test_contains_dict(self) -> None:
         """``contains_dict`` checks key/value membership in a dict field."""
-        _expect()("obj").contains_dict({"k": "v"})
+        _expect()("data.obj").contains_dict({"k": "v"})
         with pytest.raises(AssertionError):
-            _expect()("obj").contains_dict({"k": "other"})
+            _expect()("data.obj").contains_dict({"k": "other"})
 
     def test_is_in_and_is_not_in(self) -> None:
         """Membership of the value in a collection."""
-        _expect()("name").is_in(["abc", "zzz"])
-        _expect()("name").is_not_in(["zzz"])
+        _expect()("data.name").is_in(["abc", "zzz"])
+        _expect()("data.name").is_not_in(["zzz"])
 
     def test_empty_and_not_empty(self) -> None:
         """``empty``/``not_empty`` on falsy/truthy values."""
         body = {"data": {"blank": "", "filled": "x"}, "error": None}
-        Expect(FakeResponse(body=body), AssertConfig(status=200, data_key="data", error_key="error"))("blank").empty()
-        _expect()("name").not_empty()
+        Expect(FakeResponse(body=body), AssertConfig(status=200))("data.blank").empty()
+        _expect()("data.name").not_empty()
 
 
 class TestFieldInArray:
@@ -165,16 +150,16 @@ class TestFieldInArray:
 
     def test_in_array_any_matches_an_element(self) -> None:
         """``equal_to`` with ``in_array``+``any`` matches one list element."""
-        _expect()("items", in_array=True).equal_to(2, any=True)
+        _expect()("data.items", in_array=True).equal_to(2, any=True)
 
     def test_in_array_any_no_match_raises(self) -> None:
         """No element matching raises."""
         with pytest.raises(AssertionError):
-            _expect()("items", in_array=True).equal_to(99, any=True)
+            _expect()("data.items", in_array=True).equal_to(99, any=True)
 
     def test_in_array_string_contains(self) -> None:
         """``contains`` over a list of strings checks each element."""
-        _expect()("tags", in_array=True).contains("x", any=True)
+        _expect()("data.tags", in_array=True).contains("x", any=True)
 
 
 class TestFieldValueAndDate:
@@ -182,16 +167,16 @@ class TestFieldValueAndDate:
 
     def test_value_property_returns_resolved(self) -> None:
         """``value`` exposes the resolved field value without asserting."""
-        assert _expect()("name").value == "abc"
+        assert _expect()("data.name").value == "abc"
 
     def test_has_date(self) -> None:
         """``has_date`` compares dates by timestamp."""
         body = {"data": {"d": date(2024, 1, 15)}, "error": None}
-        expect = Expect(FakeResponse(body=body), AssertConfig(status=200, data_key="data", error_key="error"))
+        expect = Expect(FakeResponse(body=body), AssertConfig(status=200))
 
-        expect("d").has_date(date(2024, 1, 15))
-        expect("d").has_date_greater(date(2024, 1, 1))
-        expect("d").has_date_lesser(date(2024, 2, 1))
+        expect("data.d").has_date(date(2024, 1, 15))
+        expect("data.d").has_date_greater(date(2024, 1, 1))
+        expect("data.d").has_date_lesser(date(2024, 2, 1))
 
 
 class TestFieldExceptionMatchers:
@@ -199,10 +184,10 @@ class TestFieldExceptionMatchers:
 
     def test_not_raise_exc_when_value_resolves(self) -> None:
         """Accessing a resolvable value raises nothing → not_raise_exc passes."""
-        with _expect()("name").not_raise_exc() as value:
+        with _expect()("data.name").not_raise_exc() as value:
             assert value == "abc"
 
     def test_raise_exc_propagates_unexpected(self) -> None:
         """``raise_exc`` fails when no exception is raised."""
-        with pytest.raises(AssertionError), _expect()("name").raise_exc(KeyError):
+        with pytest.raises(AssertionError), _expect()("data.name").raise_exc(KeyError):
             pass  # value resolves, nothing raised

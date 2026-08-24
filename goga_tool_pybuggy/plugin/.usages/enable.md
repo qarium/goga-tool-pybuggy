@@ -37,8 +37,8 @@ discovery, or `install(loaders=[])` to disable it.
   `QA_BASE_URL` value), `--api-timeout` (resolves `timeout`),
   `--retries` (resolves `retries`, the flaky rerun count for the test run), `--api-assert-timeout`
   (resolves `assert_timeout`, the baseline assert-polling timeout), and `--api-assert-delay` (resolves
-  `assert_delay`, the delay between polling attempts). The remaining options (`headers`, `data_key`,
-  `error_key`, `assert_field_class`, `assert_response_class`) have no CLI flag and are set only via the
+  `assert_delay`, the delay between polling attempts). The remaining options (`headers`,
+  `assert_field_class`, `assert_response_class`) have no CLI flag and are set only via the
   config file.
 - **`base_url` template** — `base_url` is a Jinja2 template rendered once in the pluginator `configure()`
   hook against `os.environ` + the CLI options the user actually passed. Placeholders that should be fed

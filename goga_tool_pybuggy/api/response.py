@@ -3,8 +3,8 @@
 ``ResponseWrapper`` is a context manager over a raw ``resq.http.Response`` that
 lazily exposes an :class:`Expect` dispatcher (from the `asserts` sub-cell) and
 runs the auto-check once on first access. The static check configuration
-(status/data_key/error_key/schemas_dir) is carried by an :class:`AssertConfig`
-value; ``is_negative`` and ``use_autocheck`` are runtime flags.
+(status/schemas_dir) is carried by an :class:`AssertConfig` value;
+``is_negative`` and ``use_autocheck`` are runtime flags.
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ class ResponseWrapper:
 
     Args:
         response: the raw ``resq.http.Response`` being wrapped.
-        config: the static check configuration — status/data_key/error_key/
+        config: the static check configuration — status/
             schemas_dir (each optional; ``None`` skips that check).
         use_autocheck: when True, the auto-check runs once on first access.
         is_negative: selects the negative auto-check path.

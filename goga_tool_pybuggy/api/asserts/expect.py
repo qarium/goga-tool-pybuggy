@@ -5,13 +5,13 @@
 - **response-level** methods (``has_status_code``/``has_header``/``json_*``/
   ``jsonschema_*``) — matchcrest matchers over a :class:`ResponseContext`;
 - **field-level** dispatch via ``Expect.__call__(search)`` → :class:`AssertField`
-  (dotted-path or jsonpath search through the body, with ``data_key``/``error_key``
-  prefixing).
+  (dotted-path or jsonpath search through the body, always resolved from the
+  response-body root).
 
-The check configuration (status/data_key/error_key/schemas_dir/timeout/delay/
+The check configuration (status/schemas_dir/timeout/delay/
 assert_field_class/assert_response_class) is carried by an :class:`AssertConfig`
-value; ``is_negative`` is a runtime flag selecting the negative auto-check path
-and field root. Every check is a matchcrest ``assert_that`` returning ``self``
+value; ``is_negative`` is a runtime flag selecting the negative auto-check path.
+Every check is a matchcrest ``assert_that`` returning ``self``
 for chaining.
 
 Polling: the ``timeout``/``delay`` from ``AssertConfig`` are the baseline —
@@ -66,7 +66,7 @@ class Expect(BaseAssert):
     Response-level checks are matchcrest assertions over a ``ResponseContext``
     and return ``self`` for fluent chaining. Calling the dispatcher
     (``expect('data.items')``) returns an :class:`AssertField` for field-level
-    checks.
+    checks — the search always resolves from the root of the response body.
 
     This is also the default response-level assert class: when
     ``AssertConfig.assert_response_class`` is set, ``ResponseWrapper`` loads that
@@ -74,10 +74,10 @@ class Expect(BaseAssert):
 
     Args:
         response: the raw ``resq.http.Response`` under inspection.
-        config: the static check configuration — status/data_key/error_key/
+        config: the static check configuration — status/
             schemas_dir/timeout/delay/assert_field_class/assert_response_class
             (each optional; ``None`` skips/disables that check).
-        is_negative: selects the negative auto-check path and field root.
+        is_negative: selects the negative auto-check path.
     """
 
     def __init__(
@@ -96,7 +96,6 @@ class Expect(BaseAssert):
         """Build a response-level context for one of status/json/headers."""
         return ResponseContext(
             self._response,
-            is_negative=self._is_negative,
             search_history=[SearchItem(search=search)],
         )
 
@@ -270,7 +269,7 @@ class Expect(BaseAssert):
 
         Args:
             search: a dotted path (``a.b.c``), a jsonpath (``$.a.b[*]``), or None
-                to target the whole (key-rooted) body.
+                to target the whole body.
             index: an optional list index applied after the search.
             hook: an optional callable applied to the resolved value.
             in_array: treat the resolved value as a list for element-wise options.
@@ -289,9 +288,6 @@ class Expect(BaseAssert):
 
         context = context_cls(
             self._response,
-            data_key=self._config.data_key,
-            error_key=self._config.error_key,
-            is_negative=self._is_negative,
             search_history=[search_item],
         )
 
@@ -301,7 +297,6 @@ class Expect(BaseAssert):
 
         return field_cls(
             context,
-            is_negative=self._is_negative,
             in_array=in_array,
             timeout=self._timeout,
             delay=self._delay,
@@ -320,24 +315,12 @@ class Expect(BaseAssert):
 
         self._response.json()
 
-        if self._config.error_key is not None:
-            self.json_has_not_data_by_key(self._config.error_key)
-
-        if self._config.data_key is not None:
-            self.json_has_data_by_key(self._config.data_key)
-
         schema_dict = self._first_schema_for_status(self._config.schemas_dir, self._response.status_code)
         if schema_dict is not None:
             self._validate_schema(schema_dict)
 
     def _autocheck_negative(self) -> None:
         self._response.json()
-
-        if self._config.data_key is not None:
-            self.json_has_not_data_by_key(self._config.data_key)
-
-        if self._config.error_key is not None:
-            self.json_has_data_by_key(self._config.error_key)
 
     def _validate_schema(
         self,

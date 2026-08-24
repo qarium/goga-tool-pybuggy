@@ -5,8 +5,8 @@ construction, the ``url_path``/``method`` properties, the presence of
 ``__call__``/``error``/``_call``, and that ``__call__``/``error`` delegate to
 ``_call`` with ``is_negative=False``/``True``.
 
-Logic tests (``TestCallAuth``, ``TestCallKeysAndAutocheck``, ``TestCallKwargs``)
-exercise ``_call``'s call-level auth resolution, data/error-key fallback, the
+Logic tests (``TestCallAuth``, ``TestCallConfigAndAutocheck``, ``TestCallKwargs``)
+exercise ``_call``'s call-level auth resolution, ``AssertConfig`` assembly, the
 ``use_autocheck`` override, and kwargs handling. The network and the deferred
 ``ResponseWrapper`` behavior are mocked at their boundaries (``api.request`` and
 ``goga_tool_pybuggy.api.endpoint.ResponseWrapper``); the auth primitives
@@ -224,26 +224,12 @@ class TestCallAuth:
         assert not m.called
 
 
-class TestCallKeysAndAutocheck:
-    """Logic tests for key resolution and the use_autocheck override."""
+class TestCallConfigAndAutocheck:
+    """Logic tests for AssertConfig assembly and the use_autocheck override."""
 
-    def test_data_key_endpoint_overrides_api(self) -> None:
-        """Endpoint data_key/error_key win over the Api-level keys when set."""
-        api = Api(base_url="https://x", data_key="api-d", error_key="api-e")
-        ep = Endpoint(api, "/p", method="GET", data_key="ep-d", error_key="ep-e")
-
-        with (
-            mock.patch.object(api, "request"),
-            mock.patch("goga_tool_pybuggy.api.endpoint.ResponseWrapper") as rw,
-        ):
-            ep()
-
-        assert rw.call_args.args[1].data_key == "ep-d"
-        assert rw.call_args.args[1].error_key == "ep-e"
-
-    def test_data_key_falls_back_to_api(self) -> None:
-        """Without per-endpoint keys, the Api-level keys are used."""
-        api = Api(base_url="https://x", data_key="api-d", error_key="api-e")
+    def test_config_has_no_body_keys(self) -> None:
+        """``_call`` assembles an AssertConfig without body-key fields."""
+        api = Api(base_url="https://x")
         ep = Endpoint(api, "/p", method="GET")
 
         with (
@@ -252,8 +238,18 @@ class TestCallKeysAndAutocheck:
         ):
             ep()
 
-        assert rw.call_args.args[1].data_key == "api-d"
-        assert rw.call_args.args[1].error_key == "api-e"
+        assert not hasattr(rw.call_args.args[1], "data_key")
+        assert not hasattr(rw.call_args.args[1], "error_key")
+
+    def test_body_key_params_rejected(self) -> None:
+        """The removed data_key/error_key constructor parameters raise TypeError."""
+        api = Api(base_url="https://x")
+
+        with pytest.raises(TypeError):
+            Endpoint(api, "/p", method="GET", data_key="ep-d")
+
+        with pytest.raises(TypeError):
+            Endpoint(api, "/p", method="GET", error_key="ep-e")
 
     def test_assert_polling_options_flow_from_api(self) -> None:
         """``_call`` forwards Api's assert_timeout/delay/class options into AssertConfig."""
