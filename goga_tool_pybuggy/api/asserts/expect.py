@@ -1,10 +1,10 @@
 """Response-level assert dispatcher of the `goga_tool_pybuggy.api.asserts` cell.
 
-``Expected`` is the two-level assert entry point:
+``Expect`` is the two-level assert entry point:
 
 - **response-level** methods (``has_status_code``/``has_header``/``json_*``/
   ``jsonschema_*``) — matchcrest matchers over a :class:`ResponseContext`;
-- **field-level** dispatch via ``Expected.__call__(search)`` → :class:`AssertField`
+- **field-level** dispatch via ``Expect.__call__(search)`` → :class:`AssertField`
   (dotted-path or jsonpath search through the body, with ``data_key``/``error_key``
   prefixing).
 
@@ -60,17 +60,17 @@ def _search_is_jsonpath(search: str) -> bool:
     return any(char in search for char in _JSONPATH_CHARS)
 
 
-class Expected(BaseAssert):
+class Expect(BaseAssert):
     """Dispatcher of response-level checks and field-level assert entry.
 
     Response-level checks are matchcrest assertions over a ``ResponseContext``
     and return ``self`` for fluent chaining. Calling the dispatcher
-    (``expected('data.items')``) returns an :class:`AssertField` for field-level
+    (``expect('data.items')``) returns an :class:`AssertField` for field-level
     checks.
 
     This is also the default response-level assert class: when
     ``AssertConfig.assert_response_class`` is set, ``ResponseWrapper`` loads that
-    subclass instead (it must subclass ``Expected``).
+    subclass instead (it must subclass ``Expect``).
 
     Args:
         response: the raw ``resq.http.Response`` under inspection.
@@ -108,7 +108,7 @@ class Expected(BaseAssert):
         reason: str = "",
         timeout: int | float | None = None,
         delay: int | float | None = None,
-    ) -> Expected:
+    ) -> Expect:
         """Assert the response status code equals ``code``."""
         matcher = self._create_matcher(ResponseCodeMatcher, code, timeout=timeout, delay=delay)
         assert_that(self._response_context("status"), matcher, reason=reason)
@@ -128,7 +128,7 @@ class Expected(BaseAssert):
         reason: str = "",
         timeout: int | float | None = None,
         delay: int | float | None = None,
-    ) -> Expected:
+    ) -> Expect:
         """Assert a header is present, and — when ``value`` is given — matches it.
 
         Without ``value``: assert a header named ``key`` exists (optionally
@@ -181,7 +181,7 @@ class Expected(BaseAssert):
         reason: str = "",
         timeout: int | float | None = None,
         delay: int | float | None = None,
-    ) -> Expected:
+    ) -> Expect:
         """Assert the response body contains ``key`` with a non-None value."""
         matcher = self._create_matcher(JsonHasDataByKeyMatcher, key, timeout=timeout, delay=delay)
         assert_that(self._response_context("json"), matcher, reason=reason)
@@ -196,7 +196,7 @@ class Expected(BaseAssert):
         reason: str = "",
         timeout: int | float | None = None,
         delay: int | float | None = None,
-    ) -> Expected:
+    ) -> Expect:
         """Assert the response body does not contain ``key`` (or it is None)."""
         matcher = self._create_matcher(JsonHasNotDataByKeyMatcher, key, timeout=timeout, delay=delay)
         assert_that(self._response_context("json"), matcher, reason=reason)
@@ -211,7 +211,7 @@ class Expected(BaseAssert):
         reason: str = "",
         timeout: int | float | None = None,
         delay: int | float | None = None,
-    ) -> Expected:
+    ) -> Expect:
         """Assert the response body contains ``key`` (nested when given a list)."""
         matcher = self._create_matcher(JsonContainsKeyMatcher, key, timeout=timeout, delay=delay)
         assert_that(self._response_context("json"), matcher, reason=reason)
@@ -226,7 +226,7 @@ class Expected(BaseAssert):
         reason: str = "",
         timeout: int | float | None = None,
         delay: int | float | None = None,
-    ) -> Expected:
+    ) -> Expect:
         """Validate the response body against a json-schema (dict or file path)."""
         schema_dict = self._load_schema(schema)
         self._validate_schema(schema_dict, reason=reason, timeout=timeout, delay=delay)
@@ -242,7 +242,7 @@ class Expected(BaseAssert):
         reason: str = "",
         timeout: int | float | None = None,
         delay: int | float | None = None,
-    ) -> Expected:
+    ) -> Expect:
         """Validate the body against the first ``<status_code>*`` schema in a dir."""
         schema_dict = self._first_schema_for_status(Path(schemas_dir), status_code)
         if schema_dict is None:

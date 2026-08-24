@@ -10,15 +10,15 @@ through generated fixtures. The practice describes **how to consume** asserts
 The layer consists of three entities:
 
 - `AssertConfig` — a static check configuration (all fields optional);
-- `Expected` — a two-level dispatcher: response-level checks plus the field-level entry
-  via `Expected.__call__(search)`; it is also the default response-level class;
+- `Expect` — a two-level dispatcher: response-level checks plus the field-level entry
+  via `Expect.__call__(search)`; it is also the default response-level class;
 - `AssertField` — a field-level assert over a response body field value; it is also the
   default field-level class.
 
 The consumer never creates these objects manually: pybuggy assembles `AssertConfig` when
-the consumer calls the endpoint, builds `Expected` lazily on first access to
-`response.expected`, and the consumer obtains the field-level assert from
-`response.expected('path')`.
+the consumer calls the endpoint, builds `Expect` lazily on first access to
+`response.expect`, and the consumer obtains the field-level assert from
+`response.expect('path')`.
 
 ---
 
@@ -29,16 +29,16 @@ from goga_tool_pybuggy.api.asserts import AssertField  # for a type hint
 ```
 
 `AssertField` wraps the internal search context and provides matchcrest matchers over the
-resolved value. The module also re-exports `Expected`, `AssertConfig`, and
-`load_assert_class`, but a typical test receives them from `response.expected`.
+resolved value. The module also re-exports `Expect`, `AssertConfig`, and
+`load_assert_class`, but a typical test receives them from `response.expect`.
 
 ---
 
 ## Common parameters of all check methods
 
-Every check method on `Expected` and every check method on `AssertField` follows one
+Every check method on `Expect` and every check method on `AssertField` follows one
 template: the method calls `assert_that(context, matcher, reason=...)` and returns its own
-object (`Expected` or `AssertField`) for chaining.
+object (`Expect` or `AssertField`) for chaining.
 
 Universal kwargs:
 
@@ -69,14 +69,14 @@ and returns a new `AssertField`.
 | `timeout`              | `int \| float \| None` | Polling timeout baseline (sec.); `None` — single attempt                                                    |
 | `delay`                | `int \| float \| None` | Pause between polling attempts (sec.); `None` — matcher default                                             |
 | `assert_field_class`   | `str \| None`          | Dotted `module:Class` of a custom `AssertField` subclass; `None` — built-in                                 |
-| `assert_response_class`| `str \| None`          | Dotted `module:Class` of a custom `Expected` subclass; `None` — built-in                                    |
+| `assert_response_class`| `str \| None`          | Dotted `module:Class` of a custom `Expect` subclass; `None` — built-in                                    |
 
 ---
 
-## Expected — response-level dispatcher
+## Expect — response-level dispatcher
 
-The consumer obtains `Expected` from `response.expected`. Response-level methods operate
-on the whole response (status/headers/body); each method returns `Expected` for chaining.
+The consumer obtains `Expect` from `response.expect`. Response-level methods operate
+on the whole response (status/headers/body); each method returns `Expect` for chaining.
 
 ### Response-level checks (complete list)
 
@@ -111,12 +111,12 @@ Parameter details:
 ### Field-level entry
 
 ```python
-field = response.expected("items")  # dotted path under data_key
-field = response.expected("$.items[*]")  # jsonpath under data_key
-field = response.expected()  # the whole value under data_key (array/object)
+field = response.expect("items")  # dotted path under data_key
+field = response.expect("$.items[*]")  # jsonpath under data_key
+field = response.expect()  # the whole value under data_key (array/object)
 ```
 
-`Expected.__call__(search=None, *, index=None, hook=None, in_array=False)`:
+`Expect.__call__(search=None, *, index=None, hook=None, in_array=False)`:
 
 - `search` — a dotted path (`a.b.c`) **or** a jsonpath (`$.a.b[*]`); pybuggy resolves it
   under the root key: `data_key` on the positive path, `error_key` on the negative path.
@@ -136,7 +136,7 @@ The call returns `AssertField` for chaining.
 
 ### autocheck (internal)
 
-The response wrapper calls `Expected.autocheck()` exactly once — at the lazy access
+The response wrapper calls `Expect.autocheck()` exactly once — at the lazy access
 point — when `use_autocheck=True`. The `is_negative` flag selects the path:
 
 - **positive:** status (when configured) → `error_key` absent → `data_key` present →
@@ -171,9 +171,9 @@ prefixes the root key.
 | `is_disjoint(value)`  | —                 | Iterable value shares no elements with `value`                                                                  |
 
 ```python
-response.expected("name").contains("abc")
-response.expected("tags").is_in(["x", "y"])
-response.expected("filters").is_subset({"a": 1, "b": 2})
+response.expect("name").contains("abc")
+response.expect("tags").is_in(["x", "y"])
+response.expect("filters").is_subset({"a": 1, "b": 2})
 ```
 
 > Mind the argument direction: in `is_in(value)` / `is_subset(value)` /
@@ -192,9 +192,9 @@ response.expected("filters").is_subset({"a": 1, "b": 2})
 | `not_empty()`         | —                    | Non-empty/truthy                                   |
 
 ```python
-response.expected("name").equal_to("abc")
-response.expected("count").equal_to(1, strict=True)
-response.expected("items").not_empty()
+response.expect("name").equal_to("abc")
+response.expect("count").equal_to(1, strict=True)
+response.expect("items").not_empty()
 ```
 
 ### Number comparison
@@ -205,8 +205,8 @@ response.expected("items").not_empty()
 | `lesser_than(value)`  | `or_equal: bool=False` | `<` `value`; `or_equal=True` → `<=`   |
 
 ```python
-response.expected("count").greater_than(0)
-response.expected("count").greater_than(0, or_equal=True)
+response.expect("count").greater_than(0)
+response.expect("count").greater_than(0, or_equal=True)
 ```
 
 ### Length
@@ -218,8 +218,8 @@ response.expected("count").greater_than(0, or_equal=True)
 | `has_length_lesser(value)`  | `len(resolved value) < value`  |
 
 ```python
-response.expected("items").has_length(3)
-response.expected("items").has_length_greater(0)
+response.expect("items").has_length(3)
+response.expect("items").has_length_greater(0)
 ```
 
 ### Strings and URLs
@@ -232,9 +232,9 @@ response.expected("items").has_length_greater(0)
 | `is_url()`             | `is_live: bool=False`, `allowed_protocols: list[str] \| None=None` | Valid URL; `is_live=True` — reachable (GET → 2xx); `allowed_protocols` — allowed schemes (defaults to `['https','http']`)   |
 
 ```python
-response.expected("email").match_regex(r"^[\w.]+@[\w.]+$")
-response.expected("avatar").is_url()
-response.expected("avatar").is_url(is_live=True, allowed_protocols=["https"])
+response.expect("email").match_regex(r"^[\w.]+@[\w.]+$")
+response.expect("avatar").is_url()
+response.expect("avatar").is_url(is_live=True, allowed_protocols=["https"])
 ```
 
 ### Dates
@@ -252,8 +252,8 @@ response.expected("avatar").is_url(is_live=True, allowed_protocols=["https"])
 ```python
 from datetime import date
 
-response.expected("created_at").has_date(date(2026, 1, 1))
-response.expected("created_at").has_date_greater(date(2025, 1, 1))
+response.expect("created_at").has_date(date(2026, 1, 1))
+response.expect("created_at").has_date_greater(date(2025, 1, 1))
 ```
 
 ### Exceptions (context managers)
@@ -267,10 +267,10 @@ These methods are **context managers**: they yield the resolved value and verify
 block raises (or does not raise) an exception. They do not accept `any`.
 
 ```python
-with response.expected("missing").raise_exc(KeyError):
+with response.expect("missing").raise_exc(KeyError):
     ...  # field access inside the block must raise KeyError
 
-with response.expected("ok").not_raise_exc() as value:
+with response.expect("ok").not_raise_exc() as value:
     assert value == "abc"
 ```
 
@@ -282,7 +282,7 @@ with response.expected("ok").not_raise_exc() as value:
   `field(index=0)`), the call returns a new `AssertField` over the extended context; the
   new context inherits the `timeout`/`delay` baseline. pybuggy applies dotted steps in
   order, then `index`, then `hook`.
-- **in_array:** a field-level flag (set via `Expected.__call__(in_array=True)` or on
+- **in_array:** a field-level flag (set via `Expect.__call__(in_array=True)` or on
   drill-down). Under `in_array=True` pybuggy treats the value as a list: `any=False`
   (default) requires **all** elements to match; `any=True` — **at least one**.
 - **All elements of an array** (jsonpath with `[*]` returns a list of values): when the
@@ -297,7 +297,7 @@ with response.expected("ok").not_raise_exc() as value:
   works as a substring test.
 - **Custom array element lookup**: when the test locates an element by predicate (several
   fields must match) rather than by index, the consumer writes a regular lookup function
-  and passes it as a hook over the array root (`expected()` without search — the whole
+  and passes it as a hook over the array root (`expect()` without search — the whole
   value under `data_key`). The hook returns the found element (`None` when nothing
   matches) — the assert stays inside the framework, and `None` fails the check; one chain
   therefore delivers both "found" and "equals the expected value".
@@ -306,19 +306,19 @@ with response.expected("ok").not_raise_exc() as value:
   `has_length(0)` over the root, not jsonpath.
 
 ```python
-response.expected("items", in_array=True).equal_to(2, any=True)  # at least one == 2
-response.expected("items")(index=0).equal_to(1)  # drill by index
-response.expected("name")(hook=str.upper).equal_to("ABC")  # hook runs before comparison
+response.expect("items", in_array=True).equal_to(2, any=True)  # at least one == 2
+response.expect("items")(index=0).equal_to(1)  # drill by index
+response.expect("name")(hook=str.upper).equal_to("ABC")  # hook runs before comparison
 
 # data_key is an array: non-emptiness / a specific element
-response.expected().has_length_greater(0)  # the value under data_key (array) is non-empty
-response.expected("$[0].name").equal_to("abc")  # data[0].name
+response.expect().has_length_greater(0)  # the value under data_key (array) is non-empty
+response.expect("$[0].name").equal_to("abc")  # data[0].name
 
 # all elements: data[*].status is a list; is_subset guarantees every element belongs to the set
-response.expected("$[*].status").is_subset(["active", "idle"])  # every status ∈ the set
+response.expect("$[*].status").is_subset(["active", "idle"])  # every status ∈ the set
 
 # element absent: data[*].request.test_id is a value list; not_contains — none equals
-response.expected("$[*].request.test_id").not_contains(test_id_b)
+response.expect("$[*].request.test_id").not_contains(test_id_b)
 
 
 # custom predicate-based element lookup: a hook over the array root, then regular asserts
@@ -330,7 +330,7 @@ def _mock_body(items: list, test_id: str, path: str, method: str):
     return None
 
 
-response.expected()(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to({"owner": "A1"})
+response.expect()(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to({"owner": "A1"})
 ```
 
 ---
@@ -347,7 +347,7 @@ via `resq.http.Response.reload()` (an in-place replay of the same request) and p
 ## Pluggable classes
 
 `assert_field_class`/`assert_response_class` (dotted `module:Class`) plug in custom
-`AssertField`/`Expected` subclasses; the subclasses must inherit the built-in classes.
+`AssertField`/`Expect` subclasses; the subclasses must inherit the built-in classes.
 pybuggy loads both via `load_assert_class` at the point where it builds the
 field/response class. `None` selects the built-in classes.
 

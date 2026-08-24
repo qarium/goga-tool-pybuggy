@@ -2,7 +2,7 @@ Imports:
   - Types:
       - AssertField
       - AssertConfig
-      - Expected
+      - Expect
     Usages:
       - asserts
     From: goga_tool_pybuggy/api/asserts
@@ -15,11 +15,11 @@ Annotations: |
   Use `conventions` for code writing rules, relative imports, pydantic usage, and testing.
   Use `resq` for the HTTP client contract — `Api` composes a resq.Session and issues a single request per call (no polling).
 
-  HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expected` (response-level dispatcher and field-level entry), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling status/data_key/error_key/schemas_dir) — is imported via Imports; matchcrest is reached only through `asserts`.
-  Use `asserts` for `Expected`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expected` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own keys (falling back to the `Api`-level keys) plus status and schemas_dir.
+  HTTP runtime cell. `Api` issues requests, `Endpoint` binds a route, `ResponseWrapper` wraps the raw resq response. The assert layer — `Expect` (response-level dispatcher and field-level entry), `AssertField` (field-level assert), and `AssertConfig` (static check config bundling status/data_key/error_key/schemas_dir) — is imported via Imports; matchcrest is reached only through `asserts`.
+  Use `asserts` for `Expect`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expect` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own keys (falling back to the `Api`-level keys) plus status and schemas_dir.
   Sync-only. `Api` is a composition over resq.Session (not a subclass): auth/headers/cookies/data_key/error_key live on `Api` and are injected into each request.
   `Api` owns the resq adapter: it builds one cached resq.Session per adapter name (the default adapter uses the composed session) and routes each request to the session matching the effective adapter. Only adapter="requests" (sync) is supported in the sync runtime; adapter="httpx" is async in resq (verbs return coroutines, wrapper is AsyncResponse) and is rejected by the adapter validation. `Endpoint` may carry a per-endpoint adapter override (None falls back to the `Api` default); the override is opt-in via the default.
-  The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from goga_tool_pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expected` are re-exported from `asserts` for type-hinting; `AssertConfig`, `CombineAuth`/`AuthWrapper` and the search contexts stay internal to the cell.
+  The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expect`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from goga_tool_pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expect` are re-exported from `asserts` for type-hinting; `AssertConfig`, `CombineAuth`/`AuthWrapper` and the search contexts stay internal to the cell.
   Call-level auth on an `Endpoint` call accepts an AuthBase, an `Auth` protocol object (auth(request)), or a plain callable, and is combined with the stored `Api` auth via `CombineAuth`/`AuthWrapper`.
 
   Use relative imports inside the cell.
@@ -41,7 +41,7 @@ Annotations: |
     `assert_timeout`: baseline assert-polling timeout (distinct from the network timeout); forwarded into each `AssertConfig` by Endpoint._call.
     `assert_delay`: baseline assert-polling delay; forwarded into each `AssertConfig` by Endpoint._call.
     assert_field_class: dotted module:Class path of a custom `AssertField` subclass; forwarded into each `AssertConfig`.
-    assert_response_class: dotted module:Class path of a custom `Expected` subclass; forwarded into each `AssertConfig`.
+    assert_response_class: dotted module:Class path of a custom `Expect` subclass; forwarded into each `AssertConfig`.
     `adapter`: default resq adapter name used to build the composed session. `"requests"` (sync) only — "httpx" is async in resq and is rejected by the adapter validation. Read-only via the `adapter` property; per-request override flows through request's `adapter` kwarg (None falls back to this default).
 
     Use `resq` for the Session/base_url contract.
@@ -68,7 +68,7 @@ Annotations: |
     "assert_field_class -> str | None": |
       Stored dotted path of a custom `AssertField` subclass; read-only. Forwarded into each `AssertConfig`.
     "assert_response_class -> str | None": |
-      Stored dotted path of a custom `Expected` subclass; read-only. Forwarded into each `AssertConfig`.
+      Stored dotted path of a custom `Expect` subclass; read-only. Forwarded into each `AssertConfig`.
   methods:
     "request(method: str, url_path: str, ...kwargs: Any) -> response: resq.http.Response": |
       Single HTTP request through the resq.Session matching the effective adapter; serializes pydantic models, substitutes path params, injects defaults, resolves the adapter, and dispatches to the matching resq verb.
@@ -107,7 +107,7 @@ Annotations: |
     `url_path`: route path, possibly with ":name" placeholders substituted by Api.request.
     `method`: HTTP verb forwarded to Api.request.
     `status`: expected success status code; an Enum is normalized to its value; None disables status auto-check.
-    `use_autocheck`: whether the lazy auto-check fires on first access to response.expected.
+    `use_autocheck`: whether the lazy auto-check fires on first access to response.expect.
     `data_key`: per-endpoint data key; when None, falls back to the `Api`-level data_key.
     `error_key`: per-endpoint error key; when None, falls back to the `Api`-level error_key.
     `adapter`: per-endpoint resq adapter override forwarded to api.request; when None, falls back to the `Api`-level default adapter.
@@ -154,7 +154,7 @@ Annotations: |
     "_call(is_negative: bool, ...kwargs: dict) -> response: ResponseWrapper": |
       Internal call routine shared by __call__ and error: resolves call-level auth and the data/error keys, issues the request via api.request, and wraps the result.
 
-      `is_negative`: selects the negative `ResponseWrapper`/`Expected` path.
+      `is_negative`: selects the negative `ResponseWrapper`/`Expect` path.
       kwargs: call-level request arguments — params, json, headers, cookies, and the optional call-level auth and use_autocheck.
       `response`: the `ResponseWrapper` over the raw resq response.
 
@@ -175,15 +175,15 @@ Annotations: |
 "ResponseWrapper(response: resq.http.Response, config: AssertConfig, use_autocheck: bool = True, is_negative: bool = False)":
   location: response.py
   annotations: |
-    Context manager wrapping a resq.http.Response and dispatching response-level checks to `Expected`.
+    Context manager wrapping a resq.http.Response and dispatching response-level checks to `Expect`.
 
     `response`: the raw resq.http.Response being wrapped.
     `config`: the static check configuration (`AssertConfig`) — status/data_key/error_key/schemas_dir/timeout/delay/assert_field_class/assert_response_class (each optional; None skips/disables that check).
-    `use_autocheck`: when True, the auto-check runs once on first access to response.expected.
+    `use_autocheck`: when True, the auto-check runs once on first access to response.expect.
     `is_negative`: selects the negative auto-check path (no status, no schema).
 
     Use `resq` for the raw Response surface (status_code/text/content/headers/url/encoding/ok/json()/raise_for_status()/reload()) reachable through its `response` property.
-    Use `asserts` for `Expected` (built lazily from `config`), load_assert_class (for the pluggable response class), and `AssertConfig`.
+    Use `asserts` for `Expect` (built lazily from `config`), load_assert_class (for the pluggable response class), and `AssertConfig`.
     Use `conventions` for type hints and relative imports.
 
     Constraints:
@@ -191,8 +191,8 @@ Annotations: |
   properties:
     "response -> resq.http.Response": |
       The wrapped raw resq.http.Response.
-    "expected -> Expected": |
-      The response-level check dispatcher. Built lazily from the stored `AssertConfig`; on first access, when use_autocheck is True, runs the auto-check exactly once and memoizes that it has run. When config.assert_response_class is set, load_assert_class resolves that `Expected` subclass (it must subclass `Expected`) and it is constructed instead of the built-in.
+    "expect -> Expect": |
+      The response-level check dispatcher. Built lazily from the stored `AssertConfig`; on first access, when use_autocheck is True, runs the auto-check exactly once and memoizes that it has run. When config.assert_response_class is set, load_assert_class resolves that `Expect` subclass (it must subclass `Expect`) and it is constructed instead of the built-in.
   methods:
     "__enter__() -> wrapper: ResponseWrapper": |
       Enter the context; returns this wrapper.
@@ -252,4 +252,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 13/07/26
 Description: |
-  Runtime cell for executing HTTP requests from generated fixtures: Api (composition over resq.Session), callable Endpoint, ResponseWrapper context manager, Expected response-level checks with lazy auto-validation, and CombineAuth/AuthWrapper for call-level combined authentication.
+  Runtime cell for executing HTTP requests from generated fixtures: Api (composition over resq.Session), callable Endpoint, ResponseWrapper context manager, Expect response-level checks with lazy auto-validation, and CombineAuth/AuthWrapper for call-level combined authentication.

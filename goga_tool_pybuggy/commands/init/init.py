@@ -516,7 +516,7 @@ _SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
         'assert_field_class — dotted "module:Class" of a custom AssertField subclass (optional). Enter to skip'
     ),
     PluginConfigKeys.ASSERT_RESPONSE_CLASS: (
-        'assert_response_class — dotted "module:Class" of a custom Expected subclass (optional). Enter to skip'
+        'assert_response_class — dotted "module:Class" of a custom Expect subclass (optional). Enter to skip'
     ),
 }
 

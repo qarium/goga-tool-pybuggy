@@ -1,9 +1,9 @@
-# Assertions — `Expected` and `AssertField`
+# Assertions — `Expect` and `AssertField`
 
 The complete pybuggy assert layer, built on [matchcrest](index.md). You
 never create these objects manually: pybuggy assembles the check configuration when you
-call the endpoint, builds `Expected` lazily on first access to `response.expected`, and
-hands you the field-level assert from `response.expected('path')`.
+call the endpoint, builds `Expect` lazily on first access to `response.expect`, and
+hands you the field-level assert from `response.expect('path')`.
 
 ```python
 from goga_tool_pybuggy.api.asserts import AssertField   # for a type hint
@@ -24,9 +24,9 @@ its own object for chaining. Universal kwargs:
 `.value` (an `AssertField` property) returns the resolved value **without** a check;
 calling the field (`field(index=0)`, `field(search=...)`) drills one level deeper.
 
-## `Expected` — response-level checks
+## `Expect` — response-level checks
 
-Obtained from `response.expected`; each method returns `Expected` for chaining.
+Obtained from `response.expect`; each method returns `Expect` for chaining.
 
 | Method | What it checks |
 |--------|----------------|
@@ -47,12 +47,12 @@ Keys and values compare **case-insensitively**; `count` combined with `value` �
 ## Field-level entry
 
 ```python
-field = response.expected("items")      # dotted path under the root key
-field = response.expected("$.items[*]") # jsonpath under the root key
-field = response.expected()             # the whole value under the root key
+field = response.expect("items")      # dotted path under the root key
+field = response.expect("$.items[*]") # jsonpath under the root key
+field = response.expect()             # the whole value under the root key
 ```
 
-`Expected.__call__(search=None, *, index=None, hook=None, in_array=False)`:
+`Expect.__call__(search=None, *, index=None, hook=None, in_array=False)`:
 
 - `search` — a dotted path (`a.b.c`) **or** a jsonpath; resolved under the root key:
   `data_key` on the positive path, `error_key` on the negative path. `None` selects the
@@ -88,9 +88,9 @@ without both keys — relative to the whole body. All methods except `raise_exc`
 > both operands must be iterable and hashable.
 
 ```python
-response.expected("name").contains("abc")
-response.expected("tags").is_in(["x", "y"])
-response.expected("filters").is_subset({"a": 1, "b": 2})
+response.expect("name").contains("abc")
+response.expect("tags").is_in(["x", "y"])
+response.expect("filters").is_subset({"a": 1, "b": 2})
 ```
 
 ### Equality and emptiness
@@ -141,10 +141,10 @@ response.expected("filters").is_subset({"a": 1, "b": 2})
 | `not_raise_exc()` | Accessing the value raises nothing |
 
 ```python
-with response.expected("missing").raise_exc(KeyError):
+with response.expect("missing").raise_exc(KeyError):
     ...
 
-with response.expected("ok").not_raise_exc() as value:
+with response.expect("ok").not_raise_exc() as value:
     assert value == "abc"
 ```
 
@@ -159,21 +159,21 @@ with response.expected("ok").not_raise_exc() as value:
 - **Element absent among array elements**: `$[*].field` + `not_contains` (scalars) or
   `is_disjoint` (set semantics).
 - **Custom element lookup by predicate**: pass a regular lookup function as a `hook` over
-  the array root (`expected()` without search); the hook returns the found element
+  the array root (`expect()` without search); the hook returns the found element
   (`None` on no match — `None` fails the check).
 - **Empty jsonpath result** (including `$[*]` over an empty array) raises
   `AssertionError` ("No results") — check emptiness via `has_length(0)` over the root.
 
 ```python
-response.expected("items", in_array=True).equal_to(2, any=True)   # at least one == 2
-response.expected("items")(index=0).equal_to(1)                   # drill by index
-response.expected("name")(hook=str.upper).equal_to("ABC")         # hook before comparison
+response.expect("items", in_array=True).equal_to(2, any=True)   # at least one == 2
+response.expect("items")(index=0).equal_to(1)                   # drill by index
+response.expect("name")(hook=str.upper).equal_to("ABC")         # hook before comparison
 
-response.expected().has_length_greater(0)          # the data_key value is non-empty
-response.expected("$[0].name").equal_to("abc")     # data[0].name
+response.expect().has_length_greater(0)          # the data_key value is non-empty
+response.expect("$[0].name").equal_to("abc")     # data[0].name
 
-response.expected("$[*].status").is_subset(["active", "idle"])          # every ∈ set
-response.expected("$[*].request.test_id").not_contains(test_id_b)       # none equals
+response.expect("$[*].status").is_subset(["active", "idle"])          # every ∈ set
+response.expect("$[*].request.test_id").not_contains(test_id_b)       # none equals
 
 
 def _mock_body(items, test_id, path, method):
@@ -184,7 +184,7 @@ def _mock_body(items, test_id, path, method):
     return None
 
 
-response.expected()(hook=lambda items: _mock_body(items, tid, "/api/shared", "POST")).equal_to({"owner": "A1"})
+response.expect()(hook=lambda items: _mock_body(items, tid, "/api/shared", "POST")).equal_to({"owner": "A1"})
 ```
 
 ## Polling

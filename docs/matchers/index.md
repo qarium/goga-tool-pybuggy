@@ -21,19 +21,19 @@ with a ready-made report — what was expected and what the value actually was.
 
 ## Asserts — the facade over a response
 
-In tests you normally do not construct matchers by hand. `response.expected` is the
+In tests you normally do not construct matchers by hand. `response.expect` is the
 facade: it resolves **what** to check — a status code, a header, a field in the body —
 and exposes every check as a chained method:
 
 ```python
 with post_clients_startup_get(json=Request(order_id=1)) as response:
-    response.expected.has_status_code(200)          # response-level
-    response.expected("items").has_length(3)         # field-level (dotted path)
-    response.expected("$[0].name").equal_to("abc")   # field-level (jsonpath)
+    response.expect.has_status_code(200)          # response-level
+    response.expect("items").has_length(3)         # field-level (dotted path)
+    response.expect("$[0].name").equal_to("abc")   # field-level (jsonpath)
 ```
 
 The facade handles the plumbing: paths are rooted at `data_key` / `error_key`, the
-auto-check fires on first access to `response.expected`, and the polling baseline
+auto-check fires on first access to `response.expect`, and the polling baseline
 (`assert_timeout` / `assert_delay`) comes from the configuration. The full method
 catalog: [Assertions](asserts.md).
 
@@ -44,7 +44,7 @@ judgement to a matcher — under the hood `has_length(3)` ends in
 `assert_that(context, ValueLengthEqualMatcher(3))`:
 
 ```
-response.expected("items").has_length(3)
+response.expect("items").has_length(3)
         │                │
         │                └─ matcher: HOW to check (comparison, messages, retry)
         └─ assert layer: WHAT to check (path resolution, data_key rooting, polling)
@@ -89,19 +89,19 @@ response is re-fetched by replaying the same request — see
 ## `hook` — transform the value before the check
 
 A `hook` is any callable applied to the resolved value **before** the check runs. It is
-available on the field entry — `response.expected(search, hook=...)` — and on every
+available on the field entry — `response.expect(search, hook=...)` — and on every
 drill-down `field(...)`; the order is fixed: dotted path → `index` → `hook`.
 
 ```python
 # normalize before comparing
-response.expected("name")(hook=str.upper).equal_to("ABC")
+response.expect("name")(hook=str.upper).equal_to("ABC")
 
 # hook as a computed value: derive, then assert
-response.expected("price")(hook=lambda cents: cents / 100).equal_to(19.99)
+response.expect("price")(hook=lambda cents: cents / 100).equal_to(19.99)
 ```
 
 The powerful pattern is **lookup by predicate over an array**: select the array root
-(`expected()` without search) and let the hook find the element; `None` (no match)
+(`expect()` without search) and let the hook find the element; `None` (no match)
 fails the check:
 
 ```python
@@ -112,7 +112,7 @@ def _find_call(items, test_id):
     return None
 
 
-response.expected()(hook=lambda items: _find_call(items, tid)).equal_to({"owner": "A1"})
+response.expect()(hook=lambda items: _find_call(items, tid)).equal_to({"owner": "A1"})
 ```
 
 Notes: a non-callable hook raises `TypeError`; `search`, `index` and `hook` combine in
@@ -133,7 +133,7 @@ assert_that(ValCtx(tags), ValueIsEqualMatcher("admin", any=True, in_array=True))
 ```
 
 ```python
-response.expected("items", in_array=True).equal_to(2, any=True)   # at least one == 2
+response.expect("items", in_array=True).equal_to(2, any=True)   # at least one == 2
 ```
 
 ## Also worth knowing
@@ -149,7 +149,7 @@ response.expected("items", in_array=True).equal_to(2, any=True)   # at least one
 - **jsonpath rooting** — `$` in a jsonpath counts from the root key value
   (`data_key`/`error_key`), not from the whole body.
 - **Pluggable assert classes** — `assert_field_class` / `assert_response_class` swap in
-  your own `AssertField`/`Expected` subclasses (see
+  your own `AssertField`/`Expect` subclasses (see
   [Configuration — pluggable assert classes](../configuration.md#pluggable-assert-classes)).
 - **Custom matchers** — extend `BaseMatcher`, implement the single `_assert` hook, and
   use it anywhere via `assert_that` (see

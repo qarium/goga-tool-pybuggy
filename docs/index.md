@@ -13,7 +13,7 @@ suite. The package contains a pytest plugin and a CLI.
 - **pytest plugin** — a function-scoped `api` fixture (an HTTP client built from
   configuration), automatic recursive loading of the generated endpoint fixtures, CLI
   options for the test run, and flaky-rerun wiring.
-- **Assert layer** — `Expected` (response-level dispatcher) and `AssertField`
+- **Assert layer** — `Expect` (response-level dispatcher) and `AssertField`
   (field-level asserts) on top of the **matchcrest** matcher library.
 - **API-test lifecycle** — a staged goga pipeline (requirements → testcases → test cells →
   design → plan → acceptance) that automates test creation end to end.

@@ -6,7 +6,7 @@ Covers the four ``ApiPlugin`` assert options:
   the response via ``resq.http.Response.reload()`` between attempts (driven by
   ``AssertConfig.timeout``/``delay`` and overridable per check method);
 - ``assert_field_class`` / ``assert_response_class`` — dotted-path loading of a
-  custom ``AssertField`` / ``Expected`` subclass.
+  custom ``AssertField`` / ``Expect`` subclass.
 
 The network is not involved: a ``ReloadableResponse`` stands in for
 ``resq.http.Response`` (its ``reload()`` advances a queue of canned bodies), and
@@ -21,7 +21,7 @@ from typing import Any
 import pytest
 from goga_tool_pybuggy.api.asserts.base import load_assert_class
 from goga_tool_pybuggy.api.asserts.config import AssertConfig
-from goga_tool_pybuggy.api.asserts.expected import Expected
+from goga_tool_pybuggy.api.asserts.expect import Expect
 from goga_tool_pybuggy.api.asserts.field import AssertField
 from goga_tool_pybuggy.api.response import ResponseWrapper
 
@@ -87,7 +87,7 @@ class TestConfigPolling:
         response = ReloadableResponse([{"other": 1}, {"data": [1, 2, 3]}])
         config = AssertConfig(status=200, data_key="data", timeout=5, delay=1)
 
-        Expected(response, config).json_has_data_by_key("data")
+        Expect(response, config).json_has_data_by_key("data")
 
         assert response.reload_calls == 1
 
@@ -97,7 +97,7 @@ class TestConfigPolling:
         config = AssertConfig(status=200, data_key="data", timeout=3, delay=1)
 
         with pytest.raises(AssertionError):
-            Expected(response, config).json_has_data_by_key("data")
+            Expect(response, config).json_has_data_by_key("data")
 
         assert response.reload_calls >= 1
 
@@ -106,7 +106,7 @@ class TestConfigPolling:
         response = ReloadableResponse([{"data": [1]}])
         config = AssertConfig(status=200, data_key="data")
 
-        Expected(response, config).json_has_data_by_key("data")
+        Expect(response, config).json_has_data_by_key("data")
 
         assert response.reload_calls == 0
 
@@ -119,7 +119,7 @@ class TestPerCheckTimeoutOverride:
         response = ReloadableResponse([{"other": 1}, {"data": [1]}])
         config = AssertConfig(status=200, data_key="data")
 
-        Expected(response, config).json_has_data_by_key("data", timeout=5, delay=1)
+        Expect(response, config).json_has_data_by_key("data", timeout=5, delay=1)
 
         assert response.reload_calls == 1
 
@@ -128,7 +128,7 @@ class TestPerCheckTimeoutOverride:
         response = ReloadableResponse([{"items": [1]}, {"items": [1, 2, 3]}])
         config = AssertConfig(status=200, data_key=None)
 
-        field = Expected(response, config)("items")
+        field = Expect(response, config)("items")
         assert isinstance(field, AssertField)
         field.has_length(3, timeout=5, delay=1)
 
@@ -139,7 +139,7 @@ class TestPluggableFieldClass:
     """``AssertConfig.assert_field_class`` loads a custom ``AssertField``."""
 
     def test_custom_field_class_is_loaded(self) -> None:
-        """``Expected.__call__`` returns the configured ``AssertField`` subclass."""
+        """``Expect.__call__`` returns the configured ``AssertField`` subclass."""
         response = FakeResponse(body={"data": [1, 2, 3]})
         config = AssertConfig(
             status=200,
@@ -147,7 +147,7 @@ class TestPluggableFieldClass:
             assert_field_class="tests.api.test_assert_polling:CustomAssertField",
         )
 
-        field = Expected(response, config)("data")
+        field = Expect(response, config)("data")
 
         assert isinstance(field, CustomAssertField)
         assert field.marker == "custom-field"
@@ -163,28 +163,28 @@ class TestPluggableFieldClass:
             assert_field_class="tests.api.test_assert_polling:CustomAssertField",
         )
 
-        field = Expected(response, config)("data")
+        field = Expect(response, config)("data")
         assert field._timeout == 5
         assert field._delay == 1
 
 
 class TestPluggableResponseClass:
-    """``AssertConfig.assert_response_class`` loads a custom ``Expected``."""
+    """``AssertConfig.assert_response_class`` loads a custom ``Expect``."""
 
     def test_custom_response_class_is_loaded_by_wrapper(self) -> None:
-        """``ResponseWrapper.expected`` builds the configured ``Expected`` subclass."""
+        """``ResponseWrapper.expect`` builds the configured ``Expect`` subclass."""
         response = FakeResponse(status_code=200, body={"data": [1]})
         config = AssertConfig(
             status=200,
             data_key="data",
-            assert_response_class="tests.api.test_assert_polling:CustomExpected",
+            assert_response_class="tests.api.test_assert_polling:CustomExpect",
         )
 
         wrapper = ResponseWrapper(response, config)
-        expected = wrapper.expected
+        expect = wrapper.expect
 
-        assert isinstance(expected, CustomExpected)
-        assert expected.marker == "custom-response"
+        assert isinstance(expect, CustomExpect)
+        assert expect.marker == "custom-response"
 
 
 class TestLoadAssertClass:
@@ -222,8 +222,8 @@ class CustomAssertField(AssertField):
     marker = "custom-field"
 
 
-class CustomExpected(Expected):
-    """``Expected`` subclass carrying a marker for load-detection."""
+class CustomExpect(Expect):
+    """``Expect`` subclass carrying a marker for load-detection."""
 
     marker = "custom-response"
 

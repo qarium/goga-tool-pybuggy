@@ -5,7 +5,7 @@
 The `goga_tool_pybuggy/api` cell runtime executes HTTP requests from generated fixtures and
 verifies the response. The audience is the test project author who consumes the generated
 `pybuggy` fixtures. The document provides ready-made templates for consuming the facade and
-a detailed API reference: `Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`,
+a detailed API reference: `Api`, `Endpoint`, `ResponseWrapper`, `Expect`, `AssertField`,
 `Auth`.
 
 pybuggy ships **classes only**. The `Api` instance for fixtures and the generated endpoint
@@ -16,16 +16,16 @@ fixtures are provided by a separate pybuggy pytest plugin (see "Plugin wiring").
 ## Facade
 
 ```python
-from goga_tool_pybuggy.api import Api, Endpoint, ResponseWrapper, Expected, AssertField, Auth
+from goga_tool_pybuggy.api import Api, Endpoint, ResponseWrapper, Expect, AssertField, Auth
 ```
 
 | Entity | Purpose |
 |----------|------------|
 | `Api` | HTTP client (a composition over `resq.Session`); stores auth/headers/cookies/`data_key`/`error_key` and assert settings, and injects them into every request |
 | `Endpoint` | A callable route: `endpoint(json=...)` performs the request and returns a `ResponseWrapper` |
-| `ResponseWrapper` | A context manager over the response; `.response` is the raw `resq.http.Response`, `.expected` is the `Expected` |
-| `Expected` | A two-level assertion dispatcher built on matchcrest (response-level methods + `__call__` for field-level) |
-| `AssertField` | A field-level assertion over a field value; created via `Expected.__call__`, re-exported for type hints |
+| `ResponseWrapper` | A context manager over the response; `.response` is the raw `resq.http.Response`, `.expect` is the `Expect` |
+| `Expect` | A two-level assertion dispatcher built on matchcrest (response-level methods + `__call__` for field-level) |
+| `AssertField` | A field-level assertion over a field value; created via `Expect.__call__`, re-exported for type hints |
 | `Auth` | A structural protocol for type-hinting a call-level authenticator (any object with an `auth(request)` method) |
 
 `CombineAuth`/`AuthWrapper` are internal (they combine auth in `Endpoint._call`) and are not
@@ -66,7 +66,7 @@ Api(
 | `assert_timeout` | Baseline assertion polling timeout (distinct from the network `timeout`); goes into every `AssertConfig` |
 | `assert_delay` | Baseline pause between polling attempts; goes into every `AssertConfig` |
 | `assert_field_class` | Dotted `module:Class` of a custom `AssertField` subclass |
-| `assert_response_class` | Dotted `module:Class` of a custom `Expected` subclass |
+| `assert_response_class` | Dotted `module:Class` of a custom `Expect` subclass |
 | `adapter` | Default resq adapter the composed session is built with. Only `"requests"` (sync): `"httpx"` is async in resq and is rejected until an async stack appears. Per-endpoint override — via `Endpoint(adapter=...)` (see below) |
 
 ### Properties
@@ -83,7 +83,7 @@ Api(
 | `assert_timeout` | `int \| float \| None` | RO | Baseline assertion polling timeout |
 | `assert_delay` | `int \| float \| None` | RO | Baseline polling pause |
 | `assert_field_class` | `str \| None` | RO | Dotted path of the custom `AssertField` |
-| `assert_response_class` | `str \| None` | RO | Dotted path of the custom `Expected` |
+| `assert_response_class` | `str \| None` | RO | Dotted path of the custom `Expect` |
 
 ### Methods
 
@@ -124,7 +124,7 @@ Endpoint(
 | `url_path` | Route path (`:name` placeholders are possible, substituted by `Api.request`) |
 | `method` | HTTP verb |
 | `status` | Expected success code; an Enum is normalized to `.value`; `None` disables the status auto-check |
-| `use_autocheck` | Runs the lazy auto-check on first access to `response.expected` |
+| `use_autocheck` | Runs the lazy auto-check on first access to `response.expect` |
 | `data_key` | Per-endpoint success key; `None` → falls back to `api.data_key` |
 | `error_key` | Per-endpoint error key; `None` → falls back to `api.error_key` |
 | `adapter` | Per-endpoint resq adapter; passed to `api.request`. `None` → falls back to the `Api` default. Only `"requests"` (sync) — `"httpx"` is async and is rejected until an async stack exists |
@@ -154,7 +154,7 @@ A context manager over `resq.http.Response`.
 | Element | Purpose |
 |---------|------------|
 | `.response -> resq.http.Response` | Raw response (available only through this property; the wrapper does not proxy resq attributes) |
-| `.expected -> Expected` | The assertion dispatcher. Built **lazily** on first access; with `use_autocheck=True`, `autocheck()` then runs once (with the flag memoized). With `config.assert_response_class`, a custom `Expected` subclass is loaded |
+| `.expect -> Expect` | The assertion dispatcher. Built **lazily** on first access; with `use_autocheck=True`, `autocheck()` then runs once (with the flag memoized). With `config.assert_response_class`, a custom `Expect` subclass is loaded |
 | `with endpoint(...) as response:` | Context entry; the exit is **without** exception suppression (no report is generated) |
 
 ---
@@ -197,10 +197,10 @@ of frame inspection (see below).
 ```python
 def test_initiate(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate(json=Request(order_id=1)) as response:
-        response.expected.has_status_code(200)
+        response.expect.has_status_code(200)
 ```
 
-On first access to `response.expected` (if `use_autocheck=True`) the auto-check fires
+On first access to `response.expect` (if `use_autocheck=True`) the auto-check fires
 **once**. **Positive path:** status == expected → `error_key` absent → `data_key` present →
 body validation against `schemas/<status>*.json`. An explicit `has_status_code(200)`
 duplicates only the status part — that is normal.
@@ -212,14 +212,14 @@ duplicates only the status part — that is normal.
 ```python
 def test_initiate_error(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate.error(json=Request(order_id=-1)) as response:
-        response.expected.has_status_code(400)
-        response.expected("message").not_empty()
+        response.expect.has_status_code(400)
+        response.expect("message").not_empty()
 ```
 
 `.error(...)` is the negative path: status and JSON schema are **not
 checked** in the auto-check, so the status must be verified explicitly. **Negative auto-check
 path:** `data_key` absent → `error_key` present. Field paths resolve under
-`error_key` (e.g. `response.expected("message")` → `body["error"]["message"]`).
+`error_key` (e.g. `response.expect("message")` → `body["error"]["message"]`).
 
 If the body is schema-invalid (a missing required field, a wrong type, an empty body,
 malformed JSON), the `Request` model cannot be built — bypass pydantic by passing a raw
@@ -229,23 +229,23 @@ malformed JSON), the `Request` model cannot be built — bypass pydantic by pass
 ```python
 # a required field is missing — a dict, bypassing pydantic
 with post_clients_calls_initiate.error(json={"name": "x"}) as response:
-    response.expected.has_status_code(400)
-    response.expected("status_code").equal_to(400)
+    response.expect.has_status_code(400)
+    response.expect("status_code").equal_to(400)
 
 # empty body
 with post_clients_calls_initiate.error() as response:
-    response.expected.has_status_code(400)
+    response.expect.has_status_code(400)
 
 # malformed JSON — raw data + an explicit Content-Type
 with post_clients_calls_initiate.error(data="{", headers={"Content-Type": "application/json"}) as response:
-    response.expected.has_status_code(400)
+    response.expect.has_status_code(400)
 ```
 
 ---
 
 ## Template: field-level value check
 
-Calling `response.expected(path)` (the dispatcher used as a function) returns an `AssertField`
+Calling `response.expect(path)` (the dispatcher used as a function) returns an `AssertField`
 for checks on a specific field. The path is **relative to the root**: on the positive path
 the root is `data_key`, on the negative path — `error_key`; without `data_key`/`error_key`
 the path is absolute to the response body.
@@ -254,16 +254,16 @@ the path is absolute to the response body.
 def test_initiate(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate(json=Request(order_id=1)) as response:
         # the path is relative to data_key ("data"): items → body["data"]["items"]
-        response.expected("items").has_length(3)
-        response.expected("items", in_array=True).equal_to(2, any=True)
-        response.expected("name").equal_to("abc")
+        response.expect("items").has_length(3)
+        response.expect("items", in_array=True).equal_to(2, any=True)
+        response.expect("name").equal_to("abc")
 
         # drill-down: index/hook
-        response.expected("items")(index=0).equal_to(1)
-        response.expected("name")(hook=str.upper).equal_to("ABC")
+        response.expect("items")(index=0).equal_to(1)
+        response.expect("name")(hook=str.upper).equal_to("ABC")
 
         # jsonpath — for nested arrays/filters
-        response.expected("$.items[*]", in_array=True).equal_to(2, any=True)
+        response.expect("$.items[*]", in_array=True).equal_to(2, any=True)
 ```
 
 ---
@@ -303,7 +303,7 @@ endpoint(json=Request(id=1), params={":id": "42", "q": "x"}, auth=MyAuth())
 
 ## Auto-check — what exactly is verified
 
-Runs once on lazy access to `response.expected`, if `use_autocheck=True`. The path is
+Runs once on lazy access to `response.expect`, if `use_autocheck=True`. The path is
 determined by the `is_negative` flag:
 
 - **Positive** (`endpoint(...)`): status (if set) → `error_key` absent → `data_key`
@@ -313,7 +313,7 @@ determined by the `is_negative` flag:
   Status and JSON schema are **not** checked.
 
 `use_autocheck=False` (on the `Endpoint` or on a call) disables the auto-check entirely —
-then verify everything explicitly via `response.expected.*`.
+then verify everything explicitly via `response.expect.*`.
 
 ---
 
@@ -370,7 +370,7 @@ different values; `Api` caches one session per unique adapter name.
 Custom assert subclasses are plugged in via the `Api`-level options
 (`assert_field_class` / `assert_response_class`, dotted `module:Class`):
 
-- the class must inherit from the built-in one (`AssertField` / `Expected` respectively);
+- the class must inherit from the built-in one (`AssertField` / `Expect` respectively);
 - it is loaded via `load_assert_class` at the point where the field/response class is built;
 - `None` (the default) — the built-in classes.
 

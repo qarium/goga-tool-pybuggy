@@ -81,11 +81,11 @@ single call (see [Assertions — polling](matchers/asserts.md#polling)).
 ### Pluggable assert classes
 
 `assert_field_class` / `assert_response_class` are dotted `module:Class` paths selecting
-custom `AssertField`/`Expected` subclasses (they must subclass the built-ins):
+custom `AssertField`/`Expect` subclasses (they must subclass the built-ins):
 
 ```yaml
 assert_field_class: my_pkg.asserts:CustomAssertField
-assert_response_class: my_pkg.asserts:CustomExpected
+assert_response_class: my_pkg.asserts:CustomExpect
 ```
 
 ## The `specs` section

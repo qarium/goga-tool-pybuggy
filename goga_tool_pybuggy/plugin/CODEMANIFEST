@@ -86,9 +86,9 @@ Annotations: |
     "assert_delay -> float | None": |
       Resolved seconds between assert-polling attempts. Default None. Resolution: plugin config (PluginConfigKeys.ASSERT_DELAY) → CLI --api-assert-delay → default_from the constructor default → None. Forwarded into Api → AssertConfig.
     "assert_field_class -> str | None": |
-      Resolved dotted module:Class path of a custom AssertField subclass. Default None (built-in AssertField). Sourced from the assert_field_class plugin config key. Forwarded into Api → AssertConfig; resolved by Expected.__call__ via load_assert_class.
+      Resolved dotted module:Class path of a custom AssertField subclass. Default None (built-in AssertField). Sourced from the assert_field_class plugin config key. Forwarded into Api → AssertConfig; resolved by Expect.__call__ via load_assert_class.
     "assert_response_class -> str | None": |
-      Resolved dotted module:Class path of a custom Expected subclass. Default None (built-in Expected). Sourced from the assert_response_class plugin config key. Forwarded into Api → AssertConfig; resolved by ResponseWrapper.expected via load_assert_class.
+      Resolved dotted module:Class path of a custom Expect subclass. Default None (built-in Expect). Sourced from the assert_response_class plugin config key. Forwarded into Api → AssertConfig; resolved by ResponseWrapper.expect via load_assert_class.
   methods:
     "configure()": |
       Pluginator lifecycle callback (NOT a pytest hookimpl). Renders the base_url template once, at pytest configphase, against the full environment plus the CLI options the user actually passed, with Jinja2, and stores the rendered value back onto the base_url option for the api fixture to consume. Pluginator auto-discovers a no-arg configure method and calls it from pytest_configure after config init and install, when the pytest config and the resolved base_url are both available (see `pluginator`).
@@ -197,7 +197,7 @@ Annotations: |
     - assert_timeout — baseline assert-polling timeout (int)
     - assert_delay — delay between polling attempts (float)
     - assert_field_class — dotted module:Class of a custom AssertField subclass
-    - assert_response_class — dotted module:Class of a custom Expected subclass
+    - assert_response_class — dotted module:Class of a custom Expect subclass
 
     Requirements:
     - Members map to the lowercase config-key strings written into .goga/tools/pybuggy/config.yml and resolved by ApiPlugin.
@@ -233,7 +233,7 @@ Annotations: |
     "ASSERT_FIELD_CLASS -> str": |
       "assert_field_class" — dotted module:Class of a custom AssertField subclass.
     "ASSERT_RESPONSE_CLASS -> str": |
-      "assert_response_class" — dotted module:Class of a custom Expected subclass.
+      "assert_response_class" — dotted module:Class of a custom Expect subclass.
 
 ---
 

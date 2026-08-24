@@ -8,11 +8,11 @@ Exposes the contract entities of the runtime HTTP cell:
   ``error`` (negative) issue a single request per call and return a
   ``ResponseWrapper``.
 - ``ResponseWrapper`` — context manager over the raw response.
-- ``Expected`` — two-level assert dispatcher: response-level checks
+- ``Expect`` — two-level assert dispatcher: response-level checks
   (``has_status_code``/``has_header``/``json_*``/``jsonschema_*``) and a callable
-  field-level entry (``expected('data.items') -> AssertField``).
+  field-level entry (``expect('data.items') -> AssertField``).
 - ``AssertField`` — field-level assert over a resolved body value (matchcrest
-  matchers); produced by ``Expected.__call__``, re-exported for type-hinting.
+  matchers); produced by ``Expect.__call__``, re-exported for type-hinting.
 - ``Auth`` — structural ``Protocol`` for type-hinting per-call authenticators.
 
 ``CombineAuth`` and ``AuthWrapper`` are internal to the cell (used by
@@ -21,9 +21,9 @@ Exposes the contract entities of the runtime HTTP cell:
 """
 
 from .api import Api
-from .asserts import AssertField, Expected
+from .asserts import AssertField, Expect
 from .auth import Auth
 from .endpoint import Endpoint
 from .response import ResponseWrapper
 
-__all__ = ["Api", "AssertField", "Auth", "Endpoint", "Expected", "ResponseWrapper"]
+__all__ = ["Api", "AssertField", "Auth", "Endpoint", "Expect", "ResponseWrapper"]

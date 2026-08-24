@@ -2,7 +2,7 @@
 
 ``AssertConfig`` bundles the response-check configuration — the fields that
 answer "what to check" — passed from ``Endpoint`` through ``ResponseWrapper``
-to ``Expected``. Runtime flags (``is_negative``/``use_autocheck``) stay on the
+to ``Expect``. Runtime flags (``is_negative``/``use_autocheck``) stay on the
 consuming entities; ``AssertConfig`` holds only the static check parameters.
 
 The polling options (``timeout``/``delay``) drive matchcrest's retry loop (the
@@ -10,7 +10,7 @@ context re-fetches the response via ``resq.http.Response.reload()`` between
 attempts), and the pluggable-class hooks (``assert_field_class``/
 ``assert_response_class``) select custom assert classes by dotted import path.
 ``timeout``/``delay`` set here are the baseline; per-check ``timeout``/``delay``
-kwargs on ``Expected``/``AssertField`` methods override them for one assertion.
+kwargs on ``Expect``/``AssertField`` methods override them for one assertion.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ class AssertConfig(BaseModel):
     """Static configuration for response-level asserts.
 
     Bundles the expected success status and the success/error body keys plus the
-    json-schema directory so that ``Expected``/``ResponseWrapper`` accept one
+    json-schema directory so that ``Expect``/``ResponseWrapper`` accept one
     value instead of a positional parameter spread. Every field is optional;
     ``None`` means "not configured / skip that check".
 
@@ -45,7 +45,7 @@ class AssertConfig(BaseModel):
         assert_field_class: dotted import path (``module:Class``) of a custom
             ``AssertField`` subclass; ``None`` uses the built-in ``AssertField``.
         assert_response_class: dotted import path (``module:Class``) of a custom
-            ``Expected`` subclass; ``None`` uses the built-in ``Expected``.
+            ``Expect`` subclass; ``None`` uses the built-in ``Expect``.
     """
 
     model_config = ConfigDict(kw_only=True)

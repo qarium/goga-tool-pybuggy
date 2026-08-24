@@ -40,7 +40,7 @@ class Endpoint:
         url_path: route path forwarded to ``Api.request``.
         method: HTTP verb forwarded to ``Api.request``.
         status: expected success status code; an Enum is normalized to its value.
-        use_autocheck: whether the lazy auto-check fires on first ``expected``.
+        use_autocheck: whether the lazy auto-check fires on first ``expect``.
         data_key: per-endpoint data key; falls back to ``api.data_key``.
         error_key: per-endpoint error key; falls back to ``api.error_key``.
         adapter: per-endpoint resq adapter override forwarded to ``api.request``;

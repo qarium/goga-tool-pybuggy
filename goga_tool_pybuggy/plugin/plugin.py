@@ -164,7 +164,7 @@ class ApiPlugin:
             ``AssertField`` subclass (nullable; ``assert_field_class`` config
             key). Forwarded to ``Api`` → ``AssertConfig``.
         assert_response_class: dotted ``module:Class`` path of a custom
-            ``Expected`` subclass (nullable; ``assert_response_class`` config
+            ``Expect`` subclass (nullable; ``assert_response_class`` config
             key). Forwarded to ``Api`` → ``AssertConfig``.
     """
 

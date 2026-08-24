@@ -29,7 +29,7 @@ reference for the API and the asserts. The reference is grounded in the project'
    topic; otherwise use all files.
 
 4. Apply the documentation you have read to the caller's context: provide entities, methods, signatures, and
-   consumption examples (`Api`, `Endpoint`, `ResponseWrapper`, `Expected`, `AssertField`, `Auth`, and the assert layer).
+   consumption examples (`Api`, `Endpoint`, `ResponseWrapper`, `Expect`, `AssertField`, `Auth`, and the assert layer).
    Use only the actual content of the files as the source — never invent API details. Do not retell the files
    verbatim; provide an applicable reference instead.
 

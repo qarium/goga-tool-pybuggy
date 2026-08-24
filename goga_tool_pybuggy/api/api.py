@@ -59,7 +59,7 @@ class Api:
         assert_field_class: dotted ``module:Class`` path of a custom
             ``AssertField`` subclass; forwarded to ``AssertConfig``.
         assert_response_class: dotted ``module:Class`` path of a custom
-            ``Expected`` subclass; forwarded to ``AssertConfig``.
+            ``Expect`` subclass; forwarded to ``AssertConfig``.
         adapter: default resq adapter name used to build the composed session;
             ``"requests"`` (sync) only — ``"httpx"`` is async in resq and is
             rejected by :meth:`_validate_adapter` until an async stack lands.
@@ -152,7 +152,7 @@ class Api:
 
     @property
     def assert_response_class(self) -> str | None:
-        """Dotted path of a custom ``Expected`` subclass (``module:Class``)."""
+        """Dotted path of a custom ``Expect`` subclass (``module:Class``)."""
         return self._assert_response_class
 
     def request(self, method: str, url_path: str, **kwargs: Any) -> resq.http.Response:

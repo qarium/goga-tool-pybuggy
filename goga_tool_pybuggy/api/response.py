@@ -1,7 +1,7 @@
 """Response-wrapper layer of the `goga_tool_pybuggy.api` cell.
 
 ``ResponseWrapper`` is a context manager over a raw ``resq.http.Response`` that
-lazily exposes an :class:`Expected` dispatcher (from the `asserts` sub-cell) and
+lazily exposes an :class:`Expect` dispatcher (from the `asserts` sub-cell) and
 runs the auto-check once on first access. The static check configuration
 (status/data_key/error_key/schemas_dir) is carried by an :class:`AssertConfig`
 value; ``is_negative`` and ``use_autocheck`` are runtime flags.
@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from .asserts import load_assert_class
 from .asserts.config import AssertConfig
-from .asserts.expected import Expected
+from .asserts.expect import Expect
 
 if TYPE_CHECKING:
     import resq.http
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 class ResponseWrapper:
     """Context manager wrapping a ``resq.http.Response``.
 
-    Delegates response-level checks to a lazily built :class:`Expected`. On first
-    access of ``expected``, when ``use_autocheck`` is True, the auto-check runs
+    Delegates response-level checks to a lazily built :class:`Expect`. On first
+    access of ``expect``, when ``use_autocheck`` is True, the auto-check runs
     exactly once (memoized).
 
     Args:
@@ -45,7 +45,7 @@ class ResponseWrapper:
         self._config = config
         self._use_autocheck = use_autocheck
         self._is_negative = is_negative
-        self._expected: Expected | None = None
+        self._expect: Expect | None = None
         self._autocheck_ran = False
 
     @property
@@ -54,29 +54,29 @@ class ResponseWrapper:
         return self._response
 
     @property
-    def expected(self) -> Expected:
+    def expect(self) -> Expect:
         """The response-level check dispatcher.
 
         Built lazily on first access; when ``use_autocheck`` is True, the
         auto-check runs exactly once at that point. When
-        ``config.assert_response_class`` is set, the configured ``Expected``
-        subclass is loaded (it must subclass ``Expected``); otherwise the
-        built-in ``Expected`` is used.
+        ``config.assert_response_class`` is set, the configured ``Expect``
+        subclass is loaded (it must subclass ``Expect``); otherwise the
+        built-in ``Expect`` is used.
         """
-        if self._expected is None:
-            response_cls = Expected
+        if self._expect is None:
+            response_cls = Expect
             if self._config.assert_response_class is not None:
-                response_cls = load_assert_class(self._config.assert_response_class, Expected)
+                response_cls = load_assert_class(self._config.assert_response_class, Expect)
 
-            expected = response_cls(self._response, self._config, self._is_negative)
+            dispatcher = response_cls(self._response, self._config, self._is_negative)
 
             if self._use_autocheck and not self._autocheck_ran:
                 self._autocheck_ran = True
-                expected.autocheck()
+                dispatcher.autocheck()
 
-            self._expected = expected
+            self._expect = dispatcher
 
-        return self._expected
+        return self._expect
 
     def __enter__(self) -> ResponseWrapper:
         """Enter the context; returns this wrapper."""

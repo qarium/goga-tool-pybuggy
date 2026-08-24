@@ -1,7 +1,7 @@
-"""Tests for ``goga_tool_pybuggy.api.asserts.expected`` and ``goga_tool_pybuggy.api.response``.
+"""Tests for ``goga_tool_pybuggy.api.asserts.expect`` and ``goga_tool_pybuggy.api.response``.
 
-Covers the response-level ``Expected`` checks (matchcrest-backed), the
-``ResponseWrapper.expected`` lazy build + memoized autocheck, and the autocheck
+Covers the response-level ``Expect`` checks (matchcrest-backed), the
+``ResponseWrapper.expect`` lazy build + memoized autocheck, and the autocheck
 positive/negative paths with their skip conditions. The network is not involved:
 a ``FakeResponse`` stands in for ``resq.http.Response``.
 """
@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 from goga_tool_pybuggy.api.asserts.config import AssertConfig
-from goga_tool_pybuggy.api.asserts.expected import Expected
+from goga_tool_pybuggy.api.asserts.expect import Expect
 from goga_tool_pybuggy.api.response import ResponseWrapper
 
 from tests.api.conftest import FakeResponse
@@ -26,14 +26,14 @@ class TestResponseStatusChecks:
         """An equal status code does not raise and chains."""
         response = FakeResponse(status_code=200)
 
-        assert Expected(response, AssertConfig(status=200)).has_status_code(200) is not None
+        assert Expect(response, AssertConfig(status=200)).has_status_code(200) is not None
 
     def test_mismatching_status_raises(self) -> None:
         """A different status code raises AssertionError."""
         response = FakeResponse(status_code=404)
 
         with pytest.raises(AssertionError):
-            Expected(response, AssertConfig(status=200)).has_status_code(200)
+            Expect(response, AssertConfig(status=200)).has_status_code(200)
 
 
 class TestResponseHeaderChecks:
@@ -43,34 +43,34 @@ class TestResponseHeaderChecks:
         """A header is found by key regardless of the passed case."""
         response = FakeResponse(headers={"Content-Type": "application/json"})
 
-        Expected(response, AssertConfig(status=200)).has_header("Content-Type")
-        Expected(response, AssertConfig(status=200)).has_header("content-type")
+        Expect(response, AssertConfig(status=200)).has_header("Content-Type")
+        Expect(response, AssertConfig(status=200)).has_header("content-type")
 
     def test_header_value_equal(self) -> None:
         """The header value matches exactly."""
         response = FakeResponse(headers={"X-Trace": "id-123"})
 
-        Expected(response, AssertConfig(status=200)).has_header("X-Trace", "id-123")
+        Expect(response, AssertConfig(status=200)).has_header("X-Trace", "id-123")
 
     def test_header_value_startswith(self) -> None:
         """The header value matches a ``startswith`` filter."""
         response = FakeResponse(headers={"X-Trace": "id-123"})
 
-        Expected(response, AssertConfig(status=200)).has_header("X-Trace", "id", startswith=True)
+        Expect(response, AssertConfig(status=200)).has_header("X-Trace", "id", startswith=True)
 
     def test_header_absent_raises(self) -> None:
         """A missing header raises AssertionError."""
         response = FakeResponse(headers={"X-Trace": "id-123"})
 
         with pytest.raises(AssertionError):
-            Expected(response, AssertConfig(status=200)).has_header("X-Absent")
+            Expect(response, AssertConfig(status=200)).has_header("X-Absent")
 
     def test_count_with_value_is_rejected(self) -> None:
         """``count`` and ``value`` together raise ValueError."""
         response = FakeResponse(headers={"X-Trace": "id-123"})
 
         with pytest.raises(ValueError, match="count"):
-            Expected(response, AssertConfig(status=200)).has_header("X-Trace", "id-123", count=1)
+            Expect(response, AssertConfig(status=200)).has_header("X-Trace", "id-123", count=1)
 
 
 class TestResponseJsonChecks:
@@ -80,33 +80,33 @@ class TestResponseJsonChecks:
         """A present, non-None body key passes."""
         response = FakeResponse(body={"data": [1, 2, 3]})
 
-        Expected(response, AssertConfig(status=200)).json_has_data_by_key("data")
+        Expect(response, AssertConfig(status=200)).json_has_data_by_key("data")
 
     def test_json_has_data_by_key_absent_raises(self) -> None:
         """A missing body key raises."""
         response = FakeResponse(body={"other": 1})
 
         with pytest.raises(AssertionError):
-            Expected(response, AssertConfig(status=200)).json_has_data_by_key("data")
+            Expect(response, AssertConfig(status=200)).json_has_data_by_key("data")
 
     def test_json_has_not_data_by_key_absent(self) -> None:
         """An absent body key passes the not-check."""
         response = FakeResponse(body={"other": 1})
 
-        Expected(response, AssertConfig(status=200)).json_has_not_data_by_key("data")
+        Expect(response, AssertConfig(status=200)).json_has_not_data_by_key("data")
 
     def test_json_contains_key_nested(self) -> None:
         """A nested key path resolves through the body."""
         response = FakeResponse(body={"data": {"items": []}})
 
-        Expected(response, AssertConfig(status=200)).json_contains_key(["data", "items"])
+        Expect(response, AssertConfig(status=200)).json_contains_key(["data", "items"])
 
     def test_json_contains_key_nested_missing_raises(self) -> None:
         """A broken nested path raises."""
         response = FakeResponse(body={"data": {"other": 1}})
 
         with pytest.raises(AssertionError):
-            Expected(response, AssertConfig(status=200)).json_contains_key(["data", "items"])
+            Expect(response, AssertConfig(status=200)).json_contains_key(["data", "items"])
 
 
 class TestResponseSchemaChecks:
@@ -116,14 +116,14 @@ class TestResponseSchemaChecks:
         """A body conforming to the schema passes."""
         response = FakeResponse(body={"a": 1})
 
-        Expected(response, AssertConfig(status=200)).jsonschema_is_valid({"type": "object", "required": ["a"]})
+        Expect(response, AssertConfig(status=200)).jsonschema_is_valid({"type": "object", "required": ["a"]})
 
     def test_invalid_schema_raises(self) -> None:
         """A body violating the schema raises."""
         response = FakeResponse(body={"a": 1})
 
         with pytest.raises(AssertionError):
-            Expected(response, AssertConfig(status=200)).jsonschema_is_valid({"type": "object", "required": ["b"]})
+            Expect(response, AssertConfig(status=200)).jsonschema_is_valid({"type": "object", "required": ["b"]})
 
     def test_schema_loaded_from_file(self, tmp_path: Path) -> None:
         """A schema given as a path is read and applied."""
@@ -131,24 +131,24 @@ class TestResponseSchemaChecks:
         schema_file.write_text(json.dumps({"type": "object", "required": ["a"]}), encoding="utf-8")
         response = FakeResponse(body={"a": 1})
 
-        Expected(response, AssertConfig(status=200)).jsonschema_is_valid(str(schema_file))
+        Expect(response, AssertConfig(status=200)).jsonschema_is_valid(str(schema_file))
 
     def test_schemas_dir_matching_status(self, tmp_path: Path) -> None:
         """``jsonschemas_is_valid`` picks the first ``<status>*`` file."""
         (tmp_path / "200.json").write_text(json.dumps({"type": "object", "required": ["a"]}), encoding="utf-8")
         response = FakeResponse(body={"a": 1})
 
-        Expected(response, AssertConfig(status=200)).jsonschemas_is_valid(tmp_path, 200)
+        Expect(response, AssertConfig(status=200)).jsonschemas_is_valid(tmp_path, 200)
 
     def test_schemas_dir_no_match_is_silent_skip(self, tmp_path: Path) -> None:
         """No matching schema file is a silent skip (no raise)."""
         response = FakeResponse(body={"a": 1})
 
-        Expected(response, AssertConfig(status=200)).jsonschemas_is_valid(tmp_path, 500)
+        Expect(response, AssertConfig(status=200)).jsonschemas_is_valid(tmp_path, 500)
 
 
 class TestExpectedCallFieldDispatch:
-    """``Expected.__call__`` produces an ``AssertField``."""
+    """``Expect.__call__`` produces an ``AssertField``."""
 
     def test_call_returns_assert_field(self) -> None:
         """Calling the dispatcher yields an AssertField over the body."""
@@ -156,7 +156,7 @@ class TestExpectedCallFieldDispatch:
 
         response = FakeResponse(body={"data": {"name": "abc"}})
 
-        field = Expected(response, AssertConfig(status=200, data_key="data"))("name")
+        field = Expect(response, AssertConfig(status=200, data_key="data"))("name")
 
         assert isinstance(field, AssertField)
         field.equal_to("abc")
@@ -166,7 +166,7 @@ class TestExpectedCallFieldDispatch:
         response = FakeResponse(body={})
 
         with pytest.raises(TypeError):
-            Expected(response, AssertConfig(status=200))("a", hook=123)
+            Expect(response, AssertConfig(status=200))("a", hook=123)
 
 
 class TestAutocheckPositive:
@@ -184,7 +184,7 @@ class TestAutocheckPositive:
             AssertConfig(status=200, data_key="data", error_key="error"),
             use_autocheck=True,
         )
-        wrapper.expected  # noqa: B018 — triggers autocheck
+        wrapper.expect  # noqa: B018 — triggers autocheck
 
     def test_positive_status_mismatch_raises(self) -> None:
         """A status mismatch fails the autocheck."""
@@ -193,7 +193,7 @@ class TestAutocheckPositive:
         wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=True)
 
         with pytest.raises(AssertionError):
-            _ = wrapper.expected
+            _ = wrapper.expect
 
     def test_positive_error_present_raises(self) -> None:
         """A present error_key fails the positive autocheck."""
@@ -206,7 +206,7 @@ class TestAutocheckPositive:
         )
 
         with pytest.raises(AssertionError):
-            _ = wrapper.expected
+            _ = wrapper.expect
 
     def test_positive_data_absent_raises(self) -> None:
         """An absent data_key fails the positive autocheck."""
@@ -219,7 +219,7 @@ class TestAutocheckPositive:
         )
 
         with pytest.raises(AssertionError):
-            _ = wrapper.expected
+            _ = wrapper.expect
 
     def test_positive_schema_validated(self, tmp_path: Path) -> None:
         """The matching status schema is applied on the positive path."""
@@ -231,7 +231,7 @@ class TestAutocheckPositive:
             AssertConfig(status=200, data_key="data", schemas_dir=tmp_path),
             use_autocheck=True,
         )
-        wrapper.expected  # noqa: B018
+        wrapper.expect  # noqa: B018
 
     def test_positive_schema_violation_raises(self, tmp_path: Path) -> None:
         """A body violating the matching schema fails the positive autocheck."""
@@ -245,14 +245,14 @@ class TestAutocheckPositive:
         )
 
         with pytest.raises(AssertionError):
-            _ = wrapper.expected
+            _ = wrapper.expect
 
     def test_positive_status_none_skips_status(self) -> None:
         """``status=None`` skips the status check in autocheck."""
         response = FakeResponse(status_code=500, body={"data": 1})
 
         wrapper = ResponseWrapper(response, AssertConfig(data_key="data"), use_autocheck=True)
-        wrapper.expected  # noqa: B018 — no raise despite 500
+        wrapper.expect  # noqa: B018 — no raise despite 500
 
 
 class TestAutocheckNegative:
@@ -268,7 +268,7 @@ class TestAutocheckNegative:
             use_autocheck=True,
             is_negative=True,
         )
-        wrapper.expected  # noqa: B018
+        wrapper.expect  # noqa: B018
 
     def test_negative_data_present_raises(self) -> None:
         """A present data_key fails the negative autocheck."""
@@ -282,7 +282,7 @@ class TestAutocheckNegative:
         )
 
         with pytest.raises(AssertionError):
-            _ = wrapper.expected
+            _ = wrapper.expect
 
     def test_negative_does_not_check_status(self) -> None:
         """The negative path ignores the status code."""
@@ -294,19 +294,19 @@ class TestAutocheckNegative:
             use_autocheck=True,
             is_negative=True,
         )
-        wrapper.expected  # noqa: B018 — 200 != 400 but negative skips status
+        wrapper.expect  # noqa: B018 — 200 != 400 but negative skips status
 
 
 class TestResponseWrapperWiring:
-    """``ResponseWrapper.expected`` lazy build and autocheck gating."""
+    """``ResponseWrapper.expect`` lazy build and autocheck gating."""
 
     def test_expected_is_lazy_and_memoized(self) -> None:
-        """``expected`` builds once and returns the same ``Expected``."""
+        """``expect`` builds once and returns the same ``Expect``."""
         response = FakeResponse(status_code=200, body={"data": 1})
         wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=False)
 
-        first = wrapper.expected
-        second = wrapper.expected
+        first = wrapper.expect
+        second = wrapper.expect
 
         assert first is second
 
@@ -315,7 +315,7 @@ class TestResponseWrapperWiring:
         response = FakeResponse(status_code=500, body={})
 
         wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=False)
-        wrapper.expected  # noqa: B018 — no raise; autocheck skipped
+        wrapper.expect  # noqa: B018 — no raise; autocheck skipped
 
     def test_context_manager_returns_self_and_propagates(self) -> None:
         """``__enter__`` returns the wrapper; ``__exit__`` does not suppress."""
@@ -329,7 +329,7 @@ class TestResponseWrapperWiring:
             raise ValueError("boom")
 
     def test_autocheck_runs_once_per_wrapper(self) -> None:
-        """Repeated ``expected`` access runs the autocheck exactly once."""
+        """Repeated ``expect`` access runs the autocheck exactly once."""
         response = FakeResponse(status_code=200, body={"data": 1, "error": None})
         wrapper = ResponseWrapper(
             response,
@@ -337,9 +337,9 @@ class TestResponseWrapperWiring:
             use_autocheck=True,
         )
 
-        _ = wrapper.expected
-        _ = wrapper.expected
+        _ = wrapper.expect
+        _ = wrapper.expect
 
         # flip the body so a second autocheck would now fail; it must not re-run
         response._body = {"data": 1, "error": "now-present"}
-        _ = wrapper.expected  # no raise; autocheck did not re-run
+        _ = wrapper.expect  # no raise; autocheck did not re-run

@@ -321,11 +321,11 @@ def test_create_order(order_payload: Request, post_api_v1_orders, get_api_v1_ord
             order_payload.model_dump_json(indent=2), name="request", attachment_type=allure.attachment_type.JSON
         )
         with post_api_v1_orders(json=order_payload) as response:
-            response.expected.has_status_code(201)
-            response.expected("id").not_empty()
+            response.expect.has_status_code(201)
+            response.expect("id").not_empty()
 
     with allure.step("check the order in the list via GET /api/v1/orders"):
         with get_api_v1_orders(params={"customer": order_payload.customer}) as response:
-            response.expected.has_status_code(200)
-            response.expected("$[*]").has_length(1)
+            response.expect.has_status_code(200)
+            response.expect("$[*]").has_length(1)
 ```

@@ -130,7 +130,7 @@ retries: 2
 assert_timeout: 10        # baseline assert-polling timeout (seconds)
 assert_delay: 0.5         # delay between polling attempts (seconds)
 assert_field_class: my_pkg.asserts:CustomAssertField      # optional, module:Class
-assert_response_class: my_pkg.asserts:CustomExpected      # optional, module:Class
+assert_response_class: my_pkg.asserts:CustomExpect      # optional, module:Class
 ```
 
 The file may also carry a `loader` section that overrides generated-fixture discovery (`packages`/`modules`). The
@@ -143,5 +143,5 @@ its option keys and the `loader` section from the same file without conflicting 
 - `base_url` is required — the suite fails to provide a working `Api` when it is unset across all sources. It is a Jinja2 template rendered once, eagerly, in `configure()` (configphase); a missing value surfaces there, not on fixture invocation.
 - Most options are read lazily on fixture invocation, so env/CLI changes take effect per test run without code changes. `base_url` is the exception: it is rendered once in `configure()` against `os.environ` + the CLI options the user passed.
 - `retries` is orthogonal to the `api` fixture: when set to a positive int, the plugin stamps every collected test without an existing flaky marker with `pytest.mark.flaky(max_runs=retries)` during collection. The actual reruns require the `flaky` package to be installed in the consumer suite; without it the marker is inert. A programmatic default can be supplied via `install(default_retries=N)`.
-- `assert_timeout`/`assert_delay` enable assert polling: when `assert_timeout` is set, each matchcrest assertion retries (re-fetching the response via `resq.http.Response.reload()`) until it passes or the timeout elapses, sleeping `assert_delay` between attempts. They are the baseline; each `Expected`/`AssertField` check method also accepts per-call `timeout`/`delay` kwargs that override them for one assertion. `None` (default) runs each assertion once. Programmatic defaults: `install(default_assert_timeout=N, default_assert_delay=D)`.
-- `assert_field_class`/`assert_response_class` are dotted `module:Class` paths selecting a custom `AssertField`/`Expected` subclass (it must subclass the built-in). The field class is loaded in `Expected.__call__`; the response class in `ResponseWrapper.expected`. `None` (default) uses the built-ins.
+- `assert_timeout`/`assert_delay` enable assert polling: when `assert_timeout` is set, each matchcrest assertion retries (re-fetching the response via `resq.http.Response.reload()`) until it passes or the timeout elapses, sleeping `assert_delay` between attempts. They are the baseline; each `Expect`/`AssertField` check method also accepts per-call `timeout`/`delay` kwargs that override them for one assertion. `None` (default) runs each assertion once. Programmatic defaults: `install(default_assert_timeout=N, default_assert_delay=D)`.
+- `assert_field_class`/`assert_response_class` are dotted `module:Class` paths selecting a custom `AssertField`/`Expect` subclass (it must subclass the built-in). The field class is loaded in `Expect.__call__`; the response class in `ResponseWrapper.expect`. `None` (default) uses the built-ins.
