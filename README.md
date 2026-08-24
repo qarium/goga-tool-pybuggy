@@ -1,29 +1,23 @@
 # goga-tool-pybuggy
 
-pytest plugin and CLI that bootstrap a goga-project for API testing with pybuggy.
+**pybuggy** is a **goga**(<https://github.com/qarium/goga>) tool for testing:
+**API** — it turns OpenAPI/Swagger specifications into ready-made pytest fixtures — HTTP client,
+endpoint fixtures, response schemas — and wires everything into the consumer's test
+suite. The package contains a pytest plugin and a CLI.
 
 **Documentation**: <https://qarium.github.io/goga-tool-pybuggy/>
 
-## Getting started: `goga tool pybuggy init`
+## Quickstart
 
-Run `goga tool pybuggy init` in the target project root. It interactively initializes the
-goga-project, builds the tool config, and generates the wiring the plugin needs
-(`.goga/config.yml`, `.goga/Dockerfile`, `.goga/tools/pybuggy/config.yml`, root
-`conftest.py`).
+Three commands in the target project root:
 
-Behavior notes:
+```bash
+goga install pybuggy                 # 1. install pybuggy into the goga environment
+goga tool pybuggy init               # 2. bootstrap: goga project + tool config + conftest.py
+goga pipeline pybuggy:api.automate   # 3. run the automated API-test lifecycle
+```
 
-- **Init runs offline** — the goga "Download base convention" question is never
-  asked and no network requests are made during initialization.
-- **`.goga/usages/conventions.md` is package-owned** — on every successful run
-  it is overwritten with the test convention shipped inside this package
-  (pytest configuration, logging, Allure reporting). Local edits to that file
-  are not preserved; keep project-specific rules elsewhere. A legacy
-  goga-downloaded convention in the slot migrates automatically.
-- Existing files (`.goga/config.yml`, `.goga/tools/pybuggy/config.yml`,
-  `conftest.py`) are only overwritten after an explicit confirmation
-  (default: no); the conventions slot above is the one exception.
-- Usage keys `conventions`, `pybuggy-api`, and `pybuggy-asserts` and their
-  annotation lines are registered in `.goga/config.yml` under
-  `codemanifest` (idempotent; pre-existing user-defined keys are never
-  overwritten).
+The pipeline asks for the feature under test and drives the whole chain — requirements,
+test cases, test code — until accepted `test_*.py` suites land in `tests/`. The full
+stage list and artifact chain:
+[the `api.automate` lifecycle](https://qarium.github.io/goga-tool-pybuggy/pipelines/).

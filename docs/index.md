@@ -1,9 +1,9 @@
 # goga-tool-pybuggy
 
-**pybuggy** is a **goga**(<https://github.com/qarium/goga>) tool for API testing: it turns
-OpenAPI/Swagger specifications into ready-made pytest fixtures — HTTP client, endpoint
-fixtures, response schemas — and wires everything into the consumer's test suite. The
-package contains a pytest plugin and a CLI.
+**pybuggy** is a **goga**(<https://github.com/qarium/goga>) tool for testing: **API** —
+it turns OpenAPI/Swagger specifications into ready-made pytest fixtures — HTTP client,
+endpoint fixtures, response schemas — and wires everything into the consumer's test
+suite. The package contains a pytest plugin and a CLI.
 
 ## What you get
 
