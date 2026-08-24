@@ -329,7 +329,9 @@ def _mock_body(items: list, test_id: str, path: str, method: str):
     return None
 
 
-response.expect("data")(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to({"owner": "A1"})
+response.expect("data")(hook=lambda items: _mock_body(items, test_id_a, "/api/shared", "POST")).equal_to(
+    {"owner": "A1"}
+)
 ```
 
 ---
