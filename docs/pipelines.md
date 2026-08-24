@@ -34,6 +34,14 @@ every artifact it produces.
 | 12 | `commit-changes` | Commit the work; ask the user whether the tests are ready for acceptance |
 | 13 | `accept-result` | Accept the test results: consistency check, `pytest` run, triage of failures with the user, bug records in `docs/bugs/<feature>.md` |
 
+> **Building the tests:** the design stages produce documents only. After `plan-review`
+> approves `docs/plans/<feature>.md`, the test code is built with
+> `goga build <path-to-plan>` — [goga](https://github.com/qarium/goga) executes the
+> ralphex plan, writing each `test_*.py` from the plan's Tasks and running the Validation
+> Commands (`pytest`). Stage 7 (`create-testcases`) materializes the test *cells*
+> (CODEMANIFESTs under `tests/<spec>/<id>/`), not the test code — the `test_*.py` files
+> appear only at build time.
+
 ## Artifacts
 
 The pipeline accumulates one artifact per design stage:
