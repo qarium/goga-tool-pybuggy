@@ -35,11 +35,11 @@ Annotations: |
     `auth`: optional requests AuthBase applied to every request unless overridden at call level.
     `headers`: default headers merged into every request (call-level headers win on conflict).
     `cookies`: default cookies injected when present.
-    timeout: network timeout forwarded to resq.Session; not re-sent per request.
+    `timeout`: network timeout forwarded to resq.Session; not re-sent per request.
     `assert_timeout`: baseline assert-polling timeout (distinct from the network timeout); forwarded into each `AssertConfig` by Endpoint._call.
     `assert_delay`: baseline assert-polling delay; forwarded into each `AssertConfig` by Endpoint._call.
-    assert_field_class: dotted module:Class path of a custom `AssertField` subclass; forwarded into each `AssertConfig`.
-    assert_response_class: dotted module:Class path of a custom `Expect` subclass; forwarded into each `AssertConfig`.
+    `assert_field_class`: dotted module:Class path of a custom `AssertField` subclass; forwarded into each `AssertConfig`.
+    `assert_response_class`: dotted module:Class path of a custom `Expect` subclass; forwarded into each `AssertConfig`.
     `adapter`: default resq adapter name used to build the composed session. `"requests"` (sync) only — "httpx" is async in resq and is rejected by the adapter validation. Read-only via the `adapter` property; per-request override flows through request's `adapter` kwarg (None falls back to this default).
 
     Use `resq` for the Session/base_url contract.
@@ -97,7 +97,7 @@ Annotations: |
   annotations: |
     Callable route over an `Api`; performs the HTTP request and returns a `ResponseWrapper`. The signature is fixed and must stay compatible: Endpoint(api, url_path, method="POST", ...).
 
-    api: the `Api` client used to issue the request.
+    `api`: the `Api` client used to issue the request.
     `url_path`: route path, possibly with ":name" placeholders substituted by Api.request.
     `method`: HTTP verb forwarded to Api.request.
     `expected_status`: expected success status code; an Enum is normalized to its value; None disables status auto-check.
@@ -106,7 +106,7 @@ Annotations: |
 
     Algorithm (construction):
     1. Store api, url_path, method, use_autocheck, adapter.
-    2. Normalize expected_status: keep the value when it is an Enum, otherwise keep it as-is.
+    2. Normalize `expected_status`: an Enum is replaced by its member value; other values are kept as-is.
     3. Resolve schemas_dir to the schemas/ directory next to the fixture's source file (the caller frame supplies its path); None when the path is unavailable.
 
     Requirements:
@@ -147,7 +147,7 @@ Annotations: |
       Internal call routine shared by __call__ and error: resolves call-level auth, issues the request via api.request, and wraps the result.
 
       `is_negative`: selects the negative `ResponseWrapper`/`Expect` path.
-      kwargs: call-level request arguments — params, json, headers, cookies, and the optional call-level auth and use_autocheck.
+      `kwargs`: call-level request arguments — params, json, headers, cookies, and the optional call-level auth and use_autocheck.
       `response`: the `ResponseWrapper` over the raw resq response.
 
       Algorithm:

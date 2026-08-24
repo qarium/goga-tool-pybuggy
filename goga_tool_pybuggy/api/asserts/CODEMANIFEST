@@ -41,10 +41,10 @@ Annotations: |
 
     `expected_status`: expected success status code; None disables the status auto-check.
     `schemas_dir`: directory of json-schema files (<status>*.json) for auto-validation; None or a missing directory skips it.
-    timeout: baseline polling timeout (seconds) — when set, matchcrest retries each assertion, re-fetching the response, until it passes or the timeout elapses; None runs the assertion once.
-    delay: seconds slept between polling attempts; None uses the matcher default.
-    assert_field_class: dotted module:Class path of a custom `AssertField` subclass; None uses the built-in `AssertField`.
-    assert_response_class: dotted module:Class path of a custom `Expect` subclass; None uses the built-in `Expect`.
+    `timeout`: baseline polling timeout (seconds) — when set, matchcrest retries each assertion, re-fetching the response, until it passes or the timeout elapses; None runs the assertion once.
+    `delay`: seconds slept between polling attempts; None uses the matcher default.
+    `assert_field_class`: dotted module:Class path of a custom `AssertField` subclass; None uses the built-in `AssertField`.
+    `assert_response_class`: dotted module:Class path of a custom `Expect` subclass; None uses the built-in `Expect`.
 
     Requirements:
     - pydantic BaseModel, kw_only=True, extra="forbid" (unknown/legacy kwargs are rejected), with None defaults (absence semantics).
@@ -88,7 +88,7 @@ Annotations: |
 
       `code`: expected HTTP status code.
       `reason`: optional assertion message prefix.
-      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `timeout`/`delay`: per-check polling override of the `AssertConfig` baseline.
       `chain`: this `Expect`, for chaining.
     "has_header(key: str, value: str | None = None, contains: bool | None = None, startswith: bool | None = None, endswith: bool | None = None, count: int | None = None, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expect": |
       Assert a response header is present (`ResponseHeadersByKeyMatcher`), and — when value is given — that its value matches it (`ResponseHeadersByValueMatcher`). Header keys are matched case-insensitively.
@@ -98,7 +98,7 @@ Annotations: |
       `contains`/`startswith`/`endswith`: optional substring/prefix/suffix match mode for the value (or the key when value is None).
       `count`: when value is None, require exactly that many matching headers.
       `reason`: optional assertion message prefix.
-      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `timeout`/`delay`: per-check polling override of the `AssertConfig` baseline.
       `chain`: this `Expect`, for chaining.
 
       Constraints:
@@ -108,28 +108,28 @@ Annotations: |
 
       `key`: body key expected to be present.
       `reason`: optional assertion message prefix.
-      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `timeout`/`delay`: per-check polling override of the `AssertConfig` baseline.
       `chain`: this `Expect`, for chaining.
     "json_has_not_data_by_key(key: str, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expect": |
       Assert the response body does not contain the given key (or it is None) (`JsonHasNotDataByKeyMatcher`).
 
       `key`: body key expected to be absent.
       `reason`: optional assertion message prefix.
-      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `timeout`/`delay`: per-check polling override of the `AssertConfig` baseline.
       `chain`: this `Expect`, for chaining.
     "json_contains_key(key: str | list[str], reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expect": |
       Assert the response body contains the key (nested when given a list) (`JsonContainsKeyMatcher`).
 
       `key`: a single key or an ordered list drilling into nested objects.
       `reason`: optional assertion message prefix.
-      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `timeout`/`delay`: per-check polling override of the `AssertConfig` baseline.
       `chain`: this `Expect`, for chaining.
     "jsonschema_is_valid(schema: dict | str, reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> chain: Expect": |
       Validate the response body against a json-schema (JsonschemaMatcher).
 
       `schema`: schema as a dict, or a path to a .json schema file (read as UTF-8).
       `reason`: optional assertion message prefix.
-      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `timeout`/`delay`: per-check polling override of the `AssertConfig` baseline.
       `chain`: this `Expect`, for chaining.
 
       Algorithm:
@@ -143,7 +143,7 @@ Annotations: |
       `schemas_dir`: directory of json-schema files.
       `status_code`: status whose "<status_code>*" file is loaded.
       `reason`: optional assertion message prefix.
-      timeout/delay: per-check polling override of the `AssertConfig` baseline.
+      `timeout`/`delay`: per-check polling override of the `AssertConfig` baseline.
       `chain`: this `Expect`, for chaining.
     "__call__(search: str | None = None, index: int | None = None, hook: Callable = None, in_array: bool = False) -> field: AssertField": |
       Start a field-level assert at `search` (dotted path or jsonpath).
@@ -167,7 +167,7 @@ Annotations: |
       1. When is_negative, run the negative path; otherwise run the positive path.
 
       Positive path:
-      1. When status is not None, assert has_status_code(status).
+      1. When the `AssertConfig` expected_status is not None, assert has_status_code(expected_status).
       2. Read response.json().
       3. Validate against the first schemas_dir file matching "<status_code>*" via JsonschemaMatcher; skip when schemas_dir is missing or no file matches.
 
@@ -189,7 +189,7 @@ Annotations: |
 
     `context`: the search context providing the resolved value and a key label.
     `in_array`: when True, the resolved value is treated as a list and the per-method any option applies element-wise.
-    timeout/delay: polling baseline inherited from `AssertConfig` via Expect.__call__ and propagated on drill-down; per-check timeout/delay kwargs override it for one assertion.
+    `timeout`/`delay`: polling baseline inherited from `AssertConfig` via Expect.__call__ and propagated on drill-down; per-check timeout/delay kwargs override it for one assertion.
 
     The timeout/delay are the polling baseline — matchcrest retries each assertion (re-fetching the response between attempts) until it passes or the timeout elapses. Each check method also accepts timeout/delay kwargs that override the baseline for one assertion.
 
