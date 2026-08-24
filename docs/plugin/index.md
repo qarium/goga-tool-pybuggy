@@ -97,7 +97,7 @@ Two mechanisms exist:
 - **Suite-wide** — the `retries` option (or `install(default_retries=N)`) stamps every
   collected test without an existing flaky marker; requires the `flaky` package in the
   suite.
-- **Per-test decorator** — the facade `retries` decorator (built on the `flaky`
-  package): `@retries(max_runs=3, min_passes=2, delay=1)` reruns a flaky test up to
-  `max_runs` times requiring `min_passes` successes, pausing `delay` seconds between
-  reruns.
+- **Per-test decorator** — the facade `retries` decorator (`from goga_tool_pybuggy
+  import retries`; built on the `flaky` package): `@retries(max_runs=3, min_passes=2,
+  delay=1)` reruns a flaky test up to `max_runs` times requiring `min_passes`
+  successes, pausing `delay` seconds between reruns.

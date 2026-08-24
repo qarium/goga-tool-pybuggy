@@ -39,5 +39,5 @@ fine-grained control: [CLI Reference](cli/init.md).
 - [Pipelines](pipelines.md) — the automated API-test lifecycle.
 - [CLI Reference](cli/init.md) — every command with options and behavior.
 - [Configuration](configuration.md) — `.goga/tools/pybuggy/config.yml`.
-- [Matchers](matchers/index.md) — assertions, the matcher catalog, helpers.
+- [Matchers](matchers/index.md) — assertions and the matcher catalog.
 - [Pytest Plugin](plugin/index.md) — enabling, fixtures, options.

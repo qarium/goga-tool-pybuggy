@@ -147,7 +147,7 @@ class TestResponseSchemaChecks:
         Expect(response, AssertConfig(status=200)).jsonschemas_is_valid(tmp_path, 500)
 
 
-class TestExpectedCallFieldDispatch:
+class TestExpectCallFieldDispatch:
     """``Expect.__call__`` produces an ``AssertField``."""
 
     def test_call_returns_assert_field(self) -> None:
@@ -300,7 +300,7 @@ class TestAutocheckNegative:
 class TestResponseWrapperWiring:
     """``ResponseWrapper.expect`` lazy build and autocheck gating."""
 
-    def test_expected_is_lazy_and_memoized(self) -> None:
+    def test_expect_is_lazy_and_memoized(self) -> None:
         """``expect`` builds once and returns the same ``Expect``."""
         response = FakeResponse(status_code=200, body={"data": 1})
         wrapper = ResponseWrapper(response, AssertConfig(status=200, data_key="data"), use_autocheck=False)
