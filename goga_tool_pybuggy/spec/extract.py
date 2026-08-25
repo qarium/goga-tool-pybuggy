@@ -1,15 +1,15 @@
 """Extract endpoints from OpenAPI/Swagger specs."""
 
-from typing import Any
+from typing import Any, Literal
 
 from .endpoint import Endpoint
 
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
 
-# Whitelist of inlined type fields used to filter Swagger 2.0 query params.
+# Whitelist of inlined type fields used to filter Swagger 2.0 query and path params.
 # `x-nullable` is intentionally included so the Swagger nullable keyword reaches
 # `_normalize_nullable`; without it the keyword is dropped before normalization
-# and the query param's nullability is silently lost (review fix).
+# and the parameter's nullability is silently lost (review fix).
 _TYPE_FIELDS = (
     "type",
     "format",
@@ -99,23 +99,28 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
     return {code: resp.get("schema") or {} for code, resp in responses.items()}
 
 
-def _extract_query_params(all_params: list[dict[str, Any]], version: str) -> dict[str, Any]:
-    """Extract query-parameter schemas in a format-aware way.
+def _extract_params(
+    all_params: list[dict[str, Any]],
+    version: str,
+    location: Literal["query", "path"],
+) -> dict[str, Any]:
+    """Extract parameter schemas for one ``in`` location in a format-aware way.
 
-    OpenAPI 3.x reads each query param's nested ``schema``; Swagger 2.0 reads the
+    OpenAPI 3.x reads each parameter's nested ``schema``; Swagger 2.0 reads the
     inlined type fields, filtered by ``_TYPE_FIELDS`` (which keeps
     ``x-nullable`` so it reaches ``_normalize_nullable``).
 
     Args:
         all_params: merged path-item + operation parameters.
         version: the detected spec version (``"openapi"`` or ``"swagger"``).
+        location: the parameter location to extract (``"query"`` or ``"path"``).
 
     Returns:
-        ``{param_name: schema}`` for each named query parameter.
+        ``{param_name: schema}`` for each named parameter at ``location``.
     """
     result: dict[str, Any] = {}
     for param in all_params:
-        if param.get("in") != "query":
+        if param.get("in") != location:
             continue
         name = param.get("name")
         if not name:
@@ -196,6 +201,12 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
     operations for each HTTP method; path-item parameters are inherited by all
     operations.
 
+    Both query parameters (``in: query``) and URL path variables (``in: path``)
+    are extracted from the merged path-item + operation parameter list. Path
+    variables are keyed by their declared parameter name and land in
+    ``Endpoint.path_params``; the path template is trusted — declared variables
+    are never cross-validated against the ``{name}`` segments of the path.
+
     Args:
         spec: Parsed OpenAPI/Swagger spec dict with resolved $ref (from swax).
 
@@ -240,7 +251,12 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
                 code: _normalize_nullable(schema) for code, schema in _extract_responses(operation, version).items()
             }
             query_params = {
-                name: _normalize_nullable(schema) for name, schema in _extract_query_params(all_params, version).items()
+                name: _normalize_nullable(schema)
+                for name, schema in _extract_params(all_params, version, "query").items()
+            }
+            path_params = {
+                name: _normalize_nullable(schema)
+                for name, schema in _extract_params(all_params, version, "path").items()
             }
 
             description = operation.get("description", "")
@@ -251,6 +267,7 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
                 request=request,
                 response=response,
                 query_params=query_params,
+                path_params=path_params,
                 description=description,
             )
             result.append(endpoint)
