@@ -1673,3 +1673,58 @@ paths:
 
     # the collision is detected in the collect/validate phase — nothing on disk
     assert not (tmp_path / "api").exists()
+
+
+def test_run_generate_rejects_identical_id_from_distinct_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two paths producing the *identical* raw id also collide and must abort.
+
+    ``build_endpoint_id`` maps both "-" and "/" to "_", so "/a-b/x" and "/a/b/x"
+    (same method) yield the same id "a_b_x_get" — not two ids that merely
+    sanitize alike. Keying the guard on the raw id lets this through: without
+    --force the second endpoint's artifacts are silently skipped, and with
+    --force they overwrite the first endpoint's schema.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /a-b/x:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from:
+                    type: string
+  /a/b/x:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  other:
+                    type: string
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    # the message names both offending paths — the id alone cannot tell them apart
+    with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):
+        run_generate(None, False)
+
+    # the collision is detected in the collect/validate phase — nothing on disk
+    assert not (tmp_path / "api").exists()

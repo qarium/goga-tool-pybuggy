@@ -408,7 +408,10 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
         cwd: working directory under which the ``api/`` and ``tests/`` trees are written.
 
     Raises:
-        none.
+        click.ClickException: If rendering an endpoint's api.py fails (ruff not found or ruff
+            exits non-zero). Writes are sequential per endpoint, so endpoints before the failing
+            one are already on disk.
+        OSError: If any schema/meta.json/api.py/``__init__.py`` write fails.
     """
     for name, endpoints in to_generate:
         for endpoint in endpoints:
@@ -469,8 +472,8 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
 
     Raises:
         click.ClickException: If spec_name is set but not found in config specs; a selected spec has
-            no "paths"; endpoint_ids contains an id not found in any selected spec; or two distinct
-            endpoint ids of one spec sanitize to the same directory name.
+            no "paths"; endpoint_ids contains an id not found in any selected spec; or two endpoint
+            ids of one spec map to the same directory name.
     """
     # Step 1: Load the config from the fixed path
     config: Config = load_config()
@@ -497,19 +500,22 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
         if missing:
             raise click.ClickException(f"endpoint not found: {', '.join(missing)}")
 
-    # Step 5.5: Reject sanitized-id collisions before any write — two distinct
-    # endpoint ids mapping to one directory would silently mix their schemas
-    # and skip the second endpoint's api.py/meta.json (they "already exist").
+    # Step 5.5: Reject sanitized-id collisions before any write — endpoints
+    # sharing a directory would silently mix their schemas and skip the second
+    # endpoint's api.py/meta.json (they "already exist"), or under --force the
+    # second would overwrite the first's artifacts.
     for name, endpoints in to_generate:
-        owners: dict[str, str] = {}
+        owners: dict[str, tuple[str, str]] = {}
         for endpoint in endpoints:
             safe_id = _safe_identifier(endpoint.id)
-            if safe_id in owners and owners[safe_id] != endpoint.id:
+            if safe_id in owners:
+                first_id, first_path = owners[safe_id]
                 raise click.ClickException(
-                    f"endpoint ids {owners[safe_id]!r} and {endpoint.id!r} both map to "
-                    f"directory {safe_id!r} under spec {name!r}; rename one path"
+                    f"paths {first_path!r} and {endpoint.path!r} under spec {name!r} both map to "
+                    f"directory {safe_id!r} (endpoint id {first_id!r} vs {endpoint.id!r}); "
+                    f"rename one path"
                 )
-            owners[safe_id] = endpoint.id
+            owners[safe_id] = (endpoint.id, endpoint.path)
 
     # Step 6: Phase 2 — scaffold artifacts for each selected spec/endpoint
     _write_artifacts(to_generate, force, cwd)

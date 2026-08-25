@@ -260,15 +260,20 @@ class Api:
         ``params`` is the fresh dict from :meth:`_resolve_params`; the remaining
         keys stay as the query string. Only the names actually present in
         ``params`` are matched, each as a whole token (a name is never matched
-        inside a longer one, so ``:id`` / ``:id2`` stay distinct) — a ``:word``
-        with no matching parameter is literal path content (e.g. ``09:30``) and
-        is left untouched.
+        inside a longer one, so ``:id`` / ``:id2`` stay distinct and ``:id``
+        leaves ``:identity`` untouched) — a ``:word`` with no matching parameter
+        is literal path content (e.g. ``09:30``) and is left untouched.
         """
         names = sorted((key for key in params if key.startswith(":")), key=len, reverse=True)
         if not names:
             return url_path
 
-        pattern = re.compile("|".join(re.escape(name) for name in names))
+        # A name ends where the token ends: the next character (if any) must not
+        # be one that can continue a placeholder name. With no bound, ``:id``
+        # would match the ``:id`` prefix of ``:identity`` and rewrite a literal
+        # segment. Word chars, ``-`` and ``.`` continue a name; ``/``, ``?`` and
+        # the end of the string end it.
+        pattern = re.compile("|".join(re.escape(name) + r"(?![\w.\-])" for name in names))
         values = {name: params.pop(name) for name in names}
 
         def _replace(match: re.Match[str]) -> str:

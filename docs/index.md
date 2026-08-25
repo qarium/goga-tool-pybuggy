@@ -54,7 +54,7 @@ or silently missing fields is listed here:
 | `from goga_tool_pybuggy.api import Expected` | `from goga_tool_pybuggy.api import Expect` |
 | `response.expected("items")` | `response.expect("data.items")` — field paths now resolve from the **root of the response body**; prefix the envelope key (`data.`, `error.`, …) that `data_key`/`error_key` used to strip |
 | `Endpoint(api, path, method, status=201)` | `Endpoint(api, path, method, expected_status=201)` |
-| `Api(data_key="data", error_key="error")` / the same on `Endpoint` | Removed — there is no configurable body-envelope root; spell out the full path in the search (the config keys are ignored, not validated) |
+| `Api(data_key="data", error_key="error")` / the same on `Endpoint` | Removed — there is no configurable body-envelope root; spell out the full path in the search (passing the kwargs now raises `TypeError`; leftover keys in the yaml config are ignored) |
 | `AssertConfig(status=200)` | `AssertConfig(expected_status=200)` — legacy kwargs are now rejected (`extra="forbid"`) |
 
 The auto-check was also slimmed: the positive path no longer verifies envelope-key

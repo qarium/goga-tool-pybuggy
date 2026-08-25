@@ -153,6 +153,24 @@ class TestRequestPathParams:
         assert sent.args[0] == "/clock/09:30"
         assert sent.kwargs["params"] == {"q": "x"}
 
+    def test_param_name_not_matched_inside_longer_undeclared_token(self) -> None:
+        """A declared name must not match a longer token that is not declared.
+
+        Without a token-end bound, ``:id`` matches the ``:id`` prefix of the
+        literal segment ``:identity`` and silently rewrites the URL to
+        ``<value>entity``; likewise ``:3`` matches inside the static ``09:30``.
+        Only declared names substitute — anything longer stays literal.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/clients/:identity", params={":id": 5})
+        api.request("GET", "/clock/09:30", params={":3": 7})
+        api.request("GET", "/o/:order-id", params={":order": "a"})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/clients/:identity", "/clock/09:30", "/o/:order-id"]
+
     def test_param_name_with_punctuation_matched_whole(self) -> None:
         """Names with non-word characters (``-``, ``.``) match their full token.
 
