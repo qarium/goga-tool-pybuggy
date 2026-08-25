@@ -57,6 +57,19 @@ class TestEndpointContract:
         assert hasattr(endpoint, "id")
         assert isinstance(endpoint.id, str)
 
+    def test_endpoint_path_params_defaults_to_empty_mapping(self) -> None:
+        """Endpoint.path_params should default to {} when omitted."""
+        endpoint = Endpoint(
+            method="get",
+            path="/clients/{id}",
+            request={},
+            response={"200": {}},
+            query_params={},
+            description="",
+        )
+        assert endpoint.path_params == {}
+        assert endpoint.id == "clients_id_get"
+
     def test_endpoint_id_is_not_constructor_field(self) -> None:
         """Endpoint `id` should NOT be a constructor field."""
         # Passing id explicitly should be rejected by pydantic (computed field)
@@ -96,6 +109,21 @@ class TestEndpointLogic:
         assert endpoint.response == response_schema
         assert endpoint.query_params == query_schema
         assert endpoint.description == "Get client by ID"
+
+    def test_endpoint_constructs_with_path_params(self) -> None:
+        """Endpoint should store path_params verbatim alongside query_params."""
+        endpoint = Endpoint(
+            method="get",
+            path="/clients/{id}",
+            request={},
+            response={"200": {}},
+            query_params={"limit": {"type": "integer"}},
+            path_params={"id": {"type": "string"}},
+            description="",
+        )
+
+        assert endpoint.path_params == {"id": {"type": "string"}}
+        assert endpoint.query_params == {"limit": {"type": "integer"}}
 
     def test_endpoint_id_computed_from_method_and_path(self) -> None:
         """Endpoint.id should be computed via build_endpoint_id."""
