@@ -1,8 +1,8 @@
 # CLI — `goga tool pybuggy endpoint generate`
 
-Scaffolds the `api/` fixture tree from specifications: response JSON schemas, a pytest
-fixture module `api.py` per endpoint, empty `__init__.py` package markers along the path,
-and empty `tests/` directories.
+Scaffolds the `api/` fixture tree from specifications: response JSON schemas, a per-endpoint
+`meta.json` input contract, a pytest fixture module `api.py` per endpoint, empty `__init__.py`
+package markers along the path, and empty `tests/` directories.
 
 ```bash
 goga tool pybuggy endpoint generate                          # all specs, skip existing
@@ -29,6 +29,7 @@ api/__init__.py                       # empty package marker
 api/<spec>/__init__.py                # empty package marker
 api/<spec>/<endpoint.id>/__init__.py  # empty package marker
 api/<spec>/<endpoint.id>/schemas/<status_code>.json
+api/<spec>/<endpoint.id>/meta.json
 api/<spec>/<endpoint.id>/api.py
 tests/<spec>/<endpoint.id>/           # empty directory
 ```
@@ -41,12 +42,34 @@ api/shop/__init__.py
 api/shop/clients_startup_get/__init__.py
 api/shop/clients_startup_get/schemas/200.json
 api/shop/clients_startup_get/schemas/404.json
+api/shop/clients_startup_get/meta.json
 api/shop/clients_startup_get/api.py
 tests/shop/clients_startup_get/
 ```
 
 `<status_code>.json` holds the prettified, expanded response schema (indent=2,
 `ensure_ascii=False`); statuses without `application/json` get `{}`.
+
+## `meta.json`
+
+`meta.json` describes the endpoint input contract and is written for **every** generated
+endpoint — it is never omitted, even when the endpoint declares no input data. It contains
+exactly three keys:
+
+| Key | Content | Source field |
+|-----|---------|--------------|
+| `parameters` | `{name: schema}` of the query parameters | `Endpoint.query_params` |
+| `request_body` | request-body schema | `Endpoint.request` |
+| `vars` | `{name: schema}` of the URL path variables | `Endpoint.path_params` |
+
+Each key holds `{}` when the endpoint declares no such data; no key is ever dropped or
+renamed. Schemas are taken from the endpoint exactly as extracted from the specification
+(already nullable-normalized — consumers do not normalize them again). The file is
+serialized as prettified JSON (indent=2, `ensure_ascii=False`), matching the
+`<status_code>.json` convention.
+
+Consumers read `meta.json` to build URL substitutions (`vars`) and request payloads
+(`request_body`, `parameters`) without re-parsing the specification.
 
 ## Contents of `api.py`
 
@@ -82,11 +105,14 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 
 ## `--force` semantics
 
-- **Without `-f`**: existing `<status_code>.json`, `api.py` and `__init__.py` files are
-  silently skipped; missing files and directories are created. Idempotent.
+- **Without `-f`**: existing `<status_code>.json`, `meta.json`, `api.py` and `__init__.py`
+  files are silently skipped; missing files and directories are created. Idempotent.
 - **With `-f`**: files are overwritten, `__init__.py` markers are rewritten empty, the
   entire artifact tree regenerates uniformly.
 - `__init__.py` markers are placed only along the path to `api.py` — never under `tests/`.
+- A tree regenerated without `-f` does not gain `meta.json` next to already-present
+  artifacts until `-f` is used or the file is missing — the established skip semantics, by
+  design.
 
 ## Special cases
 
@@ -95,6 +121,7 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 | Spec without `paths` | `click.ClickException` |
 | Spec without endpoints | WARNING; no artifacts |
 | Endpoint without a body (or a body without fields) | `api.py` without `class Request`; the fixture is generated anyway |
+| Endpoint with no query parameters, request body, or path variables | `meta.json` with all three keys as `{}` |
 
 ## Preconditions
 
