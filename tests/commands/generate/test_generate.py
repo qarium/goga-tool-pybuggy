@@ -78,6 +78,15 @@ def test_generate_cmd_is_click_command() -> None:
     assert endpoint_arg.nargs == -1
 
 
+def test_generate_cmd_force_help_names_full_artifact_set() -> None:
+    """The -f/--force help text should name every regenerable artifact."""
+    force_opt = next(p for p in generate_cmd.params if p.name == "force")
+    assert isinstance(force_opt, click.Option)
+
+    for artifact in ("schema", "meta.json", "api.py", "__init__.py"):
+        assert artifact in force_opt.help
+
+
 # Logic tests ----------------------------------------------------------------
 
 
@@ -626,6 +635,177 @@ paths:
     assert not (tmp_path / "tests" / "__init__.py").exists()
     assert not (tmp_path / "tests" / "t" / "__init__.py").exists()
     assert not (tmp_path / "tests" / "t" / "health_get" / "__init__.py").exists()
+
+
+# meta.json input-contract tests ---------------------------------------------
+
+
+def _startup_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str = "shop") -> Path:
+    """Write a config + spec with a single GET /clients/startup endpoint (no request body)."""
+    monkeypatch.chdir(tmp_path)
+    _write_spec(
+        tmp_path / ".specs",
+        f"{name}.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+""",
+    )
+    config_path = _write_config(tmp_path, {name: f".specs/{name}.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    return tmp_path / "api" / name / "clients_startup_get"
+
+
+def test_run_generate_writes_meta_json_exact_keys_and_pretty_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """meta.json must hold exactly parameters/request_body/vars in that order, prettified."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    assert meta_file.exists()
+    meta = json.loads(meta_file.read_text())
+    assert list(meta.keys()) == ["parameters", "request_body", "vars"]
+    assert meta_file.read_text() == '{\n  "parameters": {},\n  "request_body": {},\n  "vars": {}\n}'
+
+
+def test_run_generate_meta_json_from_query_path_and_body(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """meta.json keys must map to their Endpoint sources: parameters←query, request_body←body, vars←path."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /clients/{id}:
+    put:
+      description: Update a client
+      parameters:
+        - name: verbose
+          in: query
+          schema:
+            type: boolean
+        - name: id
+          in: path
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Success
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    meta_file = tmp_path / "api" / "shop" / "clients_id_put" / "meta.json"
+    assert meta_file.exists()
+    assert json.loads(meta_file.read_text()) == {
+        "parameters": {"verbose": {"type": "boolean"}},
+        "request_body": {"type": "object", "properties": {"name": {"type": "string"}}},
+        "vars": {"id": {"type": "string"}},
+    }
+
+
+def test_run_generate_meta_json_overwritten_with_force(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """With force a stale meta.json must be replaced by the freshly generated one."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    meta_file.write_text('{"parameters": "stale"}')
+
+    run_generate(None, True)
+
+    assert json.loads(meta_file.read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
+
+
+def test_run_generate_meta_json_skipped_without_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture
+) -> None:
+    """Without force an existing meta.json must be preserved verbatim and silently."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    meta_file.write_text('{"parameters": "keep"}')
+
+    run_generate(None, False)
+
+    assert meta_file.read_text() == '{"parameters": "keep"}'
+    assert capfd.readouterr().out == ""
+
+
+def test_run_generate_unknown_endpoint_id_writes_no_meta_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unknown endpoint id must raise before any write, meta.json included."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+
+    with pytest.raises(click.ClickException, match="endpoint not found: nope_get"):
+        run_generate(None, False, ["clients_startup_get", "nope_get"])
+
+    assert not (tmp_path / "api").exists()
+    assert not (tmp_path / "tests").exists()
+    assert not (endpoint_dir / "meta.json").exists()
+
+
+def test_run_generate_meta_json_empty_objects_when_no_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An endpoint with no query/body/path data still gets a meta.json with all three keys as {}."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    assert meta_file.exists()
+    assert json.loads(meta_file.read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
+
+
+def test_run_generate_writes_meta_json_when_api_py_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A missing meta.json must be written even when api.py already exists (per-file force semantics)."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+    run_generate(None, False)
+
+    api_file = endpoint_dir / "api.py"
+    assert api_file.exists()
+    expected_api = api_file.read_text()
+
+    (endpoint_dir / "meta.json").unlink()
+
+    run_generate(None, False)
+
+    assert api_file.read_text() == expected_api
+    assert json.loads((endpoint_dir / "meta.json").read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
 
 
 @pytest.mark.parametrize(

@@ -1,4 +1,4 @@
-"""generate command handler - scaffold api/ schema files, api.py fixture modules and empty tests/ dirs from specs."""
+"""generate command handler - scaffold api/ schema files, meta.json contracts, api.py fixtures and tests/ dirs."""
 
 import json
 import re
@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import click
 from datamodel_code_generator import (
@@ -28,6 +28,9 @@ _JSON_SCHEMA_DRAFT = "http://json-schema.org/draft-07/schema#"
 # modules are aligned the same way as the pybuggy source (line-length 120, py310).
 _RUFF_LINE_LENGTH = "120"
 _RUFF_TARGET_VERSION = "py310"
+
+# Help text of -f/--force — names the full artifact set the flag regenerates.
+_FORCE_HELP = "Overwrite existing response schema files, meta.json, api.py and __init__.py markers"
 
 # Matches an OpenAPI path parameter "{name}" (name kept verbatim, incl. case).
 _PATH_PARAM_RE = re.compile(r"\{([^}]*)\}")
@@ -305,13 +308,34 @@ def _collect_specs(
     return to_generate, matched_ids
 
 
+def _endpoint_meta(endpoint: Endpoint) -> dict[str, Any]:
+    """Build the per-endpoint ``meta.json`` input-contract payload.
+
+    Always returns the same three keys in a fixed order — ``parameters`` (query
+    parameter schemas), ``request_body`` (the request-body schema) and ``vars``
+    (URL path-variable schemas) — taking the schemas exactly as extracted, with
+    no re-normalization. No key is ever omitted, regardless of endpoint shape.
+
+    Args:
+        endpoint: Endpoint whose input contract is described.
+
+    Returns:
+        Mapping with exactly the keys ``parameters``, ``request_body`` and ``vars``.
+    """
+    return {
+        "parameters": endpoint.query_params,
+        "request_body": endpoint.request,
+        "vars": endpoint.path_params,
+    }
+
+
 def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool, cwd: Path) -> None:
-    """Phase 2 — write response schemas, per-endpoint api.py fixtures, package markers and test dirs.
+    """Phase 2 — write response schemas, meta.json, api.py fixtures, package markers and test dirs.
 
     Args:
         to_generate: ``(name, endpoints)`` pairs to scaffold.
-        force: when false, existing schema/api.py files and ``__init__.py`` markers are skipped
-            silently; when true, they are overwritten.
+        force: when false, existing schema/meta.json/api.py files and ``__init__.py`` markers are
+            skipped silently; when true, they are overwritten.
         cwd: working directory under which the ``api/`` and ``tests/`` trees are written.
 
     Raises:
@@ -338,24 +362,31 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
 
             # write the per-endpoint api.py fixture module (force semantics match the schemas)
             api_file = endpoint_dir / "api.py"
-            if api_file.exists() and not force:
-                continue
-            api_file.write_text(render_api_module(endpoint), encoding="utf-8")
+            if force or not api_file.exists():
+                api_file.write_text(render_api_module(endpoint), encoding="utf-8")
+
+            # write the per-endpoint meta.json input contract (force semantics match the schemas)
+            meta_file = endpoint_dir / "meta.json"
+            if force or not meta_file.exists():
+                meta = json.dumps(_endpoint_meta(endpoint), indent=2, ensure_ascii=False)
+                meta_file.write_text(meta, encoding="utf-8")
 
 
 def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[list[str]] = None) -> None:
-    """Scaffold api/ response-schema files, api.py fixture modules and empty tests/ directories from the spec config.
+    """Scaffold api/ response-schema files, meta.json contracts, api.py fixture modules and empty tests/ directories.
 
     Loads the config from the fixed config path and, for each (optionally filtered) spec, parses the
-    spec file, extracts endpoints, optionally filters them by id, and writes response schemas, an
-    ``api.py`` pytest-fixture module and empty test directories under the current working directory.
+    spec file, extracts endpoints, optionally filters them by id, and writes response schemas, a
+    ``meta.json`` input contract, an ``api.py`` pytest-fixture module and empty test directories under
+    the current working directory.
 
     Two phases — collect/validate (no disk writes) then write — so an unknown endpoint id raises
     before any artifact is written.
 
     Args:
         spec_name: Optional spec filter; when set generate only that spec, otherwise generate all specs.
-        force: When false, existing schema and api.py files are skipped silently; when true, overwritten.
+        force: When false, existing schema, meta.json and api.py files are skipped silently; when
+            true, overwritten.
         endpoint_ids: Optional endpoint-id filter (as produced by ``build_endpoint_id``); when set,
             generate only endpoints whose id is in the list. ``None`` or empty generates every endpoint
             of the selected specs. Every requested id must match at least one selected spec, otherwise
@@ -396,7 +427,7 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
 
 @click.command("generate")
 @click.option("-s", "--spec", "spec_name", default=None, help="Spec name to generate")
-@click.option("-f", "--force", is_flag=True, default=False, help="Overwrite existing schema and api.py files")
+@click.option("-f", "--force", is_flag=True, default=False, help=_FORCE_HELP)
 @click.argument("endpoint-ids", nargs=-1, default=None)
 def generate_cmd(spec_name: Optional[str], force: bool, endpoint_ids: tuple[str, ...]) -> None:
     """Click wrapper for the endpoint generate subcommand.
