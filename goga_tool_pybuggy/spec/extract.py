@@ -120,6 +120,9 @@ def _extract_params(
     """
     result: dict[str, Any] = {}
     for param in all_params:
+        if not isinstance(param, dict):
+            # Skip malformed entries (e.g. null) — mirrors the path-item guard
+            continue
         if param.get("in") != location:
             continue
         name = param.get("name")

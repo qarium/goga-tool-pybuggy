@@ -775,6 +775,28 @@ def test_extract_endpoints_skips_path_param_without_name() -> None:
     assert endpoints[0].path_params == {"id": {"type": "string"}}
 
 
+def test_extract_endpoints_skips_non_dict_param_entries() -> None:
+    """Malformed non-dict parameter entries (e.g. null) are skipped, not AttributeError."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/x": {
+                "get": {
+                    "parameters": [
+                        None,
+                        {"name": "id", "in": "path", "schema": {"type": "string"}},
+                    ],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"id": {"type": "string"}}
+
+
 def test_extract_endpoints_path_item_path_params_inherited_by_operations() -> None:
     """A path-level ``in: path`` parameter is inherited by every operation of the path-item."""
     spec = {

@@ -2,7 +2,7 @@
 
 ## Domain
 
-`jsonschema` validates the JSON body of a response (`resq.http.Response.json()`) against a JSON schema. Cell `goga_tool_pybuggy/api/asserts` uses it: the `Expected.jsonschema_is_valid` method (a single schema dict/path), the `Expected.jsonschemas_is_valid` method (a directory of schemas keyed by status), and auto-validation on the positive path (via the `schemas/<status>*.json` file).
+`jsonschema` validates the JSON body of a response (`resq.http.Response.json()`) against a JSON schema. Cell `goga_tool_pybuggy/api/asserts` uses it: the `Expect.jsonschema_is_valid` method (a single schema dict/path), the `Expect.jsonschemas_is_valid` method (a directory of schemas keyed by status), and auto-validation on the positive path (via the `schemas/<status>*.json` file).
 
 ```python
 import jsonschema
@@ -31,7 +31,7 @@ jsonschema.Draft7Validator(schema).validate(body)
 
 ## Auto-validation by status
 
-On the positive path, `Expected` loads the **first** file in `schemas_dir` whose name starts with the actual status code string (`str(response.status_code)`), and validates the body against it. The files are sorted — the first match wins:
+On the positive path, `Expect` loads the **first** file in `schemas_dir` whose name starts with the actual status code string (`str(response.status_code)`), and validates the body against it. The files are sorted — the first match wins:
 
 ```python
 code = str(response.status_code)

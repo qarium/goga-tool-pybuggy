@@ -157,7 +157,7 @@ generated `api/` and `tests/` tree.
 ## Special cases
 
 - A spec without `paths` → `click.ClickException`.
-- A spec without endpoints → WARNING; no artifacts are created.
+- A spec without endpoints → skipped silently; no artifacts are created.
 - An endpoint without a body, or a body without fields → `api.py` without `class Request` (the
   `pydantic` import is omitted); the fixture is generated in any case.
 - An endpoint with no query parameters, request body, or path variables → `meta.json` with all

@@ -808,6 +808,68 @@ def test_run_generate_writes_meta_json_when_api_py_exists(
     assert json.loads((endpoint_dir / "meta.json").read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
 
 
+def test_run_generate_meta_json_serializes_date_examples(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """date/datetime values carried in parameter schemas render as ISO strings, not TypeError.
+
+    swax/Prance convert YAML date-like examples into ``datetime.date`` objects; the
+    meta.json (and schema-file) writes must serialize them instead of aborting the run
+    mid-write with a partial artifact tree (mirrors ``render_info``).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /orders/{since}:
+    get:
+      description: Orders since a date
+      parameters:
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date
+            example: 2020-01-01
+        - name: since
+          in: path
+          schema:
+            type: string
+            format: date
+            example: 2020-02-02
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: string
+                    format: date
+                    example: 2020-03-03
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    meta_file = tmp_path / "api" / "shop" / "orders_since_get" / "meta.json"
+    assert meta_file.exists()
+    assert json.loads(meta_file.read_text()) == {
+        "parameters": {"until": {"type": "string", "format": "date", "example": "2020-01-01"}},
+        "request_body": {},
+        "vars": {"since": {"type": "string", "format": "date", "example": "2020-02-02"}},
+    }
+    schema_file = tmp_path / "api" / "shop" / "orders_since_get" / "schemas" / "200.json"
+    assert json.loads(schema_file.read_text())["properties"]["created"]["example"] == "2020-03-03"
+
+
 @pytest.mark.parametrize(
     ("force", "expected"),
     [

@@ -34,6 +34,10 @@ JSON with fixed keys (PascalCase): `Method` (lowercase), `Path` (`{param}` → `
 - One match → a JSON object.
 - Several matches (an id collision across specs, or several requested ids) → a JSON array.
 
+URL path variables are not part of this output — `QueryParams` covers query parameters
+only. The `{name: schema}` of URL path variables is available in the `vars` key of the
+per-endpoint `meta.json` written by [generate](generate.md).
+
 ## Preconditions
 
 - Spec files must reside at `location` (after [pull](pull.md) or placed manually).

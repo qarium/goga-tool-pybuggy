@@ -187,6 +187,36 @@ def _mock_body(items, test_id, path, method):
 response.expect()(hook=lambda items: _mock_body(items, tid, "/api/shared", "POST")).equal_to({"owner": "A1"})
 ```
 
+## Auto-check
+
+On the **first access** to `response.expect`, pybuggy runs a lazy auto-check once (unless
+`use_autocheck=False` — on the `Endpoint` or on a single call). The path depends on how the
+endpoint was called:
+
+- **Positive** — `with endpoint(...) as response:` → the expected status (when
+  `expected_status` is set) → the body is parsed as JSON → validation against the first
+  `schemas/<status>*.json` (silently skipped when the directory or file is absent).
+- **Negative** — `with endpoint.error(...) as response:` → the body is parsed as JSON
+  only. Status and JSON schema are **not** checked — verify them explicitly
+  (`response.expect.has_status_code(400)`).
+
+Envelope keys are **not** verified by the auto-check; assert them explicitly via
+`json_has_data_by_key` / `json_has_not_data_by_key` when the API contract requires them.
+An explicit `has_status_code(200)` duplicates only the status part of the positive path —
+that is normal.
+
+```python
+def test_initiate(post_clients_calls_initiate: Endpoint):
+    with post_clients_calls_initiate(json=Request(order_id=1)) as response:
+        response.expect.has_status_code(200)          # auto-check already ran on this line
+
+
+def test_initiate_error(post_clients_calls_initiate: Endpoint):
+    with post_clients_calls_initiate.error(json={"name": "x"}) as response:
+        response.expect.has_status_code(400)          # negative path: status is your job
+        response.expect("error.message").not_empty()
+```
+
 ## Polling
 
 `timeout`/`delay` from the configuration form the baseline. The check repeats until it

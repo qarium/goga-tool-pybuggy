@@ -76,7 +76,7 @@ class TestFieldDrillDown:
         _expect()("data.name")(hook=lambda value: value.upper()).equal_to("ABC")
 
     def test_drill_returns_new_assert_field(self) -> None:
-        """Drilling returns a distinct AssertField (immutable chain)."""
+        """Drilling returns a distinct AssertField and leaves the parent field intact."""
         from goga_tool_pybuggy.api import AssertField
 
         base = _expect()("data.items")
@@ -84,6 +84,9 @@ class TestFieldDrillDown:
 
         assert isinstance(drilled, AssertField)
         assert drilled is not base
+        assert base.value == [1, 2, 3]
+        base.has_length(3)
+        assert drilled.value == 1
 
 
 class TestFieldRootIsBodyRoot:

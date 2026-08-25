@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any, Optional
 
@@ -34,6 +35,34 @@ _FORCE_HELP = "Overwrite existing response schema files, meta.json, api.py and _
 
 # Matches an OpenAPI path parameter "{name}" (name kept verbatim, incl. case).
 _PATH_PARAM_RE = re.compile(r"\{([^}]*)\}")
+
+
+def _json_default(obj: object) -> str:
+    """Serialize non-JSON-native objects carried in resolved specs.
+
+    swax/Prance convert YAML date-like values (e.g. ``example: 2020-01-01``
+    under ``format: date``/``date-time``) into ``datetime.date``/
+    ``datetime.datetime`` objects, which ``json.dumps`` cannot encode by
+    default — a schema carrying one would abort the artifact write with a raw
+    ``TypeError`` after earlier files are already on disk. This renders them
+    as ISO 8601 strings (same convention as ``output.render_info``).
+    ``datetime.datetime`` is a subclass of ``date``, so a single ``date``
+    check covers both.
+
+    Args:
+        obj: Object that ``json.dumps`` could not encode natively.
+
+    Returns:
+        ISO 8601 string for date/datetime values.
+
+    Raises:
+        TypeError: For any type this serializer does not handle, re-raised so
+            ``json.dumps`` reports it with its standard message.
+    """
+    if isinstance(obj, date):
+        return obj.isoformat()
+
+    raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
 
 
 def _find_ruff() -> str:
@@ -266,8 +295,8 @@ def _collect_specs(
 ) -> tuple[list[tuple[str, list[Endpoint]]], set[str]]:
     """Phase 1 — parse, extract and filter the selected specs without writing to disk.
 
-    For each spec: load and validate it (``paths`` required), extract endpoints, warn+skip a spec
-    with no operations (pre-filter check), and — when ``endpoint_filter`` is set — keep only
+    For each spec: load and validate it (``paths`` required), extract endpoints, silently skip a
+    spec with no operations (pre-filter check), and — when ``endpoint_filter`` is set — keep only
     endpoints whose id is in the filter. Returns the per-spec endpoint lists to generate and the
     set of endpoint ids that matched the filter.
 
@@ -358,7 +387,9 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
                 schema_file = schemas_dir / f"{status_code}.json"
                 if schema_file.exists() and not force:
                     continue
-                schema_file.write_text(json.dumps(schema, indent=2, ensure_ascii=False), encoding="utf-8")
+                schema_file.write_text(
+                    json.dumps(schema, indent=2, ensure_ascii=False, default=_json_default), encoding="utf-8"
+                )
 
             # write the per-endpoint api.py fixture module (force semantics match the schemas)
             api_file = endpoint_dir / "api.py"
@@ -368,7 +399,7 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
             # write the per-endpoint meta.json input contract (force semantics match the schemas)
             meta_file = endpoint_dir / "meta.json"
             if force or not meta_file.exists():
-                meta = json.dumps(_endpoint_meta(endpoint), indent=2, ensure_ascii=False)
+                meta = json.dumps(_endpoint_meta(endpoint), indent=2, ensure_ascii=False, default=_json_default)
                 meta_file.write_text(meta, encoding="utf-8")
 
 
