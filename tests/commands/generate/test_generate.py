@@ -1628,3 +1628,48 @@ paths:
     assert endpoint_dirs == ["clients__get", "clients_get"]
     assert len(fixture_names) == 2
     assert len(set(fixture_names)) == 2
+
+
+def test_run_generate_rejects_sanitized_id_collision(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two distinct ids sanitizing to one directory abort before any write.
+
+    "/v1.0/clients" and "/v1_0/clients" both map to "v1_0_clients_get"; without
+    the check the second endpoint's artifacts would be silently skipped (they
+    "already exist") and its response schemas would land in the first endpoint's
+    directory.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /v1.0/clients:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1_0/clients:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="v1_0_clients_get"):
+        run_generate(None, False)
+
+    # the collision is detected in the collect/validate phase — nothing on disk
+    assert not (tmp_path / "api").exists()

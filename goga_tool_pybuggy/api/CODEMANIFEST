@@ -74,7 +74,7 @@ Annotations: |
       Algorithm:
       1. Read the alias-serialization flag from kwargs (default off).
       2. Serialize params and json: a pydantic model is serialized alias-controlled; a dict or None is kept as-is; missing params default to an empty mapping.
-      3. Split path parameters (the ":name" keys) out of params, substitute them into url_path, and keep the rest as the query. Substitution matches a :name token exactly (up to the next non-word character), so a parameter whose name is a prefix of another (:id / :id2) is never collapsed into it.
+      3. Split path parameters (the ":name" keys) out of params, substitute them into url_path, and keep the rest as the query. Only the names present in params are matched, each as a whole token (longest first), so a parameter whose name is a prefix of another (:id / :id2) is never collapsed into it; a ":word" with no matching parameter is literal path content and is left untouched.
       4. Inject auth, headers, and cookies defaults with call-level precedence (call-level wins; stored values fill the gaps) without mutating a caller-owned dict.
       5. Resolve the effective adapter: the call-level adapter kwarg when present, otherwise the `Api` default; resolve the matching cached resq.Session (the composed default session for the default adapter; built and cached on first use otherwise). Validate the adapter — reject "httpx" (async) and any non-"requests" name.
       6. Resolve the HTTP verb on that session and dispatch the request with url_path and the remaining kwargs.

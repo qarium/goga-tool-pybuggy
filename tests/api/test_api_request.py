@@ -127,6 +127,48 @@ class TestRequestPathParams:
         sent = api._client.get.call_args  # type: ignore[attr-defined]
         assert sent.args[0] == "/a/42/b/7"
 
+    def test_same_param_name_in_two_segments(self) -> None:
+        """The identical ``:name`` in two segments is substituted at both."""
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/a/:user/b/:user", params={":user": 42, "q": "x"})
+
+        sent = api._client.get.call_args  # type: ignore[attr-defined]
+        assert sent.args[0] == "/a/42/b/42"
+        assert sent.kwargs["params"] == {"q": "x"}
+
+    def test_colon_without_param_left_untouched(self) -> None:
+        """A ``:word`` with no matching parameter is literal path content.
+
+        A static segment may legally contain a colon (``09:30``); it must not
+        be treated as an unsubstituted placeholder and must not raise.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/clock/09:30", params={"q": "x"})
+
+        sent = api._client.get.call_args  # type: ignore[attr-defined]
+        assert sent.args[0] == "/clock/09:30"
+        assert sent.kwargs["params"] == {"q": "x"}
+
+    def test_param_name_with_punctuation_matched_whole(self) -> None:
+        """Names with non-word characters (``-``, ``.``) match their full token.
+
+        ``build_endpoint_id`` and ``_convert_route`` pass spec parameter names
+        through verbatim, and OpenAPI names are only required to be legal in a
+        path template — ``{order-id}`` / ``{file.name}`` are valid.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/orders/:order-id", params={":order-id": 7, "q": 1})
+        api.request("GET", "/files/:file.name", params={":file.name": "x"})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/orders/7", "/files/x"]
+
 
 class TestRequestJson:
     """``json`` serialization: pydantic dump with ``use_aliases``."""

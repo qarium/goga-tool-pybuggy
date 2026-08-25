@@ -50,6 +50,9 @@ Artifact tree (under the current working directory):
 outside `[a-z0-9_]` becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_get`), and a leading
 digit is prefixed with `_` — the directory is a package-name segment, so it must be importable.
 The `endpoint-ids` filter still keys on the raw id as produced by `build_endpoint_id`.
+When two distinct ids of one spec sanitize to the same segment (e.g. `/v1.0/clients` and
+`/v1_0/clients`), generate raises `click.ClickException` naming both — before any artifact is
+written, never merging their directories.
 
 Example: spec `shop`, endpoint `clients_startup_get` with status codes `200`, `404`:
 

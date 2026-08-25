@@ -258,15 +258,23 @@ class Api:
         """Move ``:name`` keys out of ``params`` into ``url_path`` (in place).
 
         ``params`` is the fresh dict from :meth:`_resolve_params`; the remaining
-        keys stay as the query string. Substitution matches a ``:name`` token
-        exactly (up to the next non-word character), so a parameter whose name
-        is a prefix of another (``:id`` / ``:id2``) is never collapsed into it.
+        keys stay as the query string. Only the names actually present in
+        ``params`` are matched, each as a whole token (a name is never matched
+        inside a longer one, so ``:id`` / ``:id2`` stay distinct) — a ``:word``
+        with no matching parameter is literal path content (e.g. ``09:30``) and
+        is left untouched.
         """
+        names = sorted((key for key in params if key.startswith(":")), key=len, reverse=True)
+        if not names:
+            return url_path
+
+        pattern = re.compile("|".join(re.escape(name) for name in names))
+        values = {name: params.pop(name) for name in names}
 
         def _replace(match: re.Match[str]) -> str:
-            return str(params.pop(f":{match.group(1)}"))
+            return str(values[match.group(0)])
 
-        return re.sub(r":(\w+)", _replace, url_path)
+        return pattern.sub(_replace, url_path)
 
     def _inject_defaults(self, kwargs: dict[str, Any]) -> None:
         """Inject stored auth/headers/cookies with call-level precedence."""

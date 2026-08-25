@@ -39,7 +39,9 @@ outside `[a-z0-9_]` becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_ge
 digit is prefixed with `_`. The directory is a package-name segment loaded by dotted name, so it
 must be importable; the fixture `def` name inside `api.py` derives from the same sanitized value,
 keeping the two in lockstep. The `endpoint-ids` filter still keys on the raw id as produced by
-`build_endpoint_id`.
+`build_endpoint_id`. When two distinct ids of one spec sanitize to the same segment
+(`/v1.0/clients` and `/v1_0/clients`), generate fails with a `ClickException` naming both —
+their directories are never merged.
 
 Example — spec `shop`, endpoint `clients_startup_get` with statuses `200`, `404`:
 

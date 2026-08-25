@@ -469,7 +469,8 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
 
     Raises:
         click.ClickException: If spec_name is set but not found in config specs; a selected spec has
-            no "paths"; or endpoint_ids contains an id not found in any selected spec.
+            no "paths"; endpoint_ids contains an id not found in any selected spec; or two distinct
+            endpoint ids of one spec sanitize to the same directory name.
     """
     # Step 1: Load the config from the fixed path
     config: Config = load_config()
@@ -495,6 +496,20 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
         missing = sorted(endpoint_filter - matched_ids)
         if missing:
             raise click.ClickException(f"endpoint not found: {', '.join(missing)}")
+
+    # Step 5.5: Reject sanitized-id collisions before any write — two distinct
+    # endpoint ids mapping to one directory would silently mix their schemas
+    # and skip the second endpoint's api.py/meta.json (they "already exist").
+    for name, endpoints in to_generate:
+        owners: dict[str, str] = {}
+        for endpoint in endpoints:
+            safe_id = _safe_identifier(endpoint.id)
+            if safe_id in owners and owners[safe_id] != endpoint.id:
+                raise click.ClickException(
+                    f"endpoint ids {owners[safe_id]!r} and {endpoint.id!r} both map to "
+                    f"directory {safe_id!r} under spec {name!r}; rename one path"
+                )
+            owners[safe_id] = endpoint.id
 
     # Step 6: Phase 2 — scaffold artifacts for each selected spec/endpoint
     _write_artifacts(to_generate, force, cwd)

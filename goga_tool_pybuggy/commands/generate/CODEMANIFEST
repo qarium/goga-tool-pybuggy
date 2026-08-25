@@ -46,6 +46,7 @@ Annotations: |
        5.4. If no endpoints, silently continue this spec (no artifacts) — based on the pre-filter list.
        5.5. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids — before any artifact is written.
+    6.5. Reject sanitized-id collisions per spec — when two distinct `Endpoint` ids sanitize to the same identifier segment, raise click.ClickException naming both ids and the shared segment, before any artifact is written (the second endpoint's files would otherwise be silently skipped as "already existing" and its schemas written into the first endpoint's directory).
     7. Phase 2 — write artifacts, for each collected (name, `Endpoint`):
        7.1. Sanitize the `Endpoint` id into an identifier segment (every character outside [a-z0-9_] becomes _; a leading digit is prefixed with _) — the segment names the package directory and must be importable.
        7.2. Create cwd/api/<name>/<sanitized id>/schemas and cwd/tests/<name>/<sanitized id>.
@@ -63,6 +64,7 @@ Annotations: |
     - api.py follows the same `force` skip/overwrite semantics as schema files; idempotent — without `force`, existing files are preserved and no per-file output is emitted.
     - Every directory on the api.py path (cwd/api, cwd/api/<name>, cwd/api/<name>/<sanitized id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
     - The endpoint directory and the fixture function name derive from the same sanitized id, so a module is always importable under the dotted path it is written to.
+    - Distinct endpoint ids of one spec never share a sanitized segment; a collision raises instead of writing.
     - The `endpoint_ids` filter keys on the raw `Endpoint` id, not the sanitized segment.
     - Output root is the current working directory (Path.cwd()).
     - `endpoint_ids` of None or empty generates every endpoint of the selected specs.
