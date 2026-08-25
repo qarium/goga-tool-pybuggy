@@ -38,9 +38,28 @@ _PATH_PARAM_RE = re.compile(r"\{([^}]*)\}")
 
 # Characters of an endpoint id that cannot appear in a Python identifier.
 # build_endpoint_id normalizes "/" and "-" but not other punctuation (e.g. the
-# dot in "/v1.0/clients"); the fixture name is embedded as source text, so any
-# leftover character is replaced with "_" to keep the module importable.
+# dot in "/v1.0/clients"); the fixture name is embedded as source text and the
+# endpoint directory becomes a package-name segment, so any leftover character
+# is replaced with "_" to keep the generated module importable.
 _NON_IDENT_RE = re.compile(r"\W")
+
+
+def _safe_identifier(text: str) -> str:
+    """Make ``text`` usable as a Python identifier segment (package dir or def name).
+
+    Replaces every non-word character with ``_`` and prefixes ``_`` when the
+    result would start with a digit (``2fa_verify_get`` is not importable as a
+    package name). Applied identically to the endpoint directory name and the
+    fixture name derivation, so the two can never disagree.
+
+    Args:
+        text: Lowercased identifier candidate (typically an endpoint id).
+
+    Returns:
+        Text safe for use as a package directory name and a ``def`` name.
+    """
+    ident = _NON_IDENT_RE.sub("_", text)
+    return f"_{ident}" if ident[:1].isdigit() else ident
 
 
 def _json_default(obj: object) -> str:
@@ -185,7 +204,9 @@ def _render_request_models(request: dict, properties: dict) -> str:
 
     Generates a ``Request`` model (plus any nested object/array models) from the
     resolved request-body JSON-Schema, then strips the generator header. No disk
-    I/O — the schema is fed as a JSON string and the module text is returned.
+    I/O — the schema is fed as a JSON string (dates rendered via
+    ``_json_default``, same convention as the schema/meta.json writes) and the
+    module text is returned.
 
     Args:
         request: Resolved JSON-Schema of the request body (may carry ``type``,
@@ -199,7 +220,7 @@ def _render_request_models(request: dict, properties: dict) -> str:
     source = generate(
         snake_case_field=True,
         capitalise_enum_members=True,
-        input_=json.dumps(schema),
+        input_=json.dumps(schema, default=_json_default),
         input_file_type=InputFileType.JsonSchema,
         disable_future_imports=True,
         disable_timestamp=True,
@@ -278,10 +299,11 @@ def render_api_module(endpoint: Endpoint) -> str:
     method = endpoint.method.lower()
 
     # 1. Fixture name: <method>_<id with the trailing "_<method>" removed>.
-    #    Sanitized to a valid identifier: the name is emitted as source text, so a
-    #    non-identifier character in the path (e.g. the dot in "/v1.0/clients")
-    #    would render an unimportable module.
-    fixture_name = _NON_IDENT_RE.sub("_", f"{method}_{endpoint.id.removesuffix('_' + method)}")
+    #    Sanitized via _safe_identifier — the same normalization _write_artifacts
+    #    applies to the endpoint directory, so the fixture name and the package
+    #    it lives in can never disagree (a non-identifier character such as the
+    #    dot in "/v1.0/clients" would otherwise render an unimportable module).
+    fixture_name = _safe_identifier(f"{method}_{endpoint.id.removesuffix('_' + method)}")
 
     # 2. Route: rewrite each {param} as :param (preserve case)
     route = _convert_route(endpoint.path)
@@ -390,11 +412,15 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
     """
     for name, endpoints in to_generate:
         for endpoint in endpoints:
-            endpoint_dir = cwd / "api" / name / endpoint.id
+            # Sanitized id — used for both the directory and (via render_api_module)
+            # the fixture name, so the module is importable under the path it is
+            # written to and the two can never disagree.
+            safe_id = _safe_identifier(endpoint.id)
+            endpoint_dir = cwd / "api" / name / safe_id
             schemas_dir = endpoint_dir / "schemas"
             schemas_dir.mkdir(parents=True, exist_ok=True)
 
-            test_dir = cwd / "tests" / name / endpoint.id
+            test_dir = cwd / "tests" / name / safe_id
             test_dir.mkdir(parents=True, exist_ok=True)
 
             # Empty __init__.py markers on every directory of the api.py path

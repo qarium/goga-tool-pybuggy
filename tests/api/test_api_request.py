@@ -100,6 +100,33 @@ class TestRequestPathParams:
         assert sent.args[0] == "/items/42"
         assert sent.kwargs["params"] == {"q": "x"}
 
+    def test_prefixed_param_names_substituted_exactly(self) -> None:
+        """``:id`` must not match inside ``:id2`` — substitution is per segment.
+
+        A plain ``str.replace`` over the whole path collapses ``:id2`` to
+        ``<value>2`` whenever one parameter name is a prefix of another, and
+        the result then depends on dict ordering.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        # both orderings of the same params must give the same URL
+        for params in ({":id": 5, ":id2": 9}, {":id2": 9, ":id": 5}):
+            api.request("GET", "/x/:id/y/:id2", params=params)
+
+            sent = api._client.get.call_args  # type: ignore[attr-defined]
+            assert sent.args[0] == "/x/5/y/9"
+
+    def test_repeated_param_name_substituted_in_every_segment(self) -> None:
+        """The same ``:name`` appearing twice is substituted at both sites."""
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/a/:user/b/:user_id", params={":user_id": 7, ":user": "42"})
+
+        sent = api._client.get.call_args  # type: ignore[attr-defined]
+        assert sent.args[0] == "/a/42/b/7"
+
 
 class TestRequestJson:
     """``json`` serialization: pydantic dump with ``use_aliases``."""

@@ -21,6 +21,7 @@ and dispatches to the matching resq verb — one request, never forwarding
 from __future__ import annotations
 
 import logging
+import re
 from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING, Any
 
@@ -257,12 +258,15 @@ class Api:
         """Move ``:name`` keys out of ``params`` into ``url_path`` (in place).
 
         ``params`` is the fresh dict from :meth:`_resolve_params`; the remaining
-        keys stay as the query string.
+        keys stay as the query string. Substitution matches a ``:name`` token
+        exactly (up to the next non-word character), so a parameter whose name
+        is a prefix of another (``:id`` / ``:id2``) is never collapsed into it.
         """
-        for key in [name for name in params if name.startswith(":")]:
-            url_path = url_path.replace(key, str(params.pop(key)))
 
-        return url_path
+        def _replace(match: re.Match[str]) -> str:
+            return str(params.pop(f":{match.group(1)}"))
+
+        return re.sub(r":(\w+)", _replace, url_path)
 
     def _inject_defaults(self, kwargs: dict[str, Any]) -> None:
         """Inject stored auth/headers/cookies with call-level precedence."""

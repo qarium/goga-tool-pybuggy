@@ -40,11 +40,16 @@ Artifact tree (under the current working directory):
 
     api/__init__.py                       # empty package marker
     api/<spec>/__init__.py                # empty package marker
-    api/<spec>/<endpoint.id>/__init__.py  # empty package marker
-    api/<spec>/<endpoint.id>/schemas/<status_code>.json
-    api/<spec>/<endpoint.id>/meta.json
-    api/<spec>/<endpoint.id>/api.py
-    tests/<spec>/<endpoint.id>/          # empty directory
+    api/<spec>/<endpoint.dir>/__init__.py  # empty package marker
+    api/<spec>/<endpoint.dir>/schemas/<status_code>.json
+    api/<spec>/<endpoint.dir>/meta.json
+    api/<spec>/<endpoint.dir>/api.py
+    tests/<spec>/<endpoint.dir>/          # empty directory
+
+`<endpoint.dir>` is the endpoint id sanitized to a Python identifier segment: every character
+outside `[a-z0-9_]` becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_get`), and a leading
+digit is prefixed with `_` — the directory is a package-name segment, so it must be importable.
+The `endpoint-ids` filter still keys on the raw id as produced by `build_endpoint_id`.
 
 Example: spec `shop`, endpoint `clients_startup_get` with status codes `200`, `404`:
 
@@ -86,7 +91,8 @@ Consumers read `meta.json` to build URL substitutions (`vars`) and request paylo
 quotes, sorted imports, line-length 120):
 
 - `@pytest.fixture(scope="function")` named `{method}_{path_part}` (`path_part` = `endpoint.id`
-  without the `_{method}` suffix); it accepts `api: Api` and returns
+  without the `_{method}` suffix, sanitized with the same rule as the endpoint directory); it
+  accepts `api: Api` and returns
   `Endpoint(api, "<route>", method="<METHOD>")`, where `<METHOD>` is the HTTP method in uppercase.
 - `<route>` derives from `endpoint.path` by replacing `{param}` with `:param` while preserving the
   parameter name and case (e.g. `/clients/{orderID}/status` → `/clients/:orderID/status`).
@@ -125,7 +131,7 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 - With `-f` (`force=True`): the handler overwrites files, rewrites `__init__.py` markers with empty
   content, and (re)creates directories — the entire artifact tree regenerates uniformly.
 - `__init__.py` markers are placed only along the path to `api.py` (`api/`, `api/<spec>/`,
-  `api/<spec>/<endpoint.id>/`), never under `tests/`.
+  `api/<spec>/<endpoint.dir>/`), never under `tests/`.
 - A tree regenerated without `-f` does not gain `meta.json` next to already-present artifacts until
   `-f` is used or the file is missing — the established skip semantics, by design.
 

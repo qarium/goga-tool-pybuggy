@@ -47,11 +47,12 @@ Annotations: |
        5.5. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids — before any artifact is written.
     7. Phase 2 — write artifacts, for each collected (name, `Endpoint`):
-       7.1. Create cwd/api/<name>/<Endpoint.id>/schemas and cwd/tests/<name>/<Endpoint.id>.
-       7.2. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
-       7.3. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<name>/<Endpoint.id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
-       7.4. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<name>/<Endpoint.id>/api.py (same `force` skip/overwrite semantics).
-       7.5. Write the endpoint input contract to cwd/api/<name>/<Endpoint.id>/meta.json — exactly the keys parameters (the `Endpoint` query_params), request_body (the `Endpoint` request), vars (the `Endpoint` path_params) — serialized as prettified JSON (indent=2, ensure_ascii=False), with the same `force` skip/overwrite semantics as the schema and api.py files.
+       7.1. Sanitize the `Endpoint` id into an identifier segment (every character outside [a-z0-9_] becomes _; a leading digit is prefixed with _) — the segment names the package directory and must be importable.
+       7.2. Create cwd/api/<name>/<sanitized id>/schemas and cwd/tests/<name>/<sanitized id>.
+       7.3. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<name>, cwd/api/<name>/<sanitized id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
+       7.4. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<name>/<sanitized id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
+       7.5. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<name>/<sanitized id>/api.py (same `force` skip/overwrite semantics).
+       7.6. Write the endpoint input contract to cwd/api/<name>/<sanitized id>/meta.json — exactly the keys parameters (the `Endpoint` query_params), request_body (the `Endpoint` request), vars (the `Endpoint` path_params) — serialized as prettified JSON (indent=2, ensure_ascii=False), with the same `force` skip/overwrite semantics as the schema and api.py files.
 
     Requirements:
     - Each schema file contains the resolved schema serialized as prettified JSON (indent=2, ensure_ascii=False); codes without application/json content produce an empty schema (serialized as {}).
@@ -60,7 +61,9 @@ Annotations: |
     - meta.json is serialized with the schema-file convention: prettified JSON, indent=2, ensure_ascii=False.
     - api.py contains the fixture and the optional Request class exactly as produced by `render_api_module`.
     - api.py follows the same `force` skip/overwrite semantics as schema files; idempotent — without `force`, existing files are preserved and no per-file output is emitted.
-    - Every directory on the api.py path (cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
+    - Every directory on the api.py path (cwd/api, cwd/api/<name>, cwd/api/<name>/<sanitized id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
+    - The endpoint directory and the fixture function name derive from the same sanitized id, so a module is always importable under the dotted path it is written to.
+    - The `endpoint_ids` filter keys on the raw `Endpoint` id, not the sanitized segment.
     - Output root is the current working directory (Path.cwd()).
     - `endpoint_ids` of None or empty generates every endpoint of the selected specs.
     - Every requested id in `endpoint_ids` must match at least one selected spec, else a click.ClickException is raised and no artifacts are written.
@@ -86,7 +89,7 @@ Annotations: |
     `module`: complete api.py source text, deterministic for a given endpoint, ruff-aligned, ready to write to disk.
 
     Algorithm:
-    1. Build the fixture name from the endpoint id and method: drop the trailing "_<method>" suffix of the id and prepend "<method>_".
+    1. Build the fixture name from the endpoint id and method: drop the trailing "_<method>" suffix of the id and prepend "<method>_", then sanitize to an identifier segment (every character outside [a-z0-9_] becomes _; a leading digit is prefixed with _) — the name is emitted as source text, and the same normalization names the endpoint directory, so the module stays importable and the two can never disagree.
     2. Build the route string from the endpoint path: replace each "{name}" path segment with ":name", preserving the parameter name and its original case (e.g. {orderID} -> :orderID).
     3. Determine the request-body model scope: collect the properties of the endpoint request schema; when absent, empty, or non-dict, omit the request-body model entirely. Sanitize each property fragment by replacing any non-dict/non-bool fragment with the boolean true schema, so malformed fragments never raise and degrade to Any.
     4. When properties exist, render the pydantic model text via `datamodel-code-generator`: a Request model plus any nested object/array models from the resolved request-body JSON-Schema, with disable_timestamp=True and disable_future_imports=True, then strip the generator header.

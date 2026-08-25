@@ -31,13 +31,13 @@ from goga_tool_pybuggy.spec import extract_endpoints
 
 endpoints = extract_endpoints(spec)  # list[Endpoint], one per method+path
 for ep in endpoints:
-    ep.id            # 'clients_startup_get' — computed via build_endpoint_id
-    ep.method        # 'get' (lowercase)
-    ep.path          # '/clients/{id}'
-    ep.request       # expanded request body schema (or {})
-    ep.response      # {status: schema}
+    ep.id  # 'clients_startup_get' — computed via build_endpoint_id
+    ep.method  # 'get' (lowercase)
+    ep.path  # '/clients/{id}'
+    ep.request  # expanded request body schema (or {})
+    ep.response  # {status: schema}
     ep.query_params  # {name: schema} for `in: query` parameters
-    ep.path_params   # {name: schema} for `in: path` parameters (URL variables)
+    ep.path_params  # {name: schema} for `in: path` parameters (URL variables)
 ```
 
 The output semantics are identical across formats: for OpenAPI 3.x, the cell extracts request/response/query/path from the `requestBody`/`responses[code].content`/`parameters[].schema` structure; for Swagger 2.0 — from the `in: body` parameter/`responses[code].schema`/inline fields of the `in: query` and `in: path` parameters. Given the same operation semantics, both formats produce the same normalized `Endpoint` model.

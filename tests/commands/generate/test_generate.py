@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 import pytest
 from goga_tool_pybuggy.commands.generate import generate_cmd, render_api_module, run_generate
+from goga_tool_pybuggy.plugin.loaders.loaders import _module_is_pytest_plugin
 from goga_tool_pybuggy.spec import Endpoint
 
 CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
@@ -876,6 +877,60 @@ paths:
     assert json.loads(schema_file.read_text())["properties"]["created"]["example"] == "2020-03-03"
 
 
+def test_run_generate_request_body_date_example_writes_all_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A date-like value in the request body must not abort the artifact write.
+
+    The schema/meta.json writes serialize dates via ``_json_default``; the
+    request-model path must do the same, otherwise a spec with a YAML date
+    example under ``format: date`` aborts the run with a raw ``TypeError``
+    after earlier artifacts are already on disk.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /orders:
+    post:
+      description: Create an order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [when]
+              properties:
+                when:
+                  type: string
+                  format: date
+                  example: 2020-01-01
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)  # must not raise
+
+    endpoint_dir = tmp_path / "api" / "shop" / "orders_post"
+    assert (endpoint_dir / "schemas" / "200.json").exists()
+    assert (endpoint_dir / "meta.json").exists()
+    api_py = endpoint_dir / "api.py"
+    assert api_py.exists()
+    # the request model was actually rendered (the body had usable properties)
+    assert "class Request" in api_py.read_text()
+
+
 @pytest.mark.parametrize(
     ("force", "expected"),
     [
@@ -1478,3 +1533,98 @@ def test_render_api_module_sanitizes_fixture_name_to_identifier() -> None:
 
     assert "def get_v1_0_clients(api: Api) -> Endpoint:" in module
     compile(module, "api.py", "exec")
+
+
+def test_run_generate_endpoint_dir_is_importable_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The per-endpoint directory must be an importable package name.
+
+    The fixture module is loaded by dotted name from its directory path, so a
+    non-identifier character in the endpoint id (the dot in "/v1.0/clients")
+    would leave the generated tree unloadable even though api.py itself is valid.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /v1.0/clients:
+    get:
+      description: List clients
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    # the directory is a valid Python identifier segment
+    endpoint_dirs = [p for p in (tmp_path / "api" / "shop").iterdir() if p.is_dir()]
+    assert [d.name for d in endpoint_dirs] == ["v1_0_clients_get"]
+
+    # ... and the module is importable under its dotted name from that tree
+    assert _module_is_pytest_plugin("api.shop.v1_0_clients_get.api")
+
+
+def test_run_generate_fixture_name_matches_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fixture name and directory derive from the same sanitized id.
+
+    Distinct raw paths must not collapse onto the same fixture name while
+    writing to distinct directories — the two fixtures would shadow each other
+    with no warning. "/clients" and "/clients/" are distinct ids that stay
+    distinct after sanitization.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /clients:
+    get:
+      description: List clients
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /clients/:
+    get:
+      description: List clients (trailing-slash variant)
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    endpoint_dirs = sorted(p.name for p in (tmp_path / "api" / "shop").iterdir() if p.is_dir())
+    fixture_names = [
+        line
+        for api_py in sorted((tmp_path / "api" / "shop").rglob("api.py"))
+        for line in api_py.read_text().splitlines()
+        if line.startswith("def ")
+    ]
+    # one directory and one fixture per endpoint — no silent collapse in either
+    assert endpoint_dirs == ["clients__get", "clients_get"]
+    assert len(fixture_names) == 2
+    assert len(set(fixture_names)) == 2

@@ -27,12 +27,19 @@ partially generated tree.
 ```
 api/__init__.py                       # empty package marker
 api/<spec>/__init__.py                # empty package marker
-api/<spec>/<endpoint.id>/__init__.py  # empty package marker
-api/<spec>/<endpoint.id>/schemas/<status_code>.json
-api/<spec>/<endpoint.id>/meta.json
-api/<spec>/<endpoint.id>/api.py
-tests/<spec>/<endpoint.id>/           # empty directory
+api/<spec>/<endpoint.dir>/__init__.py  # empty package marker
+api/<spec>/<endpoint.dir>/schemas/<status_code>.json
+api/<spec>/<endpoint.dir>/meta.json
+api/<spec>/<endpoint.dir>/api.py
+tests/<spec>/<endpoint.dir>/           # empty directory
 ```
+
+`<endpoint.dir>` is the endpoint id sanitized to a Python identifier segment: every character
+outside `[a-z0-9_]` becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_get`) and a leading
+digit is prefixed with `_`. The directory is a package-name segment loaded by dotted name, so it
+must be importable; the fixture `def` name inside `api.py` derives from the same sanitized value,
+keeping the two in lockstep. The `endpoint-ids` filter still keys on the raw id as produced by
+`build_endpoint_id`.
 
 Example — spec `shop`, endpoint `clients_startup_get` with statuses `200`, `404`:
 
