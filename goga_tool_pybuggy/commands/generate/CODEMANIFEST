@@ -21,17 +21,17 @@ Annotations: |
   Use relative imports inside the cell.
   The handler `run_generate` is the testable entry point; the Click wrapper `generate_cmd` binds options and the positional endpoint-ids filter and calls `run_generate` (CLI tests call `run_generate` directly).
   Write artifacts under the current working directory; tests isolate via tmp_path and a cwd override (see `conventions`).
-  Per-endpoint scaffold artifacts: response schemas (JSON), an api.py pytest fixture (text from the pure routine `render_api_module`), and empty __init__.py package markers on every directory of the api.py path.
+  Per-endpoint scaffold artifacts: response schemas (JSON), a meta.json describing the endpoint input contract, an api.py pytest fixture (text from the pure routine `render_api_module`), and empty __init__.py package markers on every directory of the api.py path.
 
 ---
 
 "run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[list[str]] = None)":
   location: generate.py
   annotations: |
-    Handler for the endpoint generate command: scaffold api/ response-schema files, empty tests/ directories, and a per-endpoint api.py pytest fixture from the spec config.
+    Handler for the endpoint generate command: scaffold api/ response-schema files, per-endpoint meta.json input contracts, empty tests/ directories, and a per-endpoint api.py pytest fixture from the spec config.
 
     `spec_name`: optional filter; when set generate only that spec, otherwise generate all specs.
-    `force`: when false, existing schema/api.py files are skipped silently; when true, files are overwritten.
+    `force`: when false, existing schema/meta.json/api.py files are skipped silently; when true, files are overwritten.
     `endpoint_ids`: optional endpoint-id filter keyed on the `Endpoint` id; when None or empty generate every endpoint of the selected specs, otherwise generate only endpoints whose id is in the list.
 
     Algorithm:
@@ -51,10 +51,13 @@ Annotations: |
        7.2. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
        7.3. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<name>/<Endpoint.id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
        7.4. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<name>/<Endpoint.id>/api.py (same `force` skip/overwrite semantics).
+       7.5. Write the endpoint input contract to cwd/api/<name>/<Endpoint.id>/meta.json — exactly the keys parameters (the `Endpoint` query_params), request_body (the `Endpoint` request), vars (the `Endpoint` path_params) — serialized as prettified JSON (indent=2, ensure_ascii=False), with the same `force` skip/overwrite semantics as the schema and api.py files.
 
     Requirements:
     - Each schema file contains the resolved schema serialized as prettified JSON (indent=2, ensure_ascii=False); codes without application/json content produce an empty schema (serialized as {}).
     - Write every response status code from the `Endpoint` response, including empty {} schemas.
+    - meta.json is written for every generated endpoint and contains exactly the keys parameters, request_body, and vars; each key holds the corresponding endpoint data and {} when the endpoint declares none — no key is ever omitted.
+    - meta.json is serialized with the schema-file convention: prettified JSON, indent=2, ensure_ascii=False.
     - api.py contains the fixture and the optional Request class exactly as produced by `render_api_module`.
     - api.py follows the same `force` skip/overwrite semantics as schema files; idempotent — without `force`, existing files are preserved and no per-file output is emitted.
     - Every directory on the api.py path (cwd/api, cwd/api/<name>, cwd/api/<name>/<Endpoint.id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
@@ -63,12 +66,13 @@ Annotations: |
     - Every requested id in `endpoint_ids` must match at least one selected spec, else a click.ClickException is raised and no artifacts are written.
 
     Constraints:
-    - Do not write request-body or query-parameter schemas — only response schemas.
+    - Do not write request-body or query-parameter schema files — the schemas/ directory holds response schemas only; request-body and parameter schemas appear solely inside meta.json.
     - Do not compute the fixture/Request text in `run_generate` — delegate to `render_api_module`.
     - Do not populate tests/<spec>/<id>/ with any files — only create the empty directory.
     - Do not write __init__.py markers anywhere except the api.py path (never under tests/).
     - Do not emit per-file output when skipping existing files.
     - Do not write any artifact before validating the `endpoint_ids` filter against the collected endpoints.
+    - Do not drop or rename meta.json keys, and do not add extra keys beyond parameters, request_body, and vars.
 
     Use `configuration` for config access.
     Use `spec` for parse + extract and for the `Endpoint` id used as the filter key.
@@ -115,6 +119,9 @@ Annotations: |
     `force`: overwrite flag, bound from -f/--force.
     `endpoint_ids`: zero or more positional endpoint ids (a variadic click.argument); when none are given, `run_generate` receives None (no filter).
 
+    Requirements:
+    - The -f/--force help text names the full artifact set: response schema files, meta.json, api.py, and __init__.py markers.
+
     Use `click` for the command wrapper, the option binding, and the variadic positional argument.
 
 ---
@@ -122,4 +129,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 08/07/26
 Description: |
-  endpoint generate command handler — scaffolds api/ response-schema files, per-endpoint api.py pytest fixtures, empty __init__.py package markers on the api.py path, and empty tests/ directories from specs, optionally filtered by endpoint id.
+  endpoint generate command handler — scaffolds api/ response-schema files, per-endpoint meta.json input contracts, per-endpoint api.py pytest fixtures, empty __init__.py package markers on the api.py path, and empty tests/ directories from specs, optionally filtered by endpoint id.

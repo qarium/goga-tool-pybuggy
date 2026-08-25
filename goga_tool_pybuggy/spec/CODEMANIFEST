@@ -38,7 +38,7 @@ Annotations: |
     Constraints:
     - Pure function — no I/O, no parsing.
 
-"Endpoint(method: str, path: str, request: dict[str, Any], response: dict[str, Any], query_params: dict[str, Any], description: str)":
+"Endpoint(method: str, path: str, request: dict[str, Any], response: dict[str, Any], query_params: dict[str, Any], path_params: dict[str, Any] = {}, description: str)":
   location: endpoint.py
   annotations: |
     A single endpoint extracted from a spec operation: method, path, and resolved request/response shapes.
@@ -48,12 +48,13 @@ Annotations: |
     `request`: resolved request-body schema (primary JSON content) or {}.
     `response`: {status_code: resolved_schema} for each response (primary JSON content).
     `query_params`: {param_name: schema} for query parameters only.
+    `path_params`: {param_name: schema} for URL path variables only; an empty mapping when the operation declares none — construction without path variables is valid and equivalent.
     `description`: operation description or "".
 
     Use `conventions` for pydantic model rules.
 
     Constraints:
-    - `request`/`response`/`query_params` hold already-resolved schemas (Prance inlined refs — see `swax-openapi`), nullable-normalized to JSON-Schema union types by `extract_endpoints`.
+    - `request`/`response`/`query_params`/`path_params` hold already-resolved schemas (Prance inlined refs — see `swax-openapi`), nullable-normalized to JSON-Schema union types by `extract_endpoints`.
   properties:
     "id -> str": |
       Stable identifier derived via `build_endpoint_id` from the endpoint's method and path. Computed field — not a constructor input.
@@ -112,10 +113,10 @@ Annotations: |
 
     Requirements:
     - Skip non-method keys in path-items (parameters, summary).
-    - Path-item parameters are inherited by all operations — merge with operation parameters when extracting query params.
+    - Path-item parameters are inherited by all operations — merge with operation parameters when extracting query and path parameters.
     - Primary content type is application/json; absent fields default to {}.
-    - OpenAPI 3.x: request from the operation requestBody content application/json schema; response from each responses[code] content application/json schema; query from each parameters[] entry whose in is query, via its nested schema.
-    - Swagger 2.0: request from the parameter whose in is body, via its root schema; response from responses[code] schema directly (no content wrapper); query from each parameters[] entry whose in is query, via its inlined type/format/items/enum/default/description/x-nullable fields — the canonical _TYPE_FIELDS set from `swax-openapi`, which includes x-nullable so the keyword reaches nullable-normalization rather than being dropped by field filtering.
+    - OpenAPI 3.x: request from the operation requestBody content application/json schema; response from each responses[code] content application/json schema; query and path parameters from each parameters[] entry whose in is query or path, via its nested schema.
+    - Swagger 2.0: request from the parameter whose in is body, via its root schema; response from responses[code] schema directly (no content wrapper); query and path parameters from each parameters[] entry whose in is query or path, via its inlined type/format/items/enum/default/description/x-nullable fields — the canonical _TYPE_FIELDS set from `swax-openapi`, which includes x-nullable so the keyword reaches nullable-normalization rather than being dropped by field filtering.
     - Each extracted schema is nullable-normalized to the JSON-Schema union form: OpenAPI nullable: true and Swagger x-nullable: true both become a type list including "null" (with an anyOf fallback when a single type cannot host the union); the originating key is dropped; recursion runs through properties, items, additionalProperties, and anyOf/oneOf/allOf. Required because the runtime jsonschema validator ignores both keywords, so an un-normalized fragment rejects null.
 
     Constraints:
@@ -124,7 +125,8 @@ Annotations: |
     - A spec declaring neither a swagger nor an openapi version is invalid — `detect_spec_version` raises ValueError, which `extract_endpoints` propagates without swallowing.
     - Do not merge basePath/servers into path; path stays the path-item key.
     - Do not account for consumes/produces; media-type priority stays with application/json.
-    - Do not extract formData or file-upload parameters (outside the query_params model).
+    - Do not extract formData or file-upload parameters (outside the query_params/path_params model).
+    - Do not validate declared path variables against the path template — the spec is trusted.
 
     Use `swax-openapi` for the operation/field extraction patterns for both formats.
 

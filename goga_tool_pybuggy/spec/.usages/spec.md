@@ -31,19 +31,22 @@ from goga_tool_pybuggy.spec import extract_endpoints
 
 endpoints = extract_endpoints(spec)  # list[Endpoint], one per method+path
 for ep in endpoints:
-    ep.id  # 'clients_startup_get' — computed via build_endpoint_id
-    ep.method  # 'get' (lowercase)
-    ep.path  # '/clients/{id}'
-    ep.request  # expanded request body schema (or {})
-    ep.response  # {status: schema}
-    ep.query_params  # {name: schema}
+    ep.id            # 'clients_startup_get' — computed via build_endpoint_id
+    ep.method        # 'get' (lowercase)
+    ep.path          # '/clients/{id}'
+    ep.request       # expanded request body schema (or {})
+    ep.response      # {status: schema}
+    ep.query_params  # {name: schema} for `in: query` parameters
+    ep.path_params   # {name: schema} for `in: path` parameters (URL variables)
 ```
 
-The output semantics are identical across formats: for OpenAPI 3.x, the cell extracts request/response/query from the `requestBody`/`responses[code].content`/`parameters[].schema` structure; for Swagger 2.0 — from the `in: body` parameter/`responses[code].schema`/inline fields of the `in: query` parameter. Given the same operation semantics, both formats produce the same normalized `Endpoint` model.
+The output semantics are identical across formats: for OpenAPI 3.x, the cell extracts request/response/query/path from the `requestBody`/`responses[code].content`/`parameters[].schema` structure; for Swagger 2.0 — from the `in: body` parameter/`responses[code].schema`/inline fields of the `in: query` and `in: path` parameters. Given the same operation semantics, both formats produce the same normalized `Endpoint` model.
+
+A parameter declared on the path-item is inherited by every operation of that path-item — the consumer receives the merged result and does not need to merge declaration sites. URL variables are keyed by the declared parameter name; the path template is trusted (no cross-validation against the `{name}` segments).
 
 ## Nullable normalization
 
-The schemas in `request`, `response`, and `query_params` are already **nullable-normalized** for JSON-Schema: OpenAPI `nullable: true` and Swagger `x-nullable: true` are rewritten into union form (`type` as a list that includes `"null"`, with an `anyOf` fallback when a single `type` cannot express the union), and the `nullable`/`x-nullable` keys are removed. The `jsonschema` validator ignores both keywords, so the cell performs the normalization once, at the parsing boundary — the consumer does not need to normalize the schemas again.
+The schemas in `request`, `response`, `query_params`, and `path_params` are already **nullable-normalized** for JSON-Schema: OpenAPI `nullable: true` and Swagger `x-nullable: true` are rewritten into union form (`type` as a list that includes `"null"`, with an `anyOf` fallback when a single `type` cannot express the union), and the `nullable`/`x-nullable` keys are removed. The `jsonschema` validator ignores both keywords, so the cell performs the normalization once, at the parsing boundary — the consumer does not need to normalize the schemas again.
 
 ## Endpoint identifier
 
@@ -55,3 +58,4 @@ The schemas in `request`, `response`, and `query_params` are already **nullable-
 
 - `spec` must be fully dereferenced (use `load_spec`; do not dereference `$ref` manually).
 - Extraction is pure logic over a dict, tested without mocks.
+- `Endpoint` fields carry schemas exactly as extracted and normalized above; consumers must not re-normalize or re-resolve them.
