@@ -268,12 +268,13 @@ class Api:
         if not names:
             return url_path
 
-        # A name ends where the token ends: the next character (if any) must not
-        # be one that can continue a placeholder name. With no bound, ``:id``
-        # would match the ``:id`` prefix of ``:identity`` and rewrite a literal
-        # segment. Word chars, ``-`` and ``.`` continue a name; ``/``, ``?`` and
-        # the end of the string end it.
-        pattern = re.compile("|".join(re.escape(name) + r"(?![\w.\-])" for name in names))
+        # A name ends where the token ends: the next character must not continue
+        # it. A word char would (``:id`` must not match the ``:id`` prefix of
+        # ``:identity``), and so would ``-`` before a word char (``:order`` must
+        # not match inside ``:order-id``). Everything else ends the name — the
+        # segment end, a literal ``.``/``-`` (``/files/{id}.json`` substitutes),
+        # and the ``:`` of the next placeholder (``/range/{from}-{to}``).
+        pattern = re.compile("|".join(re.escape(name) + r"(?!\w|-\w)" for name in names))
         values = {name: params.pop(name) for name in names}
 
         def _replace(match: re.Match[str]) -> str:

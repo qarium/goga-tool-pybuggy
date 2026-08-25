@@ -47,7 +47,7 @@ Artifact tree (under the current working directory):
     tests/<spec>/<endpoint.dir>/          # empty directory
 
 `<endpoint.dir>` is the endpoint id sanitized to a Python identifier segment: every character
-outside `[a-z0-9_]` becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_get`), and a leading
+outside the word-character class becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_get`; Unicode word characters are preserved), and a leading
 digit is prefixed with `_` — the directory is a package-name segment, so it must be importable.
 The `endpoint-ids` filter still keys on the raw id as produced by `build_endpoint_id`.
 When two distinct ids of one spec sanitize to the same segment (e.g. `/v1.0/clients` and

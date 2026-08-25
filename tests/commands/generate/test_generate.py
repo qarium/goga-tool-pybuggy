@@ -1675,9 +1675,7 @@ paths:
     assert not (tmp_path / "api").exists()
 
 
-def test_run_generate_rejects_identical_id_from_distinct_paths(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_generate_rejects_identical_id_from_distinct_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Two paths producing the *identical* raw id also collide and must abort.
 
     ``build_endpoint_id`` maps both "-" and "/" to "_", so "/a-b/x" and "/a/b/x"

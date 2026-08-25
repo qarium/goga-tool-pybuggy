@@ -187,6 +187,70 @@ class TestRequestPathParams:
         urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
         assert urls == ["/orders/7", "/files/x"]
 
+    def test_param_name_followed_by_literal_glue(self) -> None:
+        """A declared ``:name`` directly before a literal ``.`` substitutes.
+
+        A path template may put the variable inside a larger segment —
+        ``/files/{id}.json`` renders to ``:id.json``. The ``.`` belongs to the
+        literal text, not to the placeholder, so the value must land in the URL
+        and must not be dropped from ``params``.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/files/:id.json", params={":id": 42, "q": "x"})
+
+        calls = api._client.get.call_args_list  # type: ignore[attr-defined]
+        assert [call.args[0] for call in calls] == ["/files/42.json"]
+        assert calls[0].kwargs["params"] == {"q": "x"}
+
+    def test_hyphen_glue_before_word_char_stays_conservative(self) -> None:
+        """``:name-`` before a word char does not substitute — indistinguishable.
+
+        ``/reports/{name}-final`` and an undeclared ``{name-final}`` both render
+        to ``:name-final``. Substituting ``:name`` there would also rewrite the
+        ``:order`` prefix of the legal declared name ``:order-id`` (the prefix
+        collapse pinned above), so this shape stays literal.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/reports/:name-final", params={":name": "q1"})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/reports/:name-final"]
+
+    def test_adjacent_placeholders_in_one_segment(self) -> None:
+        """Two placeholders glued by a literal ``-``/``.`` both substitute.
+
+        ``/range/{from}-{to}`` renders to ``/range/:from-:to`` — each name ends
+        where the glue starts, so neither may swallow the other's token.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/range/:from-:to", params={":from": 1, ":to": 9})
+        api.request("GET", "/ver/:major.:minor", params={":major": 1, ":minor": 2})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/range/1-9", "/ver/1.2"]
+
+    def test_glued_name_not_matched_inside_undeclared_longer_token(self) -> None:
+        """The glue rule must not reintroduce the prefix-collapse regression.
+
+        ``:id`` followed by ``.``/``-`` glue substitutes, but it must still not
+        match the ``:id`` prefix of an undeclared longer token such as
+        ``:identity`` or ``:id.json`` when ``:id`` itself is not declared.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/clients/:identity", params={":id": 5})
+        api.request("GET", "/clock/09:30", params={":3": 7})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/clients/:identity", "/clock/09:30"]
+
 
 class TestRequestJson:
     """``json`` serialization: pydantic dump with ``use_aliases``."""
