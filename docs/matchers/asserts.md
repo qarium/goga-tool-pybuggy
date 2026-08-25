@@ -9,6 +9,12 @@ hands you the field-level assert from `response.expect('path')`.
 from goga_tool_pybuggy.api.asserts import AssertField   # for a type hint
 ```
 
+The `response` of `with endpoint(...) as response:` is a `ResponseWrapper` — a context
+manager whose exit does not suppress exceptions. Besides `.expect` it exposes
+`.response`: the raw `resq.http.Response` (status code, headers, the undecoded body);
+the wrapper does not proxy resq attributes, so reach through `.response` for anything
+the assert layer does not cover.
+
 ## Common parameters
 
 Every check method follows one template — it calls `assert_that` internally and returns

@@ -167,6 +167,44 @@ def test_initiate_error(post_clients_calls_initiate: Endpoint):
 - `use_autocheck=False` (on the `Endpoint` or on a single call) disables the auto-check
   entirely — see [Assertions — auto-check](asserts.md#auto-check).
 
+### Request-level keyword arguments
+
+`endpoint(...)` / `endpoint.error(...)` forward the remaining keyword arguments to the
+underlying `resq` verb:
+
+- `auth=` — call-level authentication: a `requests` `AuthBase`, an object with an
+  `.auth(request)` method, or a plain callable; combined with the `Api`-level authenticator
+  (the call-level one wins on conflict).
+- `headers=` / `cookies=` — call-level values; merged over the `Api`-level defaults
+  (call-level keys win).
+- `use_aliases=True` — serialize a pydantic `params`/`json` model with `by_alias`.
+
+```python
+from requests.auth import HTTPBasicAuth
+
+endpoint(json=Request(id=1), params={":id": "42", "q": "x"}, auth=HTTPBasicAuth("u", "p"))
+```
+
+The `Api` client itself is configured by the plugin from the tool config — base URL,
+default auth/headers/cookies, the assert baseline, and the sync-only resq `adapter`
+(`"requests"`; `"httpx"` is async and rejected until an async stack exists). A per-endpoint
+`adapter=` may be added by hand to a generated fixture; only `"requests"` is currently
+accepted.
+
+### Where `schemas_dir` comes from — frame inspection
+
+The generated fixture resolves `schemas/` via `inspect.stack()[1]`: `Endpoint` reads
+`__file__` from its caller's frame and computes `Path(file).parent / "schemas"`. Therefore:
+
+- Create the `Endpoint` **directly in the fixture function body** (`api.py`) — `schemas/`
+  lands next to that file, as generated.
+- Moving the construction into a helper or a module-level statement yields a foreign
+  `__file__` and the JSON-schema part of the auto-check **silently skips** — keep the
+  `return Endpoint(...)` line inside the fixture.
+
+See [Assertions — auto-check](asserts.md#auto-check) for what is verified against those
+schema files.
+
 ## Also worth knowing
 
 - **`.value`** — an `AssertField` property returning the resolved value **without** any

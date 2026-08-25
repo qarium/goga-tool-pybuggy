@@ -87,6 +87,22 @@ def test_generate_cmd_force_help_names_full_artifact_set() -> None:
         assert artifact in force_opt.help
 
 
+def test_apply_ruff_maps_subprocess_failure_to_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failing ruff invocation must surface as click.ClickException, not a raw traceback."""
+    import subprocess as subprocess_module
+
+    from goga_tool_pybuggy.commands.generate.generate import _apply_ruff
+
+    def failing_run(*args, **kwargs):
+        raise subprocess_module.CalledProcessError(returncode=2, cmd=["ruff", "format"], stderr="ruff: syntax error")
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.generate.generate._find_ruff", lambda: "ruff")
+    monkeypatch.setattr(subprocess_module, "run", failing_run)
+
+    with pytest.raises(click.ClickException, match="ruff failed"):
+        _apply_ruff("not valid python source at all {{{")
+
+
 # Logic tests ----------------------------------------------------------------
 
 
@@ -683,9 +699,7 @@ def test_run_generate_writes_meta_json_exact_keys_and_pretty_json(
     assert meta_file.read_text() == '{\n  "parameters": {},\n  "request_body": {},\n  "vars": {}\n}'
 
 
-def test_run_generate_meta_json_from_query_path_and_body(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_generate_meta_json_from_query_path_and_body(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """meta.json keys must map to their Endpoint sources: parameters←query, request_body←body, vars←path."""
     monkeypatch.chdir(tmp_path)
 
@@ -762,9 +776,7 @@ def test_run_generate_meta_json_skipped_without_force(
     assert capfd.readouterr().out == ""
 
 
-def test_run_generate_unknown_endpoint_id_writes_no_meta_json(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_generate_unknown_endpoint_id_writes_no_meta_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An unknown endpoint id must raise before any write, meta.json included."""
     endpoint_dir = _startup_spec(tmp_path, monkeypatch)
 
@@ -776,9 +788,7 @@ def test_run_generate_unknown_endpoint_id_writes_no_meta_json(
     assert not (endpoint_dir / "meta.json").exists()
 
 
-def test_run_generate_meta_json_empty_objects_when_no_input(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_generate_meta_json_empty_objects_when_no_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """An endpoint with no query/body/path data still gets a meta.json with all three keys as {}."""
     endpoint_dir = _startup_spec(tmp_path, monkeypatch)
 
@@ -789,9 +799,7 @@ def test_run_generate_meta_json_empty_objects_when_no_input(
     assert json.loads(meta_file.read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
 
 
-def test_run_generate_writes_meta_json_when_api_py_exists(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_generate_writes_meta_json_when_api_py_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A missing meta.json must be written even when api.py already exists (per-file force semantics)."""
     endpoint_dir = _startup_spec(tmp_path, monkeypatch)
     run_generate(None, False)
@@ -808,9 +816,7 @@ def test_run_generate_writes_meta_json_when_api_py_exists(
     assert json.loads((endpoint_dir / "meta.json").read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
 
 
-def test_run_generate_meta_json_serializes_date_examples(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_generate_meta_json_serializes_date_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """date/datetime values carried in parameter schemas render as ISO strings, not TypeError.
 
     swax/Prance convert YAML date-like examples into ``datetime.date`` objects; the
@@ -1427,3 +1433,48 @@ def test_render_api_module_non_dict_schema_maps_to_any_without_raising(pschema) 
 
     assert "    a: Any" in module
     assert "from typing import Any" in module
+
+
+def test_render_api_module_quotes_route_with_special_characters() -> None:
+    """A path key carrying a quote must render a valid string literal, not broken source.
+
+    YAML permits quotes in path keys (e.g. "/o'brien/{id}"); a plain single-quoted
+    interpolation would produce an unimportable api.py (ruff format aborts). The route
+    itself is preserved verbatim — only the literal quoting changes.
+    """
+    endpoint = Endpoint(
+        method="get",
+        path="/o'brien/{id}",
+        request={},
+        response={},
+        query_params={},
+        description="",
+    )
+
+    module = render_api_module(endpoint)  # must not raise
+
+    assert 'return Endpoint(api, "/o\'brien/:id", method="GET")' in module
+    compile(module, "api.py", "exec")  # the rendered text is valid Python
+
+
+def test_render_api_module_sanitizes_fixture_name_to_identifier() -> None:
+    """A path segment outside [a-z0-9_] must not leak into the fixture name.
+
+    build_endpoint_id normalizes "/" and "-" only; the dot in "/v1.0/clients"
+    survives into the id, and the fixture name is emitted as source text —
+    without sanitation the module is syntactically invalid.
+    """
+    endpoint = Endpoint(
+        method="get",
+        path="/v1.0/clients",
+        request={},
+        response={},
+        query_params={},
+        description="",
+    )
+    assert endpoint.id == "v1.0_clients_get"
+
+    module = render_api_module(endpoint)  # must not raise
+
+    assert "def get_v1_0_clients(api: Api) -> Endpoint:" in module
+    compile(module, "api.py", "exec")

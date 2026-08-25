@@ -36,6 +36,12 @@ _FORCE_HELP = "Overwrite existing response schema files, meta.json, api.py and _
 # Matches an OpenAPI path parameter "{name}" (name kept verbatim, incl. case).
 _PATH_PARAM_RE = re.compile(r"\{([^}]*)\}")
 
+# Characters of an endpoint id that cannot appear in a Python identifier.
+# build_endpoint_id normalizes "/" and "-" but not other punctuation (e.g. the
+# dot in "/v1.0/clients"); the fixture name is embedded as source text, so any
+# leftover character is replaced with "_" to keep the module importable.
+_NON_IDENT_RE = re.compile(r"\W")
+
 
 def _json_default(obj: object) -> str:
     """Serialize non-JSON-native objects carried in resolved specs.
@@ -110,20 +116,26 @@ def _apply_ruff(source: str) -> str:
     ruff = _find_ruff()
     options = ["--line-length", _RUFF_LINE_LENGTH, "--target-version", _RUFF_TARGET_VERSION]
 
-    linted = subprocess.run(
-        [ruff, "check", "--fix", "--exit-zero", "--select", "I", *options, "-"],
-        input=source,
-        capture_output=True,
-        check=True,
-        text=True,
-    )
-    formatted = subprocess.run(
-        [ruff, "format", *options, "-"],
-        input=linted.stdout,
-        capture_output=True,
-        check=True,
-        text=True,
-    )
+    try:
+        linted = subprocess.run(
+            [ruff, "check", "--fix", "--exit-zero", "--select", "I", *options, "-"],
+            input=source,
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        formatted = subprocess.run(
+            [ruff, "format", *options, "-"],
+            input=linted.stdout,
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        # Map the raw subprocess failure to the documented CLI error, carrying
+        # ruff's own diagnostics (a syntax error in the assembled source shows
+        # up here with the offending line).
+        raise click.ClickException(f"ruff failed: {error.stderr or error}") from error
     return formatted.stdout
 
 
@@ -265,16 +277,22 @@ def render_api_module(endpoint: Endpoint) -> str:
     # so this keeps fixture-name derivation correct regardless of input case.
     method = endpoint.method.lower()
 
-    # 1. Fixture name: <method>_<id with the trailing "_<method>" removed>
-    fixture_name = f"{method}_{endpoint.id.removesuffix('_' + method)}"
+    # 1. Fixture name: <method>_<id with the trailing "_<method>" removed>.
+    #    Sanitized to a valid identifier: the name is emitted as source text, so a
+    #    non-identifier character in the path (e.g. the dot in "/v1.0/clients")
+    #    would render an unimportable module.
+    fixture_name = _NON_IDENT_RE.sub("_", f"{method}_{endpoint.id.removesuffix('_' + method)}")
 
     # 2. Route: rewrite each {param} as :param (preserve case)
     route = _convert_route(endpoint.path)
 
+    # repr() keeps the literal valid Python for any route content — a path key
+    # may legally carry a quote (e.g. "/o'brien/{id}"), which a plain
+    # single-quoted f-string interpolation would turn into broken source.
     fixture_block = (
         "@pytest.fixture(scope='function')\n"
         f"def {fixture_name}(api: Api) -> Endpoint:\n"
-        f"    return Endpoint(api, '{route}', method='{method.upper()}')"
+        f"    return Endpoint(api, {route!r}, method={method.upper()!r})"
     )
 
     # 3. Optional request-body models — only when the body declares usable properties
