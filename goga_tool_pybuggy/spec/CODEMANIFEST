@@ -29,7 +29,7 @@ Annotations: |
     2. Remove "{" and "}" from `path` (keep the parameter name).
     3. Lowercase the result.
     4. Replace every "/" with "_".
-    5. Replace every "-" with "_" (paths may carry hyphens; the id is consumed as a pytest fixture name and as a package directory name, so it must stay a valid Python identifier).
+    5. Replace every "-" with "_" (paths may carry hyphens; the id itself is not guaranteed to be a valid Python identifier — a consumer that needs one, e.g. a fixture name or a package directory name, sanitizes it further: every non-word character to "_" and a "_" prefix for a leading digit).
     6. Append "_" + method.lower().
 
     Requirements:

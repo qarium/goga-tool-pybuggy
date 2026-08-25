@@ -52,7 +52,7 @@ The schemas in `request`, `response`, `query_params`, and `path_params` are alre
 
 `build_endpoint_id(method, path)` is a pure function; `Endpoint.id` is computed from it. It is deterministic: the same method+path yields the same id; collisions are handled by the consumer.
 
-`Endpoint.id` is guaranteed to be a **valid Python identifier**: path hyphens are normalized to `_` (for example, `/clients/payment-details` → `clients_payment_details_post`). This guarantee matters because the fixture generator uses the id as the pytest fixture name and as the package directory name during fixture generation — without the normalization, the generated module would be syntactically invalid.
+`Endpoint.id` is **not guaranteed** to be a valid Python identifier: "/" and "-" are normalized to `_` (for example, `/clients/payment-details` → `clients_payment_details_get`), but every other character survives — the dot in `/v1.0/clients` yields `v1.0_clients_get`, which is not importable as a name. A consumer that uses the id as an identifier (the pytest fixture name, the package directory name during fixture generation) must sanitize it itself — replace every non-word character with `_` and prefix `_` to a leading digit (`v1.0_clients_get` → `v1_0_clients_get`); the generate command applies exactly this rule before naming directories and fixtures.
 
 ## Preconditions
 
