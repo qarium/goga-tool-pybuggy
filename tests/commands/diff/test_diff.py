@@ -428,6 +428,43 @@ def test_run_diff_null_paths_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPa
         run_diff(None, None)
 
 
+@pytest.mark.parametrize(
+    "body",
+    ["", "- a\n- b\n", "just a string"],
+    ids=["empty-file-parses-to-none", "top-level-list", "top-level-string"],
+)
+def test_run_diff_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
+    """A spec document that is not a mapping is invalid, not an AttributeError crash.
+
+    An empty file parses to None and a top-level list/str document never gets a
+    ``paths`` lookup — both must surface through the uniform error channel.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".specs").mkdir()
+    # Written raw: the _write_spec prefix would add a valid openapi mapping header.
+    (tmp_path / ".specs/client.yaml").write_text(body)
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid spec file"):
+        run_diff(None, None)
+
+
+def test_run_diff_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec declaring neither an openapi nor a swagger version key is invalid, not a ValueError.
+
+    Such a file has a valid ``paths`` mapping, so the paths guard passes and
+    extract_endpoints raises a bare ValueError from detect_spec_version — it
+    must map to the same click.ClickException channel.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".specs").mkdir()
+    (tmp_path / ".specs/client.yaml").write_text("info:\n  title: T\npaths: {}\n")
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid spec file"):
+        run_diff(None, None)
+
+
 def test_run_diff_spec_without_api_tree_reports_all_added(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:

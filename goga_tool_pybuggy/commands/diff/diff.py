@@ -42,7 +42,8 @@ def _collect_specs(
 
     Raises:
         click.ClickException: If a spec has no "paths" mapping (absent, or
-            present with a null value).
+            present with a null value), is not a mapping at all, or declares
+            no openapi/swagger version key.
     """
     collected: list[tuple[str, list[Endpoint], list[Endpoint]]] = []
     matched_ids: set[str] = set()
@@ -51,11 +52,19 @@ def _collect_specs(
 
         # Validate spec has the required structure — the key alone is not
         # enough: `paths:` with no value parses to None, which would crash
-        # extract_endpoints on paths.items().
-        if not isinstance(spec.get("paths"), dict):
+        # extract_endpoints on paths.items(). An empty file parses to None and
+        # a top-level list/str document is equally not a spec mapping.
+        if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
             raise click.ClickException(f"invalid spec file (missing 'paths'): {entry.location}")
 
-        endpoints = extract_endpoints(spec)
+        try:
+            endpoints = extract_endpoints(spec)
+        except ValueError as error:
+            # extract_endpoints raises ValueError on a spec declaring neither
+            # an openapi nor a swagger version key — an invalid spec file, not
+            # a traceback (pydantic ValidationError is a ValueError subclass
+            # and maps to the same channel).
+            raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
         kept = [e for e in endpoints if endpoint_filter is None or e.id in endpoint_filter]
         matched_ids |= {e.id for e in kept}
         collected.append((name, endpoints, kept))
@@ -108,7 +117,8 @@ def run_diff(spec_name: Optional[str], endpoint_ids: Optional[list[str]] = None)
 
     Raises:
         click.ClickException: If spec_name is set but not found in config specs; a
-            selected spec has no "paths"; endpoint_ids contains an id not found in
+            selected spec is invalid (not a mapping, no "paths", or no
+            openapi/swagger version key); endpoint_ids contains an id not found in
             any selected spec; or an artifact ``meta.json``/schema file is missing,
             unreadable or corrupt.
     """
