@@ -74,6 +74,7 @@ nav:
       - goga tool pybuggy endpoint list: cli/list.md
       - goga tool pybuggy endpoint info: cli/info.md
       - goga tool pybuggy endpoint generate: cli/generate.md
+      - goga tool pybuggy endpoint diff: cli/diff.md
   - Configuration: configuration.md
   - Matchers:
       - Overview & assert_that: matchers/index.md
