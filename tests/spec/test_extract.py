@@ -1414,3 +1414,57 @@ def test_extract_endpoints_null_response_entry_swagger_degrades_to_empty_schema(
     endpoints = extract_endpoints(spec)
 
     assert endpoints[0].response == {"200": {}}
+
+
+def test_extract_endpoints_null_operation_parameters_swagger_normalized() -> None:
+    """A null operation-level `parameters:` in a Swagger spec means no parameters.
+
+    The Swagger branch of `_extract_request` reads the field itself to find the
+    `in: body` parameter — a raw None there would raise TypeError.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {"/x": {"post": {"parameters": None, "responses": {"200": {"description": "ok"}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].request == {}
+
+
+def test_extract_endpoints_null_responses_degrades_to_no_responses() -> None:
+    """`responses:` with no value means no declared responses, in both formats."""
+    openapi_spec = {"openapi": "3.0.0", "paths": {"/x": {"get": {"responses": None}}}}
+    swagger_spec = {"swagger": "2.0", "paths": {"/x": {"get": {"responses": None}}}}
+
+    assert extract_endpoints(openapi_spec)[0].response == {}
+    assert extract_endpoints(swagger_spec)[0].response == {}
+
+
+def test_extract_endpoints_null_request_body_levels_degrade_to_empty() -> None:
+    """Every null level of the requestBody chain yields an empty request schema."""
+    specs = [
+        {"openapi": "3.0.0", "paths": {"/x": {"post": {"requestBody": None, "responses": {"200": {}}}}}},
+        {"openapi": "3.0.0", "paths": {"/x": {"post": {"requestBody": {"content": None}, "responses": {"200": {}}}}}},
+        {
+            "openapi": "3.0.0",
+            "paths": {
+                "/x": {"post": {"requestBody": {"content": {"application/json": None}}, "responses": {"200": {}}}}
+            },
+        },
+    ]
+
+    for spec in specs:
+        assert extract_endpoints(spec)[0].request == {}
+
+
+def test_extract_endpoints_null_response_content_degrades_to_empty_schema() -> None:
+    """A null `content:` inside a response entry yields an empty schema, not AttributeError."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/x": {"get": {"responses": {"200": {"content": None}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].response == {"200": {}}

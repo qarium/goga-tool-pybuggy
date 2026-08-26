@@ -77,8 +77,14 @@ def _extract_request(operation: dict[str, Any], version: str) -> dict[str, Any]:
         (a ``schema: null`` fragment has no usable schema and degrades to ``{}``).
     """
     if version == "openapi":
-        return operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema") or {}
-    for param in operation.get("parameters", []):
+        # Every level degrades on a null value the same way — `requestBody:`,
+        # `content:` or `application/json:` with no body parses to None, and a
+        # `.get` chain on it would raise before reaching the `or {}` fallback.
+        body = operation.get("requestBody") or {}
+        content = body.get("content") or {}
+        json_content = content.get("application/json") or {}
+        return json_content.get("schema") or {}
+    for param in operation.get("parameters") or []:
         if not isinstance(param, dict):
             # Skip malformed entries (e.g. null) — mirrors the _extract_params guard
             continue
@@ -106,7 +112,9 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
     Raises:
         ValueError: If a response key is not a legal status key.
     """
-    responses = operation.get("responses", {})
+    # `responses:` with no value parses to None — an operation without declared
+    # responses, not a crash on the validation loop below.
+    responses = operation.get("responses") or {}
     for code in responses:
         if not _RESPONSE_KEY_RE.match(str(code)):
             raise ValueError(
@@ -115,7 +123,7 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
             )
     if version == "openapi":
         return {
-            code: (resp or {}).get("content", {}).get("application/json", {}).get("schema") or {}
+            code: ((resp or {}).get("content") or {}).get("application/json", {}).get("schema") or {}
             for code, resp in responses.items()
         }
     return {code: (resp or {}).get("schema") or {} for code, resp in responses.items()}
