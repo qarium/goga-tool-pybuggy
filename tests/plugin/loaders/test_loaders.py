@@ -276,6 +276,26 @@ class TestPackageLoaderLogic:
 
         assert modules == ["api.orders.get_orders.api"]
 
+    def test_package_loader_skips_non_python_files(self, tmp_path, monkeypatch):
+        # A non-.py file next to api.py in a walked package (e.g. the
+        # per-endpoint meta.json input contract) must not be probed: importing
+        # "pkg.meta.json" raises ModuleNotFoundError for its "pkg.meta" parent.
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        api = tmp_path / "api"
+        (api / "orders" / "get_orders").mkdir(parents=True)
+        (api / "__init__.py").write_text("")
+        (api / "orders" / "__init__.py").write_text("")
+        (api / "orders" / "get_orders" / "__init__.py").write_text("")
+        (api / "orders" / "get_orders" / "api.py").write_text(GENERATED_FIXTURE_SOURCE)
+        (api / "orders" / "get_orders" / "meta.json").write_text("{}")
+
+        modules: list[str] = []
+        PackageLoader(name="api", required=False).load(modules)
+
+        assert modules == ["api.orders.get_orders.api"]
+
     def test_package_loader_required_missing_raises_oserror(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
 

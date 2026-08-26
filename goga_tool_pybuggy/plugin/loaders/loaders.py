@@ -209,7 +209,10 @@ class PackageLoader(PythonImportLoader):
 
         for root, _, files in os.walk(path):
             if "__init__.py" in files:
-                for module in (i.removesuffix(".py") for i in files):
+                # Only .py files are module candidates: a sibling artifact like
+                # the per-endpoint meta.json must never be trial-imported
+                # (importing "pkg.meta.json" fails on its "pkg.meta" parent).
+                for module in (i.removesuffix(".py") for i in files if i.endswith(".py")):
                     package = root.replace(os.sep, ".")
                     name = f"{package}.{module}"
 
