@@ -2,6 +2,7 @@
 
 import click
 
+from .commands.diff import diff_cmd
 from .commands.generate import generate_cmd
 from .commands.info import info_cmd
 from .commands.init import init_cmd
@@ -50,6 +51,7 @@ endpoint_group.add_command(pull_cmd)
 endpoint_group.add_command(list_cmd)
 endpoint_group.add_command(info_cmd)
 endpoint_group.add_command(generate_cmd)
+endpoint_group.add_command(diff_cmd)
 
 main.add_command(endpoint_group)
 main.add_command(init_cmd)
