@@ -42,7 +42,7 @@ Annotations: |
     2. If `spec_name` is set and not in `Config` specs, raise click.ClickException("spec not found: <spec_name>").
     3. Select specs: all `Config` specs, or only `spec_name` when provided.
     4. Normalize `endpoint_ids` into an id set; an empty value means "no filter" (compare every endpoint).
-    5. For each selected spec (name, `SpecEntry`): parse the spec at cwd / `SpecEntry` location via `load_spec`; if "paths" not in spec, raise click.ClickException (invalid spec file); extract endpoints via `extract_endpoints`; keep the endpoints selected by the filter and record the matched ids.
+    5. For each selected spec (name, `SpecEntry`): parse the spec at cwd / `SpecEntry` location via `load_spec`; if the spec is not a mapping or its "paths" is not a mapping, raise click.ClickException (invalid spec file); extract endpoints via `extract_endpoints`, mapping a ValueError (no openapi/swagger version key, or a response key outside the legal status-key shapes) to click.ClickException (invalid spec file); keep the endpoints selected by the filter and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids (sorted) — before anything is printed.
     7. For each selected spec, compare and print:
        7.1. For each kept endpoint (extraction order): build the spec side via `spec_contract`; locate the artifact directory by `sanitize_id` on the endpoint id; when the directory exists build the generated side via `artifact_contract`, otherwise compare against an empty contract (endpoint added).
@@ -163,6 +163,7 @@ Annotations: |
     - Matching runs over the full endpoint list of the spec — never a filtered subset.
     - The result order is deterministic.
     - Only directories participate in orphan discovery — files found in the tree (e.g. the __init__.py package marker written by generate) are never reported as orphans.
+    - Tooling directories are never reported as orphans — __pycache__ (left under api/<name>/ by importing the generated fixture package) and hidden "."-prefixed directories are skipped: neither holds a meta.json/schemas artifact set, and reporting one would fail the run on a healthy tree.
 
     Constraints:
     - Read-only — discovery never writes or deletes.

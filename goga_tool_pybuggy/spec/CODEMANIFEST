@@ -113,6 +113,8 @@ Annotations: |
 
     Requirements:
     - Skip non-method keys in path-items (parameters, summary).
+    - A response key outside the shapes both specifications allow — anything but a three-digit code, the literal default key, or a range wildcard like 2XX — raises ValueError; the key becomes an artifact filename downstream (schemas/<status_code>.json), so path content carried in a key must never reach a write path.
+    - Null fragments degrade to empty extraction — requestBody:/responses: with no value (and their nested null content:/application/json: levels) and null parameters[] entries extract as empty or are skipped, never a crash.
     - Path-item parameters are inherited by all operations — merge with operation parameters when extracting query and path parameters.
     - Primary content type is application/json; absent fields default to {}.
     - OpenAPI 3.x: request from the operation requestBody content application/json schema; response from each responses[code] content application/json schema; query and path parameters from each parameters[] entry whose in is query or path, via its nested schema.

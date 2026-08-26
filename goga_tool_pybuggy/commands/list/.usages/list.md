@@ -22,6 +22,10 @@ For each (filtered) spec, the command parses the file at `location`, extracts th
 
 The command loads the config from a fixed path via `load_config()`.
 
+Error channel: an invalid spec — not a mapping, no `paths` mapping, no `swagger`/`openapi` version key,
+or a response key outside the legal status-key shapes — → `click.ClickException` ("invalid spec file …"),
+never a traceback; a spec that parses but declares no endpoints logs a warning and prints nothing for it.
+
 ## Preconditions
 
 - Spec files must reside at `location` (after `pull` or placed manually).

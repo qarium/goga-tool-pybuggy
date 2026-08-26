@@ -38,12 +38,13 @@ Annotations: |
     2. If `spec_name` is set and not in `Config` specs, raise click.ClickException("spec not found: <spec_name>").
     3. Select specs: all `Config` specs, or only `spec_name` when provided.
     4. Normalize `endpoint_ids` into an id set; an empty value means "no filter" (show every endpoint).
-    5. For each selected spec (`SpecEntry`): parse via `load_spec`; if "paths" not in spec, raise click.ClickException (invalid spec file); extract endpoints via `extract_endpoints`; when the filter is set keep only endpoints whose id is in the set, otherwise keep all.
+    5. For each selected spec (`SpecEntry`): parse via `load_spec`; if the spec is not a mapping or its "paths" is not a mapping, raise click.ClickException (invalid spec file); extract endpoints via `extract_endpoints`, mapping a ValueError (no openapi/swagger version key, or a response key outside the legal status-key shapes) to click.ClickException (invalid spec file); when the filter is set keep only endpoints whose id is in the set, otherwise keep all.
     6. Collect all matches across specs.
     7. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids (sorted) — before anything is printed.
     8. Render via `render_info`(matches) and print (single object, or array when several).
 
     Requirements:
+    - An invalid spec — not a mapping, "paths" absent or null, no openapi/swagger version key, or a response key outside the legal status-key shapes — is a CLI error (click.ClickException), never a traceback.
     - A collision (same id across specs) yields all matches as a JSON array (see `formatting`).
     - `endpoint_ids` of None or empty shows every endpoint of the selected specs.
     - Every requested id in `endpoint_ids` must match at least one selected spec, else a click.ClickException is raised and nothing is printed.

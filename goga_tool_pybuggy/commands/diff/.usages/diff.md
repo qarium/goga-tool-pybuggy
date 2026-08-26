@@ -61,6 +61,9 @@ Each compared unit prints exactly one JSON document on one line, keyed by the un
 - Removed-side discovery scans the whole `api/<spec>/` tree of each selected spec in every run — it is
   NOT narrowed by endpoint-ids; the endpoint-id filter selects only which spec endpoints are compared
   as the added side.
+- Tooling output is never reported as removed — `__pycache__` (left under `api/<spec>/` by importing the
+  generated fixture package) and hidden `.`-prefixed directories are skipped, so a healthy imported tree
+  produces no spurious removed entries.
 - A spec with no `api/<spec>/` tree at all reports every selected endpoint as added and fails nothing.
 
 ## The --spec flag

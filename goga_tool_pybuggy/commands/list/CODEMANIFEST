@@ -37,13 +37,15 @@ Annotations: |
     2. Select specs: all `Config` specs, or only `spec_name` when provided.
     3. For each selected spec (name, entry):
        3.1. Parse the spec at project-root / `SpecEntry` location via `load_spec`.
-       3.2. Extract endpoints via `extract_endpoints`.
-       3.3. Render the block via `render_list`(name, `SpecEntry` location, endpoints).
-       3.4. Print the block.
-    4. A spec parse error propagates as the ClickException raised by `load_spec`.
+       3.2. If the spec is not a mapping or its "paths" is not a mapping (absent, present with a null value, or a non-mapping document), raise click.ClickException (invalid spec file).
+       3.3. Extract endpoints via `extract_endpoints`; a ValueError from it (no openapi/swagger version key, or a response key outside the legal status-key shapes) maps to click.ClickException (invalid spec file).
+       3.4. Render the block via `render_list`(name, `SpecEntry` location, endpoints).
+       3.5. Print the block.
+    4. A spec parse error propagates as the ClickException raised by `load_spec`; an invalid spec is equally a click.ClickException, never a traceback.
 
     Requirements:
     - Output format must match the contract (see `formatting`).
+    - An invalid spec — not a mapping, "paths" absent or null, no openapi/swagger version key, or a response key outside the legal status-key shapes — is a CLI error (click.ClickException), never a traceback.
 
     Constraints:
     - Read-only — does not modify specs or config.

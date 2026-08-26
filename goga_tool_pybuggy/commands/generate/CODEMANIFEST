@@ -41,8 +41,8 @@ Annotations: |
     4. Normalize `endpoint_ids` into an id set; an empty value means "no filter" (keep every endpoint).
     5. Phase 1 — collect and validate (no disk writes): for each selected spec (name, `SpecEntry`):
        5.1. Parse the spec at cwd / `SpecEntry` location via `load_spec`.
-       5.2. If "paths" not in spec, raise click.ClickException (spec has no paths).
-       5.3. Extract endpoints via `extract_endpoints`.
+       5.2. If the spec is not a mapping or its "paths" is not a mapping (absent, present with a null value, or a non-mapping document), raise click.ClickException (spec has no paths).
+       5.3. Extract endpoints via `extract_endpoints`; a ValueError from it (no openapi/swagger version key, or a response key outside the legal status-key shapes) maps to click.ClickException (invalid spec file).
        5.4. If no endpoints, silently continue this spec (no artifacts) — based on the pre-filter list.
        5.5. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids — before any artifact is written.
@@ -56,6 +56,7 @@ Annotations: |
        7.6. Write the endpoint input contract to cwd/api/<name>/<sanitized id>/meta.json — exactly the keys parameters (the `Endpoint` query_params), request_body (the `Endpoint` request), vars (the `Endpoint` path_params) — serialized as prettified JSON (indent=2, ensure_ascii=False), with the same `force` skip/overwrite semantics as the schema and api.py files.
 
     Requirements:
+    - An invalid spec — not a mapping, "paths" absent or null, no openapi/swagger version key, or a response key outside the legal status-key shapes — raises click.ClickException before any artifact is written.
     - Each schema file contains the resolved schema serialized as prettified JSON (indent=2, ensure_ascii=False); codes without application/json content produce an empty schema (serialized as {}).
     - Write every response status code from the `Endpoint` response, including empty {} schemas.
     - meta.json is written for every generated endpoint and contains exactly the keys parameters, request_body, and vars; each key holds the corresponding endpoint data and {} when the endpoint declares none — no key is ever omitted.

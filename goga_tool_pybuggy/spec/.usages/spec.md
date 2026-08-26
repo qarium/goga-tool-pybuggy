@@ -42,6 +42,8 @@ for ep in endpoints:
 
 The output semantics are identical across formats: for OpenAPI 3.x, the cell extracts request/response/query/path from the `requestBody`/`responses[code].content`/`parameters[].schema` structure; for Swagger 2.0 — from the `in: body` parameter/`responses[code].schema`/inline fields of the `in: query` and `in: path` parameters. Given the same operation semantics, both formats produce the same normalized `Endpoint` model.
 
+`extract_endpoints` raises `ValueError` on an invalid spec: no top-level `swagger`/`openapi` version key, or a response key outside the shapes the specifications allow (a response key becomes a `schemas/<status_code>.json` filename in generate, so anything but a three-digit code, `default`, or a range wildcard like `2XX` is rejected — path content carried in a key never reaches a write path). Null fragments (`requestBody:`/`responses:` with no value, a null `parameters[]` entry) degrade to empty extraction instead of crashing.
+
 A parameter declared on the path-item is inherited by every operation of that path-item — the consumer receives the merged result and does not need to merge declaration sites. URL variables are keyed by the declared parameter name; the path template is trusted (no cross-validation against the `{name}` segments).
 
 ## Nullable normalization
