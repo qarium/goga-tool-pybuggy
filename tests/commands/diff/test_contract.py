@@ -165,6 +165,32 @@ def test_artifact_contract_corrupt_schema_raises(tmp_path: Path) -> None:
         artifact_contract(seg_dir)
 
 
+def test_artifact_contract_non_utf8_meta_raises(tmp_path: Path) -> None:
+    """A non-UTF-8 meta.json is unreadable — ClickException, not a raw UnicodeDecodeError.
+
+    ``UnicodeDecodeError`` is a ``ValueError`` outside the plain OSError family,
+    so without it in the caught tuple the decode error escapes as a traceback
+    instead of the documented CLI error.
+    """
+    seg_dir = tmp_path / "api" / "client" / "seg"
+    seg_dir.mkdir(parents=True)
+    (seg_dir / "meta.json").write_bytes(b"\xff\xfe{}")
+
+    with pytest.raises(click.ClickException, match=r"meta\.json"):
+        artifact_contract(seg_dir)
+
+
+def test_artifact_contract_non_utf8_schema_raises(tmp_path: Path) -> None:
+    """A non-UTF-8 schema file is unreadable — ClickException naming the file."""
+    seg_dir = tmp_path / "api" / "client" / "seg"
+    (seg_dir / "schemas").mkdir(parents=True)
+    (seg_dir / "meta.json").write_text(json.dumps({"parameters": {}, "request_body": {}, "vars": {}}), encoding="utf-8")
+    (seg_dir / "schemas" / "200.json").write_bytes(b"\xff\xfe{}")
+
+    with pytest.raises(click.ClickException, match=r"200\.json"):
+        artifact_contract(seg_dir)
+
+
 def test_artifact_contract_meta_missing_keys_raises(tmp_path: Path) -> None:
     """A meta.json missing any of the three mandatory keys is corrupt — ClickException."""
     seg_dir = tmp_path / "api" / "client" / "seg"

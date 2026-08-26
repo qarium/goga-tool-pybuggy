@@ -41,15 +41,18 @@ def _collect_specs(
         matched by the filter.
 
     Raises:
-        click.ClickException: If a spec has no "paths".
+        click.ClickException: If a spec has no "paths" mapping (absent, or
+            present with a null value).
     """
     collected: list[tuple[str, list[Endpoint], list[Endpoint]]] = []
     matched_ids: set[str] = set()
     for name, entry in specs.items():
         spec = load_spec(cwd / entry.location)
 
-        # Validate spec has the required structure
-        if "paths" not in spec:
+        # Validate spec has the required structure — the key alone is not
+        # enough: `paths:` with no value parses to None, which would crash
+        # extract_endpoints on paths.items().
+        if not isinstance(spec.get("paths"), dict):
             raise click.ClickException(f"invalid spec file (missing 'paths'): {entry.location}")
 
         endpoints = extract_endpoints(spec)

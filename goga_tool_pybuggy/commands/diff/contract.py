@@ -109,14 +109,16 @@ def artifact_contract(artifact_dir: Path) -> dict[str, Any]:
         parameters = meta["parameters"]
         request_body = meta["request_body"]
         vars_ = meta["vars"]
-    except (OSError, json.JSONDecodeError, KeyError, _CorruptArtifactError) as error:
+    # UnicodeDecodeError: a non-UTF-8 file is unreadable under the declared
+    # read convention and maps to the same operational error.
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, _CorruptArtifactError) as error:
         raise click.ClickException(f"unreadable or corrupt artifact meta.json: {meta_path}") from error
 
     schemas: dict[str, Any] = {}
     for schema_file in sorted((artifact_dir / "schemas").glob("*.json")):
         try:
             schemas[schema_file.stem] = json.loads(schema_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as error:
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise click.ClickException(f"unreadable or corrupt artifact schema: {schema_file}") from error
 
     return {

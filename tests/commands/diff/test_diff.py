@@ -413,6 +413,21 @@ def test_run_diff_missing_paths_raises(tmp_path: Path, monkeypatch: pytest.Monke
         run_diff(None, None)
 
 
+def test_run_diff_null_paths_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec whose 'paths' key holds no value is likewise invalid, not a crash.
+
+    ``paths:`` with nothing after it parses to None — the key is present, so a
+    key-presence guard lets it through and extract_endpoints then dies on
+    paths.items() with an AttributeError traceback.
+    """
+    monkeypatch.chdir(tmp_path)
+    _write_spec(tmp_path / ".specs", "client.yaml", "paths:\n")
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid spec file"):
+        run_diff(None, None)
+
+
 def test_run_diff_spec_without_api_tree_reports_all_added(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
