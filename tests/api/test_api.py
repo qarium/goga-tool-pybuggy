@@ -42,6 +42,17 @@ class TestApi:
         with pytest.raises(TypeError):
             Api(base_url="https://x", error_key="e")
 
+    def test_expected_alias_absent(self) -> None:
+        """The pre-1.0 Expected name is gone from the api facade and ResponseWrapper."""
+        import goga_tool_pybuggy.api as api_facade
+
+        assert "Expected" not in api_facade.__all__
+        assert not hasattr(api_facade, "Expected")
+
+        from goga_tool_pybuggy.api.response import ResponseWrapper
+
+        assert not hasattr(ResponseWrapper, "expected")
+
     def test_properties_present(self) -> None:
         """All stored-field properties are exposed on the facade."""
         api = Api(base_url="https://x")

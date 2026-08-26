@@ -8,7 +8,9 @@ config path redirected through ``CONFIG_PATH_ATTR``.
 """
 
 import hashlib
+import importlib
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -127,3 +129,34 @@ def test_run_diff_read_only_leaves_tree_byte_identical(
     capsys.readouterr()
 
     assert _tree_snapshot(api_root) == snapshot_before
+
+
+def test_run_diff_after_importing_generated_tree_still_no_drift(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A run over an imported (pytest-executed) artifact tree still reports no drift.
+
+    Importing the generated fixture package — the documented generate -> test
+    workflow — leaves ``__pycache__`` directories under ``api/<spec>/``. Those
+    are tooling output, not removed endpoints, and must not be reported.
+    """
+    _setup_generated_workspace(tmp_path, monkeypatch)
+
+    # Import the generated fixture module the way the plugin loader does,
+    # which materializes api/<spec>/__pycache__/ on disk. The sys.path entry
+    # and every "api*" module are dropped afterwards so the import cannot
+    # leak into later tests.
+    sys.path.insert(0, str(tmp_path))
+    try:
+        importlib.import_module("api.client.clients_startup_get.api")
+        assert (tmp_path / "api" / "client" / "__pycache__").is_dir()
+    finally:
+        sys.path.remove(str(tmp_path))
+        for module_name in [n for n in sys.modules if n == "api" or n.startswith("api.")]:
+            del sys.modules[module_name]
+
+    assert (tmp_path / "api" / "client" / "__pycache__").is_dir()
+
+    run_diff(None, None)
+
+    assert capsys.readouterr().out.splitlines() == ['{"clients_startup_get": {}}']

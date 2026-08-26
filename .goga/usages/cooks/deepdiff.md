@@ -68,12 +68,12 @@ DeepDiff(t1, t2, ignore_order=False, exclude_paths=["root['meta']"])
 import json
 
 meta = json.loads(meta_path.read_text(encoding="utf-8"))
-spec_side = endpoint.model_dump()
+spec_side = json.loads(json.dumps(contract, ensure_ascii=False, default=_json_default))
 diff = DeepDiff(meta, spec_side)
 ```
 
 - Artifacts (`meta.json`, `schemas/*.json`) are read with `json.loads` into plain dicts/lists — directly comparable, no pre-processing.
-- The spec side is normalized to a plain structure first (pydantic models via `model_dump()`), so both sides hold only JSON-native types.
+- The spec side is normalized to JSON-native via a round-trip, not `model_dump()` — pydantic does not coerce `dict[str, Any]` payloads, so a dumped model still carries `datetime.date` objects. `_json_default` renders date/datetime as ISO 8601 (`isinstance(obj, date)` covers datetime); anything else re-raises `TypeError`.
 - YAML-parsed specs may carry non-JSON-native values (e.g. `datetime.date` from `format: date` examples); normalize them to strings before comparing, or the diff reports `type_changes` noise.
 
 ---

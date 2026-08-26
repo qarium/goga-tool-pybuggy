@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import goga_tool_pybuggy.commands.diff
+import pytest
 from goga_tool_pybuggy.commands.diff import orphan_artifact_dirs, sanitize_id
 from goga_tool_pybuggy.spec import Endpoint
 
@@ -62,10 +63,17 @@ def test_sanitize_id_preserves_unicode_word_chars() -> None:
     assert sanitize_id("клиенты_получить_get") == "клиенты_получить_get"
 
 
-def test_sanitize_id_pure_no_io(tmp_path: Path) -> None:
-    """sanitize_id is a pure function — it never touches the filesystem."""
+def test_sanitize_id_pure_no_io(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """sanitize_id never touches the filesystem — Path discovery/reading is never reached."""
+
+    def _fail(*args: object, **kwargs: object) -> object:
+        raise AssertionError("sanitize_id must not access the filesystem")
+
+    monkeypatch.setattr(Path, "iterdir", _fail)
+    monkeypatch.setattr(Path, "read_text", _fail)
+    monkeypatch.setattr("builtins.open", _fail)
+
     assert sanitize_id("clients_startup_get") == "clients_startup_get"
-    assert list(tmp_path.iterdir()) == []
 
 
 def test_orphan_artifact_dirs_absent_tree_returns_empty(tmp_path: Path) -> None:
@@ -81,6 +89,24 @@ def test_orphan_artifact_dirs_ignores_files_and_sorts(tmp_path: Path) -> None:
     (api_spec_dir / "b_get").mkdir(parents=True)
     (api_spec_dir / "a_legacy").mkdir()
     (api_spec_dir / "__init__.py").write_text("")
+
+    result = orphan_artifact_dirs(api_spec_dir, [_endpoint("get", "/b")])
+
+    assert result == [tmp_path / "api" / "client" / "a_legacy"]
+
+
+def test_orphan_artifact_dirs_ignores_tooling_directories(tmp_path: Path) -> None:
+    """__pycache__ and hidden directories are never reported as removed endpoints.
+
+    Importing the generated fixture package (the documented generate -> test
+    workflow) leaves ``api/<spec>/__pycache__`` behind; treating it as an
+    orphan would make the report fail on a healthy tree.
+    """
+    api_spec_dir = tmp_path / "api" / "client"
+    (api_spec_dir / "b_get").mkdir(parents=True)
+    (api_spec_dir / "__pycache__").mkdir()
+    (api_spec_dir / ".venv").mkdir()
+    (api_spec_dir / "a_legacy").mkdir()
 
     result = orphan_artifact_dirs(api_spec_dir, [_endpoint("get", "/b")])
 

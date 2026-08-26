@@ -133,6 +133,34 @@ def test_facade_all_lists_full_six_names_sorted() -> None:
     ]
 
 
+def test_diff_cmd_binds_spec_and_endpoint_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """diff_cmd binds -s/--spec and the positional endpoint-ids, then delegates to run_diff."""
+    from click.testing import CliRunner
+
+    monkeypatch.chdir(tmp_path)
+
+    captured: dict = {}
+
+    def fake_run_diff(spec_name, endpoint_ids):
+        captured["spec_name"] = spec_name
+        captured["endpoint_ids"] = endpoint_ids
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.diff.diff.run_diff", fake_run_diff)
+
+    # Options precede the variadic positional endpoint-ids (click parses options before the variadic tail)
+    result = CliRunner().invoke(diff_cmd, ["-s", "x", "id1", "id2"])
+
+    assert result.exit_code == 0
+    assert captured == {"spec_name": "x", "endpoint_ids": ["id1", "id2"]}
+
+    # Without positional ids the variadic argument is empty -> None (no filter)
+    captured.clear()
+    result = CliRunner().invoke(diff_cmd, ["-s", "x"])
+
+    assert result.exit_code == 0
+    assert captured == {"spec_name": "x", "endpoint_ids": None}
+
+
 # Logic tests ----------------------------------------------------------------
 
 
@@ -516,3 +544,53 @@ def test_run_diff_endpoint_doc_serializes_all_categories(
         assert len(doc) == 1
         for diff in doc.values():
             json.dumps(diff)
+
+
+def test_run_diff_segment_collision_compares_both_against_one_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Two ids sanitizing to one segment each compare against that directory — no orphan, no error."""
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /v1.0/clients:
+    get:
+      description: dotted
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1_0/clients:
+    get:
+      description: underscored
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    monkeypatch.chdir(tmp_path)
+    # One artifact directory named by the shared segment v1_0_clients_get
+    _write_artifact(
+        tmp_path,
+        "client",
+        "v1_0_clients_get",
+        {"parameters": {}, "request_body": {}, "vars": {}},
+        {"200": {"type": "object"}},
+    )
+
+    run_diff("client", None)
+
+    lines = capsys.readouterr().out.splitlines()
+    # Both endpoints print a document keyed by their RAW id; the directory is
+    # covered, so it is never reported as removed and neither side errors.
+    assert [next(iter(json.loads(line))) for line in lines] == ["v1.0_clients_get", "v1_0_clients_get"]

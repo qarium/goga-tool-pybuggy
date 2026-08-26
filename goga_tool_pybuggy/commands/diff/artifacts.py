@@ -19,6 +19,24 @@ from ...spec import Endpoint
 _NON_IDENT_RE = re.compile(r"\W")
 
 
+def _is_tooling_dir(name: str) -> bool:
+    """Report whether a directory name is tooling output, not an artifact segment.
+
+    ``__pycache__`` appears under ``api/<spec>/`` as soon as the generated
+    fixture package is imported (the documented workflow: generate, write
+    tests, run pytest), and hidden directories are editor/VCS state. Neither
+    holds a ``meta.json``/``schemas`` artifact set, so treating one as an
+    orphan would make the report fail on a healthy tree.
+
+    Args:
+        name: Directory name from the api tree.
+
+    Returns:
+        True when the directory belongs to tooling and must be skipped.
+    """
+    return name == "__pycache__" or name.startswith(".")
+
+
 def sanitize_id(endpoint_id: str) -> str:
     """Derive the artifact-directory segment of a raw endpoint id.
 
@@ -46,8 +64,10 @@ def orphan_artifact_dirs(api_spec_dir: Path, endpoints: list[Endpoint]) -> list[
     An absent api tree is a normal case and yields an empty list. Matching
     runs over sanitized segments — never raw ids — and over the full
     endpoint list of the spec, never a filtered subset. Files found in the
-    tree (e.g., the ``__init__.py`` package marker written by generate)
-    are never reported: only directories participate in orphan discovery.
+    tree (e.g., the ``__init__.py`` package marker written by generate) and
+    non-artifact directories produced by tooling (``__pycache__`` left by
+    importing the fixture package, hidden directories) are never reported:
+    only artifact directories participate in orphan discovery.
     Discovery is read-only and keys on names only — directory contents are
     never read.
 
@@ -64,6 +84,6 @@ def orphan_artifact_dirs(api_spec_dir: Path, endpoints: list[Endpoint]) -> list[
 
     expected = {sanitize_id(endpoint.id) for endpoint in endpoints}
     return sorted(
-        (d for d in api_spec_dir.iterdir() if d.is_dir() and d.name not in expected),
+        (d for d in api_spec_dir.iterdir() if d.is_dir() and not _is_tooling_dir(d.name) and d.name not in expected),
         key=lambda d: d.name,
     )

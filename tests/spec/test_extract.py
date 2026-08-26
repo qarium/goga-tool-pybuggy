@@ -797,6 +797,32 @@ def test_extract_endpoints_skips_non_dict_param_entries() -> None:
     assert endpoints[0].path_params == {"id": {"type": "string"}}
 
 
+def test_extract_endpoints_skips_non_dict_body_param_entries_swagger() -> None:
+    """Malformed non-dict entries in a Swagger body-parameter list are skipped too.
+
+    ``_extract_request`` walks the same ``parameters`` list as ``_extract_params``;
+    a null entry must not raise AttributeError there either.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/x": {
+                "post": {
+                    "parameters": [
+                        None,
+                        {"name": "payload", "in": "body", "schema": {"type": "object"}},
+                    ],
+                    "responses": {"200": {"description": "ok"}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].request == {"type": "object"}
+
+
 def test_extract_endpoints_path_item_path_params_inherited_by_operations() -> None:
     """A path-level ``in: path`` parameter is inherited by every operation of the path-item."""
     spec = {

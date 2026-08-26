@@ -35,9 +35,11 @@ Date values from the specification (for example, `format: date`/`date-time` exam
 ## diff output (JSON document per compared unit)
 
 ```python
+import json
+
 from goga_tool_pybuggy.output import render_diff
 
-print(render_diff("clients_startup_get", diff.to_dict()))
+print(render_diff("clients_startup_get", json.loads(diff.to_json())))
 # {"clients_startup_get": {"values_changed": {"root['request_body']": {...}}}}
 
 print(render_diff("clients_startup_get", {}))
@@ -47,6 +49,7 @@ print(render_diff("clients_startup_get", {}))
 - One call — one compared unit (endpoint); the caller prints each returned line.
 - `endpoint_id` is the caller-supplied key: the raw endpoint id for spec-side entries, the sanitized artifact segment for removed artifact directories.
 - `diff` is an already-converted plain mapping (the caller converts the comparison result); an empty mapping means no drift and serializes as `{}`.
+- `json.loads(diff.to_json())` is the only JSON-native conversion of a comparison result — the mappings of `to_dict()` hold set-like values (`SetOrdered`) that `json.dumps` cannot serialize.
 - The formatter does not interpret or filter diff categories — every entry passes through unchanged.
 
 ## Preconditions

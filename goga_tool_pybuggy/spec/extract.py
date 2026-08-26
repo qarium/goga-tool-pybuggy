@@ -72,6 +72,9 @@ def _extract_request(operation: dict[str, Any], version: str) -> dict[str, Any]:
     if version == "openapi":
         return operation.get("requestBody", {}).get("content", {}).get("application/json", {}).get("schema") or {}
     for param in operation.get("parameters", []):
+        if not isinstance(param, dict):
+            # Skip malformed entries (e.g. null) — mirrors the _extract_params guard
+            continue
         if param.get("in") == "body":
             return param.get("schema") or {}
     return {}

@@ -147,7 +147,7 @@ def run_diff(spec_name: Optional[str], endpoint_ids: Optional[list[str]] = None)
             _print_comparison(orphan.name, artifact_contract(orphan), {})
 
 
-@click.command("diff")
+@click.command("diff", help="Report drift between the specs and the generated artifacts")
 @click.option("-s", "--spec", "spec_name", default=None, help="Spec name to diff")
 @click.argument("endpoint-ids", nargs=-1, default=None)
 def diff_cmd(spec_name: Optional[str], endpoint_ids: tuple[str, ...]) -> None:

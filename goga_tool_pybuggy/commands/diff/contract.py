@@ -16,6 +16,10 @@ import click
 from ...spec import Endpoint
 
 
+class _CorruptArtifactError(ValueError):
+    """Signal that a parsed artifact file does not have the expected object shape."""
+
+
 def _json_default(obj: object) -> str:
     """Serialize non-JSON-native objects carried in resolved specs.
 
@@ -98,12 +102,14 @@ def artifact_contract(artifact_dir: Path) -> dict[str, Any]:
     meta_path = artifact_dir / "meta.json"
     try:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        if not isinstance(meta, dict):
+            # Valid JSON that is not an object (null, a list, a scalar) is
+            # equally corrupt — key lookups on it raise TypeError, not KeyError.
+            raise _CorruptArtifactError(meta_path)
         parameters = meta["parameters"]
         request_body = meta["request_body"]
         vars_ = meta["vars"]
-    except (OSError, json.JSONDecodeError) as error:
-        raise click.ClickException(f"unreadable or corrupt artifact meta.json: {meta_path}") from error
-    except KeyError as error:
+    except (OSError, json.JSONDecodeError, KeyError, _CorruptArtifactError) as error:
         raise click.ClickException(f"unreadable or corrupt artifact meta.json: {meta_path}") from error
 
     schemas: dict[str, Any] = {}

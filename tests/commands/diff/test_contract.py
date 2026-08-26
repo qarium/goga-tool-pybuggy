@@ -88,6 +88,17 @@ def test_spec_contract_normalizes_dates_to_iso() -> None:
     json.dumps(contract)  # no datetime objects remain in the structure
 
 
+def test_spec_contract_non_serializable_value_raises_type_error() -> None:
+    """A value the serializer cannot handle re-raises TypeError with json.dumps' message.
+
+    Dates are the only non-JSON-native type a resolved spec is expected to carry;
+    anything else (a set, bytes) is a programming error and must surface as
+    TypeError rather than being silently coerced.
+    """
+    with pytest.raises(TypeError, match="set is not JSON serializable"):
+        spec_contract(_endpoint(request={"properties": {"tags": {"example": {1, 2}}}}))
+
+
 def test_artifact_contract_reads_meta_and_schemas(tmp_path: Path) -> None:
     """meta.json supplies the first three keys; every schemas/*.json lands under its stem."""
     seg_dir = tmp_path / "api" / "client" / "seg"
@@ -123,6 +134,21 @@ def test_artifact_contract_corrupt_meta_raises(tmp_path: Path) -> None:
     seg_dir = tmp_path / "api" / "client" / "seg"
     seg_dir.mkdir(parents=True)
     (seg_dir / "meta.json").write_text("{ not json", encoding="utf-8")
+
+    with pytest.raises(click.ClickException, match=r"meta\.json"):
+        artifact_contract(seg_dir)
+
+
+@pytest.mark.parametrize("payload", ["null", "[1, 2]", '"text"', "42"])
+def test_artifact_contract_non_object_meta_raises(tmp_path: Path, payload: str) -> None:
+    """A meta.json holding valid non-object JSON is corrupt — ClickException, not TypeError.
+
+    ``json.loads`` accepts any JSON document, but key lookups on a null/list/
+    scalar raise ``TypeError``, which must not escape as a traceback.
+    """
+    seg_dir = tmp_path / "api" / "client" / "seg"
+    seg_dir.mkdir(parents=True)
+    (seg_dir / "meta.json").write_text(payload, encoding="utf-8")
 
     with pytest.raises(click.ClickException, match=r"meta\.json"):
         artifact_contract(seg_dir)

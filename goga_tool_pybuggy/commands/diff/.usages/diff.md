@@ -15,7 +15,7 @@ and tests (`run_diff` directly; the helpers `spec_contract`, `artifact_contract`
 
     from goga_tool_pybuggy.commands.diff import run_diff
 
-    run_diff()                                          # all specs, every endpoint
+    run_diff(spec_name=None)                            # all specs, every endpoint
     run_diff(spec_name="shop")                          # one spec, every endpoint
     run_diff(None, ["clients_startup_get"])             # filter by endpoint ids
     run_diff(None, [])                                  # empty/None filter — every endpoint
