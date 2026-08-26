@@ -15,13 +15,13 @@ This practice covers only the `deepdiff` API. The respective cells' `.usages/` d
 ## Basic comparison
 
 ```python
-diff = DeepDiff(spec_side, generated_side)
+diff = DeepDiff(generated_side, spec_side)
 if diff:
     print(diff.to_json())
 ```
 
 - `DeepDiff(t1, t2)` returns a diff object; it is **falsy when the structures are equal** — use `if diff:` to detect drift.
-- `t1` is the old/left side (spec), `t2` is the new/right side (generated artifacts); `dictionary_item_added` / `dictionary_item_removed` are reported relative to this order.
+- `t1` is the old/left side (generated artifacts), `t2` is the new/right side (current spec); `dictionary_item_added` / `dictionary_item_removed` are reported relative to this order.
 - The diff object is not a plain dict — convert explicitly via `to_dict()` or `to_json()` before printing or serializing.
 
 ---
@@ -69,7 +69,7 @@ import json
 
 meta = json.loads(meta_path.read_text(encoding="utf-8"))
 spec_side = endpoint.model_dump()
-diff = DeepDiff(spec_side, meta)
+diff = DeepDiff(meta, spec_side)
 ```
 
 - Artifacts (`meta.json`, `schemas/*.json`) are read with `json.loads` into plain dicts/lists — directly comparable, no pre-processing.

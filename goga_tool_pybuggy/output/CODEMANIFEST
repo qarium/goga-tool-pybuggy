@@ -61,9 +61,32 @@ Annotations: |
 
     Use `spec` for the `Endpoint` fields.
 
+"render_diff(endpoint_id: str, diff: dict[str, Any]) -> json: str":
+  location: diff.py
+  annotations: |
+    Format one comparison result as a single-line JSON document keyed by the compared unit's identifier.
+
+    `endpoint_id`: identifier key of the compared unit — the raw endpoint id for spec-side entries or the sanitized artifact segment for removed artifact directories; supplied by the caller.
+    `diff`: the comparison result as a plain mapping; an empty mapping means no drift.
+    `json`: one JSON document on one line — {"<endpoint_id>": <diff>}; {"<endpoint_id>": {}} when there is no drift.
+
+    Algorithm:
+    1. Build a single-entry mapping `endpoint_id` → `diff`.
+    2. Serialize it as one JSON line.
+
+    Requirements:
+    - The output is exactly one single-line JSON document keyed by `endpoint_id`.
+    - A no-drift result serializes an empty mapping as the value.
+
+    Constraints:
+    - Pure function — returns the string; does not print.
+    - Do not transform, filter, or reorder `diff` entries — pass them through unchanged.
+
+    Use `conventions` for code writing rules and testing.
+
 ---
 
 Author: Goga
 CreatedAt: 02/07/26
 Description: |
-  Text and JSON formatters for the list and info commands.
+  Text and JSON formatters for the endpoint commands.
