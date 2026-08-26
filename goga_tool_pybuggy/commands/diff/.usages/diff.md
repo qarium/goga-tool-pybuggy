@@ -36,7 +36,7 @@ Each compared unit prints exactly one JSON document on one line, keyed by the un
     {"clients_startup_get": {}}
     {"clients_startup_get": {"values_changed": {"root['request_body']['properties']['note']['type']": {"old_value": "string", "new_value": "integer"}}}}
     {"clients_startup_get": {"dictionary_item_added": ["root['schemas']['418']"]}}
-    {"legacy_endpoint_get": {"dictionary_item_removed": ["root['schemas']['200']"]}}
+    {"legacy_endpoint_get": {"values_changed": {"root": {"new_value": {}, "old_value": {"parameters": {}, "request_body": {}, "vars": {}, "schemas": {"200": {"type": "object"}}}}}}}
 
 - The key is the raw endpoint id for spec-side entries and the sanitized artifact segment for removed
   artifact directories.
@@ -49,9 +49,15 @@ Each compared unit prints exactly one JSON document on one line, keyed by the un
 ## One-sided endpoints
 
 - An endpoint of the spec without an artifact directory is reported as **added**: the spec side is
-  compared against an empty contract, so every key appears as a one-sided addition.
+  compared against an empty contract, and adding a contract as a whole surfaces as a `values_changed`
+  entry on `root` (an empty `old_value` on the generated side, the full contract as the `new_value`).
 - An artifact directory under `api/<spec>/` whose segment matches no endpoint of the spec is reported
-  as **removed**: an empty contract is compared against the directory's artifacts.
+  as **removed**: an empty contract is compared against the directory's artifacts, which likewise
+  surfaces as a `values_changed` entry on `root` (the full artifact contract as the `old_value`, an
+  empty `new_value`).
+- Per-key `dictionary_item_added` / `dictionary_item_removed` categories appear for **nested** keys
+  under shared ancestors (e.g. a status code present on only one side under a common `schemas` key) —
+  one-sided comparisons of the contract as a whole do not decompose per key.
 - Removed-side discovery scans the whole `api/<spec>/` tree of each selected spec in every run — it is
   NOT narrowed by endpoint-ids; the endpoint-id filter selects only which spec endpoints are compared
   as the added side.
