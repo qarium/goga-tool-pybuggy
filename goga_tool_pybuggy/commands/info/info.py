@@ -49,10 +49,20 @@ def run_info(endpoint_ids: Optional[list[str]] = None, spec_name: Optional[str] 
     for _name, entry in specs.items():
         spec_path = Path.cwd() / entry.location
         spec = load_spec(spec_path)
-        # Validate spec has required structure
-        if not spec or "paths" not in spec:
+        # Validate spec has the required structure — the key alone is not
+        # enough: `paths:` with no value parses to None, and an empty or
+        # list/str document is equally not a spec mapping; all three would
+        # crash extract_endpoints.
+        if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
             raise click.ClickException(f"invalid spec file (missing 'paths'): {entry.location}")
-        endpoints = extract_endpoints(spec)
+        try:
+            endpoints = extract_endpoints(spec)
+        except ValueError as error:
+            # extract_endpoints raises ValueError on an invalid spec — no
+            # openapi/swagger version key, or a response key outside the shapes
+            # the specifications allow. An invalid spec is a CLI error, not a
+            # traceback (mirrors generate/diff).
+            raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
         if endpoint_filter is not None:
             matches.extend(e for e in endpoints if e.id in endpoint_filter)
         else:

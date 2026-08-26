@@ -186,7 +186,7 @@ endpoint(json=Request(id=1), params={":id": "42", "q": "x"}, auth=HTTPBasicAuth(
 ```
 
 The `Api` client itself is configured by the plugin from the tool config — base URL,
-default auth/headers/cookies, the assert baseline, and the sync-only resq `adapter`
+default headers, network timeout, the assert baseline, and the sync-only resq `adapter`
 (`"requests"`; `"httpx"` is async and rejected until an async stack exists). A per-endpoint
 `adapter=` may be added by hand to a generated fixture; only `"requests"` is currently
 accepted.

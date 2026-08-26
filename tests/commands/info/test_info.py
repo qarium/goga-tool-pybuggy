@@ -514,3 +514,56 @@ paths:
     with pytest.raises(click.ClickException) as exc:
         run_info(["health_get"], spec_name="shop")
     assert "endpoint not found: health_get" in str(exc.value)
+
+
+def test_run_info_invalid_response_key_raises_click_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """run_info should map an illegal response status key to ClickException, not a raw traceback.
+
+    `_extract_responses` raises ValueError on response keys outside the shapes the
+    specifications allow (the key becomes an artifact filename in generate); info must
+    surface that as a CLI error, mirroring generate/diff (regression: raw ValueError
+    traceback before the guard).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients:
+    get:
+      responses:
+        '2X0':
+          description: bad key
+""",
+    )
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc_info:
+        run_info(spec_name="client")
+    assert "invalid spec file" in str(exc_info.value)
+    assert "2X0" in str(exc_info.value)
+    # A CLI error is raised before anything is printed
+    assert capsys.readouterr().out == ""
+
+
+def test_run_info_null_paths_raises_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_info should treat `paths:` with a null value as a missing-paths spec, not crash on None.items()."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+""",
+    )
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="missing 'paths'"):
+        run_info(spec_name="client")

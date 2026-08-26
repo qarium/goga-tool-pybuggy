@@ -200,3 +200,80 @@ specs:
     with pytest.raises(click.ClickException) as exc_info:
         run_list("nonexistent_spec")
     assert "spec not found: nonexistent_spec" in str(exc_info.value)
+
+
+def test_run_list_invalid_response_key_raises_click_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """run_list should map an illegal response status key to ClickException, not a raw traceback.
+
+    `_extract_responses` raises ValueError on response keys outside the shapes the
+    specifications allow (the key becomes an artifact filename in generate); list must
+    surface that as a CLI error, mirroring generate/diff (regression: raw ValueError
+    traceback before the guard).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    spec_dir = tmp_path / ".specs"
+    spec_dir.mkdir()
+    (spec_dir / "client.yaml").write_text(
+        """
+openapi: 3.0.0
+info:
+  title: Client API
+  version: 1.0.0
+paths:
+  /clients:
+    get:
+      responses:
+        '2X0':
+          description: bad key
+"""
+    )
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        """
+specs:
+  client:
+    type: openapi
+    location: .specs/client.yaml
+"""
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc_info:
+        run_list("client")
+    assert "invalid spec file" in str(exc_info.value)
+    assert "2X0" in str(exc_info.value)
+    # A CLI error is raised before anything is printed
+    assert capsys.readouterr().out == ""
+
+
+def test_run_list_null_paths_raises_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_list should treat `paths:` with a null value as a missing-paths spec, not crash on None.items()."""
+    monkeypatch.chdir(tmp_path)
+
+    spec_dir = tmp_path / ".specs"
+    spec_dir.mkdir()
+    (spec_dir / "client.yaml").write_text(
+        """
+openapi: 3.0.0
+info:
+  title: Client API
+  version: 1.0.0
+paths:
+"""
+    )
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        """
+specs:
+  client:
+    type: openapi
+    location: .specs/client.yaml
+"""
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="missing 'paths'"):
+        run_list("client")
