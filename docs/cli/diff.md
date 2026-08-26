@@ -89,8 +89,9 @@ never reports spurious `type_changes`.
 
 | Case | Behavior |
 |------|----------|
-| Spec without `paths`, not a mapping, or without an `openapi`/`swagger` version key | `click.ClickException` |
+| Spec without `paths`, not a mapping, without an `openapi`/`swagger` version key, or with an invalid response status key | `click.ClickException` |
 | Spec without operations | No per-endpoint output; every artifact directory of that spec is reported as removed |
+| Null `parameters:` or a null response entry | Extracted as empty; never a traceback |
 | Missing, unreadable or corrupt `meta.json` / schema JSON | `click.ClickException` |
 | Two ids sanitizing to the same segment | Both endpoints are compared against the one directory; not an error |
 | Any successful run | Exit 0 — drift is a result, not a failure |

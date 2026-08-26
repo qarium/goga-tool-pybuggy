@@ -128,10 +128,12 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 
 | Case | Behavior |
 |------|----------|
-| Spec without `paths` | `click.ClickException` |
+| Spec without `paths` (including an empty file) | `click.ClickException` |
+| Spec with an invalid response status key | `click.ClickException` — the key becomes a `schemas/` filename, so only a 3-digit code, `default`, or a range wildcard (`2XX`) is accepted |
 | Spec without endpoints | Skipped silently; no artifacts |
 | Endpoint without a body (or a body without fields) | `api.py` without `class Request`; the fixture is generated anyway |
 | Endpoint with no query parameters, request body, or path variables | `meta.json` with all three keys as `{}` |
+| Null `parameters:` or a null response entry | Extracted as empty; never a traceback |
 
 ## Preconditions
 

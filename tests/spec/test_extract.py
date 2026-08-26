@@ -1328,3 +1328,89 @@ def test_extract_endpoints_preserves_property_named_nullable() -> None:
     assert "nullable" in ep.request["properties"]
     assert "x-nullable" in ep.request["properties"]
     assert "flag" in ep.request["properties"]
+
+
+def test_extract_endpoints_rejects_illegal_response_status_key() -> None:
+    """A response key outside the legal shapes raises ValueError, not a file write.
+
+    Response keys become artifact filenames (``schemas/<status_code>.json`` in
+    generate), so a key carrying path content — ``../..`` — must never reach a
+    write path. Both formats validate the key set before any extraction.
+    """
+    openapi_spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {"../../evil": {"description": "d"}}}}},
+    }
+    swagger_spec = {
+        "swagger": "2.0",
+        "paths": {"/a": {"get": {"responses": {"200": {"schema": {}}, "a/b": {"schema": {}}}}}},
+    }
+
+    with pytest.raises(ValueError, match="invalid response status key"):
+        extract_endpoints(openapi_spec)
+    with pytest.raises(ValueError, match="invalid response status key"):
+        extract_endpoints(swagger_spec)
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["200", "404", "default", "2XX", "5xx"],
+)
+def test_extract_endpoints_accepts_legal_response_status_keys(key: str) -> None:
+    """Every status-key shape the specifications allow extracts without raising."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {key: {"description": "d"}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert list(endpoints[0].response.keys()) == [key]
+
+
+def test_extract_endpoints_null_path_item_parameters_normalized() -> None:
+    """`parameters:` with no value parses to None and means no parameters.
+
+    The merge site unpacks both lists — a raw None would raise TypeError.
+    """
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/x": {
+                "parameters": None,
+                "get": {
+                    "parameters": None,
+                    "responses": {"200": {"description": "ok"}},
+                },
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].query_params == {}
+    assert endpoints[0].path_params == {}
+
+
+def test_extract_endpoints_null_response_entry_degrades_to_empty_schema() -> None:
+    """A `'200':` entry with no body yields an empty schema, not AttributeError."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/x": {"get": {"responses": {"200": None}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].response == {"200": {}}
+
+
+def test_extract_endpoints_null_response_entry_swagger_degrades_to_empty_schema() -> None:
+    """A null Swagger response entry degrades the same way as the OpenAPI one."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {"/x": {"get": {"responses": {"200": None}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].response == {"200": {}}

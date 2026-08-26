@@ -465,6 +465,62 @@ def test_run_diff_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.Mo
         run_diff(None, None)
 
 
+def test_run_diff_illegal_response_key_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A response key carrying path content is invalid, not a traversal into the artifact read.
+
+    generate rejects the same shape before writing, so a hand-crafted spec must
+    not smuggle an out-of-tree path through the diff side either.
+    """
+    monkeypatch.chdir(tmp_path)
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      responses:
+        '../../evil':
+          description: d
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid response status key"):
+        run_diff(None, None)
+
+
+def test_run_diff_null_parameters_and_response_entries_degrade(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Null `parameters:` and null response entries extract as empty, not as a traceback."""
+    monkeypatch.chdir(tmp_path)
+    # Written raw: _write_spec cannot express a null response body.
+    (tmp_path / ".specs").mkdir()
+    (tmp_path / ".specs/client.yaml").write_text(
+        _OPENAPI_PREFIX
+        + "paths:\n"
+        + "  /clients/startup:\n"
+        + "    parameters:\n"
+        + "    get:\n"
+        + "      parameters:\n"
+        + "      responses:\n"
+        + "        '200':\n"
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    run_diff(None, None)
+
+    doc = json.loads(capsys.readouterr().out)
+    assert doc["clients_startup_get"]["values_changed"]["root"]["new_value"] == {
+        "parameters": {},
+        "request_body": {},
+        "vars": {},
+        "schemas": {"200": {}},
+    }
+    assert doc["clients_startup_get"]["values_changed"]["root"]["old_value"] == {}
+
+
 def test_run_diff_spec_without_api_tree_reports_all_added(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:

@@ -366,6 +366,62 @@ def test_run_generate_raises_when_spec_has_no_paths(tmp_path: Path, monkeypatch:
     assert "spec has no paths" in str(exc.value)
 
 
+def test_run_generate_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty spec file parses to None — the guard must not crash before classifying."""
+    monkeypatch.chdir(tmp_path)
+
+    (tmp_path / ".specs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".specs" / "shop.yaml").write_text("")
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc:
+        run_generate(None, False)
+    assert "spec has no paths" in str(exc.value)
+
+
+def test_run_generate_illegal_response_key_raises_before_any_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A response key carrying path content must not become an artifact filename."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      responses:
+        '../../evil':
+          description: d
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc:
+        run_generate(None, False)
+    assert "invalid response status key" in str(exc.value)
+    # Validation happens in phase 1 — nothing may be on disk
+    assert not (tmp_path / "api").exists()
+
+
+def test_run_generate_versionless_spec_raises_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec declaring no version key maps the extract ValueError to ClickException."""
+    monkeypatch.chdir(tmp_path)
+
+    (tmp_path / ".specs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".specs" / "shop.yaml").write_text("paths:\n  /a:\n    get: {}\n")
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc:
+        run_generate(None, False)
+    assert "invalid spec file" in str(exc.value)
+
+
 def test_run_generate_skips_spec_silently_when_no_endpoints(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:

@@ -84,8 +84,9 @@ ids (`Endpoint.id` is a string such as `clients_startup_get`):
 ## Error channel
 
 Operational failures map uniformly to `click.ClickException` (non-zero exit): an unknown `--spec`
-value, an unknown endpoint id, an unparseable spec file, and a missing or corrupt `meta.json` /
-schema JSON file.
+value, an unknown endpoint id, an unparseable spec file (including a document that is not a
+mapping, one without a version key, and a response key outside the legal status-key shapes),
+and a missing or corrupt `meta.json` / schema JSON file.
 
 ## Preconditions
 

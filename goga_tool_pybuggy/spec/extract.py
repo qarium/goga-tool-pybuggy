@@ -1,10 +1,17 @@
 """Extract endpoints from OpenAPI/Swagger specs."""
 
+import re
 from typing import Any, Literal
 
 from .endpoint import Endpoint
 
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
+
+# A response key as allowed by both specifications: a three-digit code, `default`,
+# or a code range wildcard (`2XX`). Response keys become artifact filenames
+# (`schemas/<status_code>.json` in generate), so anything outside this shape —
+# in particular a key carrying `..`/`/` — is rejected instead of written.
+_RESPONSE_KEY_RE = re.compile(r"^(?:[0-9]{3}|default|[1-5]XX)$", re.IGNORECASE)
 
 # Whitelist of inlined type fields used to filter Swagger 2.0 query and path params.
 # `x-nullable` is intentionally included so the Swagger nullable keyword reaches
@@ -84,7 +91,10 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
     """Extract response schemas from an operation in a format-aware way.
 
     OpenAPI 3.x unwraps ``content.application/json.schema``; Swagger 2.0 reads
-    ``schema`` directly (no ``content`` wrapper).
+    ``schema`` directly (no ``content`` wrapper). A response key outside the
+    shapes both specifications allow (three digits, ``default``, a ``2XX`` range
+    wildcard) raises — the key becomes an artifact filename downstream, so a
+    spec carrying ``../``-style content must not reach any write path.
 
     Args:
         operation: a single operation dict (``paths[path][method]``).
@@ -92,14 +102,23 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
 
     Returns:
         ``{status_code: schema}`` for each declared response.
+
+    Raises:
+        ValueError: If a response key is not a legal status key.
     """
     responses = operation.get("responses", {})
+    for code in responses:
+        if not _RESPONSE_KEY_RE.match(str(code)):
+            raise ValueError(
+                f"invalid response status key {code!r} "
+                f"(expected a 3-digit code, 'default' or a range wildcard like '2XX')"
+            )
     if version == "openapi":
         return {
-            code: resp.get("content", {}).get("application/json", {}).get("schema") or {}
+            code: (resp or {}).get("content", {}).get("application/json", {}).get("schema") or {}
             for code, resp in responses.items()
         }
-    return {code: resp.get("schema") or {} for code, resp in responses.items()}
+    return {code: (resp or {}).get("schema") or {} for code, resp in responses.items()}
 
 
 def _extract_params(
@@ -240,8 +259,10 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
         if not isinstance(path_item, dict):
             continue
 
-        # Get shared parameters from path-item (inherited by all operations)
-        shared_params = path_item.get("parameters", [])
+        # Get shared parameters from path-item (inherited by all operations).
+        # `parameters:` with no value parses to None — normalize to no params
+        # rather than crashing on the unpack below (mirrors the entry guards).
+        shared_params = path_item.get("parameters") or []
 
         for method in HTTP_METHODS:
             operation = path_item.get(method)
@@ -249,7 +270,7 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
                 continue
 
             # Merge shared params with operation params
-            all_params = [*shared_params, *operation.get("parameters", [])]
+            all_params = [*shared_params, *(operation.get("parameters") or [])]
 
             # Route field extraction by the detected version, then normalize
             request = _normalize_nullable(_extract_request(operation, version))

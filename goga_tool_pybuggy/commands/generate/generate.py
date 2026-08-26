@@ -349,18 +349,31 @@ def _collect_specs(
         ``(to_generate, matched_ids)`` — ``(name, endpoints)`` pairs plus ids matched by the filter.
 
     Raises:
-        click.ClickException: If a spec has no "paths".
+        click.ClickException: If a spec has no "paths" (absent, present with a
+            null value, or the document is not a mapping at all) or is invalid
+            (no version key, or an illegal response status key).
     """
     to_generate: list[tuple[str, list[Endpoint]]] = []
     matched_ids: set[str] = set()
     for name, entry in specs.items():
         spec = load_spec(cwd / entry.location)
 
-        # Validate spec has the required structure
-        if "paths" not in spec:
+        # Validate spec has the required structure — the key alone is not
+        # enough: an empty spec file parses to None, `paths:` with no value
+        # parses to None, and a top-level list/str document is equally not a
+        # spec mapping; all three would crash extract_endpoints.
+        if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
             raise click.ClickException(f"spec has no paths: {entry.location}")
 
-        endpoints = extract_endpoints(spec)
+        try:
+            endpoints = extract_endpoints(spec)
+        except ValueError as error:
+            # extract_endpoints raises ValueError on an invalid spec — a spec
+            # declaring no version key, or a response key outside the shapes
+            # the specifications allow (such a key becomes an artifact
+            # filename, so it must not reach any write path). Pydantic
+            # ValidationError is a ValueError subclass and maps here too.
+            raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
 
         # No endpoints: skip artifact creation for this spec silently (pre-filter check,
         # so the skip reflects a spec with no operations, not an empty filter result).
@@ -472,8 +485,9 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
 
     Raises:
         click.ClickException: If spec_name is set but not found in config specs; a selected spec has
-            no "paths"; endpoint_ids contains an id not found in any selected spec; or two endpoint
-            ids of one spec map to the same directory name.
+            no "paths"; a selected spec is invalid (not a mapping, or a response key outside the
+            legal status-key shapes); endpoint_ids contains an id not found in any selected spec;
+            or two endpoint ids of one spec map to the same directory name.
     """
     # Step 1: Load the config from the fixed path
     config: Config = load_config()

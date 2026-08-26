@@ -165,7 +165,13 @@ generated `api/` and `tests/` tree.
 
 ## Special cases
 
-- A spec without `paths` → `click.ClickException`.
+- A spec without `paths` (including a file that parses to `None`, e.g. an empty document) →
+  `click.ClickException`.
+- A spec with a response key outside the shapes the specifications allow (a 3-digit code,
+  `default`, or a range wildcard like `2XX`) → `click.ClickException`; the key becomes a
+  `schemas/<status_code>.json` filename, so path content in a key must never reach a write path.
+- Null `parameters:` (path-item or operation level) and null response entries extract as empty —
+  never a traceback.
 - A spec without endpoints → skipped silently; no artifacts are created.
 - An endpoint without a body, or a body without fields → `api.py` without `class Request` (the
   `pydantic` import is omitted); the fixture is generated in any case.
