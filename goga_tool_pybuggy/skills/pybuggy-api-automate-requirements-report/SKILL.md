@@ -26,7 +26,9 @@ You synthesize the final [FEATURE_SPEC] artifact from the outputs of all precedi
    (key | path | role | purpose — a reference of available assets, with no tool selection).
 7. Copy the coverage status from the "Existing coverage" section of [DISCOVERY_REPORT] into §9:
    which endpoints are already covered, which Routines exist, and the action for each —
-   reuse / extend / check drift.
+   reuse / extend / regenerate (drifted) / keep stale contract (user decision) — grounding the
+   action in the drift status from the "Contract drift (diff)" section of [DISCOVERY_REPORT]:
+   an in-sync covered endpoint is reused, a drifted one carries the recorded user decision.
 8. Verify completeness: every section is filled in.
 9. Save [FEATURE_SPEC] to `docs/requirements/<feature>.md` (create the `docs/requirements/`
    directory if it does not exist; overwrite the file on repeated runs). The pipeline orchestrator
@@ -104,7 +106,9 @@ empty, state "no usages".
 
 **9. Already covered by tests:**
 
-[Table: endpoint-id | status (not covered / partial / full) | existing `test_*` Routines
-(name → Flow/Positive/Negative type) | action (reuse / extend the missing ones / check contract-drift)]
+[Table: endpoint-id | status (not covered / partial / full) | drift (in sync / drifted / ADD /
+REMOVED) | existing `test_*` Routines
+(name → Flow/Positive/Negative type) | action (reuse / extend the missing ones / regenerate
+(drifted) / keep stale contract — the recorded user decision)]
 This section is **optional**: if no endpoint is covered, state "no coverage" (as in §6/§8).
 ```

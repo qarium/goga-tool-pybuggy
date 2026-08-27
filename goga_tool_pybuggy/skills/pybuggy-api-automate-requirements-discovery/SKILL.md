@@ -1,11 +1,11 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-discovery
-description: Feature endpoint discovery and filtering, existing test coverage detection, code generation
+description: Feature endpoint discovery and filtering, existing test coverage detection, contract drift detection, code generation
 ---
 
 ## Identity
 
-You are responsible for discovering and selecting the endpoints of the service under test that are relevant to the feature, and for generating the artifacts: fixtures, request models, response schemas, and test directories.
+You are responsible for discovering and selecting the endpoints of the service under test that are relevant to the feature, for detecting the contract drift between the current spec and the generated artifacts, and for generating the artifacts: fixtures, request models, response schemas, and test directories.
 
 ## User Interaction Rule
 
@@ -53,13 +53,26 @@ At the endpoint selection stage, always ask the user to confirm the selection (2
     - **fully covered** — all expected scenarios of the endpoint are already represented by Routines.
 5. Record the adjacent cells for reference: neighboring `tests/<spec>/...` cells from `goga schema` with ready data setup patterns / lib-usages / mocks.
 
-### Step 6. Confirm the selection with the user
+### Step 6. Detect contract drift (diff)
 
-1. Present the selected endpoints: id, method, path, the intended role in the feature, **and the coverage status** (not covered / partially covered with the list of existing Routines / fully covered).
+1. Run: `goga tool pybuggy endpoint diff <endpoint-id> [<endpoint-id> ...]` for the endpoints selected at Step 4 (a single call with all ids).
+2. Parse the output — one JSON document per unit, keyed by endpoint id: an empty diff `{"<endpoint-id>": {}}` means the generated artifacts match the current spec (in sync); non-empty diff categories (`values_changed`, `dictionary_item_added`, ...) mean drift. The direction is fixed — `old_value` describes the artifacts, `new_value` the current spec.
+3. Record the drift status of every endpoint:
+    - **in sync** — empty diff: the artifacts (`meta.json` + `schemas/*.json`) match the spec;
+    - **drifted** — the contract changed: list the key changes (what → old → new) in brief;
+    - **ADD** — the endpoint has no artifact directory yet (a `values_changed` on the whole root);
+    - **REMOVED** — an artifact directory exists whose endpoint is gone from the spec (a document keyed by the directory segment, not an endpoint id).
+4. The command is read-only and drift is a result, not an error: a drifted or removed endpoint never blocks this step — the statuses feed the user confirmation (Step 7) and the generate decision (Step 9).
+
+### Step 7. Confirm the selection with the user
+
+1. Present the selected endpoints: id, method, path, the intended role in the feature, **the coverage status** (not covered / partially covered with the list of existing Routines / fully covered), **and the drift status** (in sync / drifted / ADD / REMOVED with the key changes).
 2. For fully covered endpoints, offer to exclude them from further generation (the existing tests are reused), subject to user agreement.
-3. Offer the choice via AskUserQuestion: confirm / extend / narrow the selection / exclude the already covered endpoints.
+3. For **drifted** covered endpoints, offer the regeneration of their artifacts (Step 9 updates the fixtures from the current spec; the existing tests then need a drift re-check) — or keeping the stale contract, an explicit user decision recorded in the report.
+4. For **REMOVED** artifact directories, warn the user: the artifacts (and possibly tests) reference an endpoint that no longer exists in the spec.
+5. Offer the choice via AskUserQuestion: confirm / extend / narrow the selection / exclude the already covered endpoints.
 
-### Step 7. Extract endpoint details (info)
+### Step 8. Extract endpoint details (info)
 
 For every confirmed endpoint:
 
@@ -67,16 +80,17 @@ For every confirmed endpoint:
 2. Parse the JSON: `Method`, `Path`, `Request`, `Response`, `QueryParams`, `Description`.
 3. Record the contracts: the request body (`Request`), the response codes and schemas (`Response`), the parameters (`QueryParams` / path parameters), and the description.
 
-### Step 8. Generate artifacts (generate)
+### Step 9. Generate artifacts (generate)
 
-1. Run: `goga tool pybuggy endpoint generate <endpoint-id> [<endpoint-id> ...] -f` for the endpoints kept in the selection (including partially covered ones — their `api/` fixtures are updated from the spec; fully covered ones can be skipped if the user decided to exclude them).
+1. Run: `goga tool pybuggy endpoint generate <endpoint-id> [<endpoint-id> ...] -f` for the endpoints kept in the selection (including partially covered ones and the drifted ones whose regeneration the user confirmed — their `api/` fixtures are updated from the spec; fully covered ones can be skipped if the user decided to exclude them).
 2. Record the paths of the created artifacts:
     - fixture: `api/<spec>/<endpoint-id>/api.py` (fixture name, importable `Request` model);
     - schemas: `api/<spec>/<endpoint-id>/schemas/<status>.json`;
     - test directory: `tests/<spec>/<endpoint-id>/`.
 3. After generation, verify that the existing `tests/<spec>/<endpoint-id>/CODEMANIFEST` files and their Routines remain intact.
+4. After generation, the regenerated endpoints must report an empty diff (`goga tool pybuggy endpoint diff <id> ...`) — a non-empty diff on a just-regenerated endpoint is a generation failure: record it in the report Notes.
 
-### Step 9. Assemble the [DISCOVERY_REPORT]
+### Step 10. Assemble the [DISCOVERY_REPORT]
 
 STOP if:
 
@@ -84,6 +98,7 @@ STOP if:
 - `list` returned an empty result;
 - filtering by feature produced 0 endpoints;
 - the user confirmed no endpoint;
+- `diff` failed (for example, unreadable or corrupt artifacts);
 - `generate` failed (for example, the `endpoint-id` is not found in the spec).
 
 ---
@@ -118,6 +133,12 @@ If .goga/usages/ is missing or empty — state "usages are missing".]
 [Table: endpoint-id | status (not covered / partial / full) | existing test_* Routines
 (name → Flow/Positive/Negative type, brief summary) | adjacent cells for reference (data setup patterns / lib-usages / mocks)]
 If no endpoint is covered — state "no coverage".]
+
+## Contract drift (diff)
+
+[Table: endpoint-id | drift status (in sync / drifted / ADD / REMOVED) | key changes (what → old → new,
+brief) | user decision (regenerate / keep stale contract — for drifted covered endpoints). If no artifacts
+exist yet — state "no artifacts: every endpoint ADD".]
 
 ## Endpoint details (info)
 
