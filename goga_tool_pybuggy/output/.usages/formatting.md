@@ -2,7 +2,7 @@
 
 ## Domain
 
-Consumption patterns of the cell `goga_tool_pybuggy.output`: formatting endpoints into text (`list`) and JSON (`info`), and formatting a comparison result into a JSON document (`diff`). The audience: the `list`, `info`, and `diff` commands. Formatters are pure functions; the calling command does all stdout printing.
+Consumption patterns of the cell `goga_tool_pybuggy.output`: formatting endpoints into text (`list`, optionally with artifact-sync statuses), JSON (`info`), and formatting a comparison result into a JSON document (`diff`). The audience: the `list`, `info`, and `diff` commands. Formatters are pure functions; the calling command does all stdout printing.
 
 ## list output (text)
 
@@ -19,6 +19,28 @@ client (.specs/openapi/client/client-openapi.yaml)
 * clients_startup_get -> [GET] /clients/startup
 ```
 - Header line: `<name> (<location>)`; METHOD in uppercase; path is raw (with braces).
+
+## status list output (text)
+
+```python
+from goga_tool_pybuggy.output import render_status_list
+
+block = render_status_list(name, location, endpoints, statuses, removed)
+print(block)
+```
+
+Block format:
+```
+client (.specs/openapi/client/client-openapi.yaml)
+* clients_startup_get -> [GET] /clients/startup — STATUS: OK
+* legacy_endpoint_get — STATUS: REMOVED
+```
+- Header line: `<name> (<location>)`, as in the plain list block.
+- Endpoint lines: `* <id> -> [<METHOD>] <path> — STATUS: <X>`; METHOD uppercase; path raw (with braces); `<X>` is `ADD`, `UPD`, or `OK`.
+- Removed lines: `* <segment> — STATUS: REMOVED` — no method/path part; `<segment>` is the artifact directory name.
+- The separator before `STATUS:` is an em dash with one space on each side.
+- Endpoint lines and removed lines form one list sorted by line name (`<id>` / `<segment>`); the order is deterministic across runs.
+- `statuses` maps endpoint id → status; `removed` lists artifact segments. The formatter consumes both as given — it computes no status and reads no file.
 
 ## info output (JSON)
 
@@ -54,5 +76,6 @@ print(render_diff("clients_startup_get", {}))
 
 ## Preconditions
 
-- Pass already extracted `Endpoint` instances to `render_list`/`render_info`, and a plain mapping to `render_diff`.
+- Pass already extracted `Endpoint` instances to `render_list`/`render_info`/`render_status_list`, and a plain mapping to `render_diff`.
+- For `render_status_list`, the caller computes `statuses` and `removed` beforehand and passes complete structures — the formatter trusts them.
 - Formatters do not write to stdout — the caller decides where to print.

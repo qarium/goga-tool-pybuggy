@@ -24,7 +24,7 @@ Annotations: |
 
     `name`: spec name (the config dict key).
     `location`: local path of the spec (from project root).
-    `spec`: endpoints of the spec.
+    `endpoints`: endpoints of the spec.
     `text`: a header line followed by one line per endpoint.
 
     Algorithm:
@@ -38,6 +38,41 @@ Annotations: |
     - Pure function — returns the string; does not print.
 
     Use `spec` for the `Endpoint` fields.
+
+"render_status_list(name: str, location: str, endpoints: list[Endpoint], statuses: dict[str, str], removed: list[str]) -> text: str":
+  location: list.py
+  annotations: |
+    Format one spec's endpoints and removed artifact segments as a text block
+    carrying the synchronization status of every line.
+
+    `name`: spec name (the config dict key).
+    `location`: local path of the spec (from project root).
+    `endpoints`: endpoints of the spec.
+    `statuses`: endpoint id -> its status (ADD, UPD, OK).
+    `removed`: artifact segments of directories matching no endpoint (the REMOVED side).
+    `text`: a header line followed by one line per entry.
+
+    Algorithm:
+    1. Emit header "<name> (<location>)".
+    2. For each endpoint emit "* <id> -> [<METHOD>] <path> — STATUS: <status>",
+       where METHOD is the uppercased method of `Endpoint`, the path is its raw
+       path (with braces), and <status> is the entry of `statuses` keyed by the id.
+    3. For each segment of `removed` emit "* <segment> — STATUS: REMOVED".
+    4. Merge the endpoint entries and the removed entries into one list sorted by
+       line name (the endpoint id or the segment) and emit them in that order.
+
+    Requirements:
+    - The status separator is an em dash with one space on each side.
+    - The merged order is deterministic across runs.
+    - Header and line formats match the contract exactly.
+
+    Constraints:
+    - Pure function — returns the string; does not print.
+    - Do not compute or reclassify statuses — consume `statuses` and `removed` as given.
+    - Do not read the artifact tree — the caller supplies every status.
+
+    Use `spec` for the `Endpoint` fields.
+    Use `conventions` for code writing rules and testing.
 
 "render_info(endpoints: list[Endpoint]) -> json: str":
   location: info.py

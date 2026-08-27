@@ -2,70 +2,155 @@ Imports:
   - Types: [load_config, Config, SpecEntry]
     Usages: [configuration]
     From: goga_tool_pybuggy/config
-  - Types: [load_spec, extract_endpoints]
+  - Types: [load_spec, extract_endpoints, Endpoint]
     Usages: [spec]
     From: goga_tool_pybuggy/spec
-  - Types: [render_list]
+  - Types: [spec_contract, artifact_contract, sanitize_id, orphan_artifact_dirs]
+    Usages: [diff]
+    From: goga_tool_pybuggy/commands/diff
+  - Types: [render_list, render_status_list]
     Usages: [formatting]
     From: goga_tool_pybuggy/output
 
 Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
+  deepdiff: .goga/usages/cooks/deepdiff.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the command wrapper (options).
+  Use `click` for the command wrapper (options, the --status flag).
   Use `configuration` for loading and iterating the config.
-  Use `spec` for parsing a spec and extracting endpoints.
-  Use `formatting` for rendering the text block.
+  Use `spec` for parsing a spec, extracting endpoints, and the `Endpoint` shape.
+  Use `diff` for the contract-building and artifact-tree conventions of the reused comparison helpers.
+  Use `deepdiff` for the strict comparison behind the synchronization statuses.
+  Use `formatting` for rendering the text block of either mode.
 
   Use relative imports inside the cell.
   The handler `run_list` is the testable entry point; the Click wrapper list_cmd binds options and calls `run_list` (CLI tests call `run_list` directly).
 
 ---
 
-"run_list(spec_name: Optional[str])":
+"run_list(spec_name: Optional[str], with_status: bool = False)":
   location: list.py
   annotations: |
-    Handler for the endpoint list command: print endpoints grouped by spec.
+    Handler for the endpoint list command: print endpoints grouped by spec,
+    optionally annotated with each line's artifact synchronization status.
 
     `spec_name`: optional filter; when set list only that spec, otherwise list all specs.
+    `with_status`: when true, every printed line carries its synchronization
+    status and removed artifact segments join the listing; when false, plain
+    endpoint lines print.
 
     Algorithm:
     1. Load the config via `load_config` (fixed config path) and iterate its specs.
     2. Select specs: all `Config` specs, or only `spec_name` when provided.
     3. For each selected spec (name, entry):
        3.1. Parse the spec at project-root / `SpecEntry` location via `load_spec`.
-       3.2. If the spec is not a mapping or its "paths" is not a mapping (absent, present with a null value, or a non-mapping document), raise click.ClickException (invalid spec file).
-       3.3. Extract endpoints via `extract_endpoints`; a ValueError from it (no openapi/swagger version key, or a response key outside the legal status-key shapes) maps to click.ClickException (invalid spec file).
-       3.4. Render the block via `render_list`(name, `SpecEntry` location, endpoints).
-       3.5. Print the block.
-    4. A spec parse error propagates as the ClickException raised by `load_spec`; an invalid spec is equally a click.ClickException, never a traceback.
+       3.2. If the spec is not a mapping or its "paths" is not a mapping (absent,
+           present with a null value, or a non-mapping document), raise
+           click.ClickException (invalid spec file).
+       3.3. Extract endpoints via `extract_endpoints`; a ValueError from it (no
+           openapi/swagger version key, or a response key outside the legal
+           status-key shapes) maps to click.ClickException (invalid spec file).
+       3.4. Plain mode: render the block via `render_list`(name, `SpecEntry`
+           location, endpoints) and print it.
+       3.5. Status mode: classify the spec via `endpoint_statuses` over the
+           spec's artifact tree directory (api/<name> under the working
+           directory), render the block via `render_status_list`(name,
+           `SpecEntry` location, endpoints, statuses, removed), and print it.
+    4. A spec parse error propagates as the ClickException raised by `load_spec`;
+       an invalid spec is equally a click.ClickException, never a traceback.
+    5. A spec that parses but declares no endpoints logs a warning. The plain
+       mode still prints the block (an endpoint-less spec prints its header-only
+       block, byte-identical to the previous behavior); the status mode prints
+       the block only when the spec has at least one line — an endpoint or a
+       removed segment.
 
     Requirements:
     - Output format must match the contract (see `formatting`).
-    - An invalid spec — not a mapping, "paths" absent or null, no openapi/swagger version key, or a response key outside the legal status-key shapes — is a CLI error (click.ClickException), never a traceback.
+    - Without `with_status` the output is byte-identical to the plain listing —
+      including the warning for an endpoint-less spec and its header-only block.
+    - A spec that parses but declares no endpoints logs a warning; in the status
+      mode a spec with no endpoints and no removed segments prints no block.
+    - An unknown `spec_name` is a CLI error (click.ClickException
+      "spec not found: <name>"), in both modes.
+    - An invalid spec — not a mapping, "paths" absent or null, no openapi/swagger
+      version key, or a response key outside the legal status-key shapes — is a
+      CLI error (click.ClickException), never a traceback.
+    - A missing or corrupt artifact contract file under the spec's artifact tree
+      is a CLI error (click.ClickException), non-zero exit.
+    - A spec without an artifact tree is not an error: in status mode every
+      endpoint prints ADD.
+    - A successful run exits 0 — drift is a result, not a failure.
 
     Constraints:
-    - Read-only — does not modify specs or config.
+    - Read-only — does not modify specs, config, or artifacts.
+    - The artifact tree is read only in status mode; the plain mode touches no
+      artifact file.
 
     Use `configuration` for config access.
     Use `spec` for parse + extract.
+    Use `diff` for the artifact-tree layout conventions.
+    Use `deepdiff` for the comparison semantics behind the statuses.
     Use `formatting` for rendering.
 
-"list_cmd(spec_name: Optional[str])":
+"list_cmd(spec_name: Optional[str], with_status: bool)":
   location: list.py
   annotations: |
-    Click command wrapper for the endpoint list subcommand; binds the --spec option and delegates to `run_list`.
+    Click command wrapper for the endpoint list subcommand; binds the --spec
+    option and the --status flag, then delegates to `run_list`.
 
     `spec_name`: optional spec filter, bound from --spec.
+    `with_status`: status mode, bound from --status (a boolean flag, long form
+    only — no short form).
 
-    Use `click` for the command wrapper and option binding.
+    Use `click` for the command wrapper, the option binding, and the flag.
+
+"endpoint_statuses(api_spec_dir: pathlib.Path, endpoints: list[Endpoint]) -> report: tuple[dict[str, str], list[str]]":
+  location: list.py
+  annotations: |
+    Classify one spec's endpoints against its artifact tree into synchronization
+    statuses, and collect the removed-side artifact segments.
+
+    `api_spec_dir`: the spec's artifact tree directory; may be absent.
+    `endpoints`: every endpoint of the spec (the full list).
+    `report`: the pair — endpoint id -> its status, and the sorted orphan segments.
+
+    Algorithm:
+    1. For each endpoint: derive the artifact directory name via `sanitize_id`;
+       an absent directory means ADD; an existing one means compare — build the
+       generated side via `artifact_contract` and the spec side via `spec_contract`,
+       apply one strict `deepdiff` comparison with the generated side first:
+       a non-empty result means UPD, an empty result means OK.
+    2. Discover directories matching no endpoint via `orphan_artifact_dirs` over
+       the full endpoint list; read each such directory's contract via
+       `artifact_contract` (a missing or corrupt meta or schema file fails the
+       run); collect their segments as the removed side.
+
+    Requirements:
+    - Status derivation is exact: absent directory -> ADD; non-empty comparison
+      -> UPD; empty comparison -> OK; directory matching no endpoint -> REMOVED.
+    - The comparison direction is fixed: the generated side comes first, the spec
+      side second — the spec is the current truth.
+    - Comparison stays strict — no order-insensitive or type-group relaxations.
+    - A spec without an artifact tree yields ADD for every endpoint, no removed
+      segments, and fails nothing.
+    - The result order is deterministic.
+
+    Constraints:
+    - Read-only — do not write, create, or delete anything.
+    - Do not narrow removed-side discovery — it always runs over the full
+      endpoint list.
+
+    Use `spec` for the `Endpoint` shape.
+    Use `diff` for the contract-building and artifact-tree conventions.
+    Use `deepdiff` for the strict comparison.
+    Use `conventions` for code writing rules and testing.
 
 ---
 
 Author: Goga
 CreatedAt: 08/07/26
 Description: |
-  endpoint list command handler — prints endpoints grouped by spec.
+  endpoint list command handler — prints endpoints grouped by spec, optionally annotated with artifact synchronization statuses.
