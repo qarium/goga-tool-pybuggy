@@ -88,11 +88,12 @@ Annotations: |
 
     Algorithm:
     1. Map the endpoint fields onto the unified structure keys.
-    2. Normalize every value to JSON-native types — date and datetime values become ISO 8601 strings.
+    2. Normalize every value to JSON-native types — date and datetime values become ISO 8601 strings; non-finite floats (YAML .nan/.inf) become null, the value generate writes for them, so a regenerated tree compares equal instead of drifting on every run.
 
     Requirements:
     - The structure equals the generated side's structure, so the two sides are directly comparable.
     - Normalization runs before comparison, so non-JSON-native spec values produce no spurious type differences.
+    - Non-finite floats normalize to null symmetrically with the generated side — the NaN/Infinity tokens that json.dumps would emit are not valid strict JSON.
 
     Constraints:
     - Pure function — no I/O.

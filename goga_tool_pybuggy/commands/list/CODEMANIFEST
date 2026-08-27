@@ -80,6 +80,8 @@ Annotations: |
       CLI error (click.ClickException), never a traceback.
     - A missing or corrupt artifact contract file under the spec's artifact tree
       is a CLI error (click.ClickException), non-zero exit.
+    - In the status mode, two endpoints of one spec sharing a raw id are equally
+      a CLI error (click.ClickException naming both paths), non-zero exit.
     - A spec without an artifact tree is not an error: in status mode every
       endpoint prints ADD.
     - A successful run exits 0 — drift is a result, not a failure.
@@ -118,17 +120,24 @@ Annotations: |
     `report`: the pair — endpoint id -> its status, and the sorted orphan segments.
 
     Algorithm:
-    1. For each endpoint: derive the artifact directory name via `sanitize_id`;
+    1. Reject duplicate raw ids up front — when two endpoints share one id
+       (distinct paths whose "-" and "/" both collapse in the id), raise
+       click.ClickException naming both paths; the report is keyed by id, so
+       one of the two would be silently misreported (generate refuses the
+       same spec before writing anything).
+    2. For each endpoint: derive the artifact directory name via `sanitize_id`;
        an absent directory means ADD; an existing one means compare — build the
        generated side via `artifact_contract` and the spec side via `spec_contract`,
        apply one strict `deepdiff` comparison with the generated side first:
        a non-empty result means UPD, an empty result means OK.
-    2. Discover directories matching no endpoint via `orphan_artifact_dirs` over
+    3. Discover directories matching no endpoint via `orphan_artifact_dirs` over
        the full endpoint list; read each such directory's contract via
        `artifact_contract` (a missing or corrupt meta or schema file fails the
        run); collect their segments as the removed side.
 
     Requirements:
+    - Two endpoints sharing one raw id are a CLI error (click.ClickException
+      naming both paths), raised before any classification.
     - Status derivation is exact: absent directory -> ADD; non-empty comparison
       -> UPD; empty comparison -> OK; directory matching no endpoint -> REMOVED.
     - The comparison direction is fixed: the generated side comes first, the spec

@@ -79,7 +79,7 @@ Annotations: |
   annotations: |
     Format endpoint(s) as JSON for the endpoint info output, with contract-fixed PascalCase keys.
 
-    `spec`: one or more matching endpoints (single -> object; several -> array).
+    `endpoints`: one or more matching endpoints (single -> object; several -> array).
     `json`: JSON string with keys Method, Path, Request, Response, QueryParams, Description.
 
     Algorithm:

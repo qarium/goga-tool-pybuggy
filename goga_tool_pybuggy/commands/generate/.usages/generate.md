@@ -173,6 +173,8 @@ generated `api/` and `tests/` tree.
 - Null `parameters:` (path-item or operation level), null `requestBody:`/`responses:` (including
   their nested `content:`/`application/json:` levels), and null response entries extract as
   empty — never a traceback.
+- Non-finite YAML numbers (`.nan`, `.inf`) in a schema or contract value → written as `null` —
+  the JSON tokens `NaN`/`Infinity` are not valid strict JSON.
 - A spec without endpoints → skipped silently; no artifacts are created.
 - An endpoint without a body, or a body without fields → `api.py` without `class Request` (the
   `pydantic` import is omitted); the fixture is generated in any case.

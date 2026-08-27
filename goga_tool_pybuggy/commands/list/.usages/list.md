@@ -50,7 +50,7 @@ With `with_status=True`, every line carries its synchronization status against t
 
 ## Error channel
 
-An invalid spec — not a mapping, no `paths` mapping, no `swagger`/`openapi` version key, or a response key outside the legal status-key shapes — → `click.ClickException` ("invalid spec file …"), never a traceback. In the status mode, a missing or corrupt `meta.json` / schema JSON file under `api/<name>/` — including inside a removed-side directory — is equally a `click.ClickException` (non-zero exit). A spec with no `api/<name>/` tree is not an error: every endpoint prints `ADD`. A successful run exits 0 — drift is a result, not a failure.
+An invalid spec — not a mapping, no `paths` mapping, no `swagger`/`openapi` version key, or a response key outside the legal status-key shapes — → `click.ClickException` ("invalid spec file …"), never a traceback. In the status mode, a missing or corrupt `meta.json` / schema JSON file under `api/<name>/` — including inside a removed-side directory — is equally a `click.ClickException` (non-zero exit). In the status mode, two endpoints of one spec sharing a raw id (distinct paths whose `-` and `/` both collapse in the id) are also a `click.ClickException` naming both paths — the report is keyed by id, so one of the two would be silently misreported. A spec with no `api/<name>/` tree is not an error: every endpoint prints `ADD`. A successful run exits 0 — drift is a result, not a failure.
 
 ## Preconditions
 

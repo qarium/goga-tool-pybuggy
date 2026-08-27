@@ -29,6 +29,11 @@ The helpers are callable directly for narrow checks:
     generated = artifact_contract(artifact_dir)    # unified structure of the generated side
     orphans = orphan_artifact_dirs(api_spec_dir, endpoints)  # removed-side directories
 
+`spec_contract` normalizes the spec side to strict-JSON-native form — dates become ISO 8601
+strings, non-finite YAML numbers (`.nan`/`.inf`) become `null` — symmetrically with what
+generate writes, so a tree regenerated from an unchanged spec compares equal instead of
+drifting on every run.
+
 ## Output
 
 Each compared unit prints exactly one JSON document on one line, keyed by the unit's identifier:
