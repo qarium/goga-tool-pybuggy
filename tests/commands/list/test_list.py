@@ -1,12 +1,80 @@
-"""Contract and logic tests for run_list handler."""
+"""Contract and logic tests for run_list handler and endpoint_statuses classifier."""
 
+import json
 from pathlib import Path
 
 import click
+import goga_tool_pybuggy.commands.list
 import pytest
-from goga_tool_pybuggy.commands.list import run_list
+from goga_tool_pybuggy.commands.list import endpoint_statuses, run_list
+from goga_tool_pybuggy.spec import Endpoint, extract_endpoints, load_spec
 
 CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
+
+# Shared OpenAPI fragments ---------------------------------------------------
+
+_OPENAPI_PREFIX = """\
+openapi: 3.0.0
+info:
+  title: Test API
+  version: 1.0.0
+"""
+
+# Canonical endpoint: GET /clients/startup -> id "clients_startup_get"; the spec side
+# is {"parameters": {}, "request_body": {}, "vars": {}, "schemas": {"200": {"type": "object"}}}.
+_CANONICAL_OK_META = {"parameters": {}, "request_body": {}, "vars": {}}
+_CANONICAL_OK_SCHEMAS = {"200": {"type": "object"}}
+
+
+def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
+    """Write a YAML spec file under ``spec_dir`` prefixed with minimal OpenAPI header."""
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    (spec_dir / filename).write_text(_OPENAPI_PREFIX + body)
+
+
+def _write_config(tmp_path: Path, specs: dict) -> Path:
+    """Write a config.yml whose ``specs`` map mirrors ``specs`` (name -> location)."""
+    config_path = tmp_path / "config.yml"
+    if not specs:
+        config_path.write_text("specs: {}\n")
+        return config_path
+
+    lines = ["specs:"]
+    for name, location in specs.items():
+        lines.append(f"  {name}:")
+        lines.append("    type: openapi")
+        lines.append(f"    location: {location}")
+    config_path.write_text("\n".join(lines) + "\n")
+    return config_path
+
+
+def _write_artifact(root: Path, spec: str, segment: str, meta: dict, schemas: dict) -> None:
+    """Write ``api/<spec>/<segment>/`` with a meta.json and one schemas/<code>.json per code."""
+    endpoint_dir = root / "api" / spec / segment
+    schemas_dir = endpoint_dir / "schemas"
+    schemas_dir.mkdir(parents=True, exist_ok=True)
+    (endpoint_dir / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    for status_code, schema in schemas.items():
+        (schemas_dir / f"{status_code}.json").write_text(
+            json.dumps(schema, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+
+def _spec_endpoints(spec_path: Path) -> list[Endpoint]:
+    """Load a spec from disk and extract its endpoints (the run_list extraction path)."""
+    return extract_endpoints(load_spec(spec_path))
+
+
+def _endpoint(method: str, path: str) -> Endpoint:
+    """Build a minimal Endpoint model with empty request/response sides."""
+    return Endpoint(
+        method=method,
+        path=path,
+        request={},
+        response={},
+        query_params={},
+        description="",
+    )
 
 
 def test_run_list_importable_from_facade() -> None:
@@ -277,3 +345,175 @@ specs:
 
     with pytest.raises(click.ClickException, match="missing 'paths'"):
         run_list("client")
+
+
+# Contract tests: endpoint_statuses ------------------------------------------
+
+
+def test_endpoint_statuses_facade_export() -> None:
+    """endpoint_statuses is exported from the cell facade, __all__ sorted."""
+    assert "endpoint_statuses" in goga_tool_pybuggy.commands.list.__all__
+    assert goga_tool_pybuggy.commands.list.__all__ == sorted(goga_tool_pybuggy.commands.list.__all__)
+    assert goga_tool_pybuggy.commands.list.endpoint_statuses is endpoint_statuses
+
+
+# Logic tests: endpoint_statuses ---------------------------------------------
+
+
+def test_endpoint_statuses_classification(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """One workspace covers all four statuses: OK, UPD, ADD and the REMOVED orphan side."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      description: Create a client
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+  /clients/update:
+    put:
+      description: Update a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+
+    # OK — the artifact pair matches the spec side exactly
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    # UPD — same segment shape, drifted schema body
+    _write_artifact(
+        tmp_path,
+        "client",
+        "clients_update_put",
+        _CANONICAL_OK_META,
+        {"200": {"type": "string"}},
+    )
+    # ADD — no directory for clients_startup_post
+    # REMOVED — a healthy artifact directory matching no endpoint of the spec
+    _write_artifact(tmp_path, "client", "legacy_endpoint_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+    statuses, removed = endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+    assert statuses == {
+        "clients_startup_get": "OK",
+        "clients_startup_post": "ADD",
+        "clients_update_put": "UPD",
+    }
+    assert removed == ["legacy_endpoint_get"]
+
+
+def test_endpoint_statuses_absent_tree_all_add(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec without an artifact tree yields ADD for every endpoint and no removed side."""
+    monkeypatch.chdir(tmp_path)
+
+    api_dir = tmp_path / "api" / "client"
+    endpoints = [_endpoint("get", "/a"), _endpoint("post", "/b")]
+
+    statuses, removed = endpoint_statuses(api_dir, endpoints)
+
+    assert statuses == {"a_get": "ADD", "b_post": "ADD"}
+    assert removed == []
+
+
+def test_endpoint_statuses_skips_tooling_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tooling directories under api/<spec>/ are never orphans and never fail the run."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    # No meta.json inside either directory — reading one would fail the run
+    (tmp_path / "api" / "client" / "__pycache__" / "x").mkdir(parents=True)
+    (tmp_path / "api" / "client" / ".hidden").mkdir(parents=True)
+
+    statuses, removed = endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+    assert statuses == {"clients_startup_get": "OK"}
+    assert removed == []
+
+
+def test_endpoint_statuses_segment_collision_classifies_both_against_one_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two ids sanitizing to one segment each classify against that directory — no orphan, no error."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /v1.0/clients:
+    get:
+      description: dotted
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1_0/clients:
+    get:
+      description: underscored
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+    # One artifact directory named by the shared segment v1_0_clients_get
+    _write_artifact(tmp_path, "client", "v1_0_clients_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+    statuses, removed = endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+    assert statuses == {"v1.0_clients_get": "OK", "v1_0_clients_get": "OK"}
+    assert removed == []
