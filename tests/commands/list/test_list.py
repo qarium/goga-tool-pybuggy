@@ -637,7 +637,8 @@ def test_list_cmd_binds_status_flag() -> None:
 
     assert isinstance(flag, click.Option)
     assert flag.opts == ["--status"]
-    assert flag.is_flag and flag.default is False
+    assert flag.is_flag
+    assert flag.default is False
 
 
 def test_list_cmd_forwards_status_flag_to_run_list(
@@ -666,3 +667,206 @@ def test_list_cmd_forwards_status_flag_to_run_list(
 
     assert result.exit_code == 0
     assert captured == {"spec_name": None, "with_status": False}
+
+
+# Integration tests: the status pipeline ---------------------------------------
+#
+# The shared workspace spans all three layers — run_list -> endpoint_statuses
+# -> commands/diff helpers -> render_status_list -> stdout. Three operations:
+# get + post on /clients/startup, put on /clients/update (the id
+# clients_update_put names the PUT; the artifact segment is the sanitized id,
+# which is identical here).
+
+
+def _setup_status_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Write the shared three-operation workspace: spec, config and artifact tree.
+
+    The tree carries one directory per status: ``clients_startup_get`` a
+    matching pair (OK), ``clients_update_put`` a drifted schema body (UPD),
+    no directory for ``clients_startup_post`` (ADD) and the healthy orphan
+    ``legacy_endpoint_get`` (REMOVED).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      description: Create a client
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+  /clients/update:
+    put:
+      description: Update a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    # OK — the artifact pair matches the spec side exactly
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    # UPD — same segment shape, drifted schema body
+    _write_artifact(
+        tmp_path,
+        "client",
+        "clients_update_put",
+        _CANONICAL_OK_META,
+        {"200": {"type": "string"}},
+    )
+    # ADD — no directory for clients_startup_post
+    # REMOVED — a healthy artifact directory matching no endpoint of the spec
+    _write_artifact(tmp_path, "client", "legacy_endpoint_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+
+def test_run_list_with_status_prints_status_block(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The status mode prints the full cross-entity block: all four statuses, merged sort."""
+    _setup_status_workspace(tmp_path, monkeypatch)
+
+    run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == (
+        "client (.specs/client.yaml)\n"
+        "* clients_startup_get -> [GET] /clients/startup — STATUS: OK\n"
+        "* clients_startup_post -> [POST] /clients/startup — STATUS: ADD\n"
+        "* clients_update_put -> [PUT] /clients/update — STATUS: UPD\n"
+        "* legacy_endpoint_get — STATUS: REMOVED\n"
+    )
+
+
+def test_run_list_plain_mode_byte_identical_with_artifacts_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The plain mode never reads the artifact tree — its output is byte-identical with one present."""
+    _setup_status_workspace(tmp_path, monkeypatch)
+
+    run_list(None)
+
+    out = capsys.readouterr().out
+    assert out == (
+        "client (.specs/client.yaml)\n"
+        "* clients_startup_get -> [GET] /clients/startup\n"
+        "* clients_startup_post -> [POST] /clients/startup\n"
+        "* clients_update_put -> [PUT] /clients/update\n"
+    )
+    assert "STATUS" not in out
+
+
+def test_run_list_status_mode_corrupt_meta_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A corrupt endpoint meta.json surfaces as a ClickException through the whole pipeline."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    (tmp_path / "api" / "client" / "clients_startup_get" / "meta.json").write_text("{ not json", encoding="utf-8")
+
+    with pytest.raises(click.ClickException, match="unreadable or corrupt artifact"):
+        run_list(None, with_status=True)
+
+
+def test_run_list_status_mode_corrupt_orphan_meta_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A corrupt removed-side meta.json fails the run — the validation gate reads orphans."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    _write_artifact(tmp_path, "client", "legacy_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    (tmp_path / "api" / "client" / "legacy_get" / "meta.json").write_text("{ not json", encoding="utf-8")
+
+    with pytest.raises(click.ClickException, match="unreadable or corrupt artifact"):
+        run_list(None, with_status=True)
+
+
+def test_run_list_status_mode_corrupt_schema_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A corrupt schemas/*.json hits the second raise site — a distinct message, same channel."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    (tmp_path / "api" / "client" / "clients_startup_get" / "schemas" / "200.json").write_text(
+        "{ not json", encoding="utf-8"
+    )
+
+    with pytest.raises(click.ClickException, match="unreadable or corrupt artifact schema"):
+        run_list(None, with_status=True)
