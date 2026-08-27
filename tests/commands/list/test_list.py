@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 import goga_tool_pybuggy.commands.list
 import pytest
-from goga_tool_pybuggy.commands.list import endpoint_statuses, run_list
+from goga_tool_pybuggy.commands.list import endpoint_statuses, list_cmd, run_list
 from goga_tool_pybuggy.spec import Endpoint, extract_endpoints, load_spec
 
 CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
@@ -626,3 +626,43 @@ paths:
 
     assert statuses == {"v1.0_clients_get": "OK", "v1_0_clients_get": "OK"}
     assert removed == []
+
+
+# Contract tests: list_cmd wrapper --------------------------------------------
+
+
+def test_list_cmd_binds_status_flag() -> None:
+    """list_cmd binds --status as a long-form-only boolean flag defaulting to off."""
+    flag = next(p for p in list_cmd.params if p.name == "with_status")
+
+    assert isinstance(flag, click.Option)
+    assert flag.opts == ["--status"]
+    assert flag.is_flag and flag.default is False
+
+
+def test_list_cmd_forwards_status_flag_to_run_list(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The wrapper passes with_status through — a run_list(spec_name) call would drop the flag."""
+    from click.testing import CliRunner
+
+    monkeypatch.chdir(tmp_path)
+
+    captured: dict = {}
+
+    def fake_run_list(spec_name, with_status):
+        captured["spec_name"] = spec_name
+        captured["with_status"] = with_status
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.list.list.run_list", fake_run_list)
+
+    result = CliRunner().invoke(list_cmd, ["--spec", "client", "--status"])
+
+    assert result.exit_code == 0
+    assert captured == {"spec_name": "client", "with_status": True}
+
+    captured.clear()
+    result = CliRunner().invoke(list_cmd, [])
+
+    assert result.exit_code == 0
+    assert captured == {"spec_name": None, "with_status": False}

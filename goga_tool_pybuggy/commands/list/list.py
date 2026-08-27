@@ -141,8 +141,18 @@ def run_list(spec_name: Optional[str], with_status: bool = False) -> None:
             print(render_status_list(name, entry.location, endpoints, statuses, removed))
 
 
-@click.command("list")
+@click.command("list", help="List endpoints from specs")
 @click.option("--spec", "spec_name", default=None, help="Spec name to list")
-def list_cmd(spec_name: Optional[str]) -> None:
-    """List endpoints from specs."""
-    run_list(spec_name)
+@click.option(
+    "--status",
+    "with_status",
+    is_flag=True,
+    default=False,
+    help="Show the artifact synchronization status of every line",
+)
+def list_cmd(spec_name: Optional[str], with_status: bool) -> None:
+    """Click wrapper for the endpoint list subcommand.
+
+    Binds --spec and the --status flag, then delegates to run_list.
+    """
+    run_list(spec_name, with_status)
