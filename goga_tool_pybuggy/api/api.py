@@ -21,6 +21,7 @@ and dispatches to the matching resq verb — one request, never forwarding
 from __future__ import annotations
 
 import logging
+import re
 from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING, Any
 
@@ -257,12 +258,29 @@ class Api:
         """Move ``:name`` keys out of ``params`` into ``url_path`` (in place).
 
         ``params`` is the fresh dict from :meth:`_resolve_params`; the remaining
-        keys stay as the query string.
+        keys stay as the query string. Only the names actually present in
+        ``params`` are matched, each as a whole token (a name is never matched
+        inside a longer one, so ``:id`` / ``:id2`` stay distinct and ``:id``
+        leaves ``:identity`` untouched) — a ``:word`` with no matching parameter
+        is literal path content (e.g. ``09:30``) and is left untouched.
         """
-        for key in [name for name in params if name.startswith(":")]:
-            url_path = url_path.replace(key, str(params.pop(key)))
+        names = sorted((key for key in params if key.startswith(":")), key=len, reverse=True)
+        if not names:
+            return url_path
 
-        return url_path
+        # A name ends where the token ends: the next character must not continue
+        # it. A word char would (``:id`` must not match the ``:id`` prefix of
+        # ``:identity``), and so would ``-`` before a word char (``:order`` must
+        # not match inside ``:order-id``). Everything else ends the name — the
+        # segment end, a literal ``.``/``-`` (``/files/{id}.json`` substitutes),
+        # and the ``:`` of the next placeholder (``/range/{from}-{to}``).
+        pattern = re.compile("|".join(re.escape(name) + r"(?!\w|-\w)" for name in names))
+        values = {name: params.pop(name) for name in names}
+
+        def _replace(match: re.Match[str]) -> str:
+            return str(values[match.group(0)])
+
+        return pattern.sub(_replace, url_path)
 
     def _inject_defaults(self, kwargs: dict[str, Any]) -> None:
         """Inject stored auth/headers/cookies with call-level precedence."""

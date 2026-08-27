@@ -11,6 +11,9 @@ Imports:
   - Types: [generate_cmd]
     Usages: [generate]
     From: goga_tool_pybuggy/commands/generate
+  - Types: [diff_cmd]
+    Usages: [diff]
+    From: goga_tool_pybuggy/commands/diff
   - Types: [init_cmd]
     Usages: [init, config-build]
     From: goga_tool_pybuggy/commands/init
@@ -27,7 +30,7 @@ Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the root group, the endpoint subgroup, command registration, the top-level init command, and the global --env-file option with its eager-callback.
   Use `python-dotenv` for loading the .env file into os.environ with override=False.
-  Connected practices describe how consumers use the composed commands and the plugin: `pull`, `list`, `info`, `generate`, `init`, `config-build`, `enable`, `configuration`.
+  Connected practices describe how consumers use the composed commands and the plugin: `pull`, `list`, `info`, `generate`, `diff`, `init`, `config-build`, `enable`, `configuration`.
 
   This cell is the package composition root: it owns the root group `main`, loads the .env environment before any subcommand runs, and assembles the full CLI.
   Use relative imports inside the cell.
@@ -37,14 +40,14 @@ Annotations: |
 "main()":
   location: cli.py
   annotations: |
-    Root Click group of the pybuggy CLI; exposes the global --env-file option, the endpoint subgroup with the pull/list/info/generate commands, and the top-level init command.
+    Root Click group of the pybuggy CLI; exposes the global --env-file option, the endpoint subgroup with the pull/list/info/generate/diff commands, and the top-level init command.
 
     Algorithm:
     1. Define the `main` root group via `click`.
     2. Attach the global --env-file option to `main` (eager — evaluated before any subcommand).
     3. In the eager-callback: call `load_env` (passing the --env-file value) and store the returned `EnvContext` on ctx.obj.
     4. Define the endpoint subgroup via `click`.
-    5. Register `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd` on the endpoint subgroup.
+    5. Register `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd`, `diff_cmd` on the endpoint subgroup.
     6. Attach the endpoint subgroup to `main`.
     7. Register `init_cmd` on `main` directly (top-level — not under the endpoint subgroup).
     8. Export `main` via __all__.
@@ -139,4 +142,4 @@ Author: Goga
 CreatedAt: 08/07/26
 Description: |
   Package composition root — owns the root CLI group main, assembles the endpoint subgroup
-  (pull/list/info/generate), registers the top-level `init` command, and loads the .env environment before any command runs.
+  (pull/list/info/generate/diff), registers the top-level `init` command, and loads the .env environment before any command runs.

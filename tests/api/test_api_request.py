@@ -100,6 +100,157 @@ class TestRequestPathParams:
         assert sent.args[0] == "/items/42"
         assert sent.kwargs["params"] == {"q": "x"}
 
+    def test_prefixed_param_names_substituted_exactly(self) -> None:
+        """``:id`` must not match inside ``:id2`` — substitution is per segment.
+
+        A plain ``str.replace`` over the whole path collapses ``:id2`` to
+        ``<value>2`` whenever one parameter name is a prefix of another, and
+        the result then depends on dict ordering.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        # both orderings of the same params must give the same URL
+        for params in ({":id": 5, ":id2": 9}, {":id2": 9, ":id": 5}):
+            api.request("GET", "/x/:id/y/:id2", params=params)
+
+            sent = api._client.get.call_args  # type: ignore[attr-defined]
+            assert sent.args[0] == "/x/5/y/9"
+
+    def test_repeated_param_name_substituted_in_every_segment(self) -> None:
+        """The same ``:name`` appearing twice is substituted at both sites."""
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/a/:user/b/:user_id", params={":user_id": 7, ":user": "42"})
+
+        sent = api._client.get.call_args  # type: ignore[attr-defined]
+        assert sent.args[0] == "/a/42/b/7"
+
+    def test_same_param_name_in_two_segments(self) -> None:
+        """The identical ``:name`` in two segments is substituted at both."""
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/a/:user/b/:user", params={":user": 42, "q": "x"})
+
+        sent = api._client.get.call_args  # type: ignore[attr-defined]
+        assert sent.args[0] == "/a/42/b/42"
+        assert sent.kwargs["params"] == {"q": "x"}
+
+    def test_colon_without_param_left_untouched(self) -> None:
+        """A ``:word`` with no matching parameter is literal path content.
+
+        A static segment may legally contain a colon (``09:30``); it must not
+        be treated as an unsubstituted placeholder and must not raise.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/clock/09:30", params={"q": "x"})
+
+        sent = api._client.get.call_args  # type: ignore[attr-defined]
+        assert sent.args[0] == "/clock/09:30"
+        assert sent.kwargs["params"] == {"q": "x"}
+
+    def test_param_name_not_matched_inside_longer_undeclared_token(self) -> None:
+        """A declared name must not match a longer token that is not declared.
+
+        Without a token-end bound, ``:id`` matches the ``:id`` prefix of the
+        literal segment ``:identity`` and silently rewrites the URL to
+        ``<value>entity``; likewise ``:3`` matches inside the static ``09:30``.
+        Only declared names substitute — anything longer stays literal.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/clients/:identity", params={":id": 5})
+        api.request("GET", "/clock/09:30", params={":3": 7})
+        api.request("GET", "/o/:order-id", params={":order": "a"})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/clients/:identity", "/clock/09:30", "/o/:order-id"]
+
+    def test_param_name_with_punctuation_matched_whole(self) -> None:
+        """Names with non-word characters (``-``, ``.``) match their full token.
+
+        ``build_endpoint_id`` and ``_convert_route`` pass spec parameter names
+        through verbatim, and OpenAPI names are only required to be legal in a
+        path template — ``{order-id}`` / ``{file.name}`` are valid.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/orders/:order-id", params={":order-id": 7, "q": 1})
+        api.request("GET", "/files/:file.name", params={":file.name": "x"})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/orders/7", "/files/x"]
+
+    def test_param_name_followed_by_literal_glue(self) -> None:
+        """A declared ``:name`` directly before a literal ``.`` substitutes.
+
+        A path template may put the variable inside a larger segment —
+        ``/files/{id}.json`` renders to ``:id.json``. The ``.`` belongs to the
+        literal text, not to the placeholder, so the value must land in the URL
+        and must not be dropped from ``params``.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/files/:id.json", params={":id": 42, "q": "x"})
+
+        calls = api._client.get.call_args_list  # type: ignore[attr-defined]
+        assert [call.args[0] for call in calls] == ["/files/42.json"]
+        assert calls[0].kwargs["params"] == {"q": "x"}
+
+    def test_hyphen_glue_before_word_char_stays_conservative(self) -> None:
+        """``:name-`` before a word char does not substitute — indistinguishable.
+
+        ``/reports/{name}-final`` and an undeclared ``{name-final}`` both render
+        to ``:name-final``. Substituting ``:name`` there would also rewrite the
+        ``:order`` prefix of the legal declared name ``:order-id`` (the prefix
+        collapse pinned above), so this shape stays literal.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/reports/:name-final", params={":name": "q1"})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/reports/:name-final"]
+
+    def test_adjacent_placeholders_in_one_segment(self) -> None:
+        """Two placeholders glued by a literal ``-``/``.`` both substitute.
+
+        ``/range/{from}-{to}`` renders to ``/range/:from-:to`` — each name ends
+        where the glue starts, so neither may swallow the other's token.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/range/:from-:to", params={":from": 1, ":to": 9})
+        api.request("GET", "/ver/:major.:minor", params={":major": 1, ":minor": 2})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/range/1-9", "/ver/1.2"]
+
+    def test_glued_name_not_matched_inside_undeclared_longer_token(self) -> None:
+        """The glue rule must not reintroduce the prefix-collapse regression.
+
+        ``:id`` followed by ``.``/``-`` glue substitutes, but it must still not
+        match the ``:id`` prefix of an undeclared longer token such as
+        ``:identity`` or ``:id.json`` when ``:id`` itself is not declared.
+        """
+        api = _api()
+        api._client.get = mock.Mock()  # type: ignore[method-assign]
+
+        api.request("GET", "/clients/:identity", params={":id": 5})
+        api.request("GET", "/clock/09:30", params={":3": 7})
+
+        urls = [call.args[0] for call in api._client.get.call_args_list]  # type: ignore[attr-defined]
+        assert urls == ["/clients/:identity", "/clock/09:30"]
+
 
 class TestRequestJson:
     """``json`` serialization: pydantic dump with ``use_aliases``."""

@@ -6,6 +6,7 @@ from pathlib import Path
 import click
 import pytest
 from goga_tool_pybuggy.commands.generate import generate_cmd, render_api_module, run_generate
+from goga_tool_pybuggy.plugin.loaders.loaders import _module_is_pytest_plugin
 from goga_tool_pybuggy.spec import Endpoint
 
 CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
@@ -76,6 +77,31 @@ def test_generate_cmd_is_click_command() -> None:
     endpoint_arg = next(p for p in generate_cmd.params if p.name == "endpoint_ids")
     assert isinstance(endpoint_arg, click.Argument)
     assert endpoint_arg.nargs == -1
+
+
+def test_generate_cmd_force_help_names_full_artifact_set() -> None:
+    """The -f/--force help text should name every regenerable artifact."""
+    force_opt = next(p for p in generate_cmd.params if p.name == "force")
+    assert isinstance(force_opt, click.Option)
+
+    for artifact in ("schema", "meta.json", "api.py", "__init__.py"):
+        assert artifact in force_opt.help
+
+
+def test_apply_ruff_maps_subprocess_failure_to_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failing ruff invocation must surface as click.ClickException, not a raw traceback."""
+    import subprocess as subprocess_module
+
+    from goga_tool_pybuggy.commands.generate.generate import _apply_ruff
+
+    def failing_run(*args, **kwargs):
+        raise subprocess_module.CalledProcessError(returncode=2, cmd=["ruff", "format"], stderr="ruff: syntax error")
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.generate.generate._find_ruff", lambda: "ruff")
+    monkeypatch.setattr(subprocess_module, "run", failing_run)
+
+    with pytest.raises(click.ClickException, match="ruff failed"):
+        _apply_ruff("not valid python source at all {{{")
 
 
 # Logic tests ----------------------------------------------------------------
@@ -338,6 +364,62 @@ def test_run_generate_raises_when_spec_has_no_paths(tmp_path: Path, monkeypatch:
     with pytest.raises(click.ClickException) as exc:
         run_generate(None, False)
     assert "spec has no paths" in str(exc.value)
+
+
+def test_run_generate_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty spec file parses to None — the guard must not crash before classifying."""
+    monkeypatch.chdir(tmp_path)
+
+    (tmp_path / ".specs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".specs" / "shop.yaml").write_text("")
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc:
+        run_generate(None, False)
+    assert "spec has no paths" in str(exc.value)
+
+
+def test_run_generate_illegal_response_key_raises_before_any_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A response key carrying path content must not become an artifact filename."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      responses:
+        '../../evil':
+          description: d
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc:
+        run_generate(None, False)
+    assert "invalid response status key" in str(exc.value)
+    # Validation happens in phase 1 — nothing may be on disk
+    assert not (tmp_path / "api").exists()
+
+
+def test_run_generate_versionless_spec_raises_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec declaring no version key maps the extract ValueError to ClickException."""
+    monkeypatch.chdir(tmp_path)
+
+    (tmp_path / ".specs").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".specs" / "shop.yaml").write_text("paths:\n  /a:\n    get: {}\n")
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc:
+        run_generate(None, False)
+    assert "invalid spec file" in str(exc.value)
 
 
 def test_run_generate_skips_spec_silently_when_no_endpoints(
@@ -626,6 +708,337 @@ paths:
     assert not (tmp_path / "tests" / "__init__.py").exists()
     assert not (tmp_path / "tests" / "t" / "__init__.py").exists()
     assert not (tmp_path / "tests" / "t" / "health_get" / "__init__.py").exists()
+
+
+# meta.json input-contract tests ---------------------------------------------
+
+
+def _startup_spec(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str = "shop") -> Path:
+    """Write a config + spec with a single GET /clients/startup endpoint (no request body)."""
+    monkeypatch.chdir(tmp_path)
+    _write_spec(
+        tmp_path / ".specs",
+        f"{name}.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+""",
+    )
+    config_path = _write_config(tmp_path, {name: f".specs/{name}.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    return tmp_path / "api" / name / "clients_startup_get"
+
+
+def test_run_generate_writes_meta_json_exact_keys_and_pretty_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """meta.json must hold exactly parameters/request_body/vars in that order, prettified."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    assert meta_file.exists()
+    meta = json.loads(meta_file.read_text())
+    assert list(meta.keys()) == ["parameters", "request_body", "vars"]
+    assert meta_file.read_text() == '{\n  "parameters": {},\n  "request_body": {},\n  "vars": {}\n}'
+
+
+def test_run_generate_meta_json_from_query_path_and_body(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """meta.json keys must map to their Endpoint sources: parameters←query, request_body←body, vars←path."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /clients/{id}:
+    put:
+      description: Update a client
+      parameters:
+        - name: verbose
+          in: query
+          schema:
+            type: boolean
+        - name: id
+          in: path
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        '200':
+          description: Success
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    meta_file = tmp_path / "api" / "shop" / "clients_id_put" / "meta.json"
+    assert meta_file.exists()
+    assert json.loads(meta_file.read_text()) == {
+        "parameters": {"verbose": {"type": "boolean"}},
+        "request_body": {"type": "object", "properties": {"name": {"type": "string"}}},
+        "vars": {"id": {"type": "string"}},
+    }
+
+
+def test_run_generate_meta_json_overwritten_with_force(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """With force a stale meta.json must be replaced by the freshly generated one."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    meta_file.write_text('{"parameters": "stale"}')
+
+    run_generate(None, True)
+
+    assert json.loads(meta_file.read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
+
+
+def test_run_generate_meta_json_skipped_without_force(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capfd: pytest.CaptureFixture
+) -> None:
+    """Without force an existing meta.json must be preserved verbatim and silently."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    meta_file.write_text('{"parameters": "keep"}')
+
+    run_generate(None, False)
+
+    assert meta_file.read_text() == '{"parameters": "keep"}'
+    assert capfd.readouterr().out == ""
+
+
+def test_run_generate_unknown_endpoint_id_writes_no_meta_json(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unknown endpoint id must raise before any write, meta.json included."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+
+    with pytest.raises(click.ClickException, match="endpoint not found: nope_get"):
+        run_generate(None, False, ["clients_startup_get", "nope_get"])
+
+    assert not (tmp_path / "api").exists()
+    assert not (tmp_path / "tests").exists()
+    assert not (endpoint_dir / "meta.json").exists()
+
+
+def test_run_generate_meta_json_empty_objects_when_no_input(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An endpoint with no query/body/path data still gets a meta.json with all three keys as {}."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+
+    run_generate(None, False)
+
+    meta_file = endpoint_dir / "meta.json"
+    assert meta_file.exists()
+    assert json.loads(meta_file.read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
+
+
+def test_run_generate_writes_meta_json_when_api_py_exists(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A missing meta.json must be written even when api.py already exists (per-file force semantics)."""
+    endpoint_dir = _startup_spec(tmp_path, monkeypatch)
+    run_generate(None, False)
+
+    api_file = endpoint_dir / "api.py"
+    assert api_file.exists()
+    expected_api = api_file.read_text()
+
+    (endpoint_dir / "meta.json").unlink()
+
+    run_generate(None, False)
+
+    assert api_file.read_text() == expected_api
+    assert json.loads((endpoint_dir / "meta.json").read_text()) == {"parameters": {}, "request_body": {}, "vars": {}}
+
+
+def test_run_generate_meta_json_serializes_date_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """date/datetime values carried in parameter schemas render as ISO strings, not TypeError.
+
+    swax/Prance convert YAML date-like examples into ``datetime.date`` objects; the
+    meta.json (and schema-file) writes must serialize them instead of aborting the run
+    mid-write with a partial artifact tree (mirrors ``render_info``).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /orders/{since}:
+    get:
+      description: Orders since a date
+      parameters:
+        - name: until
+          in: query
+          schema:
+            type: string
+            format: date
+            example: 2020-01-01
+        - name: since
+          in: path
+          schema:
+            type: string
+            format: date
+            example: 2020-02-02
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: string
+                    format: date
+                    example: 2020-03-03
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    meta_file = tmp_path / "api" / "shop" / "orders_since_get" / "meta.json"
+    assert meta_file.exists()
+    assert json.loads(meta_file.read_text()) == {
+        "parameters": {"until": {"type": "string", "format": "date", "example": "2020-01-01"}},
+        "request_body": {},
+        "vars": {"since": {"type": "string", "format": "date", "example": "2020-02-02"}},
+    }
+    schema_file = tmp_path / "api" / "shop" / "orders_since_get" / "schemas" / "200.json"
+    assert json.loads(schema_file.read_text())["properties"]["created"]["example"] == "2020-03-03"
+
+
+def test_run_generate_serializes_non_finite_numbers_as_null(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """YAML `.nan`/`.inf` values write as null — the bare tokens NaN/Infinity are not strict JSON.
+
+    json.dumps encodes non-finite floats as ``NaN``/``Infinity`` by default,
+    which Python's json.loads tolerates but other parsers reject. The artifact
+    files must stay parseable by any JSON consumer, so the values render as
+    ``null`` and the written text carries no bare token.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /orders:
+    get:
+      description: Orders
+      parameters:
+        - name: cutoff
+          in: query
+          schema:
+            type: number
+            example: .inf
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ratio:
+                    type: number
+                    example: .nan
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    endpoint_dir = tmp_path / "api" / "shop" / "orders_get"
+    meta_file = endpoint_dir / "meta.json"
+    assert json.loads(meta_file.read_text())["parameters"]["cutoff"]["example"] is None
+    schema_file = endpoint_dir / "schemas" / "200.json"
+    assert json.loads(schema_file.read_text())["properties"]["ratio"]["example"] is None
+    # The written text carries no bare non-finite token
+    assert "NaN" not in meta_file.read_text()
+    assert "NaN" not in schema_file.read_text()
+    assert "Infinity" not in meta_file.read_text()
+    assert "Infinity" not in schema_file.read_text()
+
+
+def test_run_generate_request_body_date_example_writes_all_artifacts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A date-like value in the request body must not abort the artifact write.
+
+    The schema/meta.json writes serialize dates via ``_json_default``; the
+    request-model path must do the same, otherwise a spec with a YAML date
+    example under ``format: date`` aborts the run with a raw ``TypeError``
+    after earlier artifacts are already on disk.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /orders:
+    post:
+      description: Create an order
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [when]
+              properties:
+                when:
+                  type: string
+                  format: date
+                  example: 2020-01-01
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)  # must not raise
+
+    endpoint_dir = tmp_path / "api" / "shop" / "orders_post"
+    assert (endpoint_dir / "schemas" / "200.json").exists()
+    assert (endpoint_dir / "meta.json").exists()
+    api_py = endpoint_dir / "api.py"
+    assert api_py.exists()
+    # the request model was actually rendered (the body had usable properties)
+    assert "class Request" in api_py.read_text()
 
 
 @pytest.mark.parametrize(
@@ -1185,3 +1598,241 @@ def test_render_api_module_non_dict_schema_maps_to_any_without_raising(pschema) 
 
     assert "    a: Any" in module
     assert "from typing import Any" in module
+
+
+def test_render_api_module_quotes_route_with_special_characters() -> None:
+    """A path key carrying a quote must render a valid string literal, not broken source.
+
+    YAML permits quotes in path keys (e.g. "/o'brien/{id}"); a plain single-quoted
+    interpolation would produce an unimportable api.py (ruff format aborts). The route
+    itself is preserved verbatim — only the literal quoting changes.
+    """
+    endpoint = Endpoint(
+        method="get",
+        path="/o'brien/{id}",
+        request={},
+        response={},
+        query_params={},
+        description="",
+    )
+
+    module = render_api_module(endpoint)  # must not raise
+
+    assert 'return Endpoint(api, "/o\'brien/:id", method="GET")' in module
+    compile(module, "api.py", "exec")  # the rendered text is valid Python
+
+
+def test_render_api_module_sanitizes_fixture_name_to_identifier() -> None:
+    """A path segment outside [a-z0-9_] must not leak into the fixture name.
+
+    build_endpoint_id normalizes "/" and "-" only; the dot in "/v1.0/clients"
+    survives into the id, and the fixture name is emitted as source text —
+    without sanitation the module is syntactically invalid.
+    """
+    endpoint = Endpoint(
+        method="get",
+        path="/v1.0/clients",
+        request={},
+        response={},
+        query_params={},
+        description="",
+    )
+    assert endpoint.id == "v1.0_clients_get"
+
+    module = render_api_module(endpoint)  # must not raise
+
+    assert "def get_v1_0_clients(api: Api) -> Endpoint:" in module
+    compile(module, "api.py", "exec")
+
+
+def test_run_generate_endpoint_dir_is_importable_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The per-endpoint directory must be an importable package name.
+
+    The fixture module is loaded by dotted name from its directory path, so a
+    non-identifier character in the endpoint id (the dot in "/v1.0/clients")
+    would leave the generated tree unloadable even though api.py itself is valid.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /v1.0/clients:
+    get:
+      description: List clients
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    # the directory is a valid Python identifier segment
+    endpoint_dirs = [p for p in (tmp_path / "api" / "shop").iterdir() if p.is_dir()]
+    assert [d.name for d in endpoint_dirs] == ["v1_0_clients_get"]
+
+    # ... and the module is importable under its dotted name from that tree
+    assert _module_is_pytest_plugin("api.shop.v1_0_clients_get.api")
+
+
+def test_run_generate_fixture_name_matches_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fixture name and directory derive from the same sanitized id.
+
+    Distinct raw paths must not collapse onto the same fixture name while
+    writing to distinct directories — the two fixtures would shadow each other
+    with no warning. "/clients" and "/clients/" are distinct ids that stay
+    distinct after sanitization.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /clients:
+    get:
+      description: List clients
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /clients/:
+    get:
+      description: List clients (trailing-slash variant)
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    endpoint_dirs = sorted(p.name for p in (tmp_path / "api" / "shop").iterdir() if p.is_dir())
+    fixture_names = [
+        line
+        for api_py in sorted((tmp_path / "api" / "shop").rglob("api.py"))
+        for line in api_py.read_text().splitlines()
+        if line.startswith("def ")
+    ]
+    # one directory and one fixture per endpoint — no silent collapse in either
+    assert endpoint_dirs == ["clients__get", "clients_get"]
+    assert len(fixture_names) == 2
+    assert len(set(fixture_names)) == 2
+
+
+def test_run_generate_rejects_sanitized_id_collision(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two distinct ids sanitizing to one directory abort before any write.
+
+    "/v1.0/clients" and "/v1_0/clients" both map to "v1_0_clients_get"; without
+    the check the second endpoint's artifacts would be silently skipped (they
+    "already exist") and its response schemas would land in the first endpoint's
+    directory.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /v1.0/clients:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1_0/clients:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="v1_0_clients_get"):
+        run_generate(None, False)
+
+    # the collision is detected in the collect/validate phase — nothing on disk
+    assert not (tmp_path / "api").exists()
+
+
+def test_run_generate_rejects_identical_id_from_distinct_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Two paths producing the *identical* raw id also collide and must abort.
+
+    ``build_endpoint_id`` maps both "-" and "/" to "_", so "/a-b/x" and "/a/b/x"
+    (same method) yield the same id "a_b_x_get" — not two ids that merely
+    sanitize alike. Keying the guard on the raw id lets this through: without
+    --force the second endpoint's artifacts are silently skipped, and with
+    --force they overwrite the first endpoint's schema.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /a-b/x:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from:
+                    type: string
+  /a/b/x:
+    get:
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  other:
+                    type: string
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    # the message names both offending paths — the id alone cannot tell them apart
+    with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):
+        run_generate(None, False)
+
+    # the collision is detected in the collect/validate phase — nothing on disk
+    assert not (tmp_path / "api").exists()

@@ -137,6 +137,74 @@ assert_that(ValCtx(tags), ValueIsEqualMatcher("admin", any=True, in_array=True))
 response.expect("data.items", in_array=True).equal_to(2, any=True)   # at least one == 2
 ```
 
+## Calling endpoints
+
+The generated endpoint fixtures are called like functions and used as context managers.
+Two paths exist:
+
+```python
+def test_initiate(post_clients_calls_initiate: Endpoint):
+    with post_clients_calls_initiate(json=Request(order_id=1), params={":id": "42", "q": "x"}) as response:
+        response.expect("data.items").has_length(3)
+
+
+def test_initiate_error(post_clients_calls_initiate: Endpoint):
+    with post_clients_calls_initiate.error(json={"name": "x"}) as response:
+        response.expect.has_status_code(400)
+        response.expect("error.message").not_empty()
+```
+
+- `endpoint(...)` — the **positive** path; `endpoint.error(...)` — the **negative** path
+  (status and JSON schema are not auto-checked; the body is parsed as JSON only).
+- `params=` takes query parameters (a pydantic model or a dict). Keys prefixed with `:`
+  (e.g. `:id`) are **substituted into the route** (`/clients/:id` → `/clients/42`) and not
+  sent as query parameters — the variable names and schemas come from the `vars` key of
+  the endpoint's generated `meta.json` (see [CLI — generate](../cli/generate.md)).
+- `json=` takes a pydantic model (serialized) or a raw dict. For schema-invalid requests
+  pass a **raw dict** — a model raises `ValidationError` before the request is sent and
+  the SUT is never tested. `data="{"` + an explicit `Content-Type` header tests malformed
+  JSON; calling with no body arguments sends an empty body.
+- `use_autocheck=False` (on the `Endpoint` or on a single call) disables the auto-check
+  entirely — see [Assertions — auto-check](asserts.md#auto-check).
+
+### Request-level keyword arguments
+
+`endpoint(...)` / `endpoint.error(...)` forward the remaining keyword arguments to the
+underlying `resq` verb:
+
+- `auth=` — call-level authentication: a `requests` `AuthBase`, an object with an
+  `.auth(request)` method, or a plain callable; combined with the `Api`-level authenticator
+  (the call-level one wins on conflict).
+- `headers=` / `cookies=` — call-level values; merged over the `Api`-level defaults
+  (call-level keys win).
+- `use_aliases=True` — serialize a pydantic `params`/`json` model with `by_alias`.
+
+```python
+from requests.auth import HTTPBasicAuth
+
+endpoint(json=Request(id=1), params={":id": "42", "q": "x"}, auth=HTTPBasicAuth("u", "p"))
+```
+
+The `Api` client itself is configured by the plugin from the tool config — base URL,
+default headers, network timeout, the assert baseline, and the sync-only resq `adapter`
+(`"requests"`; `"httpx"` is async and rejected until an async stack exists). A per-endpoint
+`adapter=` may be added by hand to a generated fixture; only `"requests"` is currently
+accepted.
+
+### Where `schemas_dir` comes from — frame inspection
+
+The generated fixture resolves `schemas/` via `inspect.stack()[1]`: `Endpoint` reads
+`__file__` from its caller's frame and computes `Path(file).parent / "schemas"`. Therefore:
+
+- Create the `Endpoint` **directly in the fixture function body** (`api.py`) — `schemas/`
+  lands next to that file, as generated.
+- Moving the construction into a helper or a module-level statement yields a foreign
+  `__file__` and the JSON-schema part of the auto-check **silently skips** — keep the
+  `return Endpoint(...)` line inside the fixture.
+
+See [Assertions — auto-check](asserts.md#auto-check) for what is verified against those
+schema files.
+
 ## Also worth knowing
 
 - **`.value`** — an `AssertField` property returning the resolved value **without** any

@@ -658,6 +658,295 @@ def test_extract_endpoints_swagger_inherits_shared_path_item_parameters() -> Non
     assert ep.query_params == {"shared": {"type": "string"}, "op": {"type": "integer"}}
 
 
+# --- URL path variables: path_params extraction (Task 2) ----------------------
+
+
+def test_extract_endpoints_path_params_equivalent_across_formats() -> None:
+    """Equivalent Swagger 2.0 and OpenAPI 3.x operations yield the same path_params.
+
+    The format-equivalence contract invariant extended to the new field: both
+    dialects declare the same ``GET /orders/{id}`` with a path ``id`` (string)
+    and a query ``verbose`` (boolean); extraction routes by the detected version
+    (nested ``schema`` for OpenAPI, ``_TYPE_FIELDS``-filtered inlined fields for
+    Swagger) yet reduces to the same normalized shape on ``Endpoint``.
+    """
+    swagger_spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/orders/{id}": {
+                "get": {
+                    "parameters": [
+                        {"name": "id", "in": "path", "type": "string"},
+                        {"name": "verbose", "in": "query", "type": "boolean"},
+                    ],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                }
+            }
+        },
+    }
+    openapi_spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/orders/{id}": {
+                "get": {
+                    "parameters": [
+                        {"name": "id", "in": "path", "schema": {"type": "string"}},
+                        {"name": "verbose", "in": "query", "schema": {"type": "boolean"}},
+                    ],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    sw = extract_endpoints(swagger_spec)
+    oa = extract_endpoints(openapi_spec)
+
+    assert len(sw) == len(oa) == 1
+    assert sw[0].path_params == oa[0].path_params == {"id": {"type": "string"}}
+    assert sw[0].query_params == oa[0].query_params == {"verbose": {"type": "boolean"}}
+    assert sw[0].id == oa[0].id == build_endpoint_id("get", "/orders/{id}")
+
+
+def test_extract_endpoints_openapi_path_params_nested_schema() -> None:
+    """OpenAPI path variables come from the nested ``schema``; locations never mix."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/clients/{id}": {
+                "get": {
+                    "parameters": [
+                        {"name": "id", "in": "path", "schema": {"type": "string"}},
+                        {"name": "verbose", "in": "query", "schema": {"type": "boolean"}},
+                    ],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"id": {"type": "string"}}
+    assert endpoints[0].query_params == {"verbose": {"type": "boolean"}}
+
+
+def test_extract_endpoints_swagger_path_params_inlined_fields() -> None:
+    """Swagger path variables keep only the canonical ``_TYPE_FIELDS`` (drop required)."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/things/{id}": {
+                "get": {
+                    "parameters": [
+                        {"name": "id", "in": "path", "type": "string", "required": True, "description": "record id"}
+                    ],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"id": {"type": "string", "description": "record id"}}
+    assert "required" not in endpoints[0].path_params["id"]
+
+
+def test_extract_endpoints_skips_path_param_without_name() -> None:
+    """Path parameters missing a (non-empty) ``name`` are skipped, not keyed under a falsy value."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/x": {
+                "get": {
+                    "parameters": [
+                        {"in": "path", "type": "string"},
+                        {"name": "id", "in": "path", "type": "string"},
+                    ],
+                    "responses": {"200": {"description": "ok", "schema": {}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"id": {"type": "string"}}
+
+
+def test_extract_endpoints_skips_non_dict_param_entries() -> None:
+    """Malformed non-dict parameter entries (e.g. null) are skipped, not AttributeError."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/x": {
+                "get": {
+                    "parameters": [
+                        None,
+                        {"name": "id", "in": "path", "schema": {"type": "string"}},
+                    ],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"id": {"type": "string"}}
+
+
+def test_extract_endpoints_skips_non_dict_body_param_entries_swagger() -> None:
+    """Malformed non-dict entries in a Swagger body-parameter list are skipped too.
+
+    ``_extract_request`` walks the same ``parameters`` list as ``_extract_params``;
+    a null entry must not raise AttributeError there either.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {
+            "/x": {
+                "post": {
+                    "parameters": [
+                        None,
+                        {"name": "payload", "in": "body", "schema": {"type": "object"}},
+                    ],
+                    "responses": {"200": {"description": "ok"}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].request == {"type": "object"}
+
+
+def test_extract_endpoints_path_item_path_params_inherited_by_operations() -> None:
+    """A path-level ``in: path`` parameter is inherited by every operation of the path-item."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/orders/{id}": {
+                "parameters": [{"name": "id", "in": "path", "schema": {"type": "string"}}],
+                "get": {"responses": {"200": {"content": {"application/json": {"schema": {}}}}}},
+                "post": {"responses": {"201": {"content": {"application/json": {"schema": {}}}}}},
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+    eps = {ep.method: ep for ep in endpoints}
+
+    assert set(eps) == {"get", "post"}
+    assert eps["get"].path_params == {"id": {"type": "string"}}
+    assert eps["post"].path_params == {"id": {"type": "string"}}
+
+
+def test_extract_endpoints_path_params_no_path_params_yields_empty() -> None:
+    """An operation with no ``in: path`` parameters yields an empty ``path_params`` mapping."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/clients/startup": {
+                "get": {
+                    "parameters": [{"name": "verbose", "in": "query", "schema": {"type": "boolean"}}],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {}
+    assert endpoints[0].query_params == {"verbose": {"type": "boolean"}}
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        {
+            "openapi": "3.0.0",
+            "paths": {
+                "/p/{id}": {
+                    "get": {
+                        "parameters": [{"name": "id", "in": "path", "schema": {"type": "string", "nullable": True}}],
+                        "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                    }
+                }
+            },
+        },
+        {
+            "swagger": "2.0",
+            "paths": {
+                "/p/{id}": {
+                    "get": {
+                        "parameters": [{"name": "id", "in": "path", "type": "string", "x-nullable": True}],
+                        "responses": {"200": {"description": "ok", "schema": {}}},
+                    }
+                }
+            },
+        },
+    ],
+    ids=["openapi-nullable", "swagger-x-nullable"],
+)
+def test_extract_endpoints_path_param_nullable_normalized_both_formats(spec: dict) -> None:
+    """Nullable path variables normalize to the JSON-Schema union form in both formats.
+
+    ``nullable`` (OpenAPI) and ``x-nullable`` (Swagger, kept alive by
+    ``_TYPE_FIELDS``) both reach ``_normalize_nullable`` on the path location and
+    become a ``type`` union including ``"null"`` with the originating key dropped.
+    """
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"id": {"type": ["string", "null"]}}
+
+
+def test_extract_endpoints_does_not_validate_path_template() -> None:
+    """A declared path variable absent from the path template is still extracted (template trusted)."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/fixed": {
+                "get": {
+                    "parameters": [{"name": "ghost", "in": "path", "schema": {"type": "string"}}],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"ghost": {"type": "string"}}
+
+
+def test_extract_endpoints_openapi_path_param_null_schema_degrades_to_empty() -> None:
+    """An OpenAPI path param with an explicit ``schema: null`` degrades to ``{}``.
+
+    ``Endpoint.path_params`` values feed ``json.dumps`` in meta.json; storing
+    ``None`` would break serialization, so the null schema coerces to an empty
+    mapping exactly like the query location.
+    """
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/items/{id}": {
+                "get": {
+                    "parameters": [{"name": "id", "in": "path", "schema": None}],
+                    "responses": {"200": {"content": {"application/json": {"schema": {}}}}},
+                }
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].path_params == {"id": {}}
+
+
 # --- Integration tests (Task 3): format equivalence + invalid-spec + path-less ---
 
 
@@ -1039,3 +1328,190 @@ def test_extract_endpoints_preserves_property_named_nullable() -> None:
     assert "nullable" in ep.request["properties"]
     assert "x-nullable" in ep.request["properties"]
     assert "flag" in ep.request["properties"]
+
+
+def test_extract_endpoints_rejects_illegal_response_status_key() -> None:
+    """A response key outside the legal shapes raises ValueError, not a file write.
+
+    Response keys become artifact filenames (``schemas/<status_code>.json`` in
+    generate), so a key carrying path content — ``../..`` — must never reach a
+    write path. Both formats validate the key set before any extraction.
+    """
+    openapi_spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {"../../evil": {"description": "d"}}}}},
+    }
+    swagger_spec = {
+        "swagger": "2.0",
+        "paths": {"/a": {"get": {"responses": {"200": {"schema": {}}, "a/b": {"schema": {}}}}}},
+    }
+
+    with pytest.raises(ValueError, match="invalid response status key"):
+        extract_endpoints(openapi_spec)
+    with pytest.raises(ValueError, match="invalid response status key"):
+        extract_endpoints(swagger_spec)
+
+
+def test_extract_endpoints_rejects_response_status_key_with_trailing_newline() -> None:
+    """A key carrying a trailing newline is illegal — `$` alone would let it through.
+
+    A YAML double-quoted key like ``"200\\n"`` survives ``re.match`` with a
+    ``$`` anchor (``$`` also matches just before a trailing newline), and the
+    key becomes a ``schemas/<code>.json`` filename with an embedded newline.
+    The anchor is ``\\Z``, so the key is rejected like any other illegal shape.
+    """
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {"200\n": {"description": "d"}}}}},
+    }
+
+    with pytest.raises(ValueError, match="invalid response status key"):
+        extract_endpoints(spec)
+
+
+def test_extract_endpoints_stringifies_non_string_response_status_keys() -> None:
+    """An unquoted YAML `200:` parses to the int 200 and is returned keyed by its string form.
+
+    Validation reads ``str(code)``, so an int key passes the legality check;
+    the returned mapping must carry the same stringified key, or
+    ``Endpoint.response: dict[str, Any]`` would reject the spec with an
+    unrelated pydantic message after this layer already accepted it.
+    """
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {200: {"description": "d"}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert list(endpoints[0].response.keys()) == ["200"]
+
+
+def test_extract_endpoints_stringifies_swagger_non_string_response_keys() -> None:
+    """The Swagger branch stringifies response keys the same way as the OpenAPI one."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {"/a": {"get": {"responses": {404: {"schema": {"type": "string"}}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert list(endpoints[0].response.keys()) == ["404"]
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["200", "404", "default", "2XX", "5xx"],
+)
+def test_extract_endpoints_accepts_legal_response_status_keys(key: str) -> None:
+    """Every status-key shape the specifications allow extracts without raising."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {key: {"description": "d"}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert list(endpoints[0].response.keys()) == [key]
+
+
+def test_extract_endpoints_null_path_item_parameters_normalized() -> None:
+    """`parameters:` with no value parses to None and means no parameters.
+
+    The merge site unpacks both lists — a raw None would raise TypeError.
+    """
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/x": {
+                "parameters": None,
+                "get": {
+                    "parameters": None,
+                    "responses": {"200": {"description": "ok"}},
+                },
+            }
+        },
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].query_params == {}
+    assert endpoints[0].path_params == {}
+
+
+def test_extract_endpoints_null_response_entry_degrades_to_empty_schema() -> None:
+    """A `'200':` entry with no body yields an empty schema, not AttributeError."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/x": {"get": {"responses": {"200": None}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].response == {"200": {}}
+
+
+def test_extract_endpoints_null_response_entry_swagger_degrades_to_empty_schema() -> None:
+    """A null Swagger response entry degrades the same way as the OpenAPI one."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {"/x": {"get": {"responses": {"200": None}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].response == {"200": {}}
+
+
+def test_extract_endpoints_null_operation_parameters_swagger_normalized() -> None:
+    """A null operation-level `parameters:` in a Swagger spec means no parameters.
+
+    The Swagger branch of `_extract_request` reads the field itself to find the
+    `in: body` parameter — a raw None there would raise TypeError.
+    """
+    spec = {
+        "swagger": "2.0",
+        "paths": {"/x": {"post": {"parameters": None, "responses": {"200": {"description": "ok"}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].request == {}
+
+
+def test_extract_endpoints_null_responses_degrades_to_no_responses() -> None:
+    """`responses:` with no value means no declared responses, in both formats."""
+    openapi_spec = {"openapi": "3.0.0", "paths": {"/x": {"get": {"responses": None}}}}
+    swagger_spec = {"swagger": "2.0", "paths": {"/x": {"get": {"responses": None}}}}
+
+    assert extract_endpoints(openapi_spec)[0].response == {}
+    assert extract_endpoints(swagger_spec)[0].response == {}
+
+
+def test_extract_endpoints_null_request_body_levels_degrade_to_empty() -> None:
+    """Every null level of the requestBody chain yields an empty request schema."""
+    specs = [
+        {"openapi": "3.0.0", "paths": {"/x": {"post": {"requestBody": None, "responses": {"200": {}}}}}},
+        {"openapi": "3.0.0", "paths": {"/x": {"post": {"requestBody": {"content": None}, "responses": {"200": {}}}}}},
+        {
+            "openapi": "3.0.0",
+            "paths": {
+                "/x": {"post": {"requestBody": {"content": {"application/json": None}}, "responses": {"200": {}}}}
+            },
+        },
+    ]
+
+    for spec in specs:
+        assert extract_endpoints(spec)[0].request == {}
+
+
+def test_extract_endpoints_null_response_content_degrades_to_empty_schema() -> None:
+    """A null `content:` inside a response entry yields an empty schema, not AttributeError."""
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/x": {"get": {"responses": {"200": {"content": None}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert endpoints[0].response == {"200": {}}

@@ -92,7 +92,8 @@ Verify that the artifact contains **all mandatory sections**:
    registry (a reference for the `testcases` stage; there is no per-lib API here — the `tools` step
    collects it during agreement).
 9. **Already covered by tests** — a table of `endpoint-id | status (not covered / partial / full) |
-   existing `test_*` Routines | action (reuse / extend / check drift)`.
+   drift (in sync / drifted / ADD / REMOVED) | existing `test_*` Routines | action (reuse / extend /
+   regenerate (drifted) / keep stale contract — user decision)`.
 
 - A section is missing — **Critical**.
 - A section exists but is empty or contains a placeholder (TBD, TODO, "…", «далее»/"later") —
@@ -128,6 +129,12 @@ Verify that the artifact contains **all mandatory sections**:
    tree). A declared "covered" endpoint without a Routine in `goga schema` is **High**. The reverse:
    an endpoint from §2 is covered by a Routine in `goga schema`, but §9 does not mention it (without
    the «покрытие отсутствует»/"no coverage" mark) — **Medium**.
+8. **Artifact freshness (drift)** — for the endpoints of section 2, run `goga tool pybuggy endpoint
+   diff <endpoint-id> [<endpoint-id> ...]` (read-only, so allowed here — unlike `pull`/`generate`).
+   A non-empty diff on a generated endpoint means the on-disk artifacts (`meta.json`/`schemas`)
+   lag the live spec: the requirements' contracts (§2/§6 error behavior) were read from stale files —
+   **High**; the suggested fix is to restart the `requirements` pipeline (its discovery/generate
+   refreshes the artifacts), not an inline edit. An empty diff on every endpoint is the pass.
 
 ---
 
@@ -249,7 +256,8 @@ Before you finish, verify:
    §8 — a registry with an explicit mark when usages are empty)?
 6. Did you check the §3 numbering (`FR-<N>` on every requirement of all subsections, uniqueness,
    continuity in subsection order)?
-7. Did you check the realness of endpoints/methods/paths/schemas?
+7. Did you check the realness of endpoints/methods/paths/schemas — and the artifact freshness via
+   `goga tool pybuggy endpoint diff` (an empty diff per endpoint is the pass)?
 8. Did you check consistency (behavior↔endpoint, error contracts↔schemas, acceptance criteria)? Did
    you cross-check the §8 usage registry against the disk (key ↔ file, roles)?
 9. Did you check test orientation (no code, main behavior + error behavior present, roles, business

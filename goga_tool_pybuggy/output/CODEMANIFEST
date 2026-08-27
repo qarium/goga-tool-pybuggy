@@ -24,7 +24,7 @@ Annotations: |
 
     `name`: spec name (the config dict key).
     `location`: local path of the spec (from project root).
-    `spec`: endpoints of the spec.
+    `endpoints`: endpoints of the spec.
     `text`: a header line followed by one line per endpoint.
 
     Algorithm:
@@ -39,12 +39,47 @@ Annotations: |
 
     Use `spec` for the `Endpoint` fields.
 
+"render_status_list(name: str, location: str, endpoints: list[Endpoint], statuses: dict[str, str], removed: list[str]) -> text: str":
+  location: list.py
+  annotations: |
+    Format one spec's endpoints and removed artifact segments as a text block
+    carrying the synchronization status of every line.
+
+    `name`: spec name (the config dict key).
+    `location`: local path of the spec (from project root).
+    `endpoints`: endpoints of the spec.
+    `statuses`: endpoint id -> its status (ADD, UPD, OK).
+    `removed`: artifact segments of directories matching no endpoint (the REMOVED side).
+    `text`: a header line followed by one line per entry.
+
+    Algorithm:
+    1. Emit header "<name> (<location>)".
+    2. For each endpoint emit "* <id> -> [<METHOD>] <path> — STATUS: <status>",
+       where METHOD is the uppercased method of `Endpoint`, the path is its raw
+       path (with braces), and <status> is the entry of `statuses` keyed by the id.
+    3. For each segment of `removed` emit "* <segment> — STATUS: REMOVED".
+    4. Merge the endpoint entries and the removed entries into one list sorted by
+       line name (the endpoint id or the segment) and emit them in that order.
+
+    Requirements:
+    - The status separator is an em dash with one space on each side.
+    - The merged order is deterministic across runs.
+    - Header and line formats match the contract exactly.
+
+    Constraints:
+    - Pure function — returns the string; does not print.
+    - Do not compute or reclassify statuses — consume `statuses` and `removed` as given.
+    - Do not read the artifact tree — the caller supplies every status.
+
+    Use `spec` for the `Endpoint` fields.
+    Use `conventions` for code writing rules and testing.
+
 "render_info(endpoints: list[Endpoint]) -> json: str":
   location: info.py
   annotations: |
     Format endpoint(s) as JSON for the endpoint info output, with contract-fixed PascalCase keys.
 
-    `spec`: one or more matching endpoints (single -> object; several -> array).
+    `endpoints`: one or more matching endpoints (single -> object; several -> array).
     `json`: JSON string with keys Method, Path, Request, Response, QueryParams, Description.
 
     Algorithm:
@@ -61,9 +96,32 @@ Annotations: |
 
     Use `spec` for the `Endpoint` fields.
 
+"render_diff(endpoint_id: str, diff: dict[str, Any]) -> json: str":
+  location: diff.py
+  annotations: |
+    Format one comparison result as a single-line JSON document keyed by the compared unit's identifier.
+
+    `endpoint_id`: identifier key of the compared unit — the raw endpoint id for spec-side entries or the sanitized artifact segment for removed artifact directories; supplied by the caller.
+    `diff`: the comparison result as a plain mapping; an empty mapping means no drift.
+    `json`: one JSON document on one line — {"<endpoint_id>": <diff>}; {"<endpoint_id>": {}} when there is no drift.
+
+    Algorithm:
+    1. Build a single-entry mapping `endpoint_id` → `diff`.
+    2. Serialize it as one JSON line.
+
+    Requirements:
+    - The output is exactly one single-line JSON document keyed by `endpoint_id`.
+    - A no-drift result serializes an empty mapping as the value.
+
+    Constraints:
+    - Pure function — returns the string; does not print.
+    - Do not transform, filter, or reorder `diff` entries — pass them through unchanged.
+
+    Use `conventions` for code writing rules and testing.
+
 ---
 
 Author: Goga
 CreatedAt: 02/07/26
 Description: |
-  Text and JSON formatters for the list and info commands.
+  Text and JSON formatters for the endpoint commands.

@@ -1,12 +1,80 @@
-"""Contract and logic tests for run_list handler."""
+"""Contract and logic tests for run_list handler and endpoint_statuses classifier."""
 
+import json
 from pathlib import Path
 
 import click
+import goga_tool_pybuggy.commands.list
 import pytest
-from goga_tool_pybuggy.commands.list import run_list
+from goga_tool_pybuggy.commands.list import endpoint_statuses, list_cmd, run_list
+from goga_tool_pybuggy.spec import Endpoint, extract_endpoints, load_spec
 
 CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
+
+# Shared OpenAPI fragments ---------------------------------------------------
+
+_OPENAPI_PREFIX = """\
+openapi: 3.0.0
+info:
+  title: Test API
+  version: 1.0.0
+"""
+
+# Canonical endpoint: GET /clients/startup -> id "clients_startup_get"; the spec side
+# is {"parameters": {}, "request_body": {}, "vars": {}, "schemas": {"200": {"type": "object"}}}.
+_CANONICAL_OK_META = {"parameters": {}, "request_body": {}, "vars": {}}
+_CANONICAL_OK_SCHEMAS = {"200": {"type": "object"}}
+
+
+def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
+    """Write a YAML spec file under ``spec_dir`` prefixed with minimal OpenAPI header."""
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    (spec_dir / filename).write_text(_OPENAPI_PREFIX + body)
+
+
+def _write_config(tmp_path: Path, specs: dict) -> Path:
+    """Write a config.yml whose ``specs`` map mirrors ``specs`` (name -> location)."""
+    config_path = tmp_path / "config.yml"
+    if not specs:
+        config_path.write_text("specs: {}\n")
+        return config_path
+
+    lines = ["specs:"]
+    for name, location in specs.items():
+        lines.append(f"  {name}:")
+        lines.append("    type: openapi")
+        lines.append(f"    location: {location}")
+    config_path.write_text("\n".join(lines) + "\n")
+    return config_path
+
+
+def _write_artifact(root: Path, spec: str, segment: str, meta: dict, schemas: dict) -> None:
+    """Write ``api/<spec>/<segment>/`` with a meta.json and one schemas/<code>.json per code."""
+    endpoint_dir = root / "api" / spec / segment
+    schemas_dir = endpoint_dir / "schemas"
+    schemas_dir.mkdir(parents=True, exist_ok=True)
+    (endpoint_dir / "meta.json").write_text(json.dumps(meta, indent=2, ensure_ascii=False), encoding="utf-8")
+    for status_code, schema in schemas.items():
+        (schemas_dir / f"{status_code}.json").write_text(
+            json.dumps(schema, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+
+
+def _spec_endpoints(spec_path: Path) -> list[Endpoint]:
+    """Load a spec from disk and extract its endpoints (the run_list extraction path)."""
+    return extract_endpoints(load_spec(spec_path))
+
+
+def _endpoint(method: str, path: str) -> Endpoint:
+    """Build a minimal Endpoint model with empty request/response sides."""
+    return Endpoint(
+        method=method,
+        path=path,
+        request={},
+        response={},
+        query_params={},
+        description="",
+    )
 
 
 def test_run_list_importable_from_facade() -> None:
@@ -17,11 +85,19 @@ def test_run_list_importable_from_facade() -> None:
 
 
 def test_run_list_signature() -> None:
-    """run_list should have signature (spec_name: Optional[str]) with no ctx."""
+    """run_list should take spec_name and with_status, and no ctx parameter."""
     params = run_list.__code__.co_varnames[: run_list.__code__.co_argcount]
 
     assert "spec_name" in params
     assert "ctx" not in params
+
+
+def test_run_list_signature_with_status_default_false() -> None:
+    """run_list should take with_status as a keyword argument defaulting to False."""
+    params = run_list.__code__.co_varnames[: run_list.__code__.co_argcount]
+
+    assert {"spec_name", "with_status"} <= set(params)
+    assert run_list.__defaults__ == (False,)
 
 
 # Logic tests
@@ -200,3 +276,709 @@ specs:
     with pytest.raises(click.ClickException) as exc_info:
         run_list("nonexistent_spec")
     assert "spec not found: nonexistent_spec" in str(exc_info.value)
+
+
+def test_run_list_invalid_response_key_raises_click_exception(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """run_list should map an illegal response status key to ClickException, not a raw traceback.
+
+    `_extract_responses` raises ValueError on response keys outside the shapes the
+    specifications allow (the key becomes an artifact filename in generate); list must
+    surface that as a CLI error, mirroring generate/diff (regression: raw ValueError
+    traceback before the guard).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    spec_dir = tmp_path / ".specs"
+    spec_dir.mkdir()
+    (spec_dir / "client.yaml").write_text(
+        """
+openapi: 3.0.0
+info:
+  title: Client API
+  version: 1.0.0
+paths:
+  /clients:
+    get:
+      responses:
+        '2X0':
+          description: bad key
+"""
+    )
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        """
+specs:
+  client:
+    type: openapi
+    location: .specs/client.yaml
+"""
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException) as exc_info:
+        run_list("client")
+    assert "invalid spec file" in str(exc_info.value)
+    assert "2X0" in str(exc_info.value)
+    # A CLI error is raised before anything is printed
+    assert capsys.readouterr().out == ""
+
+
+def test_run_list_null_paths_raises_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_list should treat `paths:` with a null value as a missing-paths spec, not crash on None.items()."""
+    monkeypatch.chdir(tmp_path)
+
+    spec_dir = tmp_path / ".specs"
+    spec_dir.mkdir()
+    (spec_dir / "client.yaml").write_text(
+        """
+openapi: 3.0.0
+info:
+  title: Client API
+  version: 1.0.0
+paths:
+"""
+    )
+    config_path = tmp_path / "config.yml"
+    config_path.write_text(
+        """
+specs:
+  client:
+    type: openapi
+    location: .specs/client.yaml
+"""
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="missing 'paths'"):
+        run_list("client")
+
+
+# Logic tests: run_list status mode ------------------------------------------
+
+
+def test_run_list_status_mode_unknown_spec_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Status mode rejects an unknown spec before any output, like the plain mode."""
+    monkeypatch.chdir(tmp_path)
+
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="spec not found: nonexistent_spec"):
+        run_list("nonexistent_spec", with_status=True)
+    assert capsys.readouterr().out == ""
+
+
+def test_run_list_status_mode_invalid_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Status mode shares the plain mode's structure guard — `paths:` null fails equally."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "client.yaml", "paths:\n")
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="missing 'paths'"):
+        run_list("client", with_status=True)
+
+
+@pytest.mark.parametrize(
+    "body",
+    ["", "- a\n- b\n", "just a string"],
+    ids=["empty-file-parses-to-none", "top-level-list", "top-level-string"],
+)
+def test_run_list_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
+    """A spec document that is not a mapping is invalid, not an AttributeError crash.
+
+    Mirrors the diff suite: an empty file parses to None and a top-level
+    list/str document never reaches a ``paths`` lookup — both must surface
+    through the uniform error channel shared by both modes.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".specs").mkdir()
+    # Written raw: the _write_spec prefix would add a valid openapi mapping header.
+    (tmp_path / ".specs/client.yaml").write_text(body)
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid spec file"):
+        run_list(None, with_status=False)
+
+
+def test_run_list_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec declaring neither an openapi nor a swagger version key is invalid, not a ValueError.
+
+    Mirrors the diff suite: such a file has a valid ``paths`` mapping, so the
+    paths guard passes and extract_endpoints raises a bare ValueError from
+    detect_spec_version — it must map to the same click.ClickException channel.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".specs").mkdir()
+    (tmp_path / ".specs/client.yaml").write_text("info:\n  title: T\npaths: {}\n")
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid spec file"):
+        run_list(None, with_status=True)
+
+
+def test_run_list_status_mode_no_artifact_tree_all_add(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A fresh workspace without an api/ tree lists every endpoint as ADD and exits cleanly."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == (
+        "client (.specs/client.yaml)\n* clients_startup_get -> [GET] /clients/startup — STATUS: ADD\n"
+    )
+
+
+def test_run_list_status_mode_empty_spec_no_lines_prints_no_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A spec with no endpoints prints nothing in status mode, but the warning still fires."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "empty.yaml", "paths: {}\n")
+    config_path = _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with caplog.at_level("WARNING"):
+        run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == ""
+    assert any("no endpoints found in spec: empty" in record.message for record in caplog.records)
+
+
+def test_run_list_status_mode_empty_spec_with_orphan_prints_removed_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Removed segments count as lines — an endpoint-less spec still prints its removed block."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "empty.yaml", "paths: {}\n")
+    config_path = _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_artifact(tmp_path, "empty", "legacy_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+    run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == "empty (.specs/empty.yaml)\n* legacy_get — STATUS: REMOVED\n"
+
+
+# Contract tests: endpoint_statuses ------------------------------------------
+
+
+def test_endpoint_statuses_facade_export() -> None:
+    """endpoint_statuses is exported from the cell facade, __all__ sorted."""
+    assert "endpoint_statuses" in goga_tool_pybuggy.commands.list.__all__
+    assert goga_tool_pybuggy.commands.list.__all__ == sorted(goga_tool_pybuggy.commands.list.__all__)
+    assert goga_tool_pybuggy.commands.list.endpoint_statuses is endpoint_statuses
+
+
+# Logic tests: endpoint_statuses ---------------------------------------------
+
+
+def test_endpoint_statuses_classification(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """One workspace covers all four statuses: OK, UPD, ADD and the REMOVED orphan side."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      description: Create a client
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+  /clients/update:
+    put:
+      description: Update a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+
+    # OK — the artifact pair matches the spec side exactly
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    # UPD — same segment shape, drifted schema body
+    _write_artifact(
+        tmp_path,
+        "client",
+        "clients_update_put",
+        _CANONICAL_OK_META,
+        {"200": {"type": "string"}},
+    )
+    # ADD — no directory for clients_startup_post
+    # REMOVED — a healthy artifact directory matching no endpoint of the spec
+    _write_artifact(tmp_path, "client", "legacy_endpoint_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+    statuses, removed = endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+    assert statuses == {
+        "clients_startup_get": "OK",
+        "clients_startup_post": "ADD",
+        "clients_update_put": "UPD",
+    }
+    assert removed == ["legacy_endpoint_get"]
+
+
+def test_endpoint_statuses_absent_tree_all_add(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec without an artifact tree yields ADD for every endpoint and no removed side."""
+    monkeypatch.chdir(tmp_path)
+
+    api_dir = tmp_path / "api" / "client"
+    endpoints = [_endpoint("get", "/a"), _endpoint("post", "/b")]
+
+    statuses, removed = endpoint_statuses(api_dir, endpoints)
+
+    assert statuses == {"a_get": "ADD", "b_post": "ADD"}
+    assert removed == []
+
+
+def test_endpoint_statuses_skips_tooling_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tooling directories under api/<spec>/ are never orphans and never fail the run."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    # No meta.json inside either directory — reading one would fail the run
+    (tmp_path / "api" / "client" / "__pycache__" / "x").mkdir(parents=True)
+    (tmp_path / "api" / "client" / ".hidden").mkdir(parents=True)
+
+    statuses, removed = endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+    assert statuses == {"clients_startup_get": "OK"}
+    assert removed == []
+
+
+def test_endpoint_statuses_segment_collision_classifies_both_against_one_directory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two ids sanitizing to one segment each classify against that directory — no orphan, no error."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /v1.0/clients:
+    get:
+      description: dotted
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /v1_0/clients:
+    get:
+      description: underscored
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+    # One artifact directory named by the shared segment v1_0_clients_get
+    _write_artifact(tmp_path, "client", "v1_0_clients_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+    statuses, removed = endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+    assert statuses == {"v1.0_clients_get": "OK", "v1_0_clients_get": "OK"}
+    assert removed == []
+
+
+def test_endpoint_statuses_identical_id_from_distinct_paths_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two paths producing the *identical* raw id are refused, not silently misreported.
+
+    ``build_endpoint_id`` maps both "-" and "/" to "_", so "/a-b/x" and "/a/b/x"
+    yield the same id "a_b_x_get". The report is keyed by that id — the second
+    classification would overwrite the first and both lines would print the
+    surviving status (one of the two endpoints misreported as OK while drifted).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /a-b/x:
+    get:
+      description: hyphenated
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /a/b/x:
+    get:
+      description: slashed
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+
+    with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):
+        endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+
+def test_run_list_status_mode_identical_id_from_distinct_paths_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The identical-id guard reaches the CLI surface — a ClickException, never misprinted lines."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /a-b/x:
+    get:
+      description: hyphenated
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /a/b/x:
+    get:
+      description: slashed
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):
+        run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == ""
+
+
+# Contract tests: list_cmd wrapper --------------------------------------------
+
+
+def test_list_cmd_binds_status_flag() -> None:
+    """list_cmd binds --status as a long-form-only boolean flag defaulting to off."""
+    flag = next(p for p in list_cmd.params if p.name == "with_status")
+
+    assert isinstance(flag, click.Option)
+    assert flag.opts == ["--status"]
+    assert flag.is_flag
+    assert flag.default is False
+
+
+def test_list_cmd_forwards_status_flag_to_run_list(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The wrapper passes with_status through — a run_list(spec_name) call would drop the flag."""
+    from click.testing import CliRunner
+
+    monkeypatch.chdir(tmp_path)
+
+    captured: dict = {}
+
+    def fake_run_list(spec_name, with_status):
+        captured["spec_name"] = spec_name
+        captured["with_status"] = with_status
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.list.list.run_list", fake_run_list)
+
+    result = CliRunner().invoke(list_cmd, ["--spec", "client", "--status"])
+
+    assert result.exit_code == 0
+    assert captured == {"spec_name": "client", "with_status": True}
+
+    captured.clear()
+    result = CliRunner().invoke(list_cmd, [])
+
+    assert result.exit_code == 0
+    assert captured == {"spec_name": None, "with_status": False}
+
+
+# Integration tests: the status pipeline ---------------------------------------
+#
+# The shared workspace spans all three layers — run_list -> endpoint_statuses
+# -> commands/diff helpers -> render_status_list -> stdout. Three operations:
+# get + post on /clients/startup, put on /clients/update (the id
+# clients_update_put names the PUT; the artifact segment is the sanitized id,
+# which is identical here).
+
+
+def _setup_status_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Write the shared three-operation workspace: spec, config and artifact tree.
+
+    The tree carries one directory per status: ``clients_startup_get`` a
+    matching pair (OK), ``clients_update_put`` a drifted schema body (UPD),
+    no directory for ``clients_startup_post`` (ADD) and the healthy orphan
+    ``legacy_endpoint_get`` (REMOVED).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+    post:
+      description: Create a client
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+  /clients/update:
+    put:
+      description: Update a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    # OK — the artifact pair matches the spec side exactly
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    # UPD — same segment shape, drifted schema body
+    _write_artifact(
+        tmp_path,
+        "client",
+        "clients_update_put",
+        _CANONICAL_OK_META,
+        {"200": {"type": "string"}},
+    )
+    # ADD — no directory for clients_startup_post
+    # REMOVED — a healthy artifact directory matching no endpoint of the spec
+    _write_artifact(tmp_path, "client", "legacy_endpoint_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+
+def test_run_list_with_status_prints_status_block(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The status mode prints the full cross-entity block: all four statuses, merged sort."""
+    _setup_status_workspace(tmp_path, monkeypatch)
+
+    run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == (
+        "client (.specs/client.yaml)\n"
+        "* clients_startup_get -> [GET] /clients/startup — STATUS: OK\n"
+        "* clients_startup_post -> [POST] /clients/startup — STATUS: ADD\n"
+        "* clients_update_put -> [PUT] /clients/update — STATUS: UPD\n"
+        "* legacy_endpoint_get — STATUS: REMOVED\n"
+    )
+
+
+def test_run_list_plain_mode_byte_identical_with_artifacts_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The plain mode never reads the artifact tree — its output is byte-identical with one present."""
+    _setup_status_workspace(tmp_path, monkeypatch)
+    # A corrupt meta.json makes any artifact read fail loudly — the plain mode
+    # succeeding here is the observable proof that it touches no artifact file.
+    (tmp_path / "api" / "client" / "clients_startup_get" / "meta.json").write_text("{ not json", encoding="utf-8")
+
+    run_list(None)
+
+    out = capsys.readouterr().out
+    assert out == (
+        "client (.specs/client.yaml)\n"
+        "* clients_startup_get -> [GET] /clients/startup\n"
+        "* clients_startup_post -> [POST] /clients/startup\n"
+        "* clients_update_put -> [PUT] /clients/update\n"
+    )
+    assert "STATUS" not in out
+
+
+def test_run_list_status_mode_corrupt_meta_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A corrupt endpoint meta.json surfaces as a ClickException through the whole pipeline."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    (tmp_path / "api" / "client" / "clients_startup_get" / "meta.json").write_text("{ not json", encoding="utf-8")
+
+    with pytest.raises(click.ClickException, match="unreadable or corrupt artifact"):
+        run_list(None, with_status=True)
+
+
+def test_run_list_status_mode_corrupt_orphan_meta_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A corrupt removed-side meta.json fails the run — the validation gate reads orphans."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    _write_artifact(tmp_path, "client", "legacy_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    (tmp_path / "api" / "client" / "legacy_get" / "meta.json").write_text("{ not json", encoding="utf-8")
+
+    with pytest.raises(click.ClickException, match=r"unreadable or corrupt artifact meta\.json"):
+        run_list(None, with_status=True)
+
+
+def test_run_list_status_mode_corrupt_schema_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A corrupt schemas/*.json hits the second raise site — a distinct message, same channel."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+    (tmp_path / "api" / "client" / "clients_startup_get" / "schemas" / "200.json").write_text(
+        "{ not json", encoding="utf-8"
+    )
+
+    with pytest.raises(click.ClickException, match="unreadable or corrupt artifact schema"):
+        run_list(None, with_status=True)

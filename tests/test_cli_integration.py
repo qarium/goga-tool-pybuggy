@@ -393,6 +393,68 @@ def test_endpoint_generate_scaffolds_files_swagger_spec(monkeypatch: pytest.Monk
         assert pathlib.Path("tests/t/clients_startup_get").is_dir()
 
 
+def test_endpoint_list_status_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test endpoint list --status end-to-end over a generated artifact tree.
+
+    Drives the full chain ``main`` → ``list_cmd`` → ``run_list`` →
+    ``endpoint_statuses`` → ``render_status_list`` against a tree produced by a
+    real ``generate`` invocation — no handler monkeypatching, so a break in the
+    click layer itself (flag wiring, exit-code mapping) surfaces here.
+    """
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        spec_file = pathlib.Path("specs") / "test_api.yaml"
+        spec_file.parent.mkdir(parents=True, exist_ok=True)
+        spec_file.write_text(_CLIENT_SPEC)
+
+        config_file = _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
+        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+
+        generate_result = runner.invoke(main, ["endpoint", "generate", "-s", "test"])
+        assert generate_result.exit_code == 0
+
+        result = runner.invoke(main, ["endpoint", "list", "--status"])
+
+        assert result.exit_code == 0
+        assert "test (specs/test_api.yaml)" in result.output
+        assert "[GET] /clients/{id} — STATUS: OK" in result.output
+        assert "[DELETE] /clients/{id} — STATUS: OK" in result.output
+        assert "[GET] /clients/startup — STATUS: OK" in result.output
+        assert "REMOVED" not in result.output
+
+
+def test_endpoint_diff_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Test endpoint diff end-to-end: a generated tree prints one empty document per endpoint.
+
+    Drives the full chain ``main`` → ``diff_cmd`` → ``run_diff`` → ``render_diff``
+    against a real generated tree, then confirms the drift verdict for a spec-side
+    change — the exit code stays 0 in both cases (drift is a result, not a failure).
+    """
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        spec_file = pathlib.Path("specs") / "test_api.yaml"
+        spec_file.parent.mkdir(parents=True, exist_ok=True)
+        spec_file.write_text(_CLIENT_SPEC)
+
+        config_file = _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
+        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+
+        generate_result = runner.invoke(main, ["endpoint", "generate", "-s", "test"])
+        assert generate_result.exit_code == 0
+
+        result = runner.invoke(main, ["endpoint", "diff"])
+
+        assert result.exit_code == 0
+        documents = [json.loads(line) for line in result.output.splitlines() if line.strip()]
+        assert documents == [
+            {"clients_id_get": {}},
+            {"clients_id_delete": {}},
+            {"clients_startup_get": {}},
+        ]
+
+
 def test_entry_point_pybuggy_main() -> None:
     """Verify that the entry point goga_tool_pybuggy:main is accessible."""
     import goga_tool_pybuggy

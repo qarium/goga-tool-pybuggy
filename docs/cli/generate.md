@@ -1,8 +1,8 @@
 # CLI — `goga tool pybuggy endpoint generate`
 
-Scaffolds the `api/` fixture tree from specifications: response JSON schemas, a pytest
-fixture module `api.py` per endpoint, empty `__init__.py` package markers along the path,
-and empty `tests/` directories.
+Scaffolds the `api/` fixture tree from specifications: response JSON schemas, a per-endpoint
+`meta.json` input contract, a pytest fixture module `api.py` per endpoint, empty `__init__.py`
+package markers along the path, and empty `tests/` directories.
 
 ```bash
 goga tool pybuggy endpoint generate                          # all specs, skip existing
@@ -27,11 +27,22 @@ partially generated tree.
 ```
 api/__init__.py                       # empty package marker
 api/<spec>/__init__.py                # empty package marker
-api/<spec>/<endpoint.id>/__init__.py  # empty package marker
-api/<spec>/<endpoint.id>/schemas/<status_code>.json
-api/<spec>/<endpoint.id>/api.py
-tests/<spec>/<endpoint.id>/           # empty directory
+api/<spec>/<endpoint.dir>/__init__.py  # empty package marker
+api/<spec>/<endpoint.dir>/schemas/<status_code>.json
+api/<spec>/<endpoint.dir>/meta.json
+api/<spec>/<endpoint.dir>/api.py
+tests/<spec>/<endpoint.dir>/           # empty directory
 ```
+
+`<endpoint.dir>` is the endpoint id sanitized to a Python identifier segment: every non-word
+character becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_get`; Unicode word characters
+are preserved, as Python identifiers allow them) and a leading
+digit is prefixed with `_`. The directory is a package-name segment loaded by dotted name, so it
+must be importable; the fixture `def` name inside `api.py` derives from the same sanitized value,
+keeping the two in lockstep. The `endpoint-ids` filter still keys on the raw id as produced by
+`build_endpoint_id`. When two distinct ids of one spec sanitize to the same segment
+(`/v1.0/clients` and `/v1_0/clients`), generate fails with a `ClickException` naming both —
+their directories are never merged.
 
 Example — spec `shop`, endpoint `clients_startup_get` with statuses `200`, `404`:
 
@@ -41,12 +52,34 @@ api/shop/__init__.py
 api/shop/clients_startup_get/__init__.py
 api/shop/clients_startup_get/schemas/200.json
 api/shop/clients_startup_get/schemas/404.json
+api/shop/clients_startup_get/meta.json
 api/shop/clients_startup_get/api.py
 tests/shop/clients_startup_get/
 ```
 
 `<status_code>.json` holds the prettified, expanded response schema (indent=2,
 `ensure_ascii=False`); statuses without `application/json` get `{}`.
+
+## `meta.json`
+
+`meta.json` describes the endpoint input contract and is written for **every** generated
+endpoint — it is never omitted, even when the endpoint declares no input data. It contains
+exactly three keys:
+
+| Key | Content | Source field |
+|-----|---------|--------------|
+| `parameters` | `{name: schema}` of the query parameters | `Endpoint.query_params` |
+| `request_body` | request-body schema | `Endpoint.request` |
+| `vars` | `{name: schema}` of the URL path variables | `Endpoint.path_params` |
+
+Each key holds `{}` when the endpoint declares no such data; no key is ever dropped or
+renamed. Schemas are taken from the endpoint exactly as extracted from the specification
+(already nullable-normalized — consumers do not normalize them again). The file is
+serialized as prettified JSON (indent=2, `ensure_ascii=False`), matching the
+`<status_code>.json` convention.
+
+Consumers read `meta.json` to build URL substitutions (`vars`) and request payloads
+(`request_body`, `parameters`) without re-parsing the specification.
 
 ## Contents of `api.py`
 
@@ -82,22 +115,32 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 
 ## `--force` semantics
 
-- **Without `-f`**: existing `<status_code>.json`, `api.py` and `__init__.py` files are
-  silently skipped; missing files and directories are created. Idempotent.
+- **Without `-f`**: existing `<status_code>.json`, `meta.json`, `api.py` and `__init__.py`
+  files are silently skipped; missing files and directories are created. Idempotent.
 - **With `-f`**: files are overwritten, `__init__.py` markers are rewritten empty, the
   entire artifact tree regenerates uniformly.
 - `__init__.py` markers are placed only along the path to `api.py` — never under `tests/`.
+- A tree regenerated without `-f` does not gain `meta.json` next to already-present
+  artifacts until `-f` is used or the file is missing — the established skip semantics, by
+  design.
 
 ## Special cases
 
 | Case | Behavior |
 |------|----------|
-| Spec without `paths` | `click.ClickException` |
-| Spec without endpoints | WARNING; no artifacts |
+| Spec without `paths` (including an empty file) | `click.ClickException` |
+| Spec with an invalid response status key | `click.ClickException` — the key becomes a `schemas/` filename, so only a 3-digit code, `default`, or a range wildcard (`2XX`) is accepted |
+| Spec without endpoints | Skipped silently; no artifacts |
 | Endpoint without a body (or a body without fields) | `api.py` without `class Request`; the fixture is generated anyway |
+| Endpoint with no query parameters, request body, or path variables | `meta.json` with all three keys as `{}` |
+| Null `parameters:`, a null `requestBody:`/`responses:` (or their nested `content:`/`application/json:`), or a null response entry | Extracted as empty; never a traceback |
+| Non-finite YAML numbers (`.nan`, `.inf`) in a schema or contract value | Written as `null` — the JSON tokens `NaN`/`Infinity` are not valid strict JSON |
+| `ruff` not found, or a ruff invocation fails while formatting `api.py` | `click.ClickException` ("ruff executable not found…" / "ruff failed: …") — endpoints written before the failing one are already on disk |
+| Two distinct paths mapping to the same artifact directory | `click.ClickException` naming both paths — detected before any write |
 
 ## Preconditions
 
 - Spec files must be present in `location` (after [pull](pull.md) or placed manually).
 - The config must be valid and reside at the fixed path.
 - Artifacts are written to the current working directory.
+- `ruff` is installed (on `PATH` or in the running interpreter's venv) — `api.py` generation requires it.

@@ -75,7 +75,7 @@ def iter_operations(spec: dict):
 
 Consumer conventions:
 - Non-method keys (`parameters`, `summary` at the path-item level) are skipped.
-- Path-item parameters (`item["parameters"]`) are inherited by all operations; merge them with `operation["parameters"]`.
+- Path-item parameters (`item["parameters"]`) are inherited by all operations; merge them with `operation["parameters"]` when extracting query and path parameters.
 
 ### Operation fields — OpenAPI 3.x
 
@@ -92,6 +92,9 @@ def extract_response_schemas_openapi(operation: dict) -> dict:
 
 def extract_query_params_openapi(operation: dict) -> dict:
     return {p["name"]: p.get("schema", {}) for p in operation.get("parameters", []) if p.get("in") == "query"}
+
+def extract_path_params_openapi(operation: dict) -> dict:
+    return {p["name"]: p.get("schema", {}) for p in operation.get("parameters", []) if p.get("in") == "path"}
 ```
 
 ### Operation fields — Swagger 2.0
@@ -110,11 +113,18 @@ def extract_response_schemas_swagger(operation: dict) -> dict:
 
 _TYPE_FIELDS = ("type", "format", "items", "enum", "default", "description", "x-nullable")
 # `x-nullable` is included deliberately: field filtering would otherwise drop the keyword before
-# nullable-normalization, and the query parameter's nullability would be lost (see cell spec / design review).
+# nullable-normalization, and the parameter's nullability would be lost (see cell spec / design review).
 def extract_query_params_swagger(operation: dict) -> dict:
     result = {}
     for p in operation.get("parameters", []):
         if p.get("in") == "query":
+            result[p["name"]] = {k: v for k, v in p.items() if k in _TYPE_FIELDS}
+    return result
+
+def extract_path_params_swagger(operation: dict) -> dict:
+    result = {}
+    for p in operation.get("parameters", []):
+        if p.get("in") == "path":
             result[p["name"]] = {k: v for k, v in p.items() if k in _TYPE_FIELDS}
     return result
 ```
@@ -123,6 +133,7 @@ Consumer conventions (both formats):
 - `Request` / `Response` / `QueryParams` in the `info` output are already **expanded** schemas (Prance has inlined everything).
 - The primary content type is `application/json`; when absent, the fields are empty (`{}`).
 - `Description` = `operation.get("description", "")`.
+- Path variables are keyed by the declared parameter name; the path template is trusted — no cross-validation of `{name}` segments against the declared parameters.
 - Both formats are normalized to an identical form before the data reaches `Endpoint` (nullable-normalization runs inside cell `spec`).
 
 ---

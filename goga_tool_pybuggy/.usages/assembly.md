@@ -29,6 +29,11 @@ The package facade `pybuggy` exposes the root group `main`:
       pybuggy endpoint generate -s shop
       pybuggy endpoint generate --spec shop --force
 
+- Drift report (`endpoint diff`, options `-s/--spec`, variadic endpoint-ids):
+
+      pybuggy endpoint diff
+      pybuggy endpoint diff -s shop clients_startup_get
+
 - Consumer-usages bootstrap (top-level `init`, no options):
 
       pybuggy init
@@ -70,14 +75,14 @@ Assembly lives in the `goga_tool_pybuggy/cli.py` module (owned by the root cell)
 
 1. Define the root group `main` (with the global option `--env-file` + an eager callback that loads the env).
 2. Create the `endpoint` subgroup.
-3. Register the commands `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd` on `endpoint`
-   (from `goga_tool_pybuggy/commands/{pull,list,info,generate}`).
+3. Register the commands `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd`, `diff_cmd` on `endpoint`
+   (from `goga_tool_pybuggy/commands/{pull,list,info,generate,diff}`).
 4. Add the `endpoint` subgroup to `main`.
 5. Register the top-level command `init_cmd` on `main` directly (from `goga_tool_pybuggy/commands/init`).
 6. Export `main` via `__all__`. `load_env` and `EnvContext` are also available on the facade.
 
 Top-level on `main`: `init`.
-Registered under `endpoint`: `pull`, `list`, `info`, `generate`.
+Registered under `endpoint`: `pull`, `list`, `info`, `generate`, `diff`.
 
 ## Static config
 

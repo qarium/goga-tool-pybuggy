@@ -23,6 +23,9 @@ argument `endpoint-ids` and the `--spec` option, then calls `run_info`:
 - The command parses every selected spec (all of them, or those filtered by `--spec`), extracts the
   endpoints, and collects the endpoints whose `id` is in `endpoint_ids`.
 - No matches → `click.ClickException` ("endpoint not found: <id>").
+- An invalid spec — not a mapping, no `paths` mapping, no `swagger`/`openapi` version key, or a response
+  key outside the legal status-key shapes — → `click.ClickException` ("invalid spec file …"), never a
+  traceback.
 - One match → a JSON object; several matches (an id collision across different specs, or several
   requested ids) → a JSON array.
 - The command loads the config from a fixed path via `load_config()`. The output format is JSON with

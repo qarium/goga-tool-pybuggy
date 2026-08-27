@@ -36,22 +36,28 @@ for ep in endpoints:
     ep.path  # '/clients/{id}'
     ep.request  # expanded request body schema (or {})
     ep.response  # {status: schema}
-    ep.query_params  # {name: schema}
+    ep.query_params  # {name: schema} for `in: query` parameters
+    ep.path_params  # {name: schema} for `in: path` parameters (URL variables)
 ```
 
-The output semantics are identical across formats: for OpenAPI 3.x, the cell extracts request/response/query from the `requestBody`/`responses[code].content`/`parameters[].schema` structure; for Swagger 2.0 — from the `in: body` parameter/`responses[code].schema`/inline fields of the `in: query` parameter. Given the same operation semantics, both formats produce the same normalized `Endpoint` model.
+The output semantics are identical across formats: for OpenAPI 3.x, the cell extracts request/response/query/path from the `requestBody`/`responses[code].content`/`parameters[].schema` structure; for Swagger 2.0 — from the `in: body` parameter/`responses[code].schema`/inline fields of the `in: query` and `in: path` parameters. Given the same operation semantics, both formats produce the same normalized `Endpoint` model.
+
+`extract_endpoints` raises `ValueError` on an invalid spec: no top-level `swagger`/`openapi` version key, or a response key outside the shapes the specifications allow (a response key becomes a `schemas/<status_code>.json` filename in generate, so anything but a three-digit code, `default`, or a range wildcard like `2XX` is rejected — path content carried in a key never reaches a write path). Null fragments (`requestBody:`/`responses:` with no value, a null `parameters[]` entry) degrade to empty extraction instead of crashing.
+
+A parameter declared on the path-item is inherited by every operation of that path-item — the consumer receives the merged result and does not need to merge declaration sites. URL variables are keyed by the declared parameter name; the path template is trusted (no cross-validation against the `{name}` segments).
 
 ## Nullable normalization
 
-The schemas in `request`, `response`, and `query_params` are already **nullable-normalized** for JSON-Schema: OpenAPI `nullable: true` and Swagger `x-nullable: true` are rewritten into union form (`type` as a list that includes `"null"`, with an `anyOf` fallback when a single `type` cannot express the union), and the `nullable`/`x-nullable` keys are removed. The `jsonschema` validator ignores both keywords, so the cell performs the normalization once, at the parsing boundary — the consumer does not need to normalize the schemas again.
+The schemas in `request`, `response`, `query_params`, and `path_params` are already **nullable-normalized** for JSON-Schema: OpenAPI `nullable: true` and Swagger `x-nullable: true` are rewritten into union form (`type` as a list that includes `"null"`, with an `anyOf` fallback when a single `type` cannot express the union), and the `nullable`/`x-nullable` keys are removed. The `jsonschema` validator ignores both keywords, so the cell performs the normalization once, at the parsing boundary — the consumer does not need to normalize the schemas again.
 
 ## Endpoint identifier
 
 `build_endpoint_id(method, path)` is a pure function; `Endpoint.id` is computed from it. It is deterministic: the same method+path yields the same id; collisions are handled by the consumer.
 
-`Endpoint.id` is guaranteed to be a **valid Python identifier**: path hyphens are normalized to `_` (for example, `/clients/payment-details` → `clients_payment_details_post`). This guarantee matters because the fixture generator uses the id as the pytest fixture name and as the package directory name during fixture generation — without the normalization, the generated module would be syntactically invalid.
+`Endpoint.id` is **not guaranteed** to be a valid Python identifier: "/" and "-" are normalized to `_` (for example, `/clients/payment-details` → `clients_payment_details_get`), but every other character survives — the dot in `/v1.0/clients` yields `v1.0_clients_get`, which is not importable as a name. A consumer that uses the id as an identifier (the pytest fixture name, the package directory name during fixture generation) must sanitize it itself — replace every non-word character with `_` and prefix `_` to a leading digit (`v1.0_clients_get` → `v1_0_clients_get`); the generate command applies exactly this rule before naming directories and fixtures.
 
 ## Preconditions
 
 - `spec` must be fully dereferenced (use `load_spec`; do not dereference `$ref` manually).
 - Extraction is pure logic over a dict, tested without mocks.
+- `Endpoint` fields carry schemas exactly as extracted and normalized above; consumers must not re-normalize or re-resolve them.

@@ -21,6 +21,12 @@ docs/cli/info.md:
 docs/cli/generate.md:
   - goga_tool_pybuggy/commands/generate
   - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/spec
+docs/cli/diff.md:
+  - goga_tool_pybuggy/commands/diff
+  - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/spec
+  - goga_tool_pybuggy/output
 docs/configuration.md:
   - goga_tool_pybuggy/config
   - goga_tool_pybuggy/plugin

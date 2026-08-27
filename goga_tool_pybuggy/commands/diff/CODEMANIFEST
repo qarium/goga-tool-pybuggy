@@ -1,0 +1,181 @@
+Imports:
+  - Types: [load_config, Config, SpecEntry]
+    Usages: [configuration]
+    From: goga_tool_pybuggy/config
+  - Types: [load_spec, extract_endpoints, build_endpoint_id, Endpoint]
+    Usages: [spec]
+    From: goga_tool_pybuggy/spec
+  - Types: [render_diff]
+    Usages: [formatting]
+    From: goga_tool_pybuggy/output
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  click: .goga/usages/cooks/click.md
+  deepdiff: .goga/usages/cooks/deepdiff.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `click` for the command wrapper, the --spec option, the variadic positional endpoint-ids filter, and mapping operational errors to ClickException.
+  Use `deepdiff` for the structural comparison of the two sides and the per-endpoint JSON conversion.
+  Use `configuration` for loading and iterating the config.
+  Use `spec` for parsing a spec, extracting endpoints, and the endpoint id.
+  Use `formatting` for rendering the printed JSON documents.
+
+  Use relative imports inside the cell.
+  The handler `run_diff` is the testable entry point; the Click wrapper `diff_cmd` binds options and the positional endpoint-ids filter and calls `run_diff` (CLI tests call `run_diff` directly).
+  The command is read-only — it reads the artifact tree under the current working directory and never writes or deletes anything.
+  Operational failures map uniformly to click.ClickException (non-zero exit); drift is a normal result — the command exits 0 after any successful run.
+
+---
+
+"run_diff(spec_name: Optional[str], endpoint_ids: Optional[list[str]] = None)":
+  location: diff.py
+  annotations: |
+    Handler for the endpoint diff command: report, per endpoint, the differences between the endpoint contract taken from the current spec and the previously generated artifacts, printed to the console as JSON.
+
+    `spec_name`: optional filter; when set compare only that spec, otherwise compare all specs.
+    `endpoint_ids`: optional endpoint-id filter keyed on the raw `Endpoint` id; when None or empty compare every endpoint of the selected specs, otherwise compare only endpoints whose id is in the list.
+
+    Algorithm:
+    1. Load the config via `load_config` (fixed config path).
+    2. If `spec_name` is set and not in `Config` specs, raise click.ClickException("spec not found: <spec_name>").
+    3. Select specs: all `Config` specs, or only `spec_name` when provided.
+    4. Normalize `endpoint_ids` into an id set; an empty value means "no filter" (compare every endpoint).
+    5. For each selected spec (name, `SpecEntry`): parse the spec at cwd / `SpecEntry` location via `load_spec`; if the spec is not a mapping or its "paths" is not a mapping, raise click.ClickException (invalid spec file); extract endpoints via `extract_endpoints`, mapping a ValueError (no openapi/swagger version key, or a response key outside the legal status-key shapes) to click.ClickException (invalid spec file); keep the endpoints selected by the filter and record the matched ids.
+    6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids (sorted) — before anything is printed.
+    7. For each selected spec, compare and print:
+       7.1. For each kept endpoint (extraction order): build the spec side via `spec_contract`; locate the artifact directory by `sanitize_id` on the endpoint id; when the directory exists build the generated side via `artifact_contract`, otherwise compare against an empty contract (endpoint added).
+       7.2. Compare the two sides with one strict `deepdiff` comparison; print one JSON document per endpoint via `render_diff` keyed by the raw endpoint id — including endpoints with no drift (empty diff value).
+       7.3. Discover the spec's artifact directories matching no endpoint of the spec via `orphan_artifact_dirs` over the full endpoint list (the endpoint-id filter does not narrow this discovery); for each such directory (sorted) compare an empty contract against `artifact_contract` of the directory and print the document via `render_diff` keyed by the sanitized segment (endpoint removed).
+
+    Requirements:
+    - The output order is deterministic: specs in config order; endpoints in extraction order; removed directories sorted by segment.
+    - The comparison direction is fixed: t1 is the generated side and t2 is the spec side (the spec is the current truth), so a spec-only key appears as dictionary_item_added and a legacy artifact key as dictionary_item_removed.
+    - Every compared endpoint prints exactly one JSON document, with an empty diff value when there is no drift.
+    - A spec without an api/<name>/ tree reports every selected endpoint as added and fails nothing.
+    - The command writes nothing to disk — a run over an existing artifact tree leaves every file byte-identical.
+    - The exit is successful after any completed run — drift is a result, not a failure.
+
+    Constraints:
+    - Do not narrow removed-side discovery by the endpoint-id filter — every run scans the whole api tree of each selected spec.
+    - Do not print anything before the endpoint-id filter is validated against the collected endpoints.
+    - Do not write, create, or delete any file or directory.
+    - Comparison stays strict — no order-insensitive or type-group relaxations.
+
+    Use `configuration` for config access.
+    Use `spec` for parse + extract and for the endpoint id (`build_endpoint_id`) used as the filter key.
+    Use `deepdiff` for the comparison and the JSON conversion.
+    Use `formatting` for rendering the printed documents.
+
+"diff_cmd(spec_name: Optional[str], endpoint_ids: tuple[str, ...])":
+  location: diff.py
+  annotations: |
+    Click command wrapper for the endpoint diff subcommand; binds the --spec option and the variadic positional endpoint-ids filter, then delegates to `run_diff`.
+
+    `spec_name`: optional spec filter, bound from -s/--spec.
+    `endpoint_ids`: zero or more positional endpoint ids (a variadic click.argument); when none are given, `run_diff` receives None (no filter).
+
+    Use `click` for the command wrapper, the option binding, and the variadic positional argument.
+
+"spec_contract(endpoint: Endpoint) -> contract: dict[str, Any]":
+  location: contract.py
+  annotations: |
+    Build the spec side of one endpoint's comparison: the endpoint contract as a JSON-native unified structure.
+
+    `endpoint`: the endpoint whose contract is compared.
+    `contract`: the unified structure — parameters (the `Endpoint` query_params), request_body (the `Endpoint` request), vars (the `Endpoint` path_params), schemas (the `Endpoint` response keyed by status code).
+
+    Algorithm:
+    1. Map the endpoint fields onto the unified structure keys.
+    2. Normalize every value to JSON-native types — date and datetime values become ISO 8601 strings; non-finite floats (YAML .nan/.inf) become null, the value generate writes for them, so a regenerated tree compares equal instead of drifting on every run.
+
+    Requirements:
+    - The structure equals the generated side's structure, so the two sides are directly comparable.
+    - Normalization runs before comparison, so non-JSON-native spec values produce no spurious type differences.
+    - Non-finite floats normalize to null symmetrically with the generated side — the NaN/Infinity tokens that json.dumps would emit are not valid strict JSON.
+
+    Constraints:
+    - Pure function — no I/O.
+    - Do not re-normalize or re-resolve the schemas — consume them as extracted.
+
+    Use `spec` for the `Endpoint` field contract.
+    Use `deepdiff` for the JSON-native side requirement.
+
+"artifact_contract(artifact_dir: pathlib.Path) -> contract: dict[str, Any]":
+  location: contract.py
+  annotations: |
+    Build the generated side of one endpoint's comparison: read the previously generated artifacts of one endpoint directory into the same unified structure.
+
+    `artifact_dir`: an existing endpoint artifact directory.
+    `contract`: the unified structure — parameters, request_body, vars from the meta contract file, and schemas keyed by the status-code file name.
+
+    Algorithm:
+    1. Read and parse the directory's meta.json contract file.
+    2. Read and parse every .json schema file of the directory's schemas/ subdirectory, keying each by its status-code file name without extension.
+    3. Assemble the unified structure from the parsed values.
+
+    Requirements:
+    - A missing, unreadable, or corrupt meta or schema file raises click.ClickException.
+    - The schemas keys are the status-code file names, matching the spec-side status keys.
+
+    Constraints:
+    - Read-only — do not create, modify, or delete any file.
+    - Do not interpret or validate the parsed contents — pass them through unchanged.
+
+    Use `deepdiff` for the artifact reading and side-normalization patterns.
+    Use `conventions` for code writing rules and testing.
+
+"sanitize_id(endpoint_id: str) -> segment: str":
+  location: artifacts.py
+  annotations: |
+    Deterministic identifier segment derived from a raw endpoint id; the segment names an endpoint's artifact directory and matches discovered directories back to endpoints.
+
+    `endpoint_id`: the raw endpoint id.
+    `segment`: the identifier segment of the endpoint's artifact directory.
+
+    Algorithm:
+    1. Replace every non-word character with "_"; Unicode word characters are preserved.
+    2. Prefix a leading digit with "_".
+
+    Requirements:
+    - The segment rule equals the artifact-directory naming rule, so a segment computed here locates every generated artifact directory and never mismatches one.
+
+    Constraints:
+    - Pure function — no I/O.
+
+    Use `conventions` for code writing rules and testing.
+
+"orphan_artifact_dirs(api_spec_dir: pathlib.Path, endpoints: list[Endpoint]) -> orphans: list[pathlib.Path]":
+  location: artifacts.py
+  annotations: |
+    Discover the artifact directories of one spec's api tree that match no endpoint of the spec — the removed side of the report.
+
+    `api_spec_dir`: the spec's artifact tree directory; may be absent.
+    `endpoints`: every endpoint of the spec (the unfiltered list).
+    `orphans`: the artifact directories matching no endpoint, sorted by segment.
+
+    Algorithm:
+    1. When the spec's api tree is absent, return an empty list.
+    2. Compute the expected segment of every endpoint via `sanitize_id`.
+    3. Collect the directories of the tree whose segment is none of the expected segments.
+
+    Requirements:
+    - Matching runs over the full endpoint list of the spec — never a filtered subset.
+    - The result order is deterministic.
+    - Only directories participate in orphan discovery — files found in the tree (e.g. the __init__.py package marker written by generate) are never reported as orphans.
+    - Tooling directories are never reported as orphans — __pycache__ (left under api/<name>/ by importing the generated fixture package) and hidden "."-prefixed directories are skipped: neither holds a meta.json/schemas artifact set, and reporting one would fail the run on a healthy tree.
+
+    Constraints:
+    - Read-only — discovery never writes or deletes.
+    - Do not read the directories' contents — discovery keys on names only.
+
+    Use `spec` for the `Endpoint` id consumed by segment computation.
+    Use `conventions` for code writing rules and testing.
+
+---
+
+Author: Goga
+CreatedAt: 26/08/26
+Description: |
+  endpoint diff command handler — reports per-endpoint differences between the spec contract and the generated artifacts as JSON.

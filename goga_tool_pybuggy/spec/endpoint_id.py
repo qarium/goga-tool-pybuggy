@@ -9,9 +9,10 @@ def build_endpoint_id(method: str, path: str) -> str:
     2. Removing "{" and "}" from the path (keeping parameter names)
     3. Lowercasing the result
     4. Replacing every "/" with "_"
-    5. Replacing every "-" with "_" (paths may carry hyphens; the id must be a
-       valid Python identifier — it is used as a pytest fixture name and as a
-       package directory name by `generate`)
+    5. Replacing every "-" with "_" (paths may carry hyphens; the id is not
+       guaranteed to be a valid Python identifier — `generate` sanitizes it
+       further, every non-word character to "_" and a "_" prefix for a leading
+       digit, before naming a fixture or a package directory)
     6. Appending "_" + method.lower()
 
     Args:

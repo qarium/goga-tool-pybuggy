@@ -19,6 +19,8 @@ class Endpoint(BaseModel):
         request: Resolved request-body schema (primary JSON content) or {}.
         response: {status_code: resolved_schema} for each response (primary JSON content).
         query_params: {param_name: schema} for query parameters only.
+        path_params: {param_name: schema} for URL path variables only; an empty
+            mapping when the operation declares none.
         description: Operation description or "".
         id: Stable identifier derived from method and path (computed field).
     """
@@ -30,6 +32,7 @@ class Endpoint(BaseModel):
     request: dict[str, Any]
     response: dict[str, Any]
     query_params: dict[str, Any]
+    path_params: dict[str, Any] = {}
     description: str
 
     @computed_field  # type: ignore[misc]

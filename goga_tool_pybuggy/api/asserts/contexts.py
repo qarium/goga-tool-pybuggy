@@ -79,13 +79,14 @@ class BaseContext(_BaseContext):
             hook: an optional callable applied to the resolved value.
 
         Returns:
-            A new context of the same class sharing the extended history.
+            A new context of the same class over the extended history; the
+            original context's history is left untouched (immutable chain).
         """
-        self._search_history.append(SearchItem(search=search, index=index, hook=hook))
+        history = [*self._search_history, SearchItem(search=search, index=index, hook=hook)]
 
         return self.__class__(
             self._response,
-            search_history=self._search_history,
+            search_history=history,
         )
 
     @property

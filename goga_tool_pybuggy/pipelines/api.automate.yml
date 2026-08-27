@@ -71,20 +71,15 @@ description: "Pybuggy API-test automate lifecycle"
   title: "Commit changes"
   communication: true
   prompt: |
-    Steps:
-      1. Commit all added and modified files.
-      2. Ask the user whether the testcases is automated and ready for acceptance.
-
-    Requirements:
-      - If the user confirms it is ready for acceptance — complete the execution.
+    Commit all added and modified files.
 
     Constraints:
-      - Don't autoconfirm user answer.
-      - Except changes in `docs/<tasks|arch|design|plans>`.
+    - Except changes in `docs/<defines|proposals|tasks|arch|design|plans>`.
 
 - name: accept-result
   title: "Accept test results"
   communication: true
+  trigger: manual
   prompt: |
     Commit changes after fixes
   skills:
