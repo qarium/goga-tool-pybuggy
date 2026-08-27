@@ -7,6 +7,6 @@ This cell provides pure functions that render endpoint data into text
 
 from .diff import render_diff
 from .info import render_info
-from .list import render_list
+from .list import render_list, render_status_list
 
-__all__ = ["render_diff", "render_info", "render_list"]
+__all__ = ["render_diff", "render_info", "render_list", "render_status_list"]
