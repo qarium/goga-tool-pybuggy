@@ -11,7 +11,10 @@ HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
 # or a code range wildcard (`2XX`). Response keys become artifact filenames
 # (`schemas/<status_code>.json` in generate), so anything outside this shape —
 # in particular a key carrying `..`/`/` — is rejected instead of written.
-_RESPONSE_KEY_RE = re.compile(r"^(?:[0-9]{3}|default|[1-5]XX)$", re.IGNORECASE)
+# Anchored with `\Z`, not `$` — `$` also matches just before a trailing newline,
+# so a key written as `"200\n"` would pass validation and become a filename
+# carrying an embedded newline.
+_RESPONSE_KEY_RE = re.compile(r"^(?:[0-9]{3}|default|[1-5]XX)\Z", re.IGNORECASE)
 
 # Whitelist of inlined type fields used to filter Swagger 2.0 query and path params.
 # `x-nullable` is intentionally included so the Swagger nullable keyword reaches
@@ -107,7 +110,8 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
         version: the detected spec version (``"openapi"`` or ``"swagger"``).
 
     Returns:
-        ``{status_code: schema}`` for each declared response.
+        ``{status_code: schema}`` for each declared response, keyed by the
+        stringified status code (an unquoted YAML ``200:`` parses to an int).
 
     Raises:
         ValueError: If a response key is not a legal status key.
@@ -121,12 +125,16 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
                 f"invalid response status key {code!r} "
                 f"(expected a 3-digit code, 'default' or a range wildcard like '2XX')"
             )
+    # Keys are stringified: an unquoted YAML `200:` parses to the int 200, and
+    # the validated key must also be the returned key — `Endpoint.response` is
+    # `dict[str, Any]`, so an int key would fail model construction with an
+    # unrelated message after this check already accepted it.
     if version == "openapi":
         return {
-            code: ((resp or {}).get("content") or {}).get("application/json", {}).get("schema") or {}
+            str(code): ((resp or {}).get("content") or {}).get("application/json", {}).get("schema") or {}
             for code, resp in responses.items()
         }
-    return {code: (resp or {}).get("schema") or {} for code, resp in responses.items()}
+    return {str(code): (resp or {}).get("schema") or {} for code, resp in responses.items()}
 
 
 def _extract_params(

@@ -32,8 +32,8 @@ client (.specs/openapi/client/client-openapi.yaml)
 ```
 
 Header line: `<name> (<location>)`; per endpoint: `id -> [METHOD] path`. METHOD is uppercase, the
-path is raw (with braces). Order is deterministic: specs in config order, endpoints in extraction
-order.
+path is raw (with braces). Order is deterministic: specs in config order, endpoint lines sorted by
+id.
 
 ### Status output
 
@@ -81,6 +81,8 @@ endpoint's `diff` verdict by construction.
 
 | Case | Behavior |
 |------|----------|
+| Spec that is not a mapping, has no `paths` mapping (absent or null), declares no `openapi`/`swagger` version key, or carries an invalid response status key | `click.ClickException` ("invalid spec file …"), non-zero exit — never a traceback; fires in both modes |
+| Two distinct paths mapping to the *identical* endpoint id (e.g. `/a-b/x` and `/a/b/x`) | `click.ClickException` naming both paths — the status report is keyed by id, so it refuses rather than misreport one of the two |
 | No `api/<spec>/` tree (e.g. a fresh workspace) | Every endpoint prints `ADD`; no `REMOVED` lines; exit 0 — not an error |
 | Missing, unreadable or corrupt `meta.json` / schema JSON under `api/<spec>/` (including inside a removed-side directory) | `click.ClickException`, non-zero exit — never a traceback |
 | Spec that parses but declares no endpoints | A warning is logged; the plain mode still prints the header-only block; the status mode prints nothing unless removed segments exist |

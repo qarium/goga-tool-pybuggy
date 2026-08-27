@@ -7,6 +7,7 @@ structure, so a no-drift pair compares equal under DeepDiff.
 """
 
 import json
+import math
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -20,7 +21,7 @@ class _CorruptArtifactError(ValueError):
     """Signal that a parsed artifact file does not have the expected object shape."""
 
 
-def _json_default(obj: object) -> str:
+def _json_default(obj: object) -> object:
     """Serialize non-JSON-native objects carried in resolved specs.
 
     swax/Prance convert YAML date-like values (e.g. ``example: 2020-01-01``
@@ -31,6 +32,12 @@ def _json_default(obj: object) -> str:
     same convention — skipping the normalization would surface as
     ``type_changes`` noise in the diff. ``datetime.datetime`` is a subclass
     of ``date``, so a single ``date`` check covers both.
+
+    YAML also yields non-finite floats (``.nan``/``.inf``), which generate
+    renders as ``null`` — floats serialize natively so the ``default`` hook is
+    never consulted for them; the spec side normalizes them through
+    ``_json_native`` so a regenerated tree compares equal instead of drifting
+    on every run.
 
     Args:
         obj: Object that ``json.dumps`` could not encode natively.
@@ -46,6 +53,31 @@ def _json_default(obj: object) -> str:
         return obj.isoformat()
 
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+
+def _json_native(value: Any) -> Any:
+    """Normalize a resolved spec value to strict-JSON-native form.
+
+    Recurses through the mappings, lists and scalars a resolved schema can
+    carry. Non-finite floats (YAML ``.nan``/``.inf``) become ``None`` — the
+    tokens ``NaN``/``Infinity`` that ``json.dumps`` would emit for them are
+    not valid strict JSON, and generate writes ``null`` for the same values,
+    so normalizing here keeps the two comparison sides symmetric. Every other
+    value passes through untouched.
+
+    Args:
+        value: A resolved schema fragment (mapping, list or scalar).
+
+    Returns:
+        The fragment with every non-finite float replaced by ``None``.
+    """
+    if isinstance(value, dict):
+        return {key: _json_native(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_native(item) for item in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 def spec_contract(endpoint: Endpoint) -> dict[str, Any]:
@@ -73,7 +105,7 @@ def spec_contract(endpoint: Endpoint) -> dict[str, Any]:
         "vars": endpoint.path_params,
         "schemas": endpoint.response,
     }
-    return json.loads(json.dumps(contract, ensure_ascii=False, default=_json_default))
+    return json.loads(json.dumps(_json_native(contract), ensure_ascii=False, default=_json_default))
 
 
 def artifact_contract(artifact_dir: Path) -> dict[str, Any]:

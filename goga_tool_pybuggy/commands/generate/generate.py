@@ -1,6 +1,7 @@
 """generate command handler - scaffold api/ schema files, meta.json contracts, api.py fixtures and tests/ dirs."""
 
 import json
+import math
 import re
 import shutil
 import subprocess
@@ -62,7 +63,7 @@ def _safe_identifier(text: str) -> str:
     return f"_{ident}" if ident[:1].isdigit() else ident
 
 
-def _json_default(obj: object) -> str:
+def _json_default(obj: object) -> object:
     """Serialize non-JSON-native objects carried in resolved specs.
 
     swax/Prance convert YAML date-like values (e.g. ``example: 2020-01-01``
@@ -74,11 +75,17 @@ def _json_default(obj: object) -> str:
     ``datetime.datetime`` is a subclass of ``date``, so a single ``date``
     check covers both.
 
+    YAML also yields non-finite floats (``.nan``/``.inf``), which ``json.dumps``
+    encodes as the bare tokens ``NaN``/``Infinity`` — invalid strict JSON that
+    other parsers reject. They are rendered as ``null`` instead, the value a
+    JSON consumer reads for an unspecified number.
+
     Args:
         obj: Object that ``json.dumps`` could not encode natively.
 
     Returns:
-        ISO 8601 string for date/datetime values.
+        ISO 8601 string for date/datetime values, ``None`` for non-finite
+        floats.
 
     Raises:
         TypeError: For any type this serializer does not handle, re-raised so
@@ -88,6 +95,30 @@ def _json_default(obj: object) -> str:
         return obj.isoformat()
 
     raise TypeError(f"Object of type {obj.__class__.__name__} is not JSON serializable")
+
+
+def _json_native(value: Any) -> Any:
+    """Normalize a resolved spec value to strict-JSON-native form.
+
+    Recurses through the mappings, lists and scalars a resolved schema can
+    carry. Non-finite floats (YAML ``.nan``/``.inf``) become ``None``: floats
+    are JSON-serializable natively, so ``json.dumps(default=...)`` is never
+    consulted for them — the tokens ``NaN``/``Infinity`` it would emit are not
+    valid strict JSON. Every other value passes through untouched.
+
+    Args:
+        value: A resolved schema fragment (mapping, list or scalar).
+
+    Returns:
+        The fragment with every non-finite float replaced by ``None``.
+    """
+    if isinstance(value, dict):
+        return {key: _json_native(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_json_native(item) for item in value]
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
+    return value
 
 
 def _find_ruff() -> str:
@@ -220,7 +251,7 @@ def _render_request_models(request: dict, properties: dict) -> str:
     source = generate(
         snake_case_field=True,
         capitalise_enum_members=True,
-        input_=json.dumps(schema, default=_json_default),
+        input_=json.dumps(_json_native(schema), default=_json_default),
         input_file_type=InputFileType.JsonSchema,
         disable_future_imports=True,
         disable_timestamp=True,
@@ -448,7 +479,8 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
                 if schema_file.exists() and not force:
                     continue
                 schema_file.write_text(
-                    json.dumps(schema, indent=2, ensure_ascii=False, default=_json_default), encoding="utf-8"
+                    json.dumps(_json_native(schema), indent=2, ensure_ascii=False, default=_json_default),
+                    encoding="utf-8",
                 )
 
             # write the per-endpoint api.py fixture module (force semantics match the schemas)
@@ -459,7 +491,9 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
             # write the per-endpoint meta.json input contract (force semantics match the schemas)
             meta_file = endpoint_dir / "meta.json"
             if force or not meta_file.exists():
-                meta = json.dumps(_endpoint_meta(endpoint), indent=2, ensure_ascii=False, default=_json_default)
+                meta = json.dumps(
+                    _json_native(_endpoint_meta(endpoint)), indent=2, ensure_ascii=False, default=_json_default
+                )
                 meta_file.write_text(meta, encoding="utf-8")
 
 

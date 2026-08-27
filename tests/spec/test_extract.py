@@ -1352,6 +1352,53 @@ def test_extract_endpoints_rejects_illegal_response_status_key() -> None:
         extract_endpoints(swagger_spec)
 
 
+def test_extract_endpoints_rejects_response_status_key_with_trailing_newline() -> None:
+    """A key carrying a trailing newline is illegal — `$` alone would let it through.
+
+    A YAML double-quoted key like ``"200\\n"`` survives ``re.match`` with a
+    ``$`` anchor (``$`` also matches just before a trailing newline), and the
+    key becomes a ``schemas/<code>.json`` filename with an embedded newline.
+    The anchor is ``\\Z``, so the key is rejected like any other illegal shape.
+    """
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {"200\n": {"description": "d"}}}}},
+    }
+
+    with pytest.raises(ValueError, match="invalid response status key"):
+        extract_endpoints(spec)
+
+
+def test_extract_endpoints_stringifies_non_string_response_status_keys() -> None:
+    """An unquoted YAML `200:` parses to the int 200 and is returned keyed by its string form.
+
+    Validation reads ``str(code)``, so an int key passes the legality check;
+    the returned mapping must carry the same stringified key, or
+    ``Endpoint.response: dict[str, Any]`` would reject the spec with an
+    unrelated pydantic message after this layer already accepted it.
+    """
+    spec = {
+        "openapi": "3.0.0",
+        "paths": {"/a": {"get": {"responses": {200: {"description": "d"}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert list(endpoints[0].response.keys()) == ["200"]
+
+
+def test_extract_endpoints_stringifies_swagger_non_string_response_keys() -> None:
+    """The Swagger branch stringifies response keys the same way as the OpenAPI one."""
+    spec = {
+        "swagger": "2.0",
+        "paths": {"/a": {"get": {"responses": {404: {"schema": {"type": "string"}}}}}},
+    }
+
+    endpoints = extract_endpoints(spec)
+
+    assert list(endpoints[0].response.keys()) == ["404"]
+
+
 @pytest.mark.parametrize(
     "key",
     ["200", "404", "default", "2XX", "5xx"],

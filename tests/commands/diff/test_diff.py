@@ -175,6 +175,53 @@ def test_run_diff_no_drift_prints_empty_diff_per_endpoint(
     assert capsys.readouterr().out.splitlines() == ['{"clients_startup_get": {}}']
 
 
+def test_run_diff_no_drift_against_regenerated_non_finite_values(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A spec carrying .nan/.inf compares equal against the artifacts generate wrote for it.
+
+    generate renders non-finite floats as ``null`` (strict-JSON artifacts); the
+    spec side normalizes them the same way, so a freshly generated tree does
+    not drift on every run and the printed document stays strict JSON.
+    """
+    _setup_workspace(
+        tmp_path,
+        monkeypatch,
+        body="""\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      parameters:
+        - name: cutoff
+          in: query
+          schema:
+            type: number
+            example: .inf
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ratio:
+                    type: number
+                    example: .nan
+""",
+        meta={"parameters": {"cutoff": {"type": "number", "example": None}}, "request_body": {}, "vars": {}},
+        schemas={"200": {"type": "object", "properties": {"ratio": {"type": "number", "example": None}}}},
+    )
+
+    run_diff(None, None)
+
+    out = capsys.readouterr().out
+    assert out.splitlines() == ['{"clients_startup_get": {}}']
+    assert "NaN" not in out
+    assert "Infinity" not in out
+
+
 def test_run_diff_reports_value_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:

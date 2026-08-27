@@ -85,7 +85,7 @@ def test_run_list_importable_from_facade() -> None:
 
 
 def test_run_list_signature() -> None:
-    """run_list should have signature (spec_name: Optional[str]) with no ctx."""
+    """run_list should take spec_name and with_status, and no ctx parameter."""
     params = run_list.__code__.co_varnames[: run_list.__code__.co_argcount]
 
     assert "spec_name" in params
@@ -386,6 +386,46 @@ def test_run_list_status_mode_invalid_spec_raises(
         run_list("client", with_status=True)
 
 
+@pytest.mark.parametrize(
+    "body",
+    ["", "- a\n- b\n", "just a string"],
+    ids=["empty-file-parses-to-none", "top-level-list", "top-level-string"],
+)
+def test_run_list_non_mapping_spec_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str
+) -> None:
+    """A spec document that is not a mapping is invalid, not an AttributeError crash.
+
+    Mirrors the diff suite: an empty file parses to None and a top-level
+    list/str document never reaches a ``paths`` lookup — both must surface
+    through the uniform error channel shared by both modes.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".specs").mkdir()
+    # Written raw: the _write_spec prefix would add a valid openapi mapping header.
+    (tmp_path / ".specs/client.yaml").write_text(body)
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid spec file"):
+        run_list(None, with_status=False)
+
+
+def test_run_list_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A spec declaring neither an openapi nor a swagger version key is invalid, not a ValueError.
+
+    Mirrors the diff suite: such a file has a valid ``paths`` mapping, so the
+    paths guard passes and extract_endpoints raises a bare ValueError from
+    detect_spec_version — it must map to the same click.ClickException channel.
+    """
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".specs").mkdir()
+    (tmp_path / ".specs/client.yaml").write_text("info:\n  title: T\npaths: {}\n")
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match="invalid spec file"):
+        run_list(None, with_status=True)
+
+
 def test_run_list_status_mode_no_artifact_tree_all_add(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
 ) -> None:
@@ -628,6 +668,92 @@ paths:
     assert removed == []
 
 
+def test_endpoint_statuses_identical_id_from_distinct_paths_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two paths producing the *identical* raw id are refused, not silently misreported.
+
+    ``build_endpoint_id`` maps both "-" and "/" to "_", so "/a-b/x" and "/a/b/x"
+    yield the same id "a_b_x_get". The report is keyed by that id — the second
+    classification would overwrite the first and both lines would print the
+    surviving status (one of the two endpoints misreported as OK while drifted).
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /a-b/x:
+    get:
+      description: hyphenated
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /a/b/x:
+    get:
+      description: slashed
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+""",
+    )
+    endpoints = _spec_endpoints(tmp_path / ".specs" / "client.yaml")
+
+    with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):
+        endpoint_statuses(tmp_path / "api" / "client", endpoints)
+
+
+def test_run_list_status_mode_identical_id_from_distinct_paths_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """The identical-id guard reaches the CLI surface — a ClickException, never misprinted lines."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /a-b/x:
+    get:
+      description: hyphenated
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+  /a/b/x:
+    get:
+      description: slashed
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: string
+""",
+    )
+    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+
+    with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):
+        run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == ""
+
+
 # Contract tests: list_cmd wrapper --------------------------------------------
 
 
@@ -763,6 +889,9 @@ def test_run_list_plain_mode_byte_identical_with_artifacts_present(
 ) -> None:
     """The plain mode never reads the artifact tree — its output is byte-identical with one present."""
     _setup_status_workspace(tmp_path, monkeypatch)
+    # A corrupt meta.json makes any artifact read fail loudly — the plain mode
+    # succeeding here is the observable proof that it touches no artifact file.
+    (tmp_path / "api" / "client" / "clients_startup_get" / "meta.json").write_text("{ not json", encoding="utf-8")
 
     run_list(None)
 
@@ -835,7 +964,7 @@ paths:
     _write_artifact(tmp_path, "client", "legacy_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
     (tmp_path / "api" / "client" / "legacy_get" / "meta.json").write_text("{ not json", encoding="utf-8")
 
-    with pytest.raises(click.ClickException, match="unreadable or corrupt artifact"):
+    with pytest.raises(click.ClickException, match=r"unreadable or corrupt artifact meta\.json"):
         run_list(None, with_status=True)
 
 

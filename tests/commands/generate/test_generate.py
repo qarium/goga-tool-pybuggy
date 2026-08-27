@@ -933,6 +933,62 @@ paths:
     assert json.loads(schema_file.read_text())["properties"]["created"]["example"] == "2020-03-03"
 
 
+def test_run_generate_serializes_non_finite_numbers_as_null(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """YAML `.nan`/`.inf` values write as null — the bare tokens NaN/Infinity are not strict JSON.
+
+    json.dumps encodes non-finite floats as ``NaN``/``Infinity`` by default,
+    which Python's json.loads tolerates but other parsers reject. The artifact
+    files must stay parseable by any JSON consumer, so the values render as
+    ``null`` and the written text carries no bare token.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "shop.yaml",
+        """\
+paths:
+  /orders:
+    get:
+      description: Orders
+      parameters:
+        - name: cutoff
+          in: query
+          schema:
+            type: number
+            example: .inf
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ratio:
+                    type: number
+                    example: .nan
+""",
+    )
+    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_generate(None, False)
+
+    endpoint_dir = tmp_path / "api" / "shop" / "orders_get"
+    meta_file = endpoint_dir / "meta.json"
+    assert json.loads(meta_file.read_text())["parameters"]["cutoff"]["example"] is None
+    schema_file = endpoint_dir / "schemas" / "200.json"
+    assert json.loads(schema_file.read_text())["properties"]["ratio"]["example"] is None
+    # The written text carries no bare non-finite token
+    assert "NaN" not in meta_file.read_text()
+    assert "NaN" not in schema_file.read_text()
+    assert "Infinity" not in meta_file.read_text()
+    assert "Infinity" not in schema_file.read_text()
+
+
 def test_run_generate_request_body_date_example_writes_all_artifacts(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

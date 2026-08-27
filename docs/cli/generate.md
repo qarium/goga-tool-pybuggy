@@ -134,9 +134,13 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 | Endpoint without a body (or a body without fields) | `api.py` without `class Request`; the fixture is generated anyway |
 | Endpoint with no query parameters, request body, or path variables | `meta.json` with all three keys as `{}` |
 | Null `parameters:`, a null `requestBody:`/`responses:` (or their nested `content:`/`application/json:`), or a null response entry | Extracted as empty; never a traceback |
+| Non-finite YAML numbers (`.nan`, `.inf`) in a schema or contract value | Written as `null` — the JSON tokens `NaN`/`Infinity` are not valid strict JSON |
+| `ruff` not found, or a ruff invocation fails while formatting `api.py` | `click.ClickException` ("ruff executable not found…" / "ruff failed: …") — endpoints written before the failing one are already on disk |
+| Two distinct paths mapping to the same artifact directory | `click.ClickException` naming both paths — detected before any write |
 
 ## Preconditions
 
 - Spec files must be present in `location` (after [pull](pull.md) or placed manually).
 - The config must be valid and reside at the fixed path.
 - Artifacts are written to the current working directory.
+- `ruff` is installed (on `PATH` or in the running interpreter's venv) — `api.py` generation requires it.

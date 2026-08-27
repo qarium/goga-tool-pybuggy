@@ -39,8 +39,24 @@ def endpoint_statuses(api_spec_dir: Path, endpoints: list[Endpoint]) -> tuple[di
 
     Raises:
         click.ClickException: If an artifact ``meta.json`` or schema file of an
-            existing directory is missing, unreadable or corrupt.
+            existing directory is missing, unreadable or corrupt; or if two
+            endpoints share the same raw id (the report is keyed by id, so one
+            of the two would be silently misreported).
     """
+    # build_endpoint_id collapses both "-" and "/", so two distinct paths can
+    # yield the *identical* raw id. The report is keyed by that id — the second
+    # classification would overwrite the first and both lines would print the
+    # surviving status. generate refuses such a spec before writing anything;
+    # the report refuses it too instead of misreporting (same message shape).
+    owners: dict[str, str] = {}
+    for endpoint in endpoints:
+        if endpoint.id in owners:
+            raise click.ClickException(
+                f"paths {owners[endpoint.id]!r} and {endpoint.path!r} both map to "
+                f"endpoint id {endpoint.id!r}; rename one path"
+            )
+        owners[endpoint.id] = endpoint.path
+
     statuses: dict[str, str] = {}
     for endpoint in endpoints:
         endpoint_dir = api_spec_dir / sanitize_id(endpoint.id)
