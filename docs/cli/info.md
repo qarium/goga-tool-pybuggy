@@ -38,6 +38,13 @@ URL path variables are not part of this output — `QueryParams` covers query pa
 only. The `{name: schema}` of URL path variables is available in the `vars` key of the
 per-endpoint `meta.json` written by [generate](generate.md).
 
+## Special cases
+
+| Case | Behavior |
+|------|----------|
+| Spec that is not a mapping, has no `paths` mapping (absent or null), declares no `openapi`/`swagger` version key, or carries an invalid response status key | `click.ClickException` ("invalid spec file …"), non-zero exit — never a traceback |
+| Any successful run | Exit 0; the command is read-only |
+
 ## Preconditions
 
 - Spec files must reside at `location` (after [pull](pull.md) or placed manually).

@@ -65,7 +65,9 @@ One JSON document per compared unit, one line each, keyed by the unit's identifi
   under shared ancestors — e.g. a status code present on only one side under a common `schemas`
   key; one-sided comparisons of the contract as a whole do not decompose per key.
 - Removed-side discovery scans the whole `api/<spec>/` tree of each selected spec in every run — it
-  is not narrowed by `endpoint-ids`.
+  is not narrowed by `endpoint-ids` — and skips tooling directories: `__pycache__` (left under
+  `api/<spec>/` by importing the generated fixture package) and hidden `.`-prefixed directories are
+  never reported as removed.
 - A spec with no `api/<spec>/` tree at all reports every endpoint as added and fails nothing.
 
 ## What is compared
@@ -81,9 +83,10 @@ Both sides are normalized to the same four-key structure before comparing:
 
 Only `meta.json` and `schemas/*.json` take part — `api.py`, `__init__.py` markers and `tests/`
 directories are never compared. Schema values are read as plain JSON without interpretation, and
-spec-side values are normalized to JSON-native ones first (e.g. a YAML date becomes an ISO 8601
-string, the same convention generate used when writing the artifacts), so a matching pair of sides
-never reports spurious `type_changes`.
+spec-side values are normalized to JSON-native ones first (a YAML date becomes an ISO 8601 string,
+a non-finite number — `.nan`/`.inf` — becomes `null`, the value generate writes for them), so a
+matching pair of sides never reports spurious `type_changes` and a tree regenerated from an
+unchanged spec compares equal instead of drifting on every run.
 
 ## Special cases
 

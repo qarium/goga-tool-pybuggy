@@ -15,9 +15,14 @@ docs/cli/pull.md:
 docs/cli/list.md:
   - goga_tool_pybuggy/commands/list
   - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/spec
+  - goga_tool_pybuggy/output
+  - goga_tool_pybuggy/commands/diff
 docs/cli/info.md:
   - goga_tool_pybuggy/commands/info
   - goga_tool_pybuggy/config
+  - goga_tool_pybuggy/spec
+  - goga_tool_pybuggy/output
 docs/cli/generate.md:
   - goga_tool_pybuggy/commands/generate
   - goga_tool_pybuggy/config
