@@ -372,9 +372,7 @@ def test_run_list_status_mode_unknown_spec_raises(
     assert capsys.readouterr().out == ""
 
 
-def test_run_list_status_mode_invalid_spec_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_list_status_mode_invalid_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Status mode shares the plain mode's structure guard — `paths:` null fails equally."""
     monkeypatch.chdir(tmp_path)
 
@@ -391,9 +389,7 @@ def test_run_list_status_mode_invalid_spec_raises(
     ["", "- a\n- b\n", "just a string"],
     ids=["empty-file-parses-to-none", "top-level-list", "top-level-string"],
 )
-def test_run_list_non_mapping_spec_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str
-) -> None:
+def test_run_list_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
     """A spec document that is not a mapping is invalid, not an AttributeError crash.
 
     Mirrors the diff suite: an empty file parses to None and a top-level
@@ -455,8 +451,7 @@ paths:
     run_list(None, with_status=True)
 
     assert capsys.readouterr().out == (
-        "client (.specs/client.yaml)\n"
-        "* clients_startup_get -> [GET] /clients/startup — STATUS: ADD\n"
+        "client (.specs/client.yaml)\n* clients_startup_get -> [GET] /clients/startup — STATUS: ADD\n"
     )
 
 
@@ -509,9 +504,7 @@ def test_endpoint_statuses_facade_export() -> None:
 # Logic tests: endpoint_statuses ---------------------------------------------
 
 
-def test_endpoint_statuses_classification(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_endpoint_statuses_classification(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """One workspace covers all four statuses: OK, UPD, ADD and the REMOVED orphan side."""
     monkeypatch.chdir(tmp_path)
 
@@ -590,9 +583,7 @@ def test_endpoint_statuses_absent_tree_all_add(tmp_path: Path, monkeypatch: pyte
     assert removed == []
 
 
-def test_endpoint_statuses_skips_tooling_dirs(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_endpoint_statuses_skips_tooling_dirs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Tooling directories under api/<spec>/ are never orphans and never fail the run."""
     monkeypatch.chdir(tmp_path)
 
@@ -767,9 +758,7 @@ def test_list_cmd_binds_status_flag() -> None:
     assert flag.default is False
 
 
-def test_list_cmd_forwards_status_flag_to_run_list(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_list_cmd_forwards_status_flag_to_run_list(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The wrapper passes with_status through — a run_list(spec_name) call would drop the flag."""
     from click.testing import CliRunner
 
@@ -905,9 +894,7 @@ def test_run_list_plain_mode_byte_identical_with_artifacts_present(
     assert "STATUS" not in out
 
 
-def test_run_list_status_mode_corrupt_meta_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_list_status_mode_corrupt_meta_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A corrupt endpoint meta.json surfaces as a ClickException through the whole pipeline."""
     monkeypatch.chdir(tmp_path)
 
@@ -936,9 +923,7 @@ paths:
         run_list(None, with_status=True)
 
 
-def test_run_list_status_mode_corrupt_orphan_meta_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_list_status_mode_corrupt_orphan_meta_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A corrupt removed-side meta.json fails the run — the validation gate reads orphans."""
     monkeypatch.chdir(tmp_path)
 
@@ -968,9 +953,7 @@ paths:
         run_list(None, with_status=True)
 
 
-def test_run_list_status_mode_corrupt_schema_raises(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_list_status_mode_corrupt_schema_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A corrupt schemas/*.json hits the second raise site — a distinct message, same channel."""
     monkeypatch.chdir(tmp_path)
 

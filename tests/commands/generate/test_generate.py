@@ -933,9 +933,7 @@ paths:
     assert json.loads(schema_file.read_text())["properties"]["created"]["example"] == "2020-03-03"
 
 
-def test_run_generate_serializes_non_finite_numbers_as_null(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_generate_serializes_non_finite_numbers_as_null(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """YAML `.nan`/`.inf` values write as null — the bare tokens NaN/Infinity are not strict JSON.
 
     json.dumps encodes non-finite floats as ``NaN``/``Infinity`` by default,
