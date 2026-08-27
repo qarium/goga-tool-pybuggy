@@ -7,8 +7,8 @@ from typing import Optional
 import click
 from deepdiff import DeepDiff
 
-from ...config import load_config
-from ...output import render_list
+from ...config import SpecEntry, load_config
+from ...output import render_list, render_status_list
 from ...spec import Endpoint, extract_endpoints, load_spec
 from ..diff import artifact_contract, orphan_artifact_dirs, sanitize_id, spec_contract
 
@@ -64,17 +64,54 @@ def endpoint_statuses(api_spec_dir: Path, endpoints: list[Endpoint]) -> tuple[di
     return statuses, removed
 
 
-def run_list(spec_name: Optional[str]) -> None:
-    """List endpoints from OpenAPI specs.
+def _load_endpoints(entry: SpecEntry, cwd: Path) -> list[Endpoint]:
+    """Parse, validate and extract the endpoints of one spec file.
+
+    Args:
+        entry: The config entry of the spec (its ``location`` is resolved
+            against ``cwd``).
+        cwd: Working directory used to resolve the spec location.
+
+    Returns:
+        The spec's endpoints in extraction order.
+
+    Raises:
+        click.ClickException: If the spec is not a mapping, has no "paths"
+            mapping (the key alone is not enough: ``paths:`` with no value
+            parses to None, and an empty or list/str document is equally not
+            a spec mapping — all three would crash ``extract_endpoints``),
+            or declares no openapi/swagger version key or a response key
+            outside the shapes the specifications allow.
+    """
+    spec = load_spec(cwd / entry.location)
+    if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
+        raise click.ClickException(f"invalid spec file (missing 'paths'): {entry.location}")
+    try:
+        return extract_endpoints(spec)
+    except ValueError as error:
+        # An invalid spec is a CLI error, not a traceback (mirrors generate/diff).
+        raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
+
+
+def run_list(spec_name: Optional[str], with_status: bool = False) -> None:
+    """List endpoints from OpenAPI specs, optionally with sync statuses.
 
     Loads config from the fixed config path and for each spec: parses, extracts
-    endpoints, renders formatted output, and prints it.
+    endpoints, renders formatted output, and prints it. In the plain mode the
+    block lists the endpoints; with ``with_status`` every line is annotated
+    with its artifact synchronization status and removed artifact directories
+    join the listing, while a spec with no lines at all prints nothing.
 
     Args:
         spec_name: Optional spec name to list; if None, lists all specs
+        with_status: Optional flag annotating every line with its artifact
+            synchronization status (``ADD``/``UPD``/``OK``/``REMOVED``);
+            defaults to the plain listing
 
     Raises:
-        click.ClickException: If spec_name not found or spec parse fails
+        click.ClickException: If spec_name not found, spec parse fails, or —
+            status mode only — an artifact ``meta.json``/schema file is
+            missing, unreadable or corrupt
     """
     # Load config from the fixed path
     config = load_config()
@@ -87,28 +124,21 @@ def run_list(spec_name: Optional[str]) -> None:
     else:
         specs = config.specs
 
+    cwd = Path.cwd()
+
     # Process each spec
     for name, entry in specs.items():
-        spec_path = Path.cwd() / entry.location
-        spec = load_spec(spec_path)
-        # Validate spec has the required structure — the key alone is not
-        # enough: `paths:` with no value parses to None, and an empty or
-        # list/str document is equally not a spec mapping; all three would
-        # crash extract_endpoints.
-        if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
-            raise click.ClickException(f"invalid spec file (missing 'paths'): {entry.location}")
-        try:
-            endpoints = extract_endpoints(spec)
-        except ValueError as error:
-            # extract_endpoints raises ValueError on an invalid spec — no
-            # openapi/swagger version key, or a response key outside the shapes
-            # the specifications allow. An invalid spec is a CLI error, not a
-            # traceback (mirrors generate/diff).
-            raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
+        endpoints = _load_endpoints(entry, cwd)
         if not endpoints:
             logger.warning(f"no endpoints found in spec: {name}")
-
-        print(render_list(name, entry.location, endpoints))
+        if not with_status:
+            print(render_list(name, entry.location, endpoints))
+            continue
+        statuses, removed = endpoint_statuses(cwd / "api" / name, endpoints)
+        # A spec prints its block only when it has at least one line —
+        # removed segments count as lines.
+        if endpoints or removed:
+            print(render_status_list(name, entry.location, endpoints, statuses, removed))
 
 
 @click.command("list")

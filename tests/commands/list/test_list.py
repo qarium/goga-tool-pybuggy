@@ -92,6 +92,14 @@ def test_run_list_signature() -> None:
     assert "ctx" not in params
 
 
+def test_run_list_signature_with_status_default_false() -> None:
+    """run_list should take with_status as a keyword argument defaulting to False."""
+    params = run_list.__code__.co_varnames[: run_list.__code__.co_argcount]
+
+    assert {"spec_name", "with_status"} <= set(params)
+    assert run_list.__defaults__ == (False,)
+
+
 # Logic tests
 
 
@@ -345,6 +353,107 @@ specs:
 
     with pytest.raises(click.ClickException, match="missing 'paths'"):
         run_list("client")
+
+
+# Logic tests: run_list status mode ------------------------------------------
+
+
+def test_run_list_status_mode_unknown_spec_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Status mode rejects an unknown spec before any output, like the plain mode."""
+    monkeypatch.chdir(tmp_path)
+
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="spec not found: nonexistent_spec"):
+        run_list("nonexistent_spec", with_status=True)
+    assert capsys.readouterr().out == ""
+
+
+def test_run_list_status_mode_invalid_spec_raises(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Status mode shares the plain mode's structure guard — `paths:` null fails equally."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "client.yaml", "paths:\n")
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with pytest.raises(click.ClickException, match="missing 'paths'"):
+        run_list("client", with_status=True)
+
+
+def test_run_list_status_mode_no_artifact_tree_all_add(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A fresh workspace without an api/ tree lists every endpoint as ADD and exits cleanly."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "client.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == (
+        "client (.specs/client.yaml)\n"
+        "* clients_startup_get -> [GET] /clients/startup — STATUS: ADD\n"
+    )
+
+
+def test_run_list_status_mode_empty_spec_no_lines_prints_no_block(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A spec with no endpoints prints nothing in status mode, but the warning still fires."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "empty.yaml", "paths: {}\n")
+    config_path = _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+
+    with caplog.at_level("WARNING"):
+        run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == ""
+    assert any("no endpoints found in spec: empty" in record.message for record in caplog.records)
+
+
+def test_run_list_status_mode_empty_spec_with_orphan_prints_removed_only(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Removed segments count as lines — an endpoint-less spec still prints its removed block."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "empty.yaml", "paths: {}\n")
+    config_path = _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
+    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_artifact(tmp_path, "empty", "legacy_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
+
+    run_list(None, with_status=True)
+
+    assert capsys.readouterr().out == "empty (.specs/empty.yaml)\n* legacy_get — STATUS: REMOVED\n"
 
 
 # Contract tests: endpoint_statuses ------------------------------------------
