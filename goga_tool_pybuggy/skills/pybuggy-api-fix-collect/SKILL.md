@@ -18,27 +18,19 @@ description: Сбор данных о падениях тестов
 - Скилл: `goga-tool-pybuggy-api-fix-collect-intake`
 - Вход: `$ARGUMENTS` — описание проблемы
 - Результат: [FIX_INTAKE]
-- STOP: пользователь не дал описание и отказался от локального прогона
+- STOP: пользователь не дал описание и отказался от локального прогона; окружение недоступно (pytest/плагин не стартует, SUT не отвечает)
 
-### Step 2. Run — условный
-
-- Выполняется, когда на Intake выбран локальный прогон; иначе шаг пропускается
-- Скилл: `goga-tool-pybuggy-api-fix-collect-run`
-- Читает: [FIX_INTAKE]
-- Результат: [FIX_RUN]
-- STOP: окружение недоступно (pytest/плагин не стартует, SUT не отвечает) и пользователь не восстановил его
-
-### Step 3. Analyze
+### Step 2. Analyze
 
 - Скилл: `goga-tool-pybuggy-api-fix-collect-analyze`
-- Читает: [FIX_INTAKE], [FIX_RUN] (при наличии)
+- Читает: [FIX_INTAKE]
 - Результат: [FIX_FAILURES]
 - 0 падений — зафиксируй «падений нет» и перейди к Report
 
-### Step 4. Report
+### Step 3. Report
 
 - Скилл: `goga-tool-pybuggy-api-fix-collect-report`
-- Читает: [FIX_INTAKE], [FIX_RUN], [FIX_FAILURES]
+- Читает: [FIX_INTAKE], [FIX_FAILURES]
 - Результат: [FIX_COLLECT] — сохранён в `docs/fix/<feature>.md`
 
 ## Правило вывода
