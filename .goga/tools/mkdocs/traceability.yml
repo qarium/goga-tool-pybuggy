@@ -3,7 +3,11 @@ docs/index.md:
 docs/getting-started.md:
   - goga_tool_pybuggy
   - goga_tool_pybuggy/commands/init
-docs/pipelines.md:
+docs/pipelines/index.md:
+  - goga_tool_pybuggy
+docs/pipelines/api-automate.md:
+  - goga_tool_pybuggy
+docs/pipelines/workflows.md:
   - goga_tool_pybuggy
 docs/cli/init.md:
   - goga_tool_pybuggy/commands/init

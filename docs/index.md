@@ -33,13 +33,13 @@ goga pipeline pybuggy:api.automate   # 3. run the automated API-test lifecycle
 
 The pipeline asks for the feature under test and drives the whole chain — requirements,
 test cases, test code — until accepted `test_*.py` suites land in `tests/` (see
-[Pipelines](pipelines.md)). The CLI and the manual workflow remain available for
+[Pipelines](pipelines/index.md)). The CLI and the manual workflow remain available for
 fine-grained control: [CLI Reference](cli/init.md).
 
 ## Where to go next
 
 - [Getting Started](getting-started.md) — end-to-end walkthrough.
-- [Pipelines](pipelines.md) — the automated API-test lifecycle.
+- [Pipelines](pipelines/index.md) — the automated API-test lifecycle.
 - [CLI Reference](cli/init.md) — every command with options and behavior.
 - [Configuration](configuration.md) — `.goga/tools/pybuggy/config.yml`.
 - [Matchers](matchers/index.md) — assertions and the matcher catalog.

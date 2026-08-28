@@ -83,4 +83,4 @@ Run the resulting suite with:
 pytest
 ```
 
-The full stage list and the artifact chain: [Pipelines](pipelines.md).
+The full stage list and the artifact chain: [Pipelines](pipelines/api-automate.md).
