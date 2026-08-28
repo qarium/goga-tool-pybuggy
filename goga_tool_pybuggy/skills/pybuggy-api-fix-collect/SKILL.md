@@ -31,7 +31,7 @@ description: Сбор данных о падениях тестов
 
 - Скилл: `goga-tool-pybuggy-api-fix-collect-report`
 - Читает: [FIX_INTAKE], [FIX_FAILURES]
-- Результат: [FIX_COLLECT] — сохранён в `docs/fix/<feature>.md`
+- Результат: [FIX_COLLECT] — сохранён в `docs/fix/<feature>-collect.md`
 
 ## Правило вывода
 
