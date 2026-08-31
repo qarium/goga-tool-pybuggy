@@ -25,7 +25,7 @@ description: Сбор данных о падениях тестов
 - Скилл: `goga-tool-pybuggy-api-fix-collect-analyze`
 - Читает: [FIX_INTAKE]
 - Результат: [FIX_FAILURES]
-- 0 падений — зафиксируй «падений нет» и перейди к Report
+- 0 падений и замаскированных — зафиксируй «падений нет» и перейди к Report
 
 ### Step 3. Report
 

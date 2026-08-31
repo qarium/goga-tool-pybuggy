@@ -11,9 +11,36 @@ description: Исполнение задачи класса service-bug — ба
 ## Алгоритм
 
 1. Возьми задачу `FIX-<N>` (класс `service-bug`) из плана: тест и досье уже прописаны в задаче.
-2. Допиши в `docs/bugs/<feature>.md` запись `BUG-<feature>-<N>` (сквозная нумерация): суть, эндпоинт, severity, тест, ожидание vs факт, шаги воспроизведения, traceback из `docs/fix/<feature>-log.txt`.
+2. Допиши в `docs/bugs/<feature>.md` запись `BUG-<feature>-<N>` (сквозная нумерация; существующие записи сохрани,
+   новую — в конец файла) по шаблону ниже. Материал: досье из задачи плана (секция «Досье и доказательства»
+   артефакта анализа), Routine из CODEMANIFEST клетки, traceback из `docs/fix/<feature>-log.txt`.
 3. Проверка задачи: запись создана. Красный тест — ожидаемый исход, не провал.
 4. Сформируй [FIX_TASK_RESULT].
+
+## Шаблон записи
+
+```md
+## BUG-<feature>-<N>: <суть>
+
+- **Date:** <день/месяц/год>
+- **Endpoint:** <METHOD /path> (tests/<spec>/<id>/)
+- **Severity:** <критичность: Critical/High/Medium/Low>
+- **Test:** `tests/<spec>/<id>/test_<name>.py` — `test_<name>` (статус: FAILED)
+- **Routine:** <имя Routine из CODEMANIFEST клетки>
+
+### Problem description
+<Подробно: что ожидает контракт/Routine и что происходит фактически. Ожидание vs факт из досье анализа;
+фактический результат: статус ответа, тело/поля, текст ассерта.>
+
+### Reproduction steps
+<Нумерованные шаги из Routine (Data/Steps): действие → данные → ожидание; последний шаг — фактический результат SUT.>
+
+### Actual result
+<Traceback/вывод ассерта целиком из `docs/fix/<feature>-log.txt`>
+
+### Notes
+<Гипотезы причины, наблюдения. Опусти, если пусто.>
+```
 
 ---
 

@@ -31,7 +31,7 @@ description: Ревью после исправления — сверка ис�
 ### Step 1. Verify
 
 - Скилл: `goga-tool-pybuggy-api-fix-review-verify`
-- Читает: `docs/fix/<feature>-execute.md`, `docs/fix/<feature>-plan.md`, `docs/fix/<feature>-log.txt`,
+- Читает: `docs/fix/<feature>-execute.md`, `docs/fix/<feature>-plan.md`, `docs/fix/<feature>-log-final.txt`,
   `docs/fix/<feature>-collect.md`, изменённые файлы на диске
 - Результат: [REVIEW_FINDINGS] — находки и failed-задачи
 - STOP: execute-отчёт отсутствует

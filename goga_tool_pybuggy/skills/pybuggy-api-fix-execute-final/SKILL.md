@@ -10,7 +10,9 @@ description: Финальный прогон всех тестов фичи и �
 
 ## Алгоритм
 
-1. Прогони все тесты фичи: `pytest <пути всех клеток фичи> -q 2>&1 | tee docs/fix/<feature>-log.txt` (перезапись); зафиксируй итог (passed/failed/errors/skipped).
+1. Прогони все тесты фичи: `pytest <пути всех клеток фичи> -q 2>&1 | tee docs/fix/<feature>-log-final.txt`
+   (повторный запуск — перезапись). Пул клеток — объединение клеток из `docs/fix/<feature>-plan.md` и
+   `docs/fix/<feature>-collect.md`; зафиксируй итог (passed/failed/errors/skipped).
 2. Собери результаты всех задач: статусы `done` / `failed` из [FIX_TASK_RESULT] исполнителей.
 3. Сохрани `docs/fix/<feature>-execute.md` (путь передаёт оркестратор) по формату ниже.
 
@@ -33,7 +35,7 @@ description: Финальный прогон всех тестов фичи и �
 
 ## Финальный прогон
 
-[команда | лог docs/fix/<feature>-log.txt | итог passed/failed/errors/skipped]
+[команда | лог docs/fix/<feature>-log-final.txt | итог passed/failed/errors/skipped]
 
 ## Изменённые файлы
 
