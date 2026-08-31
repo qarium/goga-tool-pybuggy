@@ -24,7 +24,7 @@ description: Сборка артефакта анализа и сохранен�
 # Fix Analysis: <feature>
 
 ## Источник
-[путь к collect-репорту `docs/fix/<feature>-collect.md` и логу /tmp]
+[путь к collect-репорту `docs/fix/<feature>-collect.md` и логу `docs/fix/<feature>-log.txt`]
 
 ## Классификация
 [Таблица: тест | класс | основание | решение пользователя | план-направление]
