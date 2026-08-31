@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-collect-report
-description: Сборка репорта о падениях и сохранение в docs/fix/<feature>.md
+description: Сборка репорта о падениях и сохранение в docs/fix/<feature>-collect.md
 ---
 # Pybuggy API Fix Collect — Report
 
