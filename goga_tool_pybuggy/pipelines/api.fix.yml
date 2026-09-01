@@ -5,6 +5,8 @@ description: "Pybuggy API-test fix lifecycle"
 - name: collect-failures
   title: "Collect failures"
   communication: true
+  prompt: |
+    Не выполняй действий, пока пользователь не даст входные данные.
   skills:
     - goga-tool-pybuggy-api-fix-collect
 
