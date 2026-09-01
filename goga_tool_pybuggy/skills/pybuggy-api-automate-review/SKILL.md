@@ -2,7 +2,7 @@
 name: goga-tool-pybuggy-api-automate-review
 description: Test-artifact review dispatcher — routes by the target-file path to the matching test-review skill (requirements/testcases/cells/design/plan), following the goga-review pattern
 ---
-# Pybuggy API Feature Review (dispatcher)
+# Pybuggy API Topic Review (dispatcher)
 
 ## Identity
 
@@ -28,7 +28,7 @@ Arguments: `$ARGUMENTS`
    - the path contains `docs/design/` → **design**
    - the path contains `docs/plans/` → **plan**
 
-   For each review type, extract `<target>` (the feature name) from the path:
+   For each review type, extract `<target>` (the topic name) from the path:
    - `docs/requirements/clients.md` → `<target>` = `clients`
    - `docs/testcases/clients.md` → `<target>` = `clients`
    - `docs/arch/clients.md` → `<target>` = `clients`
@@ -40,9 +40,9 @@ Arguments: `$ARGUMENTS`
    - **header**: "Review type"
    - **multiSelect**: false
    - **options**:
-     - **label**: "requirements", **description**: "Review the requirements from docs/requirements/<feature>.md"
-     - **label**: "testcases", **description**: "Review the test cases from docs/testcases/<feature>.md"
-     - **label**: "cells", **description**: "Review the test cells plan from docs/arch/<feature>.md"
+     - **label**: "requirements", **description**: "Review the requirements from docs/requirements/<topic>.md"
+     - **label**: "testcases", **description**: "Review the test cases from docs/testcases/<topic>.md"
+     - **label**: "cells", **description**: "Review the test cells plan from docs/arch/<topic>.md"
      - **label**: "design", **description**: "Review the test design doc from docs/design/"
      - **label**: "plan", **description**: "Review the test ralphex plan from docs/plans/ (including the pytest run)"
 

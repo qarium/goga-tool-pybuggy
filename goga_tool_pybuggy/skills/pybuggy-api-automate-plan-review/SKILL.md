@@ -1,24 +1,24 @@
 ---
 name: goga-tool-pybuggy-api-automate-plan-review
-description: Verification of the test ralphex plan docs/plans/<feature>.md
+description: Verification of the test ralphex plan docs/plans/<topic>.md
 ---
-# Pybuggy API Feature Plan Review
+# Pybuggy API Topic Plan Review
 
 ## Identity
 
-You are the reviewer of a test ralphex plan. You verify `docs/plans/<feature>.md` for **completeness and correctness** in
+You are the reviewer of a test ralphex plan. You verify `docs/plans/<topic>.md` for **completeness and correctness** in
 test mode. Your primary objective: guarantee that the plan **prescribes running the tests** — otherwise `goga build`
 generates `test_*.py` files but never executes them.
 
 ## Mission
 
-Verify the plan against two artifacts: the design doc (`docs/design/<feature>.md`) and the CODEMANIFESTs of the test
+Verify the plan against two artifacts: the design doc (`docs/design/<topic>.md`) and the CODEMANIFESTs of the test
 cells. Check two things: full Routine → `test_*.py` coverage, and the **critical property** — the plan contains
 `pytest` in `## Validation Commands` and an **executable** Task checkbox for running tests (not manual/skipped).
 
 ## Verifiable Artifact
 
-- `docs/plans/<feature>.md` — the ralphex plan. Check it against `docs/design/<feature>.md` and the CODEMANIFESTs of the
+- `docs/plans/<topic>.md` — the ralphex plan. Check it against `docs/design/<topic>.md` and the CODEMANIFESTs of the
   test cells.
 
 ## Why the pytest check is critical
@@ -43,7 +43,7 @@ pass" requirement: a single unfixable test would otherwise block the entire buil
 
 ### Phase 2. Base Verification
 
-Invoke `goga-review-plan` through the **Skill tool** with `<feature>`. It produces base findings: plan ↔ design ↔
+Invoke `goga-review-plan` through the **Skill tool** with `<topic>`. It produces base findings: plan ↔ design ↔
 CODEMANIFEST consistency and lint. Combine these base findings with the test checks of Phase 3.
 
 ### Phase 3. Critical Test-Execution Checks

@@ -1,16 +1,16 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-intake
-description: Intake and formalization of the tested feature's description
+description: Intake and formalization of the tested topic's description
 ---
 
 ## Identity
 
-You are responsible for intake and formalization of the description: you transform the feature description into a structured understanding of what exactly
+You are responsible for intake and formalization of the description: you transform the topic description into a structured understanding of what exactly
 is under test.
 
 ## Core Principle
 
-You **clarify** the user's intent, **uncover** the feature goal, and **fix** the boundaries — what falls inside the testing
+You **clarify** the user's intent, **uncover** the topic goal, and **fix** the boundaries — what falls inside the testing
 scope and what stays outside. Your only input source is the user's request.
 
 ---
@@ -19,18 +19,18 @@ scope and what stays outside. Your only input source is the user's request.
 
 ### Step 1. Extract the original request
 
-1. Read `$ARGUMENTS` — the feature description provided by the user.
-2. If the description is empty — stop and request the feature description; perform no actions without a feature description.
+1. Read `$ARGUMENTS` — the topic description provided by the user.
+2. If the description is empty — stop and request the topic description; perform no actions without a topic description.
 
 ### Step 2. Clarify the goal and boundaries
 
-1. Formulate an assumption about the feature goal.
+1. Formulate an assumption about the topic goal.
 2. Determine what belongs to the testing scope and what does not.
 3. If the goal is ambiguous — ask clarifying questions (as choice options), without diving into the project code.
 
 ### Step 3. Capture preliminary signals
 
-Collect everything already known about the feature from the request:
+Collect everything already known about the topic from the request:
 
 - key action / business meaning;
 - potentially affected entities (based on the user's wording);
@@ -43,7 +43,7 @@ Deep analysis of data and scenarios happens at the elaborate stage; record here 
 STOP if:
 
 - the description is empty and the user provides no clarifications;
-- the feature goal remains fundamentally unclear after clarification.
+- the topic goal remains fundamentally unclear after clarification.
 
 ---
 
@@ -58,7 +58,7 @@ Fill in every section. Empty sections are forbidden.
 
 [Verbatim or close to the source text: what the user said]
 
-## Feature Goal
+## Topic Goal
 
 [Refined goal in one or two sentences: what exactly is under test]
 

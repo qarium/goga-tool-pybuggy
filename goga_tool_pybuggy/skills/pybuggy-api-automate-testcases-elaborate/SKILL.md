@@ -1,11 +1,11 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-elaborate
-description: Requirements elaboration — match the user's feature description against API contracts (gap analysis, binding every statement to FR-<N>), ask the user about discrepancies, and build traces from the entry point to each endpoint of the coverage (Call → Effect → Verification)
+description: Requirements elaboration — match the user's topic description against API contracts (gap analysis, binding every statement to FR-<N>), ask the user about discrepancies, and build traces from the entry point to each endpoint of the coverage (Call → Effect → Verification)
 ---
 
 ## Identity
 
-You match the user's feature description against the API contracts, build `Call → Effect → Verification`
+You match the user's topic description against the API contracts, build `Call → Effect → Verification`
 traces, and ask the user questions on discrepancies.
 
 ## Core Principle
@@ -19,7 +19,7 @@ confirmed statements into traces. Invent nothing.
 
 ### Step 1. Load context
 
-1. From [TESTCASES_INTAKE] — the verbatim feature description (§1 of the requirements), the stated
+1. From [TESTCASES_INTAKE] — the verbatim topic description (§1 of the requirements), the stated
    behavior (main and error behavior), the business preconditions, the roles, and the §3 functional
    requirements registry (`FR-<N>`).
 2. From [TESTCASES_DISCOVERY] — the endpoint contracts (the `Request` model, parameters, `schemas`), the
@@ -99,9 +99,9 @@ effects with no observable check in the response. Empty if none.]
 
 [Each question: discrepancy → options → the user's decision. Empty if there are no discrepancies.]
 
-## Feature traces
+## Topic traces
 
-[Approved traces — copied verbatim into `docs/testcases/<feature>.md`:]
+[Approved traces — copied verbatim into `docs/testcases/<topic>.md`:]
 
 ### TR-<N>: <title>
 

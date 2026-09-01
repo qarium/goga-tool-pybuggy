@@ -1,7 +1,7 @@
 # Pipelines
 
 The primary way to create tests with pybuggy is the staged goga pipeline
-(`PybuggyApiAutomate`): it automates API-test creation end to end — from feature
+(`PybuggyApiAutomate`): it automates API-test creation end to end — from topic
 requirements to committed, accepted tests.
 
 ## Launch
@@ -12,7 +12,7 @@ goga pipeline pybuggy:api.automate
 
 Prerequisites: pybuggy installed (`goga install pybuggy`) and the environment
 initialized (`goga tool pybuggy init` — see [Getting Started](../getting-started.md)).
-The pipeline asks for the feature under test and drives the chain; `<feature>` names
+The pipeline asks for the topic under test and drives the chain; `<topic>` names
 every artifact it produces.
 
 ## In this section

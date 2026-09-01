@@ -11,7 +11,7 @@ description: Построение плана исправлений клеток
 
 ## Вход
 
-`docs/fix/<feature>-analysis.md` — артефакт анализа. `<feature>`: из `$ARGUMENTS`; иначе скан `docs/fix/*-analysis.md` (
+`docs/fix/<topic>-analysis.md` — артефакт анализа. `<topic>`: из `$ARGUMENTS`; иначе скан `docs/fix/*-analysis.md` (
 один файл → имя; несколько → спроси пользователя). Разрешение фиксируется на всю сессию и передаётся в саб-скиллы.
 
 ## Pipeline
@@ -21,7 +21,7 @@ description: Построение плана исправлений клеток
 ### Step 1. Build — WAIT
 
 - Скилл: `goga-tool-pybuggy-api-fix-plan-build`
-- Читает: `docs/fix/<feature>-analysis.md`
+- Читает: `docs/fix/<topic>-analysis.md`
 - Результат: [FIX_PLAN_ITEMS] — пункты плана, сгруппированные по клеткам, утверждённые пользователем
 - WAIT: утверждение плана, итерации до подтверждения
 - STOP: analysis-артефакт отсутствует — вернись к стадии analyze; пользователь отклонил план после итерации
@@ -30,7 +30,7 @@ description: Построение плана исправлений клеток
 
 - Скилл: `goga-tool-pybuggy-api-fix-plan-report`
 - Читает: [FIX_PLAN_ITEMS]
-- Результат: [FIX_PLAN] — сохранён в `docs/fix/<feature>-plan.md`
+- Результат: [FIX_PLAN] — сохранён в `docs/fix/<topic>-plan.md`
 
 ## Правило вывода
 

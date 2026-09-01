@@ -1,11 +1,11 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-plan
-description: Feature test plan and test case matrix (Flow/Positive/Negative) linking cases to requirements FR-<N>
+description: Topic test plan and test case matrix (Flow/Positive/Negative) linking cases to requirements FR-<N>
 ---
 
 ## Identity
 
-You build two artifacts: the feature test plan and the test case matrix. Both artifacts define integration points, testing goals, case types, and severity.
+You build two artifacts: the topic test plan and the test case matrix. Both artifacts define integration points, testing goals, case types, and severity.
 
 ## Core Principle
 
@@ -24,19 +24,19 @@ Load three inputs:
    preconditions, roles, and the functional requirements registry §3 (`FR-<N>`).
 2. [TESTCASES_DISCOVERY] supplies: actual endpoint contracts, the verification catalog, the severity
    scale, and the confirmed coverage scope.
-3. [TESTCASES_ELABORATION] supplies: approved feature traces (each trace = Call → Effect → Verification)
+3. [TESTCASES_ELABORATION] supplies: approved topic traces (each trace = Call → Effect → Verification)
    and the results of mapping the description to the API.
 
-### Step 2. Description of the feature under test
+### Step 2. Description of the topic under test
 
 Keep it brief (1–3 paragraphs): core functionality and business value, derived from the requirements plus
 service context. Do not restate the requirements verbatim — summarize them.
 
-### Step 3. Feature integration points
+### Step 3. Topic integration points
 
-Identify ALL in-service relationships the feature touches. Present a table:
+Identify ALL in-service relationships the topic touches. Present a table:
 
-`Endpoint` | `Data mutation/Read` | `Criticality for the feature`
+`Endpoint` | `Data mutation/Read` | `Criticality for the topic`
 
 For each integration point, account for three aspects: the initiating call, status checks by `id`, and
 side-effect reads/mutations.
@@ -45,7 +45,7 @@ side-effect reads/mutations.
 
 State concrete goals as a numbered list of action verbs (Verify / Ensure /
 Confirm) derived from the description (Step 2) and the integration points (Step 3). Focus on the
-feature's correctness in integration — not on unit-level details.
+topic's correctness in integration — not on unit-level details.
 
 ### Step 5. Test case matrix (skeleton)
 
@@ -97,13 +97,13 @@ Fill in every section. Empty sections are forbidden.
 ```md
 # [TESTCASES_PLAN]
 
-## Description of the feature under test
+## Description of the topic under test
 
 [1–3 paragraphs: functionality and business value]
 
-## Feature integration points
+## Topic integration points
 
-[Table: Endpoint | Data mutation/Read | Criticality for the feature]
+[Table: Endpoint | Data mutation/Read | Criticality for the topic]
 
 ## Integration testing goals
 

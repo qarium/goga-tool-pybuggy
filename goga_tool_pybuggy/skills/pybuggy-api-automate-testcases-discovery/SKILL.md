@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-discovery
-description: Collect real feature endpoint details and define the severity scale
+description: Collect real topic endpoint details and define the severity scale
 ---
 
 ## Identity
@@ -52,7 +52,7 @@ Lock in the scale (the source for all subsequent steps):
 
 | Level | When to assign |
 |---|---|
-| `blocker` | the feature's main happy-path/flow fails; the endpoint is critical and unavailable or breaks its contract |
+| `blocker` | the topic's main happy-path/flow fails; the endpoint is critical and unavailable or breaks its contract |
 | `critical` | severe negative case: missing permissions, violated preconditions, 5xx, data loss |
 | `normal` | contractual positive checks of key field values/structure |
 | `minor` | edge-case/secondary fields that do not break the business scenario |

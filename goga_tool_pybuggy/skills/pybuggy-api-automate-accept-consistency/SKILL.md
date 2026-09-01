@@ -2,7 +2,7 @@
 name: goga-tool-pybuggy-api-automate-accept-consistency
 description: Pre-run consistency check of the test case → Routine → test_*.py chain — traceability, signatures, location, skip masking, Request model
 ---
-# Pybuggy API Feature Accept — Consistency
+# Pybuggy API Topic Accept — Consistency
 
 ## Identity
 
@@ -38,7 +38,7 @@ For every Routine of every cell:
 
 ### Step 3. Request body — Request model
 
-For every test according to its case (Flow/Positive/Negative from `docs/testcases/<feature>.md`):
+For every test according to its case (Flow/Positive/Negative from `docs/testcases/<topic>.md`):
 
 1. A valid body (positive/flow) is materialized through the importable `Request` model from
    `api/<spec>/<id>/api.py` (`json=Request(...)`).
@@ -56,7 +56,7 @@ For every test according to its case (Flow/Positive/Negative from `docs/testcase
 3. The steps of the Routine's `Steps:` annotation are reflected in the test body (calls, checks); a skipped
    case step is a finding (Severity by impact: a lost contract check — High).
 4. The case checks (status, fields, structure, invariants) are present in the asserts — compare against
-   the expectations section of the case in `docs/testcases/<feature>.md`.
+   the expectations section of the case in `docs/testcases/<topic>.md`.
 
 ### Step 5. Usage references
 

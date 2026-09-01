@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-analyze-report
-description: Сборка артефакта анализа и сохранение в docs/fix/<feature>-analysis.md
+description: Сборка артефакта анализа и сохранение в docs/fix/<topic>-analysis.md
 ---
 # Pybuggy API Fix Analyze — Report
 
@@ -11,7 +11,7 @@ description: Сборка артефакта анализа и сохранен�
 ## Алгоритм
 
 1. Собери входы: [FIX_EVIDENCE], [FIX_CLASSIFICATION].
-2. Путь: `docs/fix/<feature>-analysis.md` (передаёт оркестратор).
+2. Путь: `docs/fix/<topic>-analysis.md` (передаёт оркестратор).
 3. Сохрани документ по формату ниже (повторный запуск — перезапись).
 
 ---
@@ -21,10 +21,10 @@ description: Сборка артефакта анализа и сохранен�
 Содержимое сохраняемого файла. Заполни каждую секцию.
 
 ```md
-# Fix Analysis: <feature>
+# Fix Analysis: <topic>
 
 ## Источник
-[путь к collect-репорту `docs/fix/<feature>-collect.md` и логу `docs/fix/<feature>-log.txt`]
+[путь к collect-репорту `docs/fix/<topic>-collect.md` и логу `docs/fix/<topic>-log.txt`]
 
 ## Досье и доказательства
 [Таблица из [FIX_EVIDENCE]: тест | Routine | diff (пуст/дрейф) | тест↔Routine (соответствует/искажает) | Routine↔контракт (соответствует/противоречит) | rerun (стабильно/через раз/зелёный/скипается/пропущен) | гипотеза класса]

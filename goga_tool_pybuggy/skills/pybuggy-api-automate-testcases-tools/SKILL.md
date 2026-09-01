@@ -18,7 +18,7 @@ You **analyze** [TESTCASES_PLAN], map the needs onto §8, and agree on the decis
 ### Step 1. Load context
 
 1. [TESTCASES_PLAN] — the case matrix (types, endpoints, data setup, expectations).
-2. `docs/requirements/<feature>.md` §8 "Available project usages" — the registry of the existing usages (the pipeline
+2. `docs/requirements/<topic>.md` §8 "Available project usages" — the registry of the existing usages (the pipeline
    orchestrator passes the path via Artifact Path Resolution)
    (key | path | role | purpose).
 3. If §8 says "usages are missing" — scan `.goga/usages/` yourself (as in `requirements-discovery`, Step 2) and use

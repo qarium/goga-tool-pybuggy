@@ -18,7 +18,7 @@ goga tool pybuggy init               # 2. bootstrap: goga project + tool config 
 goga pipeline pybuggy:api.automate   # 3. run the automated API-test lifecycle
 ```
 
-The pipeline asks for the feature under test and drives the whole chain — requirements,
+The pipeline asks for the topic under test and drives the whole chain — requirements,
 test cases, test code — until accepted `test_*.py` suites land in `tests/`. The full
 stage list and artifact chain:
 [the `api.automate` lifecycle](https://qarium.github.io/goga-tool-pybuggy/pipelines/).

@@ -31,7 +31,7 @@ goga tool pybuggy init            # 2. bootstrap: goga project + tool config + c
 goga pipeline pybuggy:api.automate   # 3. run the automated API-test lifecycle
 ```
 
-The pipeline asks for the feature under test and drives the whole chain — requirements,
+The pipeline asks for the topic under test and drives the whole chain — requirements,
 test cases, test code — until accepted `test_*.py` suites land in `tests/` (see
 [Pipelines](pipelines/index.md)). The CLI and the manual workflow remain available for
 fine-grained control: [CLI Reference](cli/init.md).

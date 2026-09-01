@@ -3,7 +3,7 @@ name: goga-tool-pybuggy-api-automate-plan
 description: Dispatch wrapper around goga-plan for testing mode — compiles the ralphex test-materialization plan; guarantees pytest in Validation Commands and executable Task checkboxes so that goga build actually runs the tests
 ---
 
-# Pybuggy API Feature Plan (dispatch)
+# Pybuggy API Topic Plan (dispatch)
 
 ## Identity
 
@@ -13,7 +13,7 @@ tests** — otherwise `goga build` generates `test_*.py` files but never execute
 
 ## Mission
 
-Compile the ralphex plan `docs/plans/<feature>.md` from two inputs — the design document and the CODEMANIFEST
+Compile the ralphex plan `docs/plans/<topic>.md` from two inputs — the design document and the CODEMANIFEST
 test-cells — so that all four conditions hold:
 
 1. each Routine of a test cell maps to a Task that generates the corresponding `test_*.py`;
@@ -57,10 +57,10 @@ tests into the plan → the tests get written but never run. This dispatch skill
 
 Arguments: `$ARGUMENTS`
 
-1. Determine `<feature>` (from `$ARGUMENTS`, or by scanning `docs/design/`/`docs/plans/`, as in `goga-plan`).
+1. Determine `<topic>` (from `$ARGUMENTS`, or by scanning `docs/design/`/`docs/plans/`, as in `goga-plan`).
 2. Load context via the **Skill tool**: `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`, `goga-cell`,
    `goga-cell-python`.
-3. Invoke `goga-plan` via the **Skill tool**, passing `<feature>` and the testing-mode payload (marker phrase:
+3. Invoke `goga-plan` via the **Skill tool**, passing `<topic>` and the testing-mode payload (marker phrase:
    "Pybuggy testing mode: compile a plan to GENERATE and RUN integration tests from CODEMANIFEST test-cells;
    deliverable is `test_*.py`; `pytest` MUST be in Validation Commands and as executable Task checkboxes;
    valid request body MUST use the `Request` model imported from the fixture's `api.py` — raw `dict` only for
@@ -71,7 +71,7 @@ Arguments: `$ARGUMENTS`
 
 ## Post-Dispatch Gate (critical — enforcing test execution)
 
-After `docs/plans/<feature>.md` is generated, verify the five conditions below and amend the plan when needed:
+After `docs/plans/<topic>.md` is generated, verify the five conditions below and amend the plan when needed:
 
 1. **`## Validation Commands`** contains a test-run command such as
    `pytest tests/<spec>/ -q` (or `pytest tests/<spec>/<id>/ -q` for a specific cell). If the command is missing —

@@ -113,7 +113,7 @@ cases via parameterization — the mapping 1 case = 1 Routine is valid but not m
 
 - `Author` — always `Goga`.
 - `CreatedAt` — day/month/year.
-- `Description` — why this cell exists (which endpoints/feature it tests).
+- `Description` — why this cell exists (which endpoints/topic it tests).
 
 ## Routine annotation standard
 

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-plan-report
-description: Сборка плана исправлений и сохранение в docs/fix/<feature>-plan.md
+description: Сборка плана исправлений и сохранение в docs/fix/<topic>-plan.md
 ---
 
 # Pybuggy API Fix Plan — Report
@@ -12,7 +12,7 @@ description: Сборка плана исправлений и сохранен�
 ## Алгоритм
 
 1. Собери входы: [FIX_PLAN_ITEMS].
-2. Путь: `docs/fix/<feature>-plan.md` (передаёт оркестратор).
+2. Путь: `docs/fix/<topic>-plan.md` (передаёт оркестратор).
 3. Сохрани документ по формату ниже (повторный запуск — перезапись).
 
 ---
@@ -22,11 +22,11 @@ description: Сборка плана исправлений и сохранен�
 Содержимое сохраняемого файла. Заполни каждую секцию.
 
 ```md
-# Fix Plan: <feature>
+# Fix Plan: <topic>
 
 ## Источник
 
-[путь к артефакту анализа `docs/fix/<feature>-analysis.md`]
+[путь к артефакту анализа `docs/fix/<topic>-analysis.md`]
 
 ## Пункты плана
 

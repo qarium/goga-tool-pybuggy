@@ -1,16 +1,16 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-report
-description: Assemble the final "Detailed feature requirements" artifact and save it to docs/requirements/<feature>.md
+description: Assemble the final "Detailed topic requirements" artifact and save it to docs/requirements/<topic>.md
 ---
 
 ## Identity
 
-You synthesize the final [FEATURE_SPEC] artifact from the outputs of all preceding steps and save it to a file.
+You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding steps and save it to a file.
 
 ## Algorithm
 
 1. Collect the outputs of all preceding steps: [INTAKE_REPORT], [DISCOVERY_REPORT], [ELABORATION_REPORT].
-2. Synthesize these outputs into the unified [FEATURE_SPEC] artifact.
+2. Synthesize these outputs into the unified [TOPIC_SPEC] artifact.
 3. Assign each §3 requirement a stable `FR-<N>` identifier — test cases and the requirements
    coverage matrix reference it. Rules:
     - number sequentially within §3, starting at 1, with no gaps or duplicates;
@@ -19,7 +19,7 @@ You synthesize the final [FEATURE_SPEC] artifact from the outputs of all precedi
     - introduce identifiers in §3 only — §4 (preconditions) and §5 (roles) remain textual.
 4. Include verified facts only — facts from the service spec and facts confirmed by the user.
    Do not guess.
-5. Copy the feature description from the "Original request" section of [INTAKE_REPORT] into §1
+5. Copy the topic description from the "Original request" section of [INTAKE_REPORT] into §1
    verbatim — the `elaborate` stage of the `testcases` pipeline matches this description against
    the API.
 6. Copy the usages registry from the "Project usages" section of [DISCOVERY_REPORT] into §8
@@ -30,7 +30,7 @@ You synthesize the final [FEATURE_SPEC] artifact from the outputs of all precedi
    action in the drift status from the "Contract drift (diff)" section of [DISCOVERY_REPORT]:
    an in-sync covered endpoint is reused, a drifted one carries the recorded user decision.
 8. Verify completeness: every section is filled in.
-9. Save [FEATURE_SPEC] to `docs/requirements/<feature>.md` (create the `docs/requirements/`
+9. Save [TOPIC_SPEC] to `docs/requirements/<topic>.md` (create the `docs/requirements/`
    directory if it does not exist; overwrite the file on repeated runs). The pipeline orchestrator
    supplies the target path (Artifact Path Resolution).
 
@@ -38,21 +38,21 @@ You synthesize the final [FEATURE_SPEC] artifact from the outputs of all precedi
 
 ## Output Format
 
-Save the result to `docs/requirements/<feature>.md` (the path comes from the orchestrator). The file
+Save the result to `docs/requirements/<topic>.md` (the path comes from the orchestrator). The file
 content follows the format below. Fill in every section. Empty sections are forbidden.
 
 ```md
-### Detailed feature requirements: [Feature name]
+### Detailed topic requirements: [Topic name]
 
 **1. Context and goal:**
 
 - **Service:** [Brief description of the service]
-- **Feature description (verbatim):** [User's original request — from the intake section "Original request"]
-- **Feature goal:** [Refined goal]
+- **Topic description (verbatim):** [User's original request — from the intake section "Original request"]
+- **Topic goal:** [Refined goal]
 
-**2. Feature endpoints:**
+**2. Topic endpoints:**
 
-[Table: endpoint-id | spec | method | path | role in the feature]
+[Table: endpoint-id | spec | method | path | role in the topic]
 
 Paths of generated artifacts:
 
@@ -73,7 +73,7 @@ subsection order, no gaps, no duplicates) — the registry for test case traceab
 - **Acceptance criteria:**
     - `FR-<N>` — [Criterion]
 - **Constraints and boundaries:**
-    - `FR-<N>` — [What the feature does not do]
+    - `FR-<N>` — [What the topic does not do]
 
 **4. Business preconditions and environment:**
 

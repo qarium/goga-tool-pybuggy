@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-collect-report
-description: Сборка репорта о падениях и сохранение в docs/fix/<feature>-collect.md
+description: Сборка репорта о падениях и сохранение в docs/fix/<topic>-collect.md
 ---
 # Pybuggy API Fix Collect — Report
 
@@ -11,9 +11,9 @@ description: Сборка репорта о падениях и сохранен
 ## Алгоритм
 
 1. Собери входы: [FIX_INTAKE], [FIX_FAILURES].
-2. Путь: `docs/fix/<feature>-collect.md` (передаёт оркестратор).
+2. Путь: `docs/fix/<topic>-collect.md` (передаёт оркестратор).
 3. Сохрани документ по формату ниже (создай `docs/fix/`, если её нет; повторный запуск — перезапись файла).
-4. Полные traceback остаются в логе `docs/fix/<feature>-log.txt` — в репорте достаточно пути к логу.
+4. Полные traceback остаются в логе `docs/fix/<topic>-log.txt` — в репорте достаточно пути к логу.
 
 ---
 
@@ -22,7 +22,7 @@ description: Сборка репорта о падениях и сохранен
 Содержимое сохраняемого файла. Заполни каждую секцию.
 
 ```md
-# Fix Report: <feature>
+# Fix Report: <topic>
 
 ## Источник данных
 [описание / локальный прогон]
@@ -31,7 +31,7 @@ description: Сборка репорта о падениях и сохранен
 [из [FIX_INTAKE]; «не предоставлено» — если отсутствует]
 
 ## Прогон
-[Команда: ... | Лог: docs/fix/<feature>-log.txt | Код выхода: ... | Итог: passed X, failed Y, errors Z, skipped W.
+[Команда: ... | Лог: docs/fix/<topic>-log.txt | Код выхода: ... | Итог: passed X, failed Y, errors Z, skipped W.
 «прогон не выполнялся» — если источником было только описание]
 
 ## Упавшие тесты
@@ -39,7 +39,7 @@ description: Сборка репорта о падениях и сохранен
 «падений нет» — если пусто]
 
 ## Полные traceback
-[лог `docs/fix/<feature>-log.txt` либо «в данных описания, см. выше»]
+[лог `docs/fix/<topic>-log.txt` либо «в данных описания, см. выше»]
 
 ## Итог
 [N упавших/замаскированных тестов, распределение по категориям | «падений нет»]

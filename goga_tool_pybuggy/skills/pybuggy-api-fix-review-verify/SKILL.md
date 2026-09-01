@@ -14,15 +14,15 @@ description: Статическая сверка исполнения плана
 
 ### Шаг 1. Полнота исполнения
 
-Каждая задача `FIX-<N>` из `docs/fix/<feature>-plan.md` имеет статус (`done`/`failed`) в
-`docs/fix/<feature>-execute.md`; пропусков нет.
+Каждая задача `FIX-<N>` из `docs/fix/<topic>-plan.md` имеет статус (`done`/`failed`) в
+`docs/fix/<topic>-execute.md`; пропусков нет.
 
 ### Шаг 2. Критерии готовности плана
 
 1. Проверки задач из плана пройдены (по execute-отчёту).
-2. `service-bug` — записи созданы в `docs/bugs/<feature>.md` по шаблону
+2. `service-bug` — записи созданы в `docs/bugs/<topic>.md` по шаблону
    `goga-tool-pybuggy-api-fix-execute-bug`, тесты честно красные.
-3. Финальный прогон (`docs/fix/<feature>-log-final.txt`) сходится с ожиданием: зелёные все, кроме `service-bug` тестов с
+3. Финальный прогон (`docs/fix/<topic>-log-final.txt`) сходится с ожиданием: зелёные все, кроме `service-bug` тестов с
    баг-записями.
 
 ### Шаг 3. Качество правок по изменённым файлам
@@ -34,11 +34,11 @@ description: Статическая сверка исполнения плана
 2. CODEMANIFEST — DSL-валидность (структура секций, порядок, пустые строки между секциями); существующие Routine не
    удалены.
 3. Артефакты `api/` — `goga tool pybuggy endpoint diff <endpoint-id>` пуст по затронутым эндпоинтам.
-4. `docs/bugs/<feature>.md` — записи по шаблону `goga-tool-pybuggy-api-fix-execute-bug`, сквозная нумерация.
+4. `docs/bugs/<topic>.md` — записи по шаблону `goga-tool-pybuggy-api-fix-execute-bug`, сквозная нумерация.
 
 ### Шаг 4. Регрессии
 
-Новые красные тесты финального прогона против исходного `docs/fix/<feature>-collect.md` — каждая регрессия это находка.
+Новые красные тесты финального прогона против исходного `docs/fix/<topic>-collect.md` — каждая регрессия это находка.
 
 ### Шаг 5. Сформируй [REVIEW_FINDINGS]
 

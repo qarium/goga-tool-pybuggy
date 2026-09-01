@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-review-report
-description: Итоговый вердикт цикла фикса и сохранение docs/fix/<feature>-review.md
+description: Итоговый вердикт цикла фикса и сохранение docs/fix/<topic>-review.md
 ---
 
 # Pybuggy API Fix Review — Report
@@ -17,7 +17,7 @@ description: Итоговый вердикт цикла фикса и сохра
     - **FIXED_WITH_NOTES** — есть находки или failed-задачи, принятые пользователем как есть; открытых пунктов нет;
     - **FAILED** — план не исполнен или регрессии не закрыты решениями пользователя;
     - **FIXED** — все задачи `done`, финальный прогон сходится с ожиданием, находок нет.
-3. Сохрани `docs/fix/<feature>-review.md` (путь передаёт оркестратор) по формату ниже.
+3. Сохрани `docs/fix/<topic>-review.md` (путь передаёт оркестратор) по формату ниже.
 
 ---
 
@@ -26,11 +26,11 @@ description: Итоговый вердикт цикла фикса и сохра
 Содержимое сохраняемого файла. Заполни каждую секцию.
 
 ```md
-# Fix Review: <feature>
+# Fix Review: <topic>
 
 ## Источник
 
-[docs/fix/<feature>-execute.md, docs/fix/<feature>-plan.md, docs/fix/<feature>-log-final.txt]
+[docs/fix/<topic>-execute.md, docs/fix/<topic>-plan.md, docs/fix/<topic>-log-final.txt]
 
 ## Находки
 

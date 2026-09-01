@@ -12,7 +12,7 @@ description: Ревью после исправления — сверка ис�
 
 ## Вход
 
-`docs/fix/<feature>-execute.md` — отчёт исполнения. `<feature>`: из `$ARGUMENTS`; иначе скан `docs/fix/*-execute.md` (
+`docs/fix/<topic>-execute.md` — отчёт исполнения. `<topic>`: из `$ARGUMENTS`; иначе скан `docs/fix/*-execute.md` (
 один файл → имя; несколько → спроси пользователя). Разрешение фиксируется на всю сессию и передаётся в саб-скиллы.
 
 ## Context Initialization
@@ -31,8 +31,8 @@ description: Ревью после исправления — сверка ис�
 ### Step 1. Verify
 
 - Скилл: `goga-tool-pybuggy-api-fix-review-verify`
-- Читает: `docs/fix/<feature>-execute.md`, `docs/fix/<feature>-plan.md`, `docs/fix/<feature>-log-final.txt`,
-  `docs/fix/<feature>-collect.md`, изменённые файлы на диске
+- Читает: `docs/fix/<topic>-execute.md`, `docs/fix/<topic>-plan.md`, `docs/fix/<topic>-log-final.txt`,
+  `docs/fix/<topic>-collect.md`, изменённые файлы на диске
 - Результат: [REVIEW_FINDINGS] — находки и failed-задачи
 - STOP: execute-отчёт отсутствует
 
@@ -47,7 +47,7 @@ description: Ревью после исправления — сверка ис�
 
 - Скилл: `goga-tool-pybuggy-api-fix-review-report`
 - Читает: [REVIEW_FINDINGS], [REVIEW_DECISIONS]
-- Результат: [FIX_REVIEW] — сохранён в `docs/fix/<feature>-review.md`
+- Результат: [FIX_REVIEW] — сохранён в `docs/fix/<topic>-review.md`
 
 ## Правило вывода
 

@@ -69,13 +69,13 @@ goga pipeline pybuggy:api.automate
 
 This is the primary way to create tests with pybuggy. The pipeline:
 
-- asks for the **feature under test** and collects detailed requirements from your
+- asks for the **topic under test** and collects detailed requirements from your
   description and the service spec;
 - walks the whole chain — requirements → test cases → test cells → test code → review →
   acceptance — involving you at every communication stage;
 - scaffolds the `api/` fixtures and materializes the tests into `tests/<spec>/<id>/`;
 - commits nothing without your confirmation; failures found at acceptance are triaged
-  with you and recorded in `docs/bugs/<feature>.md`.
+  with you and recorded in `docs/bugs/<topic>.md`.
 
 Run the resulting suite with:
 

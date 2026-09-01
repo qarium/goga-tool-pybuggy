@@ -1,28 +1,28 @@
 ---
 name: goga-tool-pybuggy-api-automate-accept
-description: Final acceptance pipeline for a feature's tests — cross-checks artifacts (testcases → Routine → test_*.py), runs pytest, triages each failure with the user (test fix or service bug), and records service bugs in docs/bugs/<feature>.md
+description: Final acceptance pipeline for a topic's tests — cross-checks artifacts (testcases → Routine → test_*.py), runs pytest, triages each failure with the user (test fix or service bug), and records service bugs in docs/bugs/<topic>.md
 ---
-# Pybuggy API Feature Accept
+# Pybuggy API Topic Accept
 
 ## Identity
 
-You are the orchestrator of the final acceptance of a feature's tests. The loop `requirements → testcases → cells → apply → design →
+You are the orchestrator of the final acceptance of a topic's tests. The loop `requirements → testcases → cells → apply → design →
 plan → goga build` has completed; your job now is to **run the tests** and verify the result against the
 test cases → Routine → `test_*.py` trace. A failed test is a signal, not a rejection: either the test artifact itself
-is defective (you fix it here), or the service under test violates its contract (you record the bug in `docs/bugs/<feature>.md`).
+is defective (you fix it here), or the service under test violates its contract (you record the bug in `docs/bugs/<topic>.md`).
 
 ## Mission
 
-Run the acceptance: inventory the feature's artifacts, verify the consistency of the
+Run the acceptance: inventory the topic's artifacts, verify the consistency of the
 TC → Routine → `test_*.py` chain, run the tests and triage each failure (test fix / service bug),
-record service bugs in `docs/bugs/<feature>.md` with a full description and the test case, and deliver
+record service bugs in `docs/bugs/<topic>.md` with a full description and the test case, and deliver
 the final report with a verdict.
 
 ## Artifact Path Resolution
 
-The pipeline key is `<feature>`. Resolve it before starting the steps and keep the resolution for the whole session:
+The pipeline key is `<topic>`. Resolve it before starting the steps and keep the resolution for the whole session:
 
-1. **`$ARGUMENTS` contains a feature name** — use that name as `<feature>`.
+1. **`$ARGUMENTS` contains a topic name** — use that name as `<topic>`.
 2. **`$ARGUMENTS` is empty** — scan `docs/testcases/`:
    - the directory exists and contains exactly one file → use that file's name (without extension);
      several files → AskUserQuestion listing the files;
@@ -51,7 +51,7 @@ Execute the steps strictly in sequence — one step at a time. Validate each ste
 
 - Invoke: `goga-tool-pybuggy-api-automate-accept-scope`
 - Output: [ACCEPT_SCOPE] — inventory of artifacts, cells, Routine, test files, and the test command
-- STOP if: the feature's artifacts are missing (no testcases/cells); generated test files are missing
+- STOP if: the topic's artifacts are missing (no testcases/cells); generated test files are missing
 
 ### Step 2. Consistency
 
@@ -60,7 +60,7 @@ Execute the steps strictly in sequence — one step at a time. Validate each ste
 - Output: [ACCEPT_CONSISTENCY] — TC → Routine → `test_*.py` trace, consistency findings
 - WAIT: findings that require a user decision (fix the test file here / return to cells)
 - STOP if: test files are not materialized (a Routine has no `test_*.py`) — run
-  `goga build` on the feature plan first
+  `goga build` on the topic plan first
 
 ### Step 3. Run
 
@@ -68,7 +68,7 @@ Execute the steps strictly in sequence — one step at a time. Validate each ste
 - Reads: [ACCEPT_SCOPE], [ACCEPT_CONSISTENCY]
 - Output: [ACCEPT_RUN] — run results, failure triage, created bug records
 - WAIT: triage of each failure — together with the user (fix the test here / service bug in
-  `docs/bugs/<feature>.md` / return to the test cases)
+  `docs/bugs/<topic>.md` / return to the test cases)
 - STOP if: the execution environment is unavailable (pytest or the plugin fails to start, the SUT does not respond)
   and cannot be recovered per an explicit user instruction
 
@@ -90,7 +90,7 @@ Triage each failed test along these categories (details in the `accept-run` sub-
 | Failure category | Meaning | Action |
 |---|---|---|
 | **Test defect** | the test artifact is wrong: broken materialization, incorrect assert, broken import, wrong data | fixed here, in `test_*.py`, with user approval |
-| **Service bug** | the test is correct; the SUT violates its contract | bug record in `docs/bugs/<feature>.md` with a description and the test case |
+| **Service bug** | the test is correct; the SUT violates its contract | bug record in `docs/bugs/<topic>.md` with a description and the test case |
 | **Ambiguous** | insufficient data to decide | joint analysis with the user (WAIT) |
 
 A valid test failure (a failure that exposed a service bug) **blocks the ACCEPTED_WITH_NOTES verdict** but does not
@@ -112,10 +112,10 @@ stop the pipeline: the remaining tests still run, and the bug is recorded in the
 ### ALWAYS
 
 - execute the steps in order
-- build the TC → Routine → `test_*.py` trace from the feature's artifacts
+- build the TC → Routine → `test_*.py` trace from the topic's artifacts
 - run the tests with the command from [ACCEPT_SCOPE] and record the actual result of each test
 - triage every failure together with the user (AskUserQuestion, 2–4 options)
-- record service bugs in `docs/bugs/<feature>.md` (create the directory if missing) with a full
+- record service bugs in `docs/bugs/<topic>.md` (create the directory if missing) with a full
   description of the problem and the test case
 - fix test defects in `test_*.py` only with user approval and re-run the test after the fix
 - include the verdict, the list of bug records, and the applied test fixes in the final report

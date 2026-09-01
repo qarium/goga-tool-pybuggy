@@ -2,7 +2,7 @@
 name: goga-tool-pybuggy-api-automate-design
 description: Dispatch wrapper around goga-design for testing mode — produces the architecture design document for materializing tests from CODEMANIFEST test cells, carrying a mandatory testing pre-prompt
 ---
-# Pybuggy API Feature Design (dispatch)
+# Pybuggy API Topic Design (dispatch)
 
 ## Identity
 
@@ -12,7 +12,7 @@ code. Your role: you embed the testing pre-prompt into the session, then you han
 
 ## Mission
 
-Produce the design document `docs/design/<feature>.md` describing **integration-test materialization** from
+Produce the design document `docs/design/<topic>.md` describing **integration-test materialization** from
 CODEMANIFEST test cells: which `test_*.py` files to generate, which pybuggy fixtures and runtime components to use,
 and lock `pytest` in as the validation tool.
 
@@ -39,16 +39,16 @@ Anchor the following before invoking the goga skill and hold it for the entire s
 
 Arguments: `$ARGUMENTS`
 
-1. If `$ARGUMENTS` is empty — resolve `<feature>` from the single/selected file under `docs/design/` (as in
+1. If `$ARGUMENTS` is empty — resolve `<topic>` from the single/selected file under `docs/design/` (as in
    `goga-design`); otherwise halt and ask the user.
 2. Load the testing context via the **Skill tool**: `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`.
-3. Invoke `goga-design` via the **Skill tool**, passing `<feature>` as the argument and attaching the explicit
+3. Invoke `goga-design` via the **Skill tool**, passing `<topic>` as the argument and attaching the explicit
    testing-mode package (marker phrase: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells;
    deliverable is `test_*.py`, never production code; valid request body MUST use the `Request` model imported from the
    fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic; parametrized variants differ only in
    values — the test body stays linear, no branching by variant»).
 4. `goga-design` itself dispatches to `goga-design-by-changes` — do not call it bypassing `goga-design`.
-5. On completion, verify that `docs/design/<feature>.md` describes test generation and names `pytest` as
+5. On completion, verify that `docs/design/<topic>.md` describes test generation and names `pytest` as
    validation. If it does not, amend it in the testing spirit.
 
 ## Invariants

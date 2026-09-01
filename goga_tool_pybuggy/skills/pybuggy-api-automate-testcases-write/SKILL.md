@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-write
-description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to docs/testcases/<feature>.md
+description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to docs/testcases/<topic>.md
 ---
 
 ## Identity
@@ -23,17 +23,17 @@ You load five context inputs:
 1. [TESTCASES_INTAKE] — version/env, data/preconditions, roles.
 2. [TESTCASES_DISCOVERY] — endpoint contracts (`Request` model, parameters, response schemas), severity
    scale.
-3. [TESTCASES_ELABORATION] — approved feature traces (Call → Effect → Verification).
-4. [TESTCASES_PLAN] — feature description, integration points, goals, case matrix.
+3. [TESTCASES_ELABORATION] — approved topic traces (Call → Effect → Verification).
+4. [TESTCASES_PLAN] — topic description, integration points, goals, case matrix.
 5. [TOOLS_REPORT] — agreed tools: existing usage keys (§8) and new ones
    (usage files are already created by the `tools` step).
 
 ### Step 2. Build the document header and description
 
 1. Header: `# Service version: <value from requirements>`.
-2. Sections from the plan: Feature Under Test Description, Feature Integration Points, Integration Testing
+2. Sections from the plan: Topic Under Test Description, Topic Integration Points, Integration Testing
    Goals.
-3. "Feature traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
+3. "Topic traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
    trace `## TR-<N>: <name>` with endpoints and numbered steps **Call** → **Effect** →
    **Verification**.
 
@@ -43,7 +43,7 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
 
 - **title** — specific; reflects the essence of the check.
 - **severity** — per the discovery severity scale.
-- **feature** — brief description of the feature under test.
+- **topic** — brief description of the topic under test.
 - **requirements** — §3 registry requirements the case verifies: `FR-<N>`, one or more, comma-separated.
   Source — the "requirements" column of the [TESTCASES_PLAN] matrix; every value belongs to the §3 registry
   from [TESTCASES_INTAKE]. A case from the reverse gap of elaborate (an API capability outside the user
@@ -57,7 +57,7 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
    from §8 or a new one from [TOOLS_REPORT]) **without** implementation details (no imports/calls).
 2. **Execution steps** — numbered; for a chain case the steps follow the steps of its `TR-<N>` trace (Call
    → Effect → Verification); each step:
-    - **Action:** what we do — a call to a feature endpoint. Positive — a call with valid data; negative —
+    - **Action:** what we do — a call to a topic endpoint. Positive — a call with valid data; negative —
       a call leading to an error (invalid data, missing permissions, violated precondition). For chains — a
       sequence of actions with state transitions.
     - **Data:** concrete `Request` field values (from the model), path/query parameters. No placeholders.
@@ -90,11 +90,11 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
    [TESTCASES_INTAKE]; the cases column lists every case that names this FR, with its type; status
    "covered" / "not covered" / "excluded (by user decision)" (decisions — from "Requirements coverage
    decisions" in [TESTCASES_PLAN]).
-4. Save the result to `docs/testcases/<feature>.md` (the pipeline orchestrator passes the path via
+4. Save the result to `docs/testcases/<topic>.md` (the pipeline orchestrator passes the path via
    Artifact Path Resolution; create the `docs/testcases/` directory if absent). After any edit to the
    cases, recompute the matrix and the counter.
 
-### Step 5. Produce [FEATURE_TESTCASES]
+### Step 5. Produce [TOPIC_TESTCASES]
 
 STOP if:
 
@@ -108,11 +108,11 @@ STOP if:
 Fill in every section. Empty sections are forbidden.
 
 ```md
-# [FEATURE_TESTCASES]
+# [TOPIC_TESTCASES]
 
 ## File path
 
-[docs/testcases/<feature>.md — confirmation of saving]
+[docs/testcases/<topic>.md — confirmation of saving]
 
 ## Summary
 
@@ -125,16 +125,16 @@ not covered Z, excluded by decision W]
 
 # Service version: <from requirements>
 
-# Feature Under Test Description
+# Topic Under Test Description
 ...
 
-# Feature Integration Points
+# Topic Integration Points
 ...
 
 # Integration Testing Goals
 ...
 
-# Feature traces
+# Topic traces
 
 ## TR-<N>: <name>
 
@@ -146,7 +146,7 @@ not covered Z, excluded by decision W]
 
 [Repeat for each trace]
 
-# Test cases for feature integration testing
+# Test cases for topic integration testing
 
 ## Total number of test cases: N
 
@@ -158,13 +158,13 @@ not covered Z, excluded by decision W]
 
 - **title**
 - **severity** [blocker/critical/normal/minor/trivial]
-- **feature**
+- **topic**
 - **requirements** [FR-<N> — one or more, from the §3 requirements registry; "—" for a reverse-gap case]
 - **description**
     - **Preconditions:**
         - [<system state and data for the scenario>]
     - **Execution steps:**
-        1. **Action:** [<feature endpoint call>]
+        1. **Action:** [<topic endpoint call>]
            **Data:** [<Request field values, parameters>]
            **Expectation:** [<status code and the response fields/structure to verify — descriptive>]
         2. ...

@@ -10,7 +10,7 @@ description: Анализ причин падений — по каждому т
 
 ## Вход
 
-`docs/fix/<feature>-collect.md` — репорт collect. `<feature>`: из `$ARGUMENTS`; иначе скан `docs/fix/*-collect.md` (один файл → имя; несколько → спроси пользователя). Разрешение фиксируется на всю сессию и передаётся в саб-скиллы.
+`docs/fix/<topic>-collect.md` — репорт collect. `<topic>`: из `$ARGUMENTS`; иначе скан `docs/fix/*-collect.md` (один файл → имя; несколько → спроси пользователя). Разрешение фиксируется на всю сессию и передаётся в саб-скиллы.
 
 ## Pipeline
 
@@ -19,7 +19,7 @@ description: Анализ причин падений — по каждому т
 ### Step 1. Diagnose
 
 - Скилл: `goga-tool-pybuggy-api-fix-analyze-diagnose`
-- Читает: `docs/fix/<feature>-collect.md`
+- Читает: `docs/fix/<topic>-collect.md`
 - Результат: [FIX_EVIDENCE] — по каждому падению досье, доказательства, гипотеза класса
 - STOP: collect-репорт или лог недоступен; 0 падений в репорте — «падений нет», завершить пайплайн
 
@@ -35,7 +35,7 @@ description: Анализ причин падений — по каждому т
 
 - Скилл: `goga-tool-pybuggy-api-fix-analyze-report`
 - Читает: [FIX_EVIDENCE], [FIX_CLASSIFICATION]
-- Результат: [FIX_ANALYSIS] — сохранён в `docs/fix/<feature>-analysis.md`
+- Результат: [FIX_ANALYSIS] — сохранён в `docs/fix/<topic>-analysis.md`
 
 ## Правило вывода
 

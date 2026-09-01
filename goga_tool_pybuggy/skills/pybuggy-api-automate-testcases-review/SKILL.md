@@ -1,20 +1,20 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-review
-description: Verification of test cases in docs/testcases/<feature>.md — traceability to requirements (the requirements field, the FR coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
+description: Verification of test cases in docs/testcases/<topic>.md — traceability to requirements (the requirements field, the FR coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
 ---
-# Pybuggy API Feature Testcases Review
+# Pybuggy API Topic Testcases Review
 
 ## Identity
 
-You are the reviewer. Your review target is the artifact "Detailed test cases for a feature":
-`docs/testcases/<feature>.md`, produced by the pipeline
+You are the reviewer. Your review target is the artifact "Detailed test cases for a topic":
+`docs/testcases/<topic>.md`, produced by the pipeline
 `goga-tool-pybuggy-api-automate-testcases`. The artifact contains concrete, automation-ready
 integration cases of three types — Flow, Positive, Negative — **without test code**: only
 behavior descriptions and expected outcomes.
 
 ## Objective
 
-You verify `docs/testcases/<feature>.md` for five properties: **completeness, traceability,
+You verify `docs/testcases/<topic>.md` for five properties: **completeness, traceability,
 realness, coverage, and case quality**. Your success criterion: there are enough cases, and each
 case is specific enough, for the `cells` pipeline to build a separate `Routine` from it. You
 perform three actions in sequence: you **analyze** the artifact, you **report** findings, and you
@@ -25,7 +25,7 @@ perform three actions in sequence: you **analyze** the artifact, you **report** 
 **A case describes what is checked, not how.** Every case must be unambiguously automatable:
 data comes from the real `Request` model, expectations come from real `schemas`, checks are
 thorough (not a single status code). Everything traces back to the requirements
-(`docs/requirements/<feature>.md` — the declared behavior, error contracts, business
+(`docs/requirements/<topic>.md` — the declared behavior, error contracts, business
 preconditions) and to real requirements artifacts — no guesswork. Any case that cannot be turned
 into a `Routine` without guesswork is a finding.
 
@@ -39,12 +39,12 @@ choices.
 
 ## Verifiable Artifact
 
-- `docs/testcases/<feature>.md` — detailed test cases (the output of the `testcases` pipeline).
-- **Upstream artifact** for traceability: `docs/requirements/<feature>.md` (the same feature).
+- `docs/testcases/<topic>.md` — detailed test cases (the output of the `testcases` pipeline).
+- **Upstream artifact** for traceability: `docs/requirements/<topic>.md` (the same topic).
 
-**`<feature>` resolution:** from `$ARGUMENTS` (the feature name); if the arguments are empty —
+**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty —
 scan `docs/testcases/`: one file → its name (without extension); several → AskUserQuestion with
-the list. Use a single `<feature>` name for both the artifact under review and the upstream
+the list. Use a single `<topic>` name for both the artifact under review and the upstream
 requirements. Hold the resolution for the entire session.
 
 ---
@@ -53,9 +53,9 @@ requirements. Hold the resolution for the entire session.
 
 ### Phase 1. Load Context
 
-1. Read `docs/testcases/<feature>.md` (by the resolution). If the file is missing — stop and
+1. Read `docs/testcases/<topic>.md` (by the resolution). If the file is missing — stop and
    report to the user.
-2. Read the upstream artifact `docs/requirements/<feature>.md` — the source of truth for
+2. Read the upstream artifact `docs/requirements/<topic>.md` — the source of truth for
    traceability (endpoints, version/env, scenarios, contracts, acceptance criteria). If it is
    missing — record a **Critical** finding (the testcases were built without a valid input).
    From §3 of the upstream, parse the `FR-<N>` registry (identifier + wording + subsection).
@@ -83,18 +83,18 @@ Check **the document structure and the structure of every case**.
 The document must contain the sections:
 
 1. `# Service version: <value>` — from the requirements.
-2. `# Description of the feature under test`.
-3. `# Feature integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
+2. `# Description of the topic under test`.
+3. `# Topic integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
 4. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
-5. `# Feature traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
+5. `# Topic traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
    **Verification** (approved at the elaborate stage).
-6. `# Test cases for feature integration testing` with `## Total number of test cases: N`.
+6. `# Test cases for topic integration testing` with `## Total number of test cases: N`.
 7. `# Requirements coverage matrix` — the table `FR | requirement (brief) | type (§3 subsection) |
    cases (TC-<N> + type) | status`, one row per FR of the §3 registry. A missing section —
    **Critical**; an empty one — **High**.
 
 Every case (`#### TC-<N>: <title>`) must contain the fields:
-- **title**, **severity**, **feature**, **requirements** (`FR-<N>` — one or more, or "—");
+- **title**, **severity**, **topic**, **requirements** (`FR-<N>` — one or more, or "—");
 - **description** with the subsections **Preconditions**, **Execution Steps** (each step:
   **Action**, **Data**, **Expectation**);
 - **Expected Result**.
@@ -118,18 +118,18 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
    essential behavior or an uncovered acceptance criterion — **High**.
 4. **Roles/access** — if the requirements describe roles/auth — among the cases there are the
    corresponding negative checks (a foreign session, missing auth). An omission — **Medium**
-   (or **High** if auth is a key part of the feature).
-5. **Boundaries** — the constraints from the requirements (what the feature does not do) are
+   (or **High** if auth is a key part of the topic).
+5. **Boundaries** — the constraints from the requirements (what the topic does not do) are
    taken into account (either not tested as functionality, or covered by negative cases at the
    boundaries). A contradiction — **Medium**.
 6. **Tools (usage keys)** — every usage key mentioned in the case Preconditions exists: either
-   in §8 of `docs/requirements/<feature>.md` (the registry of available usages), or as a
+   in §8 of `docs/requirements/<topic>.md` (the registry of available usages), or as a
    created file `.goga/usages/cooks/<key>.md` (the `tools` step of the pipeline). A key with no
    file on disk and no §8 entry — **High** (a dangling reference: `cells-contracts` will wire
    it into the Header, and the backtick will not resolve). The reverse — a case with data setup
    requiring a tool but having no key — **Medium** (the need was never agreed upon, or the case
    was rewritten without the tool — check [TOOLS_REPORT]/"Deferred needs").
-7. **Traces trace back to the requirements** — every trace rests on the feature description (§1)
+7. **Traces trace back to the requirements** — every trace rests on the topic description (§1)
    and the declared behavior (§3) of the requirements: the trace endpoints come from §2, the
    effects from §3, the verifications from the schemas/adjacent coverage endpoints. A foreign
    effect/endpoint or a verification without a contractual basis — **High**. A trace without
@@ -266,7 +266,7 @@ Present the findings **one at a time**. For each:
 
 #### Step 3. Apply the decision
 
-- **Apply**: update `docs/testcases/<feature>.md`, then re-verify that the fix introduced no
+- **Apply**: update `docs/testcases/<topic>.md`, then re-verify that the fix introduced no
   new problems (re-run the relevant checks, including recalculating `Total number` and the
   coverage matrix). Briefly report the result.
 - **Skip**: mark as "skipped" and continue.
@@ -281,8 +281,8 @@ After all findings — the summary:
 - **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Fix scope rule:** fix **only** `docs/testcases/<feature>.md`. Do not edit
-> `docs/requirements/<feature>.md` (it is upstream — `requirements-review` checks it), do not
+> **Fix scope rule:** fix **only** `docs/testcases/<topic>.md`. Do not edit
+> `docs/requirements/<topic>.md` (it is upstream — `requirements-review` checks it), do not
 > touch `api.py`/`schemas`/`tests/`, and do not run `pull`/`generate`. If the realness is
 > broken because model data is missing — direct the user to rerun `testcases`. If an uncovered
 > FR stems from a gap in the requirements — direct the user to `requirements` (the matrix
@@ -293,7 +293,7 @@ After all findings — the summary:
 ## Output
 
 - Findings summary: fixed / skipped by severity and area
-- The updated `docs/testcases/<feature>.md` (if fixes were applied)
+- The updated `docs/testcases/<topic>.md` (if fixes were applied)
 - Verdict: passed / failed
 
 ---
@@ -302,13 +302,13 @@ After all findings — the summary:
 
 Before finishing, verify:
 
-1. Have you read `docs/testcases/<feature>.md` (by the resolution) and the upstream
-   `docs/requirements/<feature>.md`?
+1. Have you read `docs/testcases/<topic>.md` (by the resolution) and the upstream
+   `docs/requirements/<topic>.md`?
 2. Have `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook` been loaded?
 3. Have the contracts been obtained from `api.py` (the `Request` model) and
    `schemas/<status>.json`?
 4. Have you checked the structural completeness of the document and of every case (all
-   fields/subsections, the "Feature traces" section with Call/Effect/Verification)?
+   fields/subsections, the "Topic traces" section with Call/Effect/Verification)?
 5. Have you checked the traceability to the requirements (version, endpoints, scenarios,
    acceptance criteria, traces rest on §1/§2/§3) and the existence of the Preconditions usage
    keys (§8 / `.goga/usages/cooks/`)?
