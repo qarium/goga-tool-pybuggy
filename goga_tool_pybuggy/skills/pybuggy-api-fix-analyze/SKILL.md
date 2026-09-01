@@ -2,6 +2,7 @@
 name: goga-tool-pybuggy-api-fix-analyze
 description: Анализ причин падений — по каждому тесту причина и класс, интерактивно с пользователем
 ---
+
 # Pybuggy API Fix — Analyze
 
 ## Identity
@@ -10,7 +11,8 @@ description: Анализ причин падений — по каждому т
 
 ## Вход
 
-`docs/fix/<topic>-collect.md` — репорт collect. `<topic>`: из `$ARGUMENTS`; иначе скан `docs/fix/*-collect.md` (один файл → имя; несколько → спроси пользователя). Разрешение фиксируется на всю сессию и передаётся в саб-скиллы.
+`docs/fix/<topic>-collect.md` — репорт collect. `<topic>`: из `$ARGUMENTS`; Документ фиксируется на всю сессию и
+передаётся в саб-скиллы.
 
 ## Pipeline
 
