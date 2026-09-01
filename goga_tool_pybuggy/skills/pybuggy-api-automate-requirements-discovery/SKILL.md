@@ -17,9 +17,14 @@ At the endpoint selection stage, always ask the user to confirm the selection (2
 
 ### Step 1. Pull specifications (pull)
 
-1. Run: `goga tool pybuggy endpoint pull`.
-2. Specs without a `git:` block (local) are skipped with a WARNING status — this is normal; record the status of every spec.
-3. Record the pulled `specs` and their `location`.
+1. Run `goga tool pybuggy endpoint pull` **with the topic's spec ref** from [INTAKE_REPORT] ("Spec
+   version (ref)"): a feature ref → `--ref <ref>` (global) or `--ref <spec>:<ref>` (per-spec);
+   `default` or `local` → no `--ref` (and `local` skips pull entirely).
+2. A ref is set for a spec without a `git:` block (local) — record a WARNING in the report Notes
+   (the ref cannot be applied to a local spec).
+3. Specs without a `git:` block (local) are skipped with a WARNING status — this is normal; record the
+   status **and the effective ref** of every spec.
+4. Record the pulled `specs` and their `location`.
 
 ### Step 2. Scan project usages
 
@@ -112,7 +117,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Specs (pull)
 
-[Table: spec | location | source (git/local) | pull status]
+[Table: spec | location | source (git/local) | ref (default / <ref>) | pull status]
 
 ## Project usages (.goga/usages/ scan)
 

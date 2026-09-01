@@ -57,7 +57,7 @@ format from the requirements pipeline) and extract:
 ### Step 3. Record the gaps
 
 Collect everything the requirements leave missing or ambiguous (no artifact paths, error behavior not
-described, version/env not set, etc.) into a list for clarification at the discovery stage.
+described, etc.) into a list for clarification at the discovery stage.
 
 ### Step 4. Produce [TESTCASES_INTAKE]
 
@@ -78,10 +78,6 @@ Fill in every section. Empty sections are prohibited.
 ## Requirements source
 
 [Topic name `<topic>` + the path to the file `docs/requirements/<topic>.md` + confirmation that the requirements are loaded]
-
-## Service version and environment
-
-[env/version from the requirements. Empty if not specified — mark it as a gap.]
 
 ## Declared topic endpoints
 

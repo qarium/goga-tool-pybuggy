@@ -23,7 +23,7 @@ the result to `docs/arch/<topic>.md`.
 1. [CONTRACTS_REPORT] — the approved CODEMANIFESTs of all test cells (including the cell-specific tool usages
    connected in `contracts`).
 2. [CELL_MAP_REPORT] — cells, Routines, case mapping.
-3. [CELLS_INTAKE] — topic, version/env.
+3. [CELLS_INTAKE] — topic.
 
 ### Step 2. Implementation Order
 
@@ -78,8 +78,7 @@ Populate every section. Empty sections are forbidden.
 
 ## Context
 
-[Inputs: docs/testcases/<topic>.md, docs/requirements/<topic>.md; base Usages/Annotations from the config;
-version/env]
+[Inputs: docs/testcases/<topic>.md, docs/requirements/<topic>.md; base Usages/Annotations from the config]
 
 ## Implementation Order
 

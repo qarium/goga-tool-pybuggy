@@ -13,7 +13,7 @@ cannot be built without a valid input.
 
 You **verify** the presence of `docs/testcases/<topic>.md` (+ `docs/requirements/<topic>.md` as
 context) and **extract** from the test cases only what is recorded: endpoints, cases (type, title,
-severity, steps, preconditions, expectations), version/env. You do not infer anything — gaps go to
+severity, steps, preconditions, expectations). You do not infer anything — gaps go to
 "To clarify".
 
 ---
@@ -38,7 +38,6 @@ From `docs/testcases/<topic>.md`, extract for each case:
 3. The case type (Flow / Positive / Negative) and the endpoint it belongs to (endpoint-id, spec,
    method, path).
 4. Preconditions, execution steps (Action / Data / Expectation), expected result.
-5. The service version / env from the document header.
 
 ### Step 3. Group the cases by endpoints
 
@@ -48,7 +47,7 @@ boundaries will be defined from them by the cell-map stage. Record: endpoint-id 
 ### Step 4. Record the gaps
 
 Collect everything that is missing or ambiguous (no `api/<spec>/<id>/api.py` artifact paths,
-version/env not set, a case without an endpoint, etc.) into a list for clarification at the
+a case without an endpoint, etc.) into a list for clarification at the
 context/cell-map stages.
 
 ### Step 5. Produce [CELLS_INTAKE]
@@ -71,10 +70,6 @@ Fill in every section. Empty sections are prohibited.
 
 [Topic name `<topic>` + confirmation that `docs/testcases/<topic>.md`
 (+ `docs/requirements/<topic>.md`) are loaded]
-
-## Service version and environment
-
-[env/version from the test cases. Mark a gap if not specified.]
 
 ## Endpoints and their cases
 

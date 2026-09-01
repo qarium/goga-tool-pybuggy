@@ -51,6 +51,10 @@ Dossier analysis (arguments for the user, not a decision on their behalf):
 - The test case is correct and the test corresponds to it → the SUT's behavior violates the contract → arguments for a service bug.
 - The test distorts the test case (wrong data, wrong assert, wrong endpoint) → arguments for a test fix.
 - Insufficient data (spec imprecise, SUT behavior ambiguous) → arguments for returning to the test cases.
+- The SUT of the topic's target environment is unreachable or answers as the wrong version (a feature
+  branch not deployed / deployment lag / wrong `--base-url`) → arguments for restoring the environment
+  first (the environment STOP condition covers this) — do not classify the failure as a service bug
+  before the environment is confirmed.
 
 AskUserQuestion (2–4 options):
 

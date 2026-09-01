@@ -77,5 +77,8 @@ An empty section = an incomplete sub-skill = pipeline STOP.
   the backbone of test-case traceability
 - confirm the endpoint selection and ambiguous decisions with the user
 - record the paths of the generated artifacts (`api.py`, `schemas`)
+- record the topic version context (spec ref + target environment with its base URL) in the
+  requirements artifact — downstream pipelines and every recorded test run command
+  (`pytest ... --base-url <url>`) rely on it
 - store the final requirements artifact at `docs/requirements/<topic>.md` (the path from Artifact Path Resolution)
 - ask the user open questions with answer options

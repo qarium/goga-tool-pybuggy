@@ -20,7 +20,7 @@ each case verifies, not **how**; use only verified facts.
 
 You load five context inputs:
 
-1. [TESTCASES_INTAKE] — version/env, data/preconditions, roles.
+1. [TESTCASES_INTAKE] — data/preconditions, roles.
 2. [TESTCASES_DISCOVERY] — endpoint contracts (`Request` model, parameters, response schemas), severity
    scale.
 3. [TESTCASES_ELABORATION] — approved topic traces (Call → Effect → Verification).
@@ -30,10 +30,9 @@ You load five context inputs:
 
 ### Step 2. Build the document header and description
 
-1. Header: `# Service version: <value from requirements>`.
-2. Sections from the plan: Topic Under Test Description, Topic Integration Points, Integration Testing
+1. Sections from the plan: Topic Under Test Description, Topic Integration Points, Integration Testing
    Goals.
-3. "Topic traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
+2. "Topic traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
    trace `## TR-<N>: <name>` with endpoints and numbered steps **Call** → **Effect** →
    **Verification**.
 
@@ -122,8 +121,6 @@ not covered Z, excluded by decision W]
 ## Artifact excerpt
 
 [Verbatim format of the saved file:]
-
-# Service version: <from requirements>
 
 # Topic Under Test Description
 ...

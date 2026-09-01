@@ -19,18 +19,23 @@ You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding
     - introduce identifiers in §3 only — §4 (preconditions) and §5 (roles) remain textual.
 4. Include verified facts only — facts from the service spec and facts confirmed by the user.
    Do not guess.
-5. Copy the topic description from the "Original request" section of [INTAKE_REPORT] into §1
+5. Copy the topic version context from [INTAKE_REPORT] into the artifact: the spec ref (§1
+   "Spec version") and the target environment (§4 "Target environment") — verbatim, with the
+   user's confirmed decision. Downstream pipelines (testcases → cells → apply → design → plan →
+   accept → fix) read the version from here; every recorded test run command for a non-standard
+   environment carries `pytest ... --base-url <url>`.
+6. Copy the topic description from the "Original request" section of [INTAKE_REPORT] into §1
    verbatim — the `elaborate` stage of the `testcases` pipeline matches this description against
    the API.
-6. Copy the usages registry from the "Project usages" section of [DISCOVERY_REPORT] into §8
+7. Copy the usages registry from the "Project usages" section of [DISCOVERY_REPORT] into §8
    (key | path | role | purpose — a reference of available assets, with no tool selection).
-7. Copy the coverage status from the "Existing coverage" section of [DISCOVERY_REPORT] into §9:
+8. Copy the coverage status from the "Existing coverage" section of [DISCOVERY_REPORT] into §9:
    which endpoints are already covered, which Routines exist, and the action for each —
    reuse / extend / regenerate (drifted) / keep stale contract (user decision) — grounding the
    action in the drift status from the "Contract drift (diff)" section of [DISCOVERY_REPORT]:
    an in-sync covered endpoint is reused, a drifted one carries the recorded user decision.
-8. Verify completeness: every section is filled in.
-9. Save [TOPIC_SPEC] to `docs/requirements/<topic>.md` (create the `docs/requirements/`
+9. Verify completeness: every section is filled in.
+10. Save [TOPIC_SPEC] to `docs/requirements/<topic>.md` (create the `docs/requirements/`
    directory if it does not exist; overwrite the file on repeated runs). The pipeline orchestrator
    supplies the target path (Artifact Path Resolution).
 
@@ -49,6 +54,10 @@ content follows the format below. Fill in every section. Empty sections are forb
 - **Service:** [Brief description of the service]
 - **Topic description (verbatim):** [User's original request — from the intake section "Original request"]
 - **Topic goal:** [Refined goal]
+- **Spec version:** [default branch | `ref <ref>` (per spec when they differ) | local spec, no pull —
+  the confirmed version context; pull/generate/diff commands of this topic use it]
+- **Target environment:** [standard (.env / QA_BASE_URL) | `<url>` of the environment under test —
+  test run commands of this topic carry `--base-url <url>`]
 
 **2. Topic endpoints:**
 
@@ -79,6 +88,8 @@ subsection order, no gaps, no duplicates) — the registry for test case traceab
 
 - Business preconditions (entities/roles/states — stated as a need): [...]
 - Environment (env/version): [...]
+- Target environment (base URL): [standard `.env`/`QA_BASE_URL` | `<url>` where the SUT of this
+  topic is deployed — recorded run commands use `pytest ... --base-url <url>`]
 
 **5. Roles and permissions:**
 

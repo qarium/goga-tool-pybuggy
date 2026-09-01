@@ -39,7 +39,9 @@ pass" requirement: a single unfixable test would otherwise block the entire buil
 1. `goga-lang-disp` / `goga-cell-python` — language rules.
 2. `goga-cell`, `goga-tool-pybuggy-api-cookbook` — the test-cells DSL.
 3. `goga-tool-pybuggy-api-usage` — pybuggy runtime.
-4. Read three artifacts: the plan, the design doc, and every CODEMANIFEST of the test cells.
+4. Read three artifacts: the plan, the design doc, and every CODEMANIFEST of the test cells. Read
+   the topic's target environment from `docs/requirements/<topic>.md` (§1/§4) when present — it
+   defines whether test-run commands must carry `--base-url <url>`.
 
 ### Phase 2. Base Verification
 
@@ -49,9 +51,13 @@ CODEMANIFEST consistency and lint. Combine these base findings with the test che
 ### Phase 3. Critical Test-Execution Checks
 
 1. **`## Validation Commands` contains `pytest`** for the affected tests (e.g. `pytest tests/<spec>/ -q`). Missing
-   pytest = **Critical** finding: the tests will not run.
+   pytest = **Critical** finding: the tests will not run. When the topic's requirements (§1/§4) define a
+   non-standard target environment, the command must carry `--base-url <url>`: its absence = **Critical**
+   finding — ralphex would run the tests against the **wrong SUT** (a feature-branch topic against the
+   default environment).
 2. **Tasks contain an executable checkbox that runs the tests** (e.g.
-   `[ ] Run tests: pytest tests/<spec>/ -q`). A checkbox marked "manual/skipped/not automatable" =
+   `[ ] Run tests: pytest tests/<spec>/ -q --base-url <url>`) with the same environment flag as the
+   Validation Commands. A checkbox marked "manual/skipped/not automatable" =
    **Critical** finding: ralphex skips it.
 3. **Routine → test file:** every Routine in a test cell's CODEMANIFEST maps to a plan task that generates
    `test_<name>.py` at that Routine's `location`. A missing task = **High** finding.
@@ -90,6 +96,8 @@ executable checkbox for it. Apply plan edits only after user approval, within th
 
 - combine base `goga-review-plan` findings with the critical test-execution checks
 - require `pytest` in `## Validation Commands` and an executable Task checkbox
+- require `--base-url <url>` in every test-run command when the topic's requirements define a
+  non-standard target environment
 - require the CRITICAL failing-test policy in **every** Task
 - cross-check Routine ↔ `location` ↔ `test_*.py`
 - require the `Request` model for valid request bodies of positive/flow tests (`dict` — negative tests only)

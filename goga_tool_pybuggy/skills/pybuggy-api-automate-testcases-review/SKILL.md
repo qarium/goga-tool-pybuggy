@@ -56,7 +56,7 @@ requirements. Hold the resolution for the entire session.
 1. Read `docs/testcases/<topic>.md` (by the resolution). If the file is missing — stop and
    report to the user.
 2. Read the upstream artifact `docs/requirements/<topic>.md` — the source of truth for
-   traceability (endpoints, version/env, scenarios, contracts, acceptance criteria). If it is
+   traceability (endpoints, scenarios, contracts, acceptance criteria). If it is
    missing — record a **Critical** finding (the testcases were built without a valid input).
    From §3 of the upstream, parse the `FR-<N>` registry (identifier + wording + subsection).
    Phases 3 and 7 consume this registry as their baseline.
@@ -82,14 +82,13 @@ Check **the document structure and the structure of every case**.
 
 The document must contain the sections:
 
-1. `# Service version: <value>` — from the requirements.
-2. `# Description of the topic under test`.
-3. `# Topic integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
-4. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
-5. `# Topic traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
+1. `# Description of the topic under test`.
+2. `# Topic integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
+3. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
+4. `# Topic traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
    **Verification** (approved at the elaborate stage).
-6. `# Test cases for topic integration testing` with `## Total number of test cases: N`.
-7. `# Requirements coverage matrix` — the table `FR | requirement (brief) | type (§3 subsection) |
+5. `# Test cases for topic integration testing` with `## Total number of test cases: N`.
+6. `# Requirements coverage matrix` — the table `FR | requirement (brief) | type (§3 subsection) |
    cases (TC-<N> + type) | status`, one row per FR of the §3 registry. A missing section —
    **Critical**; an empty one — **High**.
 
@@ -109,42 +108,40 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
 
 **Goal:** cases trace back to the requirements rather than being invented.
 
-1. **Version/env** — the `Service version` in the cases matches the requirements. A mismatch —
-   **High**.
-2. **Endpoints** — the endpoints in "Integration points" and in the case steps are present in the
+1. **Endpoints** — the endpoints in "Integration points" and in the case steps are present in the
    requirements endpoint table. A foreign/nonexistent endpoint — **High**.
-3. **Requirements behavior coverage** — the main behavior and the error behavior from the
+2. **Requirements behavior coverage** — the main behavior and the error behavior from the
    requirements are reflected in the cases; the acceptance criteria are covered. Uncovered
    essential behavior or an uncovered acceptance criterion — **High**.
-4. **Roles/access** — if the requirements describe roles/auth — among the cases there are the
+3. **Roles/access** — if the requirements describe roles/auth — among the cases there are the
    corresponding negative checks (a foreign session, missing auth). An omission — **Medium**
    (or **High** if auth is a key part of the topic).
-5. **Boundaries** — the constraints from the requirements (what the topic does not do) are
+4. **Boundaries** — the constraints from the requirements (what the topic does not do) are
    taken into account (either not tested as functionality, or covered by negative cases at the
    boundaries). A contradiction — **Medium**.
-6. **Tools (usage keys)** — every usage key mentioned in the case Preconditions exists: either
+5. **Tools (usage keys)** — every usage key mentioned in the case Preconditions exists: either
    in §8 of `docs/requirements/<topic>.md` (the registry of available usages), or as a
    created file `.goga/usages/cooks/<key>.md` (the `tools` step of the pipeline). A key with no
    file on disk and no §8 entry — **High** (a dangling reference: `cells-contracts` will wire
    it into the Header, and the backtick will not resolve). The reverse — a case with data setup
    requiring a tool but having no key — **Medium** (the need was never agreed upon, or the case
    was rewritten without the tool — check [TOOLS_REPORT]/"Deferred needs").
-7. **Traces trace back to the requirements** — every trace rests on the topic description (§1)
+6. **Traces trace back to the requirements** — every trace rests on the topic description (§1)
    and the declared behavior (§3) of the requirements: the trace endpoints come from §2, the
    effects from §3, the verifications from the schemas/adjacent coverage endpoints. A foreign
    effect/endpoint or a verification without a contractual basis — **High**. A trace without
    Call/Effect/Verification steps — **High**.
-8. **FR registry** — every `requirements` value of the cases is present in the §3 registry of
+7. **FR registry** — every `requirements` value of the cases is present in the §3 registry of
    the upstream requirements. A phantom `FR-<N>` (not in §3 — e.g., the ids were reassigned
    when the requirements were regenerated) — **High**. `requirements` = "—" — **Medium**: check
    that the case comes from a reverse gap of elaborate, not from lost traceability.
-9. **Every FR in the matrix** — the set of matrix rows matches the §3 registry of the upstream:
+8. **Every FR in the matrix** — the set of matrix rows matches the §3 registry of the upstream:
    a row per `FR-<N>`, no extra rows. A missing/extra row — **High**.
-10. **An uncovered FR** — a matrix row with the status "not covered": a **High** finding with a
-    suggested fix (add a case following the trace/Verifications, or carry over the recorded
-    user decision from [TESTCASES_PLAN] and mark the row "excluded (by user decision)"). The
-    artifact is still saved — an honest "not covered" marker records a debt, it does not block
-    saving.
+9. **An uncovered FR** — a matrix row with the status "not covered": a **High** finding with a
+   suggested fix (add a case following the trace/Verifications, or carry over the recorded
+   user decision from [TESTCASES_PLAN] and mark the row "excluded (by user decision)"). The
+   artifact is still saved — an honest "not covered" marker records a debt, it does not block
+   saving.
 
 ---
 

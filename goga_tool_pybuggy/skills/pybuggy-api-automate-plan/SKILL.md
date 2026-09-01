@@ -14,12 +14,17 @@ tests** — otherwise `goga build` generates `test_*.py` files but never execute
 ## Mission
 
 Compile the ralphex plan `docs/plans/<topic>.md` from two inputs — the design document and the CODEMANIFEST
-test-cells — so that all four conditions hold:
+test-cells — so that all five conditions hold:
 
 1. each Routine of a test cell maps to a Task that generates the corresponding `test_*.py`;
-2. `## Validation Commands` includes `pytest` for the affected tests;
+2. `## Validation Commands` includes `pytest` for the affected tests — **with the topic's target
+   environment**: `pytest tests/<spec>/ -q --base-url <url>` when `docs/requirements/<topic>.md` (§1/§4)
+   defines a non-standard base URL (standard environment — no flag);
 3. the test run is an **executable** Task checkbox (not "manual/skipped"), so ralphex executes it;
-4. **every** Task in the plan carries the CRITICAL failing-test policy instruction: if a test fails and the
+4. the test-run checkbox carries the same `--base-url <url>` as the Validation Commands — otherwise
+   ralphex runs the tests against the **wrong SUT** (a feature-branch topic against the default
+   environment);
+5. **every** Task in the plan carries the CRITICAL failing-test policy instruction: if a test fails and the
    failure cannot be fixed, leave the test failing and proceed to the next task without blocking the build;
    skipping tests (`pytest.skip`, skip-markers, `xfail`) is **prohibited**. This constraint carries the same
    weight as read-only CODEMANIFEST.
@@ -59,10 +64,12 @@ Arguments: `$ARGUMENTS`
 
 1. Determine `<topic>` (from `$ARGUMENTS`, or by scanning `docs/design/`/`docs/plans/`, as in `goga-plan`).
 2. Load context via the **Skill tool**: `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`, `goga-cell`,
-   `goga-cell-python`.
+   `goga-cell-python`. Read the topic's target environment from `docs/requirements/<topic>.md` (§1/§4) —
+   it defines the `--base-url <url>` part of every test-run command (absent for the standard environment).
 3. Invoke `goga-plan` via the **Skill tool**, passing `<topic>` and the testing-mode payload (marker phrase:
    "Pybuggy testing mode: compile a plan to GENERATE and RUN integration tests from CODEMANIFEST test-cells;
-   deliverable is `test_*.py`; `pytest` MUST be in Validation Commands and as executable Task checkboxes;
+   deliverable is `test_*.py`; `pytest` MUST be in Validation Commands and as executable Task checkboxes,
+   carrying `--base-url <url>` when the topic's requirements define a non-standard target environment;
    valid request body MUST use the `Request` model imported from the fixture's `api.py` — raw `dict` only for
    negative cases bypassing pydantic; parametrized variants differ only in values — the test body stays linear,
    no branching by variant; CRITICAL in EVERY Task: on unfixable test failure — abandon the fix, leave
@@ -71,13 +78,16 @@ Arguments: `$ARGUMENTS`
 
 ## Post-Dispatch Gate (critical — enforcing test execution)
 
-After `docs/plans/<topic>.md` is generated, verify the five conditions below and amend the plan when needed:
+After `docs/plans/<topic>.md` is generated, verify the conditions below and amend the plan when needed:
 
 1. **`## Validation Commands`** contains a test-run command such as
-   `pytest tests/<spec>/ -q` (or `pytest tests/<spec>/<id>/ -q` for a specific cell). If the command is missing —
-   add it.
+   `pytest tests/<spec>/ -q` (or `pytest tests/<spec>/<id>/ -q` for a specific cell) — **with
+   `--base-url <url>` appended when the topic's requirements (§1/§4) define a non-standard target
+   environment**. If the command is missing — add it; if the environment flag is missing — append it
+   (a feature-branch topic run against the default SUT produces wrong-environment failures).
 2. **Tasks** contain a test-run checkbox that is **executable** (for example
-   `[ ] Run tests: pytest tests/<spec>/ -q`). Never mark the test run as "manual", "skipped", or
+   `[ ] Run tests: pytest tests/<spec>/ -q --base-url <url>`) and carries the same environment flag
+   as the Validation Commands. Never mark the test run as "manual", "skipped", or
    "not automatable" — ralphex skips such items (task.txt marks them as done).
 3. Every Task that generates a `test_*.py` file references the `location` field from the CODEMANIFEST of the
    corresponding test cell.
@@ -96,6 +106,8 @@ If the plan fails the gate, append the missing pieces in the testing-mode spirit
 ### NEVER
 
 - ship a plan without `pytest` in `## Validation Commands`
+- ship a test-run command without `--base-url <url>` when the topic's requirements define a
+  non-standard target environment
 - mark the test run as "manual/skipped/not automatable"
 - plan production code, Entities, or `__init__.py`
 - invoke `goga-plan-by-design` directly, bypassing `goga-plan`
@@ -106,6 +118,8 @@ If the plan fails the gate, append the missing pieces in the testing-mode spirit
 ### ALWAYS
 
 - inject the testing pre-prompt before invoking `goga-plan`
+- carry the topic's target environment into every test-run command of the plan (`--base-url <url>`
+  from the requirements §1/§4; no flag for the standard environment)
 - run the Post-Dispatch Gate and refine the plan until pytest validation is in place
 - base the plan on the CODEMANIFEST test-cells and their `location` fields
 - load the pybuggy runtime reference and the DSL

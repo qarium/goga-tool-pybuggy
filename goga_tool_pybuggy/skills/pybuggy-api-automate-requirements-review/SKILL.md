@@ -77,7 +77,11 @@ Verify that the artifact contains **all mandatory sections**:
 
 1. **Context and goal** — the service, the user's verbatim topic description, and the refined goal.
    An empty verbatim description is **High** (the `elaborate` step of the `testcases` pipeline relies
-   on it for API matching).
+   on it for API matching). The **Spec version** and **Target environment** entries of §1 record the
+   topic's version context (ref / base URL) — their absence is **Medium** (downstream run commands
+   fall back to the standard environment and cannot verify the spec source; a **High** when the
+   topic evidently tests a feature branch). A feature ref together with the standard environment is
+   a contradiction — **High**: confirm with the user and record the decision.
 2. **Topic endpoints** — a table of `endpoint-id | spec | method | path | role in the topic` plus
    the generated artifact paths (`api.py`, `schemas`, the `tests/` directory).
 3. **Functional requirements** — main behavior, error behavior (contract), acceptance criteria,
@@ -182,7 +186,9 @@ Verify that the artifact contains **all mandatory sections**:
    may not (a foreign session, missing auth). An omission is **Medium** (or **High** if auth is a
    key part of the topic).
 4. **Business preconditions** — the preconditions (entities/roles/states) are concrete, not "prepare
-   data". Vague preconditions are **Medium**.
+   data". Vague preconditions are **Medium**. The **Target environment (base URL)** entry of §4 agrees
+   with §1 (a non-standard environment ⇒ every recorded run command carries `--base-url <url>`); a
+   divergence between §1 and §4 is **High**.
 5. **Integrations and mocks** — if the topic touches several endpoints or external components,
    this is reflected (chains, mocks, side effects). An omission in the presence of such dependencies
    is **Medium**.

@@ -28,6 +28,35 @@ scope and what stays outside. Your only input source is the user's request.
 2. Determine what belongs to the testing scope and what does not.
 3. If the goal is ambiguous — ask clarifying questions (as choice options), without diving into the project code.
 
+### Step 2.1. Resolve the topic version context
+
+This is the **only** place the version is asked; every later stage reads it from the requirements
+artifact. Ask via AskUserQuestion (one question per message, 2–4 options):
+
+1. **Spec ref** — which spec version the topic tests:
+
+   - **"Default branch"** — pull without `--ref` (the standard behavior);
+   - **"Feature branch"** — the spec is pulled from a given git ref (branch/tag); ask the ref name
+     at the next question;
+   - **"Local spec, no pull"** — the spec has no git source (or is edited manually); pull is skipped.
+
+2. **Git ref** (only when "Feature branch" was chosen) — the ref per spec; propose options derived
+   from the topic wording (a slug of the topic usually matches the service branch name) and the
+   config `git.ref` of `.goga/tools/pybuggy/config.yml`; other values come via user input. When
+   several git specs exist — ask whether one ref applies to all (`--ref <ref>`) or per-spec
+   (`--ref <spec1>:<ref1> --ref <spec2>:<ref2>`).
+
+3. **Target environment (base URL of test runs)** — where the tests must send requests:
+
+   - **"Standard (.env / QA_BASE_URL)"** — nothing changes;
+   - **"Feature environment"** — the URL of the environment the branch is deployed to (user input);
+   - **"base_url template value"** — when the plugin config `base_url` is a Jinja2 template, name
+     the variable value it renders from.
+
+   ⚠️ A feature ref together with the standard environment is a contradiction (feature contract
+   tested against the default SUT): re-ask with an explicit warning and record the confirmed
+   decision either way.
+
 ### Step 3. Capture preliminary signals
 
 Collect everything already known about the topic from the request:
@@ -65,6 +94,16 @@ Fill in every section. Empty sections are forbidden.
 ## Testing Scope
 
 [What is in scope; what is out of scope]
+
+## Spec version (ref)
+
+[default branch | feature ref per spec (`<ref>` / `<spec>:<ref>`) | local, no pull — the user's confirmed
+decision; for a feature ref, why this ref (which service branch the topic tests)]
+
+## Target environment (base URL)
+
+[standard (.env / QA_BASE_URL) | the explicit URL of the environment under test — recorded test run
+commands will carry `pytest ... --base-url <url>`; for a feature environment, where the branch is deployed]
 
 ## Known Signals
 

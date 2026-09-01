@@ -39,7 +39,9 @@ CODEMANIFEST consistency). Merge these findings with the test checks below.
    generation task bound to its `location`. A mismatch = **Critical**.
 3. **Runtime/fixtures:** the design doc uses the pybuggy `Api`/`Endpoint`/`ResponseWrapper` classes plus the assert layer. Their absence = **High**.
 4. **Validation:** the design doc enforces `pytest` as the verification tool. Its absence = **High** (this causes
-   `goga build` to not run the tests).
+   `goga build` to not run the tests). When `docs/requirements/<topic>.md` (§1/§4) defines a non-standard target
+   environment, the prescribed test commands must carry `--base-url <url>` — its absence = **High** (the tests
+   would run against the wrong SUT).
 5. **Restrictions:** the design doc introduces no Entities and no new `__init__.py`. A violation = **High**.
 6. **Request body — the `Request` model (positive/flow):** for **positive** and **flow** tests the design doc must
    require materializing a valid request body through the importable `Request` model from
@@ -65,4 +67,6 @@ with user approval, keeping the test focus.
 - combine the base `goga-review-design` findings with the test checks
 - cross-check Routine ↔ `location` ↔ `test_*.py`
 - require `pytest` as the validation in the design doc
+- require `--base-url <url>` in the prescribed test commands when the topic's requirements define a
+  non-standard target environment
 - require the `Request` model for valid request bodies in positive/flow tests (`dict` — negative tests only)

@@ -34,6 +34,10 @@ Anchor the following before invoking the goga skill and hold it for the entire s
   body — CODEMANIFEST `Steps` materialize verbatim, and a `dict` loses request validation.
 - **Constraints:** Routine-only cells; no Entities; no new production code; no new `__init__.py`.
 - **Validation:** the verification tool is `pytest` (for the plan). State in the design that validation = running the tests.
+- **Target environment:** read the topic's target environment from `docs/requirements/<topic>.md` (§1
+  "Target environment" / §4) and carry it into the design: when it is a non-standard base URL, every
+  test run command the design prescribes carries `pytest ... --base-url <url>` — running a
+  feature-branch topic against the default SUT is a wrong-environment failure.
 
 ## Dispatch
 
@@ -49,7 +53,9 @@ Arguments: `$ARGUMENTS`
    values — the test body stays linear, no branching by variant»).
 4. `goga-design` itself dispatches to `goga-design-by-changes` — do not call it bypassing `goga-design`.
 5. On completion, verify that `docs/design/<topic>.md` describes test generation and names `pytest` as
-   validation. If it does not, amend it in the testing spirit.
+   validation — **against the topic's target environment** (`--base-url <url>` in the prescribed test
+   commands when `docs/requirements/<topic>.md` defines a non-standard one). If it does not, amend it
+   in the testing spirit.
 
 ## Invariants
 
@@ -66,3 +72,5 @@ Arguments: `$ARGUMENTS`
 - load the pybuggy runtime reference (`goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`)
 - treat the CODEMANIFEST of the test cells as the source of truth
 - lock `pytest` in as the validation tool in the design document
+- carry the topic's target environment into the prescribed test commands (`--base-url <url>` when
+  the requirements define a non-standard environment)
