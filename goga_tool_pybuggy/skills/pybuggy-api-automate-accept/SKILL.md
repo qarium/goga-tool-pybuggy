@@ -44,7 +44,7 @@ Execute the steps strictly in sequence — one step at a time. Validate each ste
 
 - Each step MUST produce its complete output before the next step starts.
 - Each step is an independent atomic operation.
-- WAIT-gate: step 2 (only for findings that require a user decision) and step 4 (triage of each failure)
+- WAIT-gate: step 2 (only for findings that require a user decision) and step 3 (triage of each failure)
   require user interaction — one question per message, 2–4 options.
 
 ### Step 1. Scope
