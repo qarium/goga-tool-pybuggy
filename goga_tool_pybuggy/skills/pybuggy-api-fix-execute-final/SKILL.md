@@ -10,8 +10,9 @@ description: Финальный прогон всех тестов топика 
 
 ## Алгоритм
 
-1. Прогони все тесты топика: `pytest <пути всех клеток топика> -q 2>&1 | tee docs/fix/<topic>-log-final.txt`
-   (повторный запуск — перезапись). Пул клеток — объединение клеток из `docs/fix/<topic>-plan.md` и
+1. Прогони все тесты топика: `pytest <пути всех клеток топика> -q [--base-url <url>] 2>&1 | tee docs/fix/<topic>-log-final.txt`
+   (повторный запуск — перезапись; `--base-url <url>` — из версии топика `docs/fix/<topic>-collect.md`,
+   если окружение нестандартное). Пул клеток — объединение клеток из `docs/fix/<topic>-plan.md` и
    `docs/fix/<topic>-collect.md`; зафиксируй итог (passed/failed/errors/skipped).
 2. Собери результаты всех задач: статусы `done` / `failed` из [FIX_TASK_RESULT] исполнителей.
 3. Сохрани `docs/fix/<topic>-execute.md` (путь передаёт оркестратор) по формату ниже.

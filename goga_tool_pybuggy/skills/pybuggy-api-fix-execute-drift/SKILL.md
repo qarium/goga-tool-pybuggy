@@ -13,13 +13,17 @@ description: Исполнение задачи класса spec-drift — пр�
 1. Возьми задачу `FIX-<N>` (класс `spec-drift`) из плана: эндпоинты, клетка, тесты и изменения уже прописаны в задаче.
    Оркестратор передаёт номер попытки; для повтора — причину провала предыдущей и что уже сделано.
 2. Выполни шаги задачи по порядку:
-   1. артефакты: `goga tool pybuggy endpoint pull`; `goga tool pybuggy endpoint generate <endpoint-id> [...] -f`;
+   1. артефакты: `goga tool pybuggy endpoint pull` — с ref из версии топика
+      (`docs/fix/<topic>-collect.md`, секция «Версия топика»: фича-ref → `--ref <ref>` /
+      `--ref <spec>:<ref>`; дефолтная ветка → без `--ref`; local → без pull);
+      затем `goga tool pybuggy endpoint generate <endpoint-id> [...] -f`;
    2. Routine: обнови затронутые секции аннотаций в CODEMANIFEST клетки;
    3. тесты: правь `test_<name>.py` под новые аннотации.
 3. Прогони проверки задачи:
-   - `goga tool pybuggy endpoint diff <endpoint-id> [...]` — пустой;
+   - `goga tool pybuggy endpoint diff <endpoint-id> [...]` — пустой **при ref топика**;
    - `goga lint` клетки;
-   - `pytest tests/<spec>/<id>/ -q` — зелёный.
+   - `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — зелёный (`--base-url <url>` — из версии
+     топика при нестандартном окружении; стандартное — без флага).
 4. Один вызов = одна попытка: проверки выполнены один раз, без перезапусков и повторных правок внутри вызова —
    проверка не пройдена, верни `failed` с причиной.
 5. `done` — только если пройдены все три проверки.
@@ -41,7 +45,7 @@ description: Исполнение задачи класса spec-drift — пр�
 [done — все проверки пройдены / failed — какая проверка и почему. После 3-й попытки — окончательный]
 
 ## Результат проверки
-[diff-итог + lint-итог + команда pytest и итог]
+[diff-итог + lint-итог + команда pytest (с `--base-url <url>` при нестандартном окружении топика) и итог]
 
 ## Изменённые файлы
 [api.py, schemas, CODEMANIFEST, test_*.py — по факту правок]

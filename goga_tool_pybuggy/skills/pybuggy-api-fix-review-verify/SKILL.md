@@ -33,7 +33,9 @@ description: Статическая сверка исполнения плана
    `xfail`; тело линейно; тест соответствует аннотации Routine своей клетки.
 2. CODEMANIFEST — DSL-валидность (структура секций, порядок, пустые строки между секциями); существующие Routine не
    удалены.
-3. Артефакты `api/` — `goga tool pybuggy endpoint diff <endpoint-id>` пуст по затронутым эндпоинтам.
+3. Артефакты `api/` — `goga tool pybuggy endpoint diff <endpoint-id>` пуст по затронутым эндпоинтам
+   (при ref топика из `docs/fix/<topic>-collect.md`: спека на диске обязана быть приведена к ref топика,
+   иначе diff недостоверен).
 4. `docs/bugs/<topic>.md` — записи по шаблону `goga-tool-pybuggy-api-fix-execute-bug`, сквозная нумерация.
 
 ### Шаг 4. Регрессии

@@ -15,8 +15,8 @@ is defective (you fix it here), or the service under test violates its contract 
 
 Run the acceptance: inventory the topic's artifacts, verify the consistency of the
 TC → Routine → `test_*.py` chain, run the tests and triage each failure (test fix / service bug),
-record service bugs in `docs/bugs/<topic>.md` with a full description and the test case, and deliver
-the final report with a verdict.
+record service bugs in `docs/bugs/<topic>.md` — one record per problem, listing every test failed due
+to it — and deliver the final report with a verdict.
 
 ## Artifact Path Resolution
 
@@ -90,7 +90,7 @@ Triage each failed test along these categories (details in the `accept-run` sub-
 | Failure category | Meaning | Action |
 |---|---|---|
 | **Test defect** | the test artifact is wrong: broken materialization, incorrect assert, broken import, wrong data | fixed here, in `test_*.py`, with user approval |
-| **Service bug** | the test is correct; the SUT violates its contract | bug record in `docs/bugs/<topic>.md` with a description and the test case |
+| **Service bug** | the test is correct; the SUT violates its contract | bug record in `docs/bugs/<topic>.md` — one record per problem, with the failing tests listed |
 | **Ambiguous** | insufficient data to decide | joint analysis with the user (WAIT) |
 
 A valid test failure (a failure that exposed a service bug) **blocks the ACCEPTED_WITH_NOTES verdict** but does not
@@ -104,7 +104,7 @@ stop the pipeline: the remaining tests still run, and the bug is recorded in the
 - edit the CODEMANIFEST of test cells — the CODEMANIFEST is a read-only contract; a Routine/test-file desync
   is fixed by editing `test_*.py` or returning to `cells`/`apply`
 - mask failures (`pytest.skip`, skip-markers, `xfail`) — every failure stays visible
-- record a service bug without a detailed description and the test case
+- record a service bug without a concrete problem statement and the list of failing tests
 - decide the triage (test fix / service bug) without the user
 - bypass a STOP condition or skip a WAIT-gate
 - leave output sections empty
@@ -115,7 +115,8 @@ stop the pipeline: the remaining tests still run, and the bug is recorded in the
 - build the TC → Routine → `test_*.py` trace from the topic's artifacts
 - run the tests with the command from [ACCEPT_SCOPE] and record the actual result of each test
 - triage every failure together with the user (AskUserQuestion, 2–4 options)
-- record service bugs in `docs/bugs/<topic>.md` (create the directory if missing) with a full
-  description of the problem and the test case
+- record service bugs in `docs/bugs/<topic>.md` (create the directory if missing): one record per
+  problem with a concrete statement and the list of tests failed due to it; same cause found again —
+  extend the existing record's failing-tests table
 - fix test defects in `test_*.py` only with user approval and re-run the test after the fix
 - include the verdict, the list of bug records, and the applied test fixes in the final report
