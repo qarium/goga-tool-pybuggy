@@ -6,7 +6,8 @@ description: "Pybuggy API-test fix lifecycle"
   title: "Collect failures"
   communication: true
   prompt: |
-    Не выполняй действий, пока пользователь не даст входные данные.
+    Constrains:
+      - Don't research a project until you receive the task
   skills:
     - goga-tool-pybuggy-api-fix-collect
 
