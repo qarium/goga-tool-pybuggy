@@ -76,8 +76,8 @@ stages:
       Requirements elicitation for the topic under test.
 
       Requirements:
-      - Every functional requirement FR-<N> describes error behavior as a contract.
-      - Bind each statement of the user's topic description to an FR-<N>.
+      - Every functional requirement REQ-<N> describes error behavior as a contract.
+      - Bind each statement of the user's topic description to an REQ-<N>.
 
       Constraints:
       - No code examples in the requirements artifact.

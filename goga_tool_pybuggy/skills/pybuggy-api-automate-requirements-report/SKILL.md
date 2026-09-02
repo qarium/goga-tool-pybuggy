@@ -11,7 +11,7 @@ You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding
 
 1. Collect the outputs of all preceding steps: [INTAKE_REPORT], [DISCOVERY_REPORT], [ELABORATION_REPORT].
 2. Synthesize these outputs into the unified [TOPIC_SPEC] artifact.
-3. Assign each §3 requirement a stable `FR-<N>` identifier — test cases and the requirements
+3. Assign each §3 requirement a stable `REQ-<N>` identifier — test cases and the requirements
    coverage matrix reference it. Rules:
     - number sequentially within §3, starting at 1, with no gaps or duplicates;
     - order the numbering by subsection: "Main behavior" → "Error behavior (contract)" →
@@ -71,18 +71,18 @@ Paths of generated artifacts:
 
 **3. Functional requirements:**
 
-Every requirement carries a stable identifier `FR-<N>` (sequential numbering within §3 in
+Every requirement carries a stable identifier `REQ-<N>` (sequential numbering within §3 in
 subsection order, no gaps, no duplicates) — the registry for test case traceability.
 
 - **Main behavior:**
-    - `FR-1` — [Business rule / state transition / chain: condition → service response]
+    - `REQ-1` — [Business rule / state transition / chain: condition → service response]
 - **Error behavior (contract):**
-    - `FR-<N>` — [Error condition (invalid input / missing permissions / violated precondition /
+    - `REQ-<N>` — [Error condition (invalid input / missing permissions / violated precondition /
        unavailable dependency) → expected code and error nature from the spec]
 - **Acceptance criteria:**
-    - `FR-<N>` — [Criterion]
+    - `REQ-<N>` — [Criterion]
 - **Constraints and boundaries:**
-    - `FR-<N>` — [What the topic does not do]
+    - `REQ-<N>` — [What the topic does not do]
 
 **4. Business preconditions and environment:**
 

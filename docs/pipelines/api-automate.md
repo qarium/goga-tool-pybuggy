@@ -13,7 +13,7 @@ Need to adjust the pipeline for your project without forking it? See
 |----|-----------------------|-----------------------------------------------------------------------------------------------------------------------------------|
 | 1  | `create-requirements` | Collect detailed requirements for the topic under test → `docs/requirements/<topic>.md`                                           |
 | 2  | `requirements-audit`  | Review the requirements artifact                                                                                                  |
-| 3  | `test-design`         | Design integration test cases (TC-`<N>`, FR→TC traceability) → `docs/testcases/<topic>.md`                                        |
+| 3  | `test-design`         | Design integration test cases (TC-`<N>`, REQ→TC traceability) → `docs/testcases/<topic>.md`                                        |
 | 4  | `test-audit`          | Review the test cases                                                                                                             |
 | 5  | `prepare-testcases`   | Design the test cells (CODEMANIFEST per Routine) → `docs/arch/<topic>.md`                                                         |
 | 6  | `review-testcases`    | Review the test-cells plan                                                                                                        |
@@ -38,7 +38,7 @@ Need to adjust the pipeline for your project without forking it? See
 The pipeline accumulates one artifact per design stage:
 
 ```
-docs/requirements/<topic>.md   # detailed requirements (FR-<N>)
+docs/requirements/<topic>.md   # detailed requirements (REQ-<N>)
 docs/testcases/<topic>.md      # test cases (TC-<N>) + coverage matrix
 docs/arch/<topic>.md           # test-cells architecture plan
 docs/design/<topic>.md         # test-code design document

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-review
-description: Verification of test cases in docs/testcases/<topic>.md — traceability to requirements (the requirements field, the FR coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
+description: Verification of test cases in docs/testcases/<topic>.md — traceability to requirements (the requirements field, the REQ coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
 ---
 # Pybuggy API Topic Testcases Review
 
@@ -58,7 +58,7 @@ requirements. Hold the resolution for the entire session.
 2. Read the upstream artifact `docs/requirements/<topic>.md` — the source of truth for
    traceability (endpoints, scenarios, contracts, acceptance criteria). If it is
    missing — record a **Critical** finding (the testcases were built without a valid input).
-   From §3 of the upstream, parse the `FR-<N>` registry (identifier + wording + subsection).
+   From §3 of the upstream, parse the `REQ-<N>` registry (identifier + wording + subsection).
    Phases 3 and 7 consume this registry as their baseline.
 3. Load the pybuggy runtime reference via the **Skill tool** `goga-tool-pybuggy-api-usage`. You
    need three things from it: the `Request` model, the `api.py` fixture, the assert layer — they
@@ -88,12 +88,12 @@ The document must contain the sections:
 4. `# Topic traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
    **Verification** (approved at the elaborate stage).
 5. `# Test cases for topic integration testing` with `## Total number of test cases: N`.
-6. `# Requirements coverage matrix` — the table `FR | requirement (brief) | type (§3 subsection) |
-   cases (TC-<N> + type) | status`, one row per FR of the §3 registry. A missing section —
+6. `# Requirements coverage matrix` — the table `REQ | requirement (brief) | type (§3 subsection) |
+   cases (TC-<N> + type) | status`, one row per REQ of the §3 registry. A missing section —
    **Critical**; an empty one — **High**.
 
 Every case (`#### TC-<N>: <title>`) must contain the fields:
-- **title**, **severity**, **topic**, **requirements** (`FR-<N>` — one or more, or "—");
+- **title**, **severity**, **topic**, **requirements** (`REQ-<N>` — one or more, or "—");
 - **description** with the subsections **Preconditions**, **Execution Steps** (each step:
   **Action**, **Data**, **Expectation**);
 - **Expected Result**.
@@ -131,13 +131,13 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
    effects from §3, the verifications from the schemas/adjacent coverage endpoints. A foreign
    effect/endpoint or a verification without a contractual basis — **High**. A trace without
    Call/Effect/Verification steps — **High**.
-7. **FR registry** — every `requirements` value of the cases is present in the §3 registry of
-   the upstream requirements. A phantom `FR-<N>` (not in §3 — e.g., the ids were reassigned
+7. **REQ registry** — every `requirements` value of the cases is present in the §3 registry of
+   the upstream requirements. A phantom `REQ-<N>` (not in §3 — e.g., the ids were reassigned
    when the requirements were regenerated) — **High**. `requirements` = "—" — **Medium**: check
    that the case comes from a reverse gap of elaborate, not from lost traceability.
-8. **Every FR in the matrix** — the set of matrix rows matches the §3 registry of the upstream:
-   a row per `FR-<N>`, no extra rows. A missing/extra row — **High**.
-9. **An uncovered FR** — a matrix row with the status "not covered": a **High** finding with a
+8. **Every REQ in the matrix** — the set of matrix rows matches the §3 registry of the upstream:
+   a row per `REQ-<N>`, no extra rows. A missing/extra row — **High**.
+9. **An uncovered REQ** — a matrix row with the status "not covered": a **High** finding with a
    suggested fix (add a case following the trace/Verifications, or carry over the recorded
    user decision from [TESTCASES_PLAN] and mark the row "excluded (by user decision)"). The
    artifact is still saved — an honest "not covered" marker records a debt, it does not block
@@ -232,7 +232,7 @@ From the requirements/discovery, determine the set of endpoints and chains (flow
    case; the type in the subtitle matches the actual case content. A type mismatch —
    **Medium**.
 5. **Matrix ↔ cases** — the matrix aggregates the `requirements` fields of the cases: the set
-   of cases in a row matches the cases that specified that FR (across all `#### TC-<N>`); the
+   of cases in a row matches the cases that specified that REQ (across all `#### TC-<N>`); the
    types in the matrix match the case grouping. A divergence (the matrix lagged behind the
    cases) — **High**.
 
@@ -282,7 +282,7 @@ After all findings — the summary:
 > `docs/requirements/<topic>.md` (it is upstream — `requirements-review` checks it), do not
 > touch `api.py`/`schemas`/`tests/`, and do not run `pull`/`generate`. If the realness is
 > broken because model data is missing — direct the user to rerun `testcases`. If an uncovered
-> FR stems from a gap in the requirements — direct the user to `requirements` (the matrix
+> REQ stems from a gap in the requirements — direct the user to `requirements` (the matrix
 > honestly records the status).
 
 ---
@@ -310,8 +310,8 @@ Before finishing, verify:
    acceptance criteria, traces rest on §1/§2/§3) and the existence of the Preconditions usage
    keys (§8 / `.goga/usages/cooks/`)?
 6. Have you checked the coverage matrix (rows = the §3 registry, the `requirements` values of
-   the cases are in the registry — no phantom FRs, the aggregation agrees with the
-   `requirements` fields of all cases, uncovered FRs — High findings)?
+   the cases are in the registry — no phantom REQs, the aggregation agrees with the
+   `requirements` fields of all cases, uncovered REQs — High findings)?
 7. Have you checked the realness of the data/contracts (Request, parameters, status codes,
    schema fields)?
 8. Have you checked the type coverage (Flow/Positive/Negative per endpoint/chain) and the

@@ -73,7 +73,7 @@ An empty section = an incomplete sub-skill = pipeline STOP.
 
 - execute the steps in order
 - rely only on actual information from the service spec, never on guesses
-- assign stable `FR-<N>` identifiers to the §3 requirements (continuous numbering across subsections) —
+- assign stable `REQ-<N>` identifiers to the §3 requirements (continuous numbering across subsections) —
   the backbone of test-case traceability
 - confirm the endpoint selection and ambiguous decisions with the user
 - record the paths of the generated artifacts (`api.py`, `schemas`)

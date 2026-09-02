@@ -43,7 +43,7 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
 - **title** — specific; reflects the essence of the check.
 - **severity** — per the discovery severity scale.
 - **topic** — brief description of the topic under test.
-- **requirements** — §3 registry requirements the case verifies: `FR-<N>`, one or more, comma-separated.
+- **requirements** — §3 registry requirements the case verifies: `REQ-<N>`, one or more, comma-separated.
   Source — the "requirements" column of the [TESTCASES_PLAN] matrix; every value belongs to the §3 registry
   from [TESTCASES_INTAKE]. A case from the reverse gap of elaborate (an API capability outside the user
   description) takes `—`.
@@ -85,8 +85,8 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
    (TC numbering is continuous across the document; grouping does not affect it).
 2. Open the test case block with `## Total number of test cases: N`.
 3. Assemble the "Requirements coverage matrix" section — an aggregation over the `requirements` fields of
-   the cases (the cases themselves are the only source): one row for every FR from the §3 registry of
-   [TESTCASES_INTAKE]; the cases column lists every case that names this FR, with its type; status
+   the cases (the cases themselves are the only source): one row for every REQ from the §3 registry of
+   [TESTCASES_INTAKE]; the cases column lists every case that names this REQ, with its type; status
    "covered" / "not covered" / "excluded (by user decision)" (decisions — from "Requirements coverage
    decisions" in [TESTCASES_PLAN]).
 4. Save the result to `docs/testcases/<topic>.md` (the pipeline orchestrator passes the path via
@@ -115,7 +115,7 @@ Fill in every section. Empty sections are forbidden.
 
 ## Summary
 
-[Case count in total and by type: Flow / Positive / Negative; requirements coverage: FR covered X of Y,
+[Case count in total and by type: Flow / Positive / Negative; requirements coverage: REQ covered X of Y,
 not covered Z, excluded by decision W]
 
 ## Artifact excerpt
@@ -156,7 +156,7 @@ not covered Z, excluded by decision W]
 - **title**
 - **severity** [blocker/critical/normal/minor/trivial]
 - **topic**
-- **requirements** [FR-<N> — one or more, from the §3 requirements registry; "—" for a reverse-gap case]
+- **requirements** [REQ-<N> — one or more, from the §3 requirements registry; "—" for a reverse-gap case]
 - **description**
     - **Preconditions:**
         - [<system state and data for the scenario>]
@@ -171,6 +171,6 @@ not covered Z, excluded by decision W]
 
 Aggregation over the `requirements` fields of the cases above; it is built and recomputed only from them.
 
-[Table: FR | requirement (brief) | type (§3 subsection) | cases (TC-<N> + type) | status (covered /
-not covered / excluded (by user decision)). One row for every FR from the §3 registry.]
+[Table: REQ | requirement (brief) | type (§3 subsection) | cases (TC-<N> + type) | status (covered /
+not covered / excluded (by user decision)). One row for every REQ from the §3 registry.]
 ```

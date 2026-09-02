@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-elaborate
-description: Requirements elaboration — match the user's topic description against API contracts (gap analysis, binding every statement to FR-<N>), ask the user about discrepancies, and build traces from the entry point to each endpoint of the coverage (Call → Effect → Verification)
+description: Requirements elaboration — match the user's topic description against API contracts (gap analysis, binding every statement to REQ-<N>), ask the user about discrepancies, and build traces from the entry point to each endpoint of the coverage (Call → Effect → Verification)
 ---
 
 ## Identity
@@ -21,7 +21,7 @@ confirmed statements into traces. Invent nothing.
 
 1. From [TESTCASES_INTAKE] — the verbatim topic description (§1 of the requirements), the stated
    behavior (main and error behavior), the business preconditions, the roles, and the §3 functional
-   requirements registry (`FR-<N>`).
+   requirements registry (`REQ-<N>`).
 2. From [TESTCASES_DISCOVERY] — the endpoint contracts (the `Request` model, parameters, `schemas`), the
    confirmed coverage, and the severity scale.
 
@@ -29,7 +29,7 @@ confirmed statements into traces. Invent nothing.
 
 1. Decompose the verbatim description + the stated behavior into atomic statements (one statement = one
    verifiable thing: an action, a rule, a state transition, an error reaction) and map each statement to
-   a §3 registry requirement (`FR-<N>` from [TESTCASES_INTAKE]); a statement with no registry match is a
+   a §3 registry requirement (`REQ-<N>` from [TESTCASES_INTAKE]); a statement with no registry match is a
    candidate for a user question (a new requirement or a clarification of the §3 wording).
 2. Match each statement against the contracts of the coverage: find its API counterpart (an endpoint, a
    `Request` field, a status/field in `schemas`) and record the status — `confirmed` (the counterpart
@@ -87,7 +87,7 @@ Fill in every section. Empty sections are forbidden.
 
 ## Matching the description against the API
 
-[Table: statement (from the description / stated behavior) | FR (FR-<N> / "—") | API counterpart
+[Table: statement (from the description / stated behavior) | REQ (REQ-<N> / "—") | API counterpart
 (endpoint, field, status) | status (confirmed / contradicts / not covered by API) | decision]
 
 ## Reverse gap

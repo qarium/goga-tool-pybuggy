@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-plan
-description: Topic test plan and test case matrix (Flow/Positive/Negative) linking cases to requirements FR-<N>
+description: Topic test plan and test case matrix (Flow/Positive/Negative) linking cases to requirements REQ-<N>
 ---
 
 ## Identity
@@ -21,7 +21,7 @@ integration testing strategy that assigns each test case a type (`Flow / Positiv
 Load three inputs:
 
 1. [TESTCASES_INTAKE] supplies: requirements, declared behavior (mainline and error paths), business
-   preconditions, roles, and the functional requirements registry §3 (`FR-<N>`).
+   preconditions, roles, and the functional requirements registry §3 (`REQ-<N>`).
 2. [TESTCASES_DISCOVERY] supplies: actual endpoint contracts, the verification catalog, the severity
    scale, and the confirmed coverage scope.
 3. [TESTCASES_ELABORATION] supplies: approved topic traces (each trace = Call → Effect → Verification)
@@ -74,11 +74,11 @@ least one test case — none is lost. Assign each test case a source trace `TR-<
 [TESTCASES_ELABORATION] and a preliminary `severity` from the discovery scale (based on the integration
 point's criticality).
 
-Requirements mapping: map each test case to the §3 registry requirements (`FR-<N>`) it verifies — one or
-more per case. Then reconcile the registry against the matrix: every `FR-<N>` is covered by at least one
+Requirements mapping: map each test case to the §3 registry requirements (`REQ-<N>`) it verifies — one or
+more per case. Then reconcile the registry against the matrix: every `REQ-<N>` is covered by at least one
 case or is explicitly excluded by the user. Resolve each gap via `AskUserQuestion` (2–4 options: add a
 case / exclude the requirement from scope with a reason / go back to requirements) and record the user's
-decision in the "Requirements coverage decisions" section. Any FR left without a case enters the
+decision in the "Requirements coverage decisions" section. Any REQ left without a case enters the
 artifact with the status "not covered" — an honest marker that `testcases-review` will flag.
 
 ### Step 6. Produce [TESTCASES_PLAN]
@@ -113,11 +113,11 @@ Fill in every section. Empty sections are forbidden.
 
 ## Test case matrix
 
-[Table: case (name) | type (Flow/Positive/Negative) | requirements (FR-<N> — one or more) |
+[Table: case (name) | type (Flow/Positive/Negative) | requirements (REQ-<N> — one or more) |
 endpoints | trace (TR-<N>) | affected fields/statuses | severity (blocker/critical/normal/minor/trivial)]
 
 ## Requirements coverage decisions
 
-[For each FR without cases: FR | reason | user decision (AskUserQuestion). Empty if all FRs
+[For each REQ without cases: REQ | reason | user decision (AskUserQuestion). Empty if all REQs
 are covered by matrix cases.]
 ```

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-review
-description: Verification of the test requirements artifact docs/requirements/<topic>.md — section completeness, FR-<N> functional requirement identifiers in §3 (uniqueness and continuity), endpoint/contract/path realness (cross-check against the live spec via the pybuggy CLI and the disk), behavior completeness (main + error behavior)
+description: Verification of the test requirements artifact docs/requirements/<topic>.md — section completeness, REQ-<N> functional requirement identifiers in §3 (uniqueness and continuity), endpoint/contract/path realness (cross-check against the live spec via the pybuggy CLI and the disk), behavior completeness (main + error behavior)
 ---
 # Pybuggy API Topic Requirements Review
 
@@ -85,7 +85,7 @@ Verify that the artifact contains **all mandatory sections**:
 2. **Topic endpoints** — a table of `endpoint-id | spec | method | path | role in the topic` plus
    the generated artifact paths (`api.py`, `schemas`, the `tests/` directory).
 3. **Functional requirements** — main behavior, error behavior (contract), acceptance criteria,
-   constraints and boundaries; every requirement carries an `FR-<N>` identifier. A requirement
+   constraints and boundaries; every requirement carries an `REQ-<N>` identifier. A requirement
    without an identifier is **High** (invisible to case traceability in `testcases`).
 4. **Business preconditions and environment** — business preconditions (entities/roles/states as a
    need), the environment.
@@ -166,9 +166,9 @@ Verify that the artifact contains **all mandatory sections**:
    (runtime reference / data-mocks-utilities / other) is meaningful. A file under `.goga/usages/`
    missing from §8 is **Medium** (incomplete registry); a key without a file is **High** (a dangling
    reference for `testcases`); a path mismatch is **Medium**.
-8. **FR identifiers** — every item of §3 (all four subsections) has an `FR-<N>`; the identifiers are
+8. **REQ identifiers** — every item of §3 (all four subsections) has an `REQ-<N>`; the identifiers are
    unique (a duplicate is **High** — an ambiguous reference for cases) and continuous from 1 in
-   subsection order (a gap/break is **Medium**); `FR-<N>` appears only in §3 (outside §3 —
+   subsection order (a gap/break is **Medium**); `REQ-<N>` appears only in §3 (outside §3 —
    **Medium**).
 
 ---
@@ -260,7 +260,7 @@ Before you finish, verify:
 4. Did you check the generated artifact paths (`api.py`/`schemas`/`tests/`) on disk?
 5. Did you check structural completeness (all mandatory sections, no placeholders; §6/§9 optional,
    §8 — a registry with an explicit mark when usages are empty)?
-6. Did you check the §3 numbering (`FR-<N>` on every requirement of all subsections, uniqueness,
+6. Did you check the §3 numbering (`REQ-<N>` on every requirement of all subsections, uniqueness,
    continuity in subsection order)?
 7. Did you check the realness of endpoints/methods/paths/schemas — and the artifact freshness via
    `goga tool pybuggy endpoint diff` (an empty diff per endpoint is the pass)?

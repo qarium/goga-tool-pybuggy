@@ -42,11 +42,11 @@ format from the requirements pipeline) and extract:
    refined goal; the `elaborate` stage relies on both when mapping the requirements onto the API. If
    §1 carries no verbatim description — record a gap in "To clarify" (elaborate works from the §3
    functional requirements).
-4. **Functional requirements (§3) — the `FR-<N>` registry**: for each requirement — identifier, short
+4. **Functional requirements (§3) — the `REQ-<N>` registry**: for each requirement — identifier, short
    statement, subsection (main behavior / error behavior / acceptance criteria / constraints and
    boundaries). The registry is the traceability input: the `plan` stage uses it to link cases to
    requirements, and `write` builds the coverage matrix from it. If §3 carries no identifiers (the
-   artifact was assembled before their introduction) — record the gap "§3 has no FR identifiers" in
+   artifact was assembled before their introduction) — record the gap "§3 has no REQ identifiers" in
    "To clarify".
 5. **Business preconditions and environment** — entities/roles/states (captured as needs),
    `env`/`version`.
@@ -92,7 +92,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Functional requirements registry (§3)
 
-[Table: FR | requirement (brief) | subsection (main behavior / error behavior / acceptance criteria / constraints and boundaries). If §3 carries no identifiers — a single row "FR identifiers are missing".]
+[Table: REQ | requirement (brief) | subsection (main behavior / error behavior / acceptance criteria / constraints and boundaries). If §3 carries no identifiers — a single row "REQ identifiers are missing".]
 
 ## Declared preconditions and roles
 

@@ -14,7 +14,7 @@ You are the scope executor. You define the acceptance scope of the topic: you en
 
 For `<topic>` (resolved by the orchestrator), verify existence and load:
 
-1. `docs/testcases/<topic>.md` — test cases (TC-<N>) and the FR→TC coverage matrix.
+1. `docs/testcases/<topic>.md` — test cases (TC-<N>) and the REQ→TC coverage matrix.
 2. `docs/arch/<topic>.md` — the cells plan (context: expected cells/Routines composition).
 3. `tests/<spec>/<id>/CODEMANIFEST` — all topic cells. Source of truth for the cells composition: the CODEMANIFEST on disk (actual state); the arch plan serves as the expectation for the cross-check.
 4. Generated `test_<name>.py` files — by each Routine's `location`.

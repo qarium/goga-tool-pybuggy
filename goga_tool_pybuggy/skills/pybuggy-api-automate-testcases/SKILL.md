@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases
-description: Pipeline that generates detailed integration test cases from topic requirements — the orchestrator reads docs/requirements/<topic>.md, gathers real endpoint details, and stores the test cases (TC-<N>, FR→TC traceability) plus the requirements coverage matrix at docs/testcases/<topic>.md
+description: Pipeline that generates detailed integration test cases from topic requirements — the orchestrator reads docs/requirements/<topic>.md, gathers real endpoint details, and stores the test cases (TC-<N>, REQ→TC traceability) plus the requirements coverage matrix at docs/testcases/<topic>.md
 ---
 
 ## Identity
@@ -93,7 +93,7 @@ An empty section = an incomplete sub-skill = pipeline STOP.
 - ground every case in real endpoint details (the `Request` model, `schemas`)
 - map the user's description onto the API contracts and get user approval of the traces before building the case matrix
 - derive case expectations from the verifications of the approved traces
-- link each case to the §3 functional requirements (`FR-<N>` in the `requirements` field) and build the requirements coverage matrix — the source of truth for the matrix is the `requirements` fields of the cases
+- link each case to the §3 functional requirements (`REQ-<N>` in the `requirements` field) and build the requirements coverage matrix — the source of truth for the matrix is the `requirements` fields of the cases
 - confirm case coverage and ambiguous decisions with the user (via AskUserQuestion with options)
 - assign severity according to the scale from discovery
 - store the final result at `docs/testcases/<topic>.md` (the path from Artifact Path Resolution) and record the path
