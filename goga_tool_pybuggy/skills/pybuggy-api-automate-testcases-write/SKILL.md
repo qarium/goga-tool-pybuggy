@@ -33,7 +33,7 @@ You load five context inputs:
 1. Sections from the plan: Topic Under Test Description, Topic Integration Points, Integration Testing
    Goals.
 2. "Topic traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
-   trace `## TR-<N>: <name>` with endpoints and numbered steps **Call** → **Effect** →
+   trace `## TRACE-<N>: <name>` with endpoints and numbered steps **Call** → **Effect** →
    **Verification**.
 
 ### Step 3. Detail each test case
@@ -54,7 +54,7 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
    factories, state transitions), prepared values. If a tool from [TOOLS_REPORT] performs the case's data
    setup, state in the Preconditions "data is prepared by the library `<key>`" (key — an existing usage
    from §8 or a new one from [TOOLS_REPORT]) **without** implementation details (no imports/calls).
-2. **Execution steps** — numbered; for a chain case the steps follow the steps of its `TR-<N>` trace (Call
+2. **Execution steps** — numbered; for a chain case the steps follow the steps of its `TRACE-<N>` trace (Call
    → Effect → Verification); each step:
     - **Action:** what we do — a call to a topic endpoint. Positive — a call with valid data; negative —
       a call leading to an error (invalid data, missing permissions, violated precondition). For chains — a
@@ -133,7 +133,7 @@ not covered Z, excluded by decision W]
 
 # Topic traces
 
-## TR-<N>: <name>
+## TRACE-<N>: <name>
 
 - Endpoints: [endpoint-id(s), chain if present]
 

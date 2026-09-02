@@ -70,7 +70,7 @@ Test types:
 - **Negative** — error handling and exceptional situations.
 
 Traceability rule: every Verification of every trace must land in the "affected fields/statuses" of at
-least one test case — none is lost. Assign each test case a source trace `TR-<N>` from
+least one test case — none is lost. Assign each test case a source trace `TRACE-<N>` from
 [TESTCASES_ELABORATION] and a preliminary `severity` from the discovery scale (based on the integration
 point's criticality).
 
@@ -114,7 +114,7 @@ Fill in every section. Empty sections are forbidden.
 ## Test case matrix
 
 [Table: case (name) | type (Flow/Positive/Negative) | requirements (REQ-<N> — one or more) |
-endpoints | trace (TR-<N>) | affected fields/statuses | severity (blocker/critical/normal/minor/trivial)]
+endpoints | trace (TRACE-<N>) | affected fields/statuses | severity (blocker/critical/normal/minor/trivial)]
 
 ## Requirements coverage decisions
 

@@ -85,7 +85,7 @@ The document must contain the sections:
 1. `# Description of the topic under test`.
 2. `# Topic integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
 3. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
-4. `# Topic traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
+4. `# Topic traces` — traces `## TRACE-<N>: <title>` with numbered steps **Call** → **Effect** →
    **Verification** (approved at the elaborate stage).
 5. `# Test cases for topic integration testing` with `## Total number of test cases: N`.
 6. `# Requirements coverage matrix` — the table `REQ | requirement (brief) | type (§3 subsection) |
@@ -185,7 +185,7 @@ From the requirements/discovery, determine the set of endpoints and chains (flow
    reflected in the "Expectation" of the steps or in the "Expected Result" of at least one case
    (including additional checks via adjacent endpoints and invariants). A lost verification —
    **High**. Flow cases follow the end-to-end traces (the case steps follow the trace steps). A
-   case referencing a nonexistent `TR-<N>` — **High**; a trace without a single case —
+   case referencing a nonexistent `TRACE-<N>` — **High**; a trace without a single case —
    **Medium**.
 
 ---

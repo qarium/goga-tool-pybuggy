@@ -48,7 +48,7 @@ decision: the statement is refined / excluded / confirmed as-is.
 
 ### Step 4. Build traces
 
-For each endpoint / chain of the confirmed coverage, build a trace `TR-<N>` — a cause-and-effect chain
+For each endpoint / chain of the confirmed coverage, build a trace `TRACE-<N>` — a cause-and-effect chain
 from the entry point to verification. Numbered steps:
 
 1. **Call** — the endpoint (method /path), the input from the `Request` model (fields, required/optional
@@ -103,7 +103,7 @@ effects with no observable check in the response. Empty if none.]
 
 [Approved traces — copied verbatim into `docs/testcases/<topic>.md`:]
 
-### TR-<N>: <title>
+### TRACE-<N>: <title>
 
 - Endpoints: [endpoint-id(s), chain if present]
 
