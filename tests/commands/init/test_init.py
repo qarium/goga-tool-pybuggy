@@ -4,6 +4,7 @@ import importlib.resources
 import logging
 import typing
 from pathlib import Path
+from typing import ClassVar
 from unittest import mock
 
 import click
@@ -76,24 +77,34 @@ def test_register_usages_importable_from_facade() -> None:
     assert imported is register_usages
 
 
-def test_init_cmd_carries_no_options() -> None:
-    """init_cmd is a Click command named 'init' carrying no options or arguments."""
+def test_init_cmd_binds_tpl_ref_upgrade_surface() -> None:
+    """init_cmd binds the CLI surface: optional positional <tpl>, --ref option, --upgrade flag."""
     assert init_cmd.name == "init"
-    assert init_cmd.params == []
+    assert {p.name for p in init_cmd.params} == {"tpl", "ref", "upgrade"}
+
+    by_name = {p.name: p for p in init_cmd.params}
+    assert isinstance(by_name["tpl"], click.Argument)
+    assert by_name["tpl"].required is False
+    assert isinstance(by_name["upgrade"], click.Option)
+    assert by_name["upgrade"].is_flag is True
 
 
 def test_init_cmd_propagates_exit_code_via_ctx(monkeypatch: pytest.MonkeyPatch) -> None:
     """init_cmd propagates run_init's exit code through ctx.exit via the Click context."""
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_init", lambda: 2)
+    run_init_stub = mock.Mock(return_value=2)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_init", run_init_stub)
     runner = click.testing.CliRunner()
     result = runner.invoke(init_cmd, [])
 
     assert result.exit_code == 2
+    run_init_stub.assert_called_once_with(None, None, False)  # wrapper binds and forwards [] args
 
 
 def test_run_init_signature() -> None:
-    """run_init takes no parameters and returns an exit code (int)."""
-    assert run_init.__code__.co_argcount == 0
+    """run_init has signature (tpl, ref, upgrade) and returns an exit code (int)."""
+    params = run_init.__code__.co_varnames[: run_init.__code__.co_argcount]
+
+    assert params == ("tpl", "ref", "upgrade")
     assert typing.get_type_hints(run_init)["return"] is int
 
 
@@ -252,7 +263,7 @@ def test_run_init_in_fresh_project_calls_goga_init_then_registers(
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_stub)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     assert run_goga_init_stub.call_count == 1
     assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
@@ -276,7 +287,7 @@ def test_run_init_occupies_conventions_slot_in_fresh_project(tmp_path: Path, mon
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     assert (tmp_path / ".goga/usages/conventions.md").read_text(encoding="utf-8") == _ASSET_TEXT
     cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
@@ -293,7 +304,7 @@ def test_run_init_ensures_review_executor_skip_in_fresh_project(
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
     assert cfg["build"]["review_executor"]["skip"] is True
@@ -318,7 +329,7 @@ def test_run_init_migrates_review_executor_skip_into_existing_config(
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     cfg = yaml.safe_load(config.read_text())
     assert cfg["build"]["task_executor"]["agent"] == "claude"  # existing build content preserved
@@ -331,7 +342,7 @@ def test_run_init_does_not_ensure_flag_when_goga_init_fails(tmp_path: Path, monk
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    assert run_init() == 1
+    assert run_init(None, None, False) == 1
     assert not (tmp_path / ".goga/config.yml").exists()
 
 
@@ -358,7 +369,7 @@ def test_run_init_leaves_divergent_conventions_key_untouched(tmp_path: Path, mon
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     # The slot file is delivered unconditionally regardless of where the key points.
     assert (tmp_path / ".goga/usages/conventions.md").read_text(encoding="utf-8") == _ASSET_TEXT
@@ -379,7 +390,7 @@ def test_run_init_logs_registered_and_skipped_keys(
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
     with caplog.at_level(logging.INFO):
-        assert run_init() == 0
+        assert run_init(None, None, False) == 0
 
     info_keys = {r.message for r in caplog.records if r.message == "usage registered"}
     assert info_keys
@@ -400,10 +411,10 @@ def test_run_init_logs_skipped_on_idempotent_rerun(
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
-    assert run_init() == 0  # first run registers everything
+    assert run_init(None, None, False) == 0  # first run registers everything
 
     with caplog.at_level(logging.WARNING):
-        assert run_init() == 0
+        assert run_init(None, None, False) == 0
 
     warn_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
     assert "usage already registered, skipped" in warn_messages
@@ -416,7 +427,7 @@ def test_run_init_returns_goga_code_and_skips_slot_delivery(tmp_path: Path, monk
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    assert run_init() == 1
+    assert run_init(None, None, False) == 1
     assert not (tmp_path / ".goga/usages/conventions.md").exists()
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
     assert not (tmp_path / "conftest.py").exists()
@@ -435,7 +446,7 @@ def test_run_init_maps_convention_delivery_failure_to_click_exception(
     )
 
     with pytest.raises(click.ClickException) as excinfo:
-        run_init()
+        run_init(None, None, False)
 
     assert "disk full" in str(excinfo.value)
     assert not (tmp_path / "conftest.py").exists()
@@ -447,7 +458,7 @@ def test_run_init_generates_root_conftest_in_fresh_project(tmp_path: Path, monke
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
 
 
@@ -460,7 +471,7 @@ def test_run_init_overwrites_conftest_on_confirm(tmp_path: Path, monkeypatch: py
     # no .goga configs exist -> the conftest gate is the only confirm point
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
 
 
@@ -475,7 +486,7 @@ def test_run_init_skips_conftest_overwrite_on_decline(
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
 
     with caplog.at_level(logging.INFO):
-        assert run_init() == 0
+        assert run_init(None, None, False) == 0
 
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == "# my custom conftest\n"
     assert any("conftest overwrite declined" in r.message for r in caplog.records)
@@ -496,7 +507,7 @@ def test_run_init_maps_conftest_write_failure_to_click_exception(
     )
 
     with caplog.at_level(logging.ERROR), pytest.raises(click.ClickException) as excinfo:
-        run_init()
+        run_init(None, None, False)
 
     assert "disk full" in str(excinfo.value)
     assert any("conftest write failed" in r.message for r in caplog.records)
@@ -508,7 +519,7 @@ def test_run_init_does_not_write_conftest_when_goga_init_fails(tmp_path: Path, m
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    assert run_init() == 1
+    assert run_init(None, None, False) == 1
     assert not (tmp_path / "conftest.py").exists()
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
@@ -521,7 +532,7 @@ def test_run_init_does_not_write_conftest_when_config_build_fails(
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
 
-    assert run_init() == 1
+    assert run_init(None, None, False) == 1
     assert not (tmp_path / "conftest.py").exists()
 
 
@@ -538,7 +549,7 @@ def test_run_init_does_not_write_conftest_when_bootstrap_fails(tmp_path: Path, m
     )
 
     with pytest.raises(click.ClickException):
-        run_init()
+        run_init(None, None, False)
 
     assert not (tmp_path / "conftest.py").exists()
 
@@ -554,11 +565,11 @@ def test_run_init_idempotent_repeat_run_preserves_existing_conftest(
     # run #2: goga config exists -> confirm #1 declined, conftest exists -> confirm #2 declined.
     monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
     after_first = (tmp_path / "conftest.py").read_text(encoding="utf-8")
     assert after_first == EXPECTED_CONFTEST
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == after_first
 
 
@@ -572,7 +583,7 @@ def test_run_init_propagates_abort_on_conftest_confirm(tmp_path: Path, monkeypat
     monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=click.Abort()))
 
     with pytest.raises(click.Abort):
-        run_init()
+        run_init(None, None, False)
 
 
 def test_run_init_recursive_discovery_picks_subcell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -581,7 +592,7 @@ def test_run_init_recursive_discovery_picks_subcell(tmp_path: Path, monkeypatch:
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
-    run_init()
+    run_init(None, None, False)
 
     assert (tmp_path / ".goga/usages/cooks/pybuggy/asserts.md").exists()
 
@@ -597,7 +608,7 @@ def test_run_init_in_initialized_project_skips_goga_init(tmp_path: Path, monkeyp
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline goga recreate
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     assert run_goga_init_spy.call_count == 0
     cfg = yaml.safe_load(config.read_text())
@@ -611,7 +622,7 @@ def test_run_init_propagates_goga_cancel_without_registering(tmp_path: Path, mon
     register_spy = mock.Mock(wraps=register_usages)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.register_usages", register_spy)
 
-    assert run_init() == 1
+    assert run_init(None, None, False) == 1
 
     assert register_spy.call_count == 0
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
@@ -628,10 +639,10 @@ def test_run_init_idempotent_second_run_no_diff(tmp_path: Path, monkeypatch: pyt
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline both recreates
 
-    run_init()
+    run_init(None, None, False)
     before = config.read_text()
 
-    run_init()
+    run_init(None, None, False)
     after = config.read_text()
 
     assert run_goga_init_spy.call_count == 0
@@ -649,7 +660,7 @@ def test_run_init_recreates_goga_config_on_confirm(tmp_path: Path, monkeypatch: 
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))  # accept goga recreate
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     assert run_goga_init_spy.call_count == 1
 
@@ -668,7 +679,7 @@ def test_run_init_rebuilds_pybuggy_config_on_confirm(tmp_path: Path, monkeypatch
     # decline goga recreate, accept pybuggy rebuild
     monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, True]))
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     assert build_spy.call_count == 1
 
@@ -687,7 +698,7 @@ def test_run_init_skips_pybuggy_rebuild_on_decline(tmp_path: Path, monkeypatch: 
     # decline both recreates
     monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
 
-    assert run_init() == 0
+    assert run_init(None, None, False) == 0
 
     assert build_spy.call_count == 0
 
@@ -705,7 +716,7 @@ def test_run_init_maps_bootstrap_failure_to_click_exception(tmp_path: Path, monk
         mock.patch("goga_tool_pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")),
         pytest.raises(click.ClickException),
     ):
-        run_init()
+        run_init(None, None, False)
 
 
 def test_run_init_propagates_config_build_failure_without_registering(
@@ -722,7 +733,7 @@ def test_run_init_propagates_config_build_failure_without_registering(
     register_spy = mock.Mock(wraps=register_usages)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.register_usages", register_spy)
 
-    assert run_init() == 1
+    assert run_init(None, None, False) == 1
 
     assert register_spy.call_count == 0
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
@@ -1035,6 +1046,121 @@ def test_resolve_init_mode_valid_input_never_prompts() -> None:
 
     assert confirm_mock.call_count == 0
     assert prompt_mock.call_count == 0
+
+
+# run_init mode-dispatch logic tests --------------------------------------------
+
+
+def _stub_scaffold(monkeypatch: pytest.MonkeyPatch, generate_rc: int = 0, upgrade_rc: int = 0) -> type:
+    """Install a recording Scaffold stand-in on init.py (no copier, no network, no TTY).
+
+    The class records every construction and every engine call; ``generate_rc``/``upgrade_rc``
+    fix the engine exit codes the stub returns, so both the zero-code and non-zero-code
+    dispatch branches are drivable.
+    """
+
+    class StubScaffold:
+        constructed = False
+        generate_calls: ClassVar[list[tuple[str | None, str | None]]] = []
+        upgrade_calls: ClassVar[list[tuple[str | None]]] = []
+
+        def __init__(self) -> None:
+            StubScaffold.constructed = True
+
+        def generate(self, template_input: str, ref_override: str | None) -> int:
+            StubScaffold.generate_calls.append((template_input, ref_override))
+            return generate_rc
+
+        def upgrade(self, ref_override: str | None = None) -> int:
+            StubScaffold.upgrade_calls.append((ref_override,))
+            return upgrade_rc
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Scaffold", StubScaffold)
+
+    return StubScaffold
+
+
+def _stub_onboarding(monkeypatch: pytest.MonkeyPatch, rc: int = 0) -> list[tuple[bool]]:
+    """Stub run_onboarding with a call recorder returning ``rc``; returns the recorded calls."""
+    calls: list[tuple[bool]] = []
+
+    def recorder(template_mode: bool) -> int:
+        calls.append((template_mode,))
+        return rc
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_onboarding", recorder)
+
+    return calls
+
+
+def test_run_init_bare_delegates_to_onboarding_bare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bare input dispatches straight to onboarding with template_mode=False; the engine is never built."""
+    monkeypatch.chdir(tmp_path)
+    stub = _stub_scaffold(monkeypatch)
+    onboarding_calls = _stub_onboarding(monkeypatch, rc=7)
+
+    assert run_init(None, None, False) == 7
+
+    assert onboarding_calls == [(False,)]
+    assert stub.constructed is False  # bare mode never touches the scaffold engine
+
+
+def test_run_init_template_scaffolds_then_onboards_template_mode(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Template input scaffolds through the engine (tpl, ref verbatim), then onboards in template mode."""
+    monkeypatch.chdir(tmp_path)
+    stub = _stub_scaffold(monkeypatch, generate_rc=0)
+    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
+
+    assert run_init("https://host/repo.git#v1", "v9", False) == 0
+
+    assert stub.generate_calls == [("https://host/repo.git#v1", "v9")]
+    assert onboarding_calls == [(True,)]
+
+
+def test_run_init_upgrade_runs_migration_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Upgrade input runs only the engine migration: no onboarding, no slot delivery."""
+    scaffold_state = tmp_path / ".goga" / "scaffold.yml"
+    scaffold_state.parent.mkdir(parents=True)
+    scaffold_state.write_text("# scaffold state\n")
+    monkeypatch.chdir(tmp_path)
+    stub = _stub_scaffold(monkeypatch, upgrade_rc=4)
+    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
+
+    assert run_init(None, "v2", True) == 4
+
+    assert stub.upgrade_calls == [("v2",)]
+    assert onboarding_calls == []
+    assert not (tmp_path / ".goga/usages/conventions.md").exists()
+
+
+def test_run_init_failed_scaffold_stops_onboarding_without_side_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-zero engine code returns before onboarding: no seam runs, the directory is untouched."""
+    monkeypatch.chdir(tmp_path)
+    _stub_scaffold(monkeypatch, generate_rc=1)
+    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
+    goga_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", goga_spy)
+    before = sorted(p.name for p in tmp_path.iterdir())
+
+    assert run_init("https://host/repo.git", None, False) == 1
+
+    assert onboarding_calls == []
+    assert goga_spy.call_count == 0
+    assert sorted(p.name for p in tmp_path.iterdir()) == before  # no .goga/, no conftest.py
+
+
+def test_run_init_propagates_engine_code_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Engine exit codes are propagated verbatim — never normalized to 1."""
+    monkeypatch.chdir(tmp_path)
+    _stub_scaffold(monkeypatch, generate_rc=3, upgrade_rc=5)
+    _stub_onboarding(monkeypatch, rc=0)
+
+    assert run_init("tpl", None, False) == 3
+    assert run_init(None, None, True) == 5
 
 
 # run_goga_init contract tests ------------------------------------------------

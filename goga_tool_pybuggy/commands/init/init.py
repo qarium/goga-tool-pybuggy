@@ -10,6 +10,7 @@ from typing import Any
 
 import click
 from goga.onboarding import FileGenerator, GogaConfigAnswers, InitAnswers, Questionnaire
+from goga.scaffold import Scaffold
 from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.error import CommentMark
@@ -1047,26 +1048,73 @@ def run_onboarding(template_mode: bool) -> int:
     return 0
 
 
-def run_init() -> int:
-    """Initialize the project through the bare onboarding pipeline.
+def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
+    """Initialize the project in one of the three modes resolved from the CLI flags.
 
-    Temporary bare-mode delegating wrapper around :func:`run_onboarding`: the parameterless
-    legacy entry point keeps its signature until the three-mode ``(tpl, ref, upgrade)``
-    dispatch lands; its behavior is exactly the 12-step pipeline with confirm gates
-    (``template_mode=False``).
+    Mode dispatch with exactly one branch per mode (resolved purely by
+    :func:`resolve_init_mode`): ``bare`` never touches the scaffold engine and runs the
+    12-step onboarding pipeline with confirm gates; ``template`` first scaffolds through the
+    engine (``Scaffold().generate(tpl, ref)`` — only ``project_name`` answers are injected
+    inside the engine, the remaining questions are asked by the copier TUI) and — only on a
+    zero engine code — runs onboarding in template mode (silent-skip gates); ``upgrade``
+    delegates to ``Scaffold().upgrade(ref)`` alone and returns its code without any
+    onboarding side effect.
+
+    The scaffold engine owns its error handling: a returned non-zero code is propagated
+    unchanged (the code value is the engine's domain, never normalized to 1), and the guard
+    sits before the :func:`run_onboarding` call — a failed scaffold leaves the target
+    directory exactly as the engine left it (no usage copies, no conventions slot, no config
+    augmentation, no conftest). ``run_init`` itself performs no writes of its own, so the
+    bare branch writes nothing before the onboarding either. ``copier`` is never imported
+    directly — the engine is reached only through ``goga.scaffold``.
+
+    Args:
+        tpl: Template source (local path or git URL, optionally with a ``#ref`` fragment)
+            from the positional argument; ``None`` in bare and upgrade modes.
+        ref: Git ref override from ``--ref``; ``None`` when absent.
+        upgrade: Whether ``--upgrade`` is set (template migration mode).
 
     Returns:
-        0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
+        0 on success; the engine's non-zero code propagated unchanged; a non-zero
+        :func:`run_onboarding` code propagated as-is.
 
     Raises:
-        click.ClickException: On a bootstrap or conftest-write failure (mapped by
-            :func:`run_onboarding`).
+        click.ClickException: On an invalid flag combination (raised by
+            :func:`resolve_init_mode`; click prints the message and exits 1).
     """
-    return run_onboarding(template_mode=False)
+    mode = resolve_init_mode(tpl, ref, upgrade)
+
+    if mode == _UPGRADE:
+        return Scaffold().upgrade(ref)
+
+    if mode == _TEMPLATE:
+        engine_code = Scaffold().generate(tpl, ref)
+        if engine_code != 0:
+            return engine_code
+
+    return run_onboarding(template_mode=(mode == _TEMPLATE))
 
 
 @click.command("init")
+@click.argument("tpl", required=False)
+@click.option(
+    "--upgrade",
+    is_flag=True,
+    default=False,
+    help="Migrate a previously scaffolded project; no onboarding",
+)
+@click.option(
+    "--ref",
+    default=None,
+    help="Override the git ref: with <tpl> the URL fragment, with --upgrade the migration target",
+)
 @click.pass_context
-def init_cmd(ctx: click.Context) -> None:
-    """Initialize the goga-project, occupy the conventions slot, bootstrap usages, generate the conftest."""
-    ctx.exit(run_init())
+def init_cmd(ctx: click.Context, tpl: str | None, ref: str | None, upgrade: bool) -> None:
+    """Initialize the project in one of three modes: bare onboarding, template scaffold, or template migration.
+
+    ``pybuggy init`` runs the bare interactive onboarding (confirm gates);
+    ``pybuggy init <tpl> [--ref R]`` scaffolds a copier template first, then runs onboarding
+    with silent-skip gates; ``pybuggy init --upgrade [--ref R]`` migrates a previously
+    scaffolded project (no onboarding).
+    """
+    ctx.exit(run_init(tpl, ref, upgrade))
