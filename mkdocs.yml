@@ -58,6 +58,7 @@ exclude_docs: |
   plans/*
   tasks/*
   bugs/*
+  fix/*
   overrides/*
 
 strict: true
@@ -70,6 +71,7 @@ nav:
   - Pipelines:
       - Overview: pipelines/index.md
       - api.automate: pipelines/api-automate.md
+      - api.fix: pipelines/api-fix.md
       - Workflows: pipelines/workflows.md
   - CLI Reference:
       - goga tool pybuggy init: cli/init.md

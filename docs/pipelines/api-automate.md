@@ -49,6 +49,8 @@ tests/<spec>/<id>/               # the materialized test code
 
 ## How it relates to the rest
 
+- When accepted suites break — now or later — the [`api.fix` lifecycle](api-fix.md)
+  collects the failures and drives the repair cycle.
 - The generated [`api/`](../cli/generate.md) fixtures are what the materialized tests consume.
 - The pipeline stages are goga skills (`goga-tool-pybuggy-api-automate-*`) driven by the
   goga agent in the consumer project — the same project `goga tool pybuggy init` bootstraps
