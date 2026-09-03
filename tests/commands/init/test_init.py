@@ -100,6 +100,17 @@ def test_init_cmd_propagates_exit_code_via_ctx(monkeypatch: pytest.MonkeyPatch) 
     run_init_stub.assert_called_once_with(None, None, False)  # wrapper binds and forwards [] args
 
 
+def test_init_cmd_forwards_upgrade_flag_to_run_init(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The wrapper forwards a lone --upgrade through the parsed surface as (None, None, True)."""
+    run_init_stub = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_init", run_init_stub)
+    runner = click.testing.CliRunner()
+    result = runner.invoke(init_cmd, ["--upgrade"])
+
+    assert result.exit_code == 0
+    run_init_stub.assert_called_once_with(None, None, True)
+
+
 def test_run_init_signature() -> None:
     """run_init has signature (tpl, ref, upgrade) and returns an exit code (int)."""
     params = run_init.__code__.co_varnames[: run_init.__code__.co_argcount]
@@ -112,7 +123,7 @@ def test_run_onboarding_importable_from_facade() -> None:
     """run_onboarding should be importable from the goga_tool_pybuggy.commands.init facade."""
     from goga_tool_pybuggy.commands.init import run_onboarding as imported
 
-    assert callable(imported) is True
+    assert imported is run_onboarding
 
 
 def test_run_onboarding_is_public_in_facade() -> None:
@@ -1034,6 +1045,19 @@ def test_resolve_init_mode_rejects_ref_without_tpl_and_upgrade() -> None:
     assert "--ref requires" in str(excinfo.value)
 
 
+def test_resolve_init_mode_empty_string_is_a_given_value_not_an_absence() -> None:
+    """Empty strings count as given values — None vs "" reaches the engine verbatim.
+
+    click delivers "" (not None) for `init ""` / `init --ref ""`; pinning the None-checks here
+    guards against a truthiness "simplification" that would silently turn both into bare
+    onboarding.
+    """
+    assert resolve_init_mode("", None, False) == "template"
+
+    with pytest.raises(click.ClickException, match="--ref requires"):
+        resolve_init_mode(None, "", False)
+
+
 def test_resolve_init_mode_valid_input_never_prompts() -> None:
     """The routine is pure (TTY-free): no click.confirm/click.prompt on the valid paths."""
     with (
@@ -1093,6 +1117,26 @@ def _stub_onboarding(monkeypatch: pytest.MonkeyPatch, rc: int = 0) -> list[tuple
     return calls
 
 
+def test_stub_scaffold_mirrors_real_engine_call_surface() -> None:
+    """The real goga Scaffold accepts exactly the calls run_init makes (stub parity guard).
+
+    Every template/upgrade test drives a hand-written Scaffold stand-in whose generate/upgrade
+    signatures were copied from the engine; this pins the pinned goga engine itself to that
+    surface — default construction, two positional generate args, one positional (or omitted)
+    upgrade arg — so a goga update that shifts it fails here instead of at runtime.
+    """
+    import inspect
+
+    from goga.scaffold import Scaffold
+
+    engine = Scaffold()  # default construction — side-effect-free (stores dst_path/answers_file)
+    generate = inspect.signature(Scaffold.generate)
+    generate.bind(engine, "https://host/repo.git", "v9")  # run_init: Scaffold().generate(tpl, ref)
+    upgrade = inspect.signature(Scaffold.upgrade)
+    upgrade.bind(engine, "v2")  # run_init: Scaffold().upgrade(ref)
+    upgrade.bind(engine)  # the ref is optional on the engine surface
+
+
 def test_run_init_bare_delegates_to_onboarding_bare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Bare input dispatches straight to onboarding with template_mode=False; the engine is never built."""
     monkeypatch.chdir(tmp_path)
@@ -1133,6 +1177,29 @@ def test_run_init_upgrade_runs_migration_only(tmp_path: Path, monkeypatch: pytes
     assert stub.upgrade_calls == [("v2",)]
     assert onboarding_calls == []
     assert not (tmp_path / ".goga/usages/conventions.md").exists()
+
+
+def test_run_init_upgrade_success_skips_onboarding_entirely(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A successful migration (rc 0) still never onboards — the zero-code branch is guarded too.
+
+    The failing-code variants cannot catch a refactor that mirrors the template branch (capture
+    the code, return early only on non-zero, fall through to onboarding): a zero rc must return
+    0 with no onboarding side effect.
+    """
+    scaffold_state = tmp_path / ".goga" / "scaffold.yml"
+    scaffold_state.parent.mkdir(parents=True)
+    scaffold_state.write_text("# scaffold state\n")
+    monkeypatch.chdir(tmp_path)
+    _stub_scaffold(monkeypatch, upgrade_rc=0)
+    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
+
+    assert run_init(None, None, True) == 0
+
+    assert onboarding_calls == []
+    assert not (tmp_path / ".goga/usages/conventions.md").exists()
+    assert not (tmp_path / "conftest.py").exists()
 
 
 def test_run_init_failed_scaffold_stops_onboarding_without_side_effects(
