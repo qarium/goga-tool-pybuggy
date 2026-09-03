@@ -787,21 +787,33 @@ def run_goga_init() -> int:
         return 1
 
 
-def _should_rebuild(path: Path, prompt: str) -> bool:
-    """Decide whether to (re)build the config at ``path`` during ``init``.
+def _gate_existing(path: Path, template_mode: bool, prompt: str) -> bool:
+    """Decide whether the file at ``path`` may be (re)built during onboarding.
 
-    Builds unconditionally when the file is absent (nothing to recreate); when it exists, asks the user via
-    ``click.confirm`` (default ``no``) and rebuilds only on an explicit ``yes``. Isolating this decision keeps
-    :func:`run_init` under the cyclomatic-complexity cap.
+    Absent → ``True`` (nothing exists yet — build unconditionally). Present + template mode →
+    INFO ``existing file kept untouched`` and ``False`` (silent skip, no prompt — a
+    template-brought file is never overwritten and never prompted about). Present + bare mode →
+    ``click.confirm(prompt, default=False)`` — rebuild only on an explicit ``yes``. Callers that
+    need a bare-decline INFO (the conftest step) log it themselves on the ``False`` branch; the
+    config gates keep the no-log bare-decline behavior. Isolating this decision keeps
+    :func:`run_onboarding` under the cyclomatic-complexity cap.
 
     Args:
-        path: The config file whose existence gates the rebuild.
-        prompt: The confirmation question shown when ``path`` already exists.
+        path: The file whose existence gates the build.
+        template_mode: Whether onboarding runs in template mode (silent skip instead of a prompt).
+        prompt: The confirmation question shown when ``path`` already exists in bare mode.
 
     Returns:
-        ``True`` when the config should be (re)built; ``False`` when it exists and the user declined.
+        ``True`` when the file should be (re)built; ``False`` when it exists and is kept.
     """
-    return not path.exists() or click.confirm(prompt, default=False)
+    if not path.exists():
+        return True
+
+    if template_mode:
+        logger.info("existing file kept untouched", extra={"path": str(path)})
+        return False
+
+    return click.confirm(prompt, default=False)
 
 
 def _log_registration(
@@ -836,27 +848,30 @@ def _log_registration(
             logger.warning("annotation already registered, skipped", extra={"key": key})
 
 
-def _write_root_conftest(cwd: Path) -> None:
-    """Gate and write the target project's root ``conftest.py`` (init step 10).
+def _write_root_conftest(cwd: Path, template_mode: bool) -> None:
+    """Gate and write the target project's root ``conftest.py`` (onboarding step 11).
 
-    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. When
-    ``<cwd>/conftest.py`` does not exist it is written unconditionally; when it exists, the user
-    is asked (``click.confirm``, default ``no``) and it is overwritten only on an explicit ``yes``
-    — declining logs INFO and leaves the file untouched (the step is skipped, not an error). The
-    decision lives here, in the orchestrator's helper: :func:`write_pybuggy_conftest` itself always
-    writes without any check.
+    Extracted from :func:`run_onboarding` to keep it under the cyclomatic-complexity cap. When
+    ``<cwd>/conftest.py`` does not exist it is written unconditionally. When it exists: template
+    mode silently skips (the INFO ``existing file kept untouched`` is logged by
+    :func:`_gate_existing`); bare mode asks (``click.confirm``, default ``no``) and overwrites
+    only on an explicit ``yes`` — declining logs INFO and leaves the file untouched (the step is
+    skipped, not an error). The decision lives here, in the orchestrator's helper:
+    :func:`write_pybuggy_conftest` itself always writes without any check.
 
     Args:
         cwd: The target project root whose ``conftest.py`` is (re)generated.
+        template_mode: Whether onboarding runs in template mode (silent skip instead of a prompt).
 
     Raises:
         click.ClickException: On a conftest write failure, after ERROR-logging it.
     """
     conftest = cwd / "conftest.py"
+
     try:
-        if _should_rebuild(conftest, "conftest.py exists — overwrite it?"):
+        if _gate_existing(conftest, template_mode, "conftest.py exists — overwrite it?"):
             write_pybuggy_conftest(conftest)
-        else:
+        elif not template_mode:
             logger.info("conftest overwrite declined, skipped", extra={"path": str(conftest)})
     except OSError as e:
         logger.error("conftest write failed", extra={"path": str(conftest), "error": str(e)})
@@ -907,33 +922,42 @@ def resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> str:
     return _TEMPLATE if tpl is not None else _BARE
 
 
-def run_init() -> int:
-    """Initialize the goga-project, occupy the conventions slot, bootstrap the api usages, build the tool
-    config, enforce the review-executor skip flag, generate the conftest.
+def run_onboarding(template_mode: bool) -> int:
+    """Run the 12-step onboarding pipeline with mode-dependent gates.
+
+    The pipeline bootstraps a pybuggy consumer project: goga-project config, pybuggy tool config,
+    api usage copies, the ``conventions`` slot, the review-executor skip flag, the Dockerfile
+    install line, usage/annotation registration, and the root conftest. Gate style depends on
+    ``template_mode``: bare asks via ``click.confirm`` (default ``no``); template silently skips
+    an existing file with an INFO log (a template-brought file is never overwritten and never
+    prompted about).
 
     Algorithm (12 steps):
 
     1. Resolve the output root as the current working directory.
     2. Goga-project config: when ``<cwd>/.goga/config.yml`` does NOT exist, run the interactive
-       goga-project initialization in-process via :func:`run_goga_init`; when it DOES exist, ask
-       (``click.confirm``, default ``no``) whether to re-run goga init and overwrite it, and only
-       re-run on ``yes``. A non-zero exit code is returned immediately (no usages are registered).
-    3. Pybuggy tool config: when ``<cwd>/.goga/tools/pybuggy/config.yml`` does NOT exist, build it
-       via :func:`build_pybuggy_config`; when it DOES exist, ask (``click.confirm``, default ``no``)
-       whether to rebuild it, and only rebuild on ``yes``. A non-zero exit code is returned
-       immediately. :func:`build_pybuggy_config` itself neither checks for nor confirms an existing
-       file (always overwrites) — the recreate decision lives here, in the orchestrator.
+       goga-project initialization in-process via :func:`run_goga_init`; when it DOES exist:
+       template mode skips it with an INFO log, bare mode asks (``click.confirm``, default ``no``)
+       and only re-runs on ``yes``. A non-zero exit code is returned immediately (no usages are
+       registered).
+    3. Pybuggy tool config: same gate shape for ``<cwd>/.goga/tools/pybuggy/config.yml`` via
+       :func:`build_pybuggy_config`; a non-zero exit code is returned immediately.
+       :func:`build_pybuggy_config` itself neither checks for nor confirms an existing file — the
+       recreate decision lives here, in the orchestrator.
     4. Discover every ``.usages/*.md`` under the installed ``goga_tool_pybuggy.api`` package
-       (including its subcells such as ``asserts``).
-    5. Copy each discovered file to ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md``.
-    6. Occupy the ``conventions`` slot: always (over)write ``<cwd>/.goga/usages/conventions.md``
-       with the packaged test-convention asset via :func:`write_test_convention` — no existence
-       check, no confirmation, so a project with any prior slot content migrates automatically.
-    7. Ensure ``build.review_executor.skip: true`` in ``<cwd>/.goga/config.yml`` via
+       (including its subcells such as ``asserts``) and copy each to
+       ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md`` — bare mode always (over)writes; template
+       mode skips an existing destination with an INFO log.
+    5. Deliver the ``conventions`` slot skip-if-exists in BOTH modes: when
+       ``<cwd>/.goga/usages/conventions.md`` already exists, log INFO and keep it (never
+       overwritten, never prompted about); otherwise write the packaged asset via
+       :func:`write_test_convention` — the routine itself is a pure always-(over)write writer.
+    6. Always ensure ``build.review_executor.skip: true`` in ``<cwd>/.goga/config.yml`` via
        :func:`ensure_review_executor_skip` — an idempotent round-trip edit creating the nested
        ``build``/``review_executor`` mappings when missing and preserving the rest of ``build``
-       (e.g. ``task_executor``) verbatim; a declined goga-config rebuild migrates the flag into
-       the existing config all the same.
+       (e.g. ``task_executor``) verbatim.
+    7. Always append the pybuggy install line to ``<cwd>/.goga/Dockerfile`` via
+       :func:`install_pybuggy` — a no-op when the Dockerfile is absent or the line is present.
     8. Register the usage keys in ``<cwd>/.goga/config.yml`` under ``codemanifest.usages`` via
        :func:`register_usages`: the discovered ``pybuggy-<stem>`` keys AND the key ``conventions``
        → ``.goga/usages/conventions.md`` (idempotent, skip-existing).
@@ -942,42 +966,41 @@ def run_init() -> int:
        (``_CONVENTION_LINE``) — idempotent by backtick reference, an existing line carrying the
        reference is replaced.
     10. Log INFO for added/changed keys and WARNING for skipped ones.
-    11. Root ``conftest.py``: resolve ``<cwd>/conftest.py``; when absent, write it via
-       :func:`write_pybuggy_conftest`; when it exists, ask (``click.confirm``, default ``no``) —
-       ``yes`` overwrites it, ``no`` logs INFO (step skipped, file untouched) and continues. The
-       decision lives here, in the orchestrator (:func:`_write_root_conftest`); the routine itself
-       always writes without any check.
+    11. Root ``conftest.py``: absent → write; existing → template skip (INFO) or bare confirm
+       (:func:`_write_root_conftest`).
     12. Return 0.
 
-    Each config is created when absent and only recreated on explicit confirmation when present, so a
-    plain repeat run (all confirms declined) still re-copies the usages, re-delivers the conventions
-    slot (unconditionally), re-checks the review-executor skip flag (a byte-identical no-op when
-    already true), and skips already-registered keys/annotation lines — idempotent. Steps 2
-    and 3 are called outside this routine's own try/except — they rely on
-    :func:`run_goga_init`/:func:`build_pybuggy_config` never raising (they return a code on
-    cancellation/failure); a non-zero code from either returns before the bootstrap block, so no
-    usages, slot, or annotations are registered and no conftest is written.
+    Steps 2 and 3 run OUTSIDE the bootstrap ``try`` — :func:`run_goga_init` /
+    :func:`build_pybuggy_config` never raise (they return a code), and a ``click.Abort`` at any
+    confirm must propagate to click unswallowed; a non-zero code from either seam returns before
+    the bootstrap block, so no usages, slot, annotations, or conftest are applied.
+
+    Args:
+        template_mode: Whether onboarding runs after template scaffolding — existing files are
+            silently skipped with an INFO log instead of an overwrite confirmation.
 
     Returns:
         0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
 
     Raises:
-        click.ClickException: On a file-write, YAML, navigation, bootstrap (including the slot
-            delivery), or conftest-write failure.
+        click.ClickException: On a bootstrap failure (usage copies, slot delivery, review-executor
+            flag, Dockerfile augmentation, registration — ERROR-logged first) or a conftest-write
+            failure.
     """
     cwd = Path.cwd()
     goga_config = cwd / ".goga" / "config.yml"
     pybuggy_config = cwd / ".goga" / "tools" / "pybuggy" / "config.yml"
 
-    # Goga-project config: create when absent; recreate only on explicit confirmation (overwriting it
-    # can discard user-customized codemanifest entries beyond pybuggy's own).
-    if _should_rebuild(goga_config, ".goga/config.yml exists — re-run goga init and overwrite it?"):
+    # Steps 2-3 (interactive gates): recreate only on the absent branch or an explicit bare-mode
+    # confirm — overwriting a config can discard user-customized codemanifest entries.
+    if _gate_existing(goga_config, template_mode, ".goga/config.yml exists — re-run goga init and overwrite it?"):
         rc = run_goga_init()
         if rc != 0:
             return rc
 
-    # Pybuggy tool config: build when absent; rebuild only on explicit confirmation.
-    if _should_rebuild(pybuggy_config, ".goga/tools/pybuggy/config.yml exists — rebuild it from the survey?"):
+    if _gate_existing(
+        pybuggy_config, template_mode, ".goga/tools/pybuggy/config.yml exists — rebuild it from the survey?"
+    ):
         rc = build_pybuggy_config()
         if rc != 0:
             return rc
@@ -987,16 +1010,24 @@ def run_init() -> int:
 
         for stem, text in discovered:
             dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"
+            if dest.exists() and template_mode:
+                logger.info("existing file kept untouched", extra={"path": str(dest)})
+                continue
+
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text, encoding="utf-8")
 
-        # The conventions slot is package-owned and delivered unconditionally on every successful
-        # pass — a project with any prior (legacy or locally modified) slot content migrates here.
-        write_test_convention(cwd / ".goga" / "usages" / "conventions.md")
+        # The conventions slot is delivered skip-if-exists in BOTH modes — existing content is
+        # never overwritten (INFO) and never prompted about.
+        slot = cwd / ".goga" / "usages" / "conventions.md"
+        if slot.exists():
+            logger.info("existing file kept untouched", extra={"path": str(slot)})
+        else:
+            write_test_convention(slot)
 
-        # The review-executor flag is enforced unconditionally on every successful pass — the
-        # block is created in a fresh config and migrated into an existing one alike.
+        # Always-run augmentations — they apply to whatever the target directory already contains.
         ensure_review_executor_skip(cwd / ".goga" / "config.yml")
+        install_pybuggy(cwd / ".goga" / "Dockerfile")
 
         usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem, _ in discovered}
         usage_keys["conventions"] = ".goga/usages/conventions.md"
@@ -1006,15 +1037,32 @@ def run_init() -> int:
         annotation_lines["conventions"] = _CONVENTION_LINE
         changed_annotation_keys = register_annotations(cwd / ".goga" / "config.yml", annotation_lines)
     except (OSError, YAMLError, ValueError) as e:
+        logger.error("onboarding bootstrap failed", extra={"error": str(e)})
         raise click.ClickException(str(e)) from e
 
     _log_registration(usage_keys, added_usage_keys, annotation_lines, changed_annotation_keys)
 
-    # Root conftest.py: create when absent; overwrite only on explicit confirmation (merging into an
-    # existing one is never attempted — either a confirmed overwrite or a skip).
-    _write_root_conftest(cwd)
+    _write_root_conftest(cwd, template_mode)
 
     return 0
+
+
+def run_init() -> int:
+    """Initialize the project through the bare onboarding pipeline.
+
+    Temporary bare-mode delegating wrapper around :func:`run_onboarding`: the parameterless
+    legacy entry point keeps its signature until the three-mode ``(tpl, ref, upgrade)``
+    dispatch lands; its behavior is exactly the 12-step pipeline with confirm gates
+    (``template_mode=False``).
+
+    Returns:
+        0 on success; a non-zero exit code when goga init or the config build fails or is cancelled.
+
+    Raises:
+        click.ClickException: On a bootstrap or conftest-write failure (mapped by
+            :func:`run_onboarding`).
+    """
+    return run_onboarding(template_mode=False)
 
 
 @click.command("init")
