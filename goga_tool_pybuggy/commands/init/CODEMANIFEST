@@ -17,98 +17,163 @@ Usages:
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the command wrapper, interactive prompts (plugin scalar keys + specs survey), overwrite gates
-    (default no), and mapping domain errors to click.ClickException.
+  Use `click` for the command wrapper, flag validation, interactive prompts (plugin scalar keys + specs survey),
+  overwrite gates (default no), and mapping domain errors to click.ClickException.
   Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing, ensure the
-    build.review_executor.skip flag) AND for emitting .goga/tools/pybuggy/config.yml with active values plus commented
-    records (skipped optional fields and headers/loader examples).
-  Use `goga` for the in-process initialization of the goga-project via goga.onboarding per-field Questionnaire methods + FileGenerator.
+  build.review_executor.skip flag) AND for emitting .goga/tools/pybuggy/config.yml with active values plus commented
+  records (skipped optional fields and headers/loader examples).
+  Use `goga` for the in-process initialization of the goga-project via goga.onboarding (per-field Questionnaire
+  methods + FileGenerator) and for template scaffolding via goga.scaffold (Scaffold.generate / Scaffold.upgrade).
 
-  Top-level bootstrap command pybuggy init — initializes the goga-project (created when absent, recreated only on
-  confirmation), occupies the `conventions` slot of the consumer with the pybuggy test convention (package asset,
-  no network), ships the consumer usages of the api cell into the project, interactively builds
-  .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), always enforces
-  build.review_executor.skip: true in the consumer .goga/config.yml, AND generates the root conftest.py
-  of the target project from a fixed template (written when absent, overwritten only on confirmation). The handler
-  `run_init` is the testable entry point; the click wrapper `init_cmd` delegates to `run_init`. The goga-project
-  initialization is delegated to `run_goga_init`; the test-convention slot delivery to `write_test_convention`; the
-  review-executor skip enforcement to the pure `ensure_review_executor_skip`; the
-  interactive config build to `build_pybuggy_config` (testable seam for the TTY survey), which delegates file emission
-  to the pure `write_pybuggy_config`; the conftest emission to the pure `write_pybuggy_conftest`. The recreate/overwrite
-  decisions for both configs and the conftest live in `run_init` (click.confirm, default no); the writers themselves
-  always (over)write. Usages are discovered from the installed goga_tool_pybuggy.api package. Use relative imports
-  inside the cell.
+  Top-level bootstrap command pybuggy init — operates in three modes resolved from the flags. Bare onboarding (no
+  arguments): initialize the goga-project (created when absent, recreated only on confirmation), deliver the
+  `conventions` slot of the consumer with the pybuggy test convention when absent, ship the consumer usages of the api
+  cell, interactively build .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), always
+  enforce build.review_executor.skip: true, and generate the root conftest.py (written when absent, overwritten only
+  on confirmation). Template onboarding (<tpl> with optional --ref): scaffold the template project first — a failed
+  scaffold stops the command without onboarding side effects; after a successful scaffold the onboarding pipeline runs
+  with silent-skip gates: a file that already exists is left untouched (INFO log, no confirmation), a missing file is
+  created through the normal flow. Upgrade (--upgrade with optional --ref): template migration only, no onboarding.
+
+  The handler `run_init` is the testable entry point: it resolves the mode, drives the scaffold engine, and delegates
+  the onboarding pipeline to `run_onboarding`. The click wrapper `init_cmd` binds the CLI surface and delegates to
+  `run_init`. The goga-project initialization is delegated to `run_goga_init`; the mode resolution to the pure
+  `resolve_init_mode`; the test-convention slot delivery to `write_test_convention`; the review-executor skip
+  enforcement to the pure `ensure_review_executor_skip`; the interactive config build to `build_pybuggy_config`
+  (testable seam for the TTY survey), which delegates file emission to the pure `write_pybuggy_config`; the conftest
+  emission to the pure `write_pybuggy_conftest`. The recreate/overwrite/skip decisions live in `run_onboarding`; the
+  writers themselves always (over)write. Usages are discovered from the installed goga_tool_pybuggy.api package. Use
+  relative imports inside the cell.
 
 ---
 
-"run_init() -> exit_code:int":
+"run_init(tpl: str | None, ref: str | None, upgrade: bool) -> exit_code:int":
   location: init.py
   annotations: |
-    Handler for the init command: ensure the goga-project is initialized, build the pybuggy tool config, occupy the
-    `conventions` slot of the consumer with the pybuggy test convention, bootstrap the consumer usages of the api cell
-    into the project where the command is invoked, enforce the build.review_executor.skip flag in the consumer
-    .goga/config.yml, and generate the root conftest.py of the target project.
+    Handler for the init command — the testable entry point: resolves the operation mode, drives the template scaffold
+    engine in template and upgrade modes, and delegates the onboarding pipeline to `run_onboarding`.
 
-    `exit_code`: 0 on success; non-zero goga-init/config-build exit code propagated on failure/cancel.
+    `tpl`: template source (local path or git URL, optionally with a #ref fragment); None in bare and upgrade modes.
+    `ref`: git ref override; overrides the URL fragment in template mode and the migration target in upgrade mode.
+    `upgrade`: run template migration only.
+    `exit_code`: 0 on success; a non-zero scaffold exit code propagated as-is; a non-zero onboarding code propagated.
+
+    Algorithm:
+    1. Resolve the mode via `resolve_init_mode` — an invalid flag combination raises click.ClickException (message,
+       exit 1).
+    2. Upgrade mode: run the template migration via Scaffold.upgrade with `ref` and return its exit code — no
+       onboarding runs.
+    3. Template mode: scaffold the template into the current working directory via Scaffold.generate with `tpl` and
+       `ref`; a non-zero code stops the command with that code — no onboarding side effects are applied.
+    4. Return the result of `run_onboarding` with template_mode set according to the resolved mode.
+
+    Requirements:
+    - The scaffold engine owns its error handling: the routine receives only the exit code and never wraps engine
+      exceptions or diagnostics.
+    - In template mode no onboarding side effect (usages copies, conventions slot, config augmentations, conftest) is
+      applied when the scaffold failed.
+    - Exit codes: 0 success; the engine's non-zero code propagated unchanged; flag-validation failures exit 1.
+
+    Constraints:
+    - Do not run onboarding in upgrade mode — no prompts, no file augmentation.
+    - Do not inject answers into the template beyond project_name — the engine resolves it (see `goga`).
+    - Do not import copier directly — the engine is reached through `goga` only.
+
+    Use `resolve_init_mode`, `run_onboarding`. Use `goga` for the Scaffold.generate/upgrade contract. Use `click` for
+    the ClickException propagation. Use `conventions` for logging/testing.
+
+"resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> mode:str":
+  location: init.py
+  annotations: |
+    Pure resolution of the init mode from the CLI flags — validates the flag combination and maps it to exactly one
+    mode.
+
+    `tpl`: template source from the positional argument; None when absent.
+    `ref`: git ref override; None when absent.
+    `upgrade`: True when --upgrade is set.
+    `mode`: the resolved mode — bare, template, or upgrade.
+
+    Algorithm:
+    1. Reject <tpl> combined with --upgrade — raise click.ClickException with a clear message (mutually exclusive,
+       exit 1).
+    2. Reject --ref without <tpl> and without --upgrade — raise click.ClickException with a clear message (exit 1).
+    3. Return upgrade when --upgrade is set; template when <tpl> is given; bare otherwise.
+
+    Requirements:
+    - Flag rules mirror the goga init command: <tpl>/--upgrade mutual exclusion, --ref placement validation.
+    - Invalid combinations surface as click.ClickException (message + exit 1); valid input never raises.
+    - Pure — no TTY, no I/O, no side effects.
+
+    Use `click` for the ClickException mapping. Use `conventions` for type hints/testing.
+
+"run_onboarding(template_mode: bool) -> exit_code:int":
+  location: init.py
+  annotations: |
+    Onboarding pipeline of the init command: ensure the goga-project is initialized, build the pybuggy tool config,
+    deliver the `conventions` slot when absent, bootstrap the consumer usages of the api cell, enforce the
+    build.review_executor.skip flag, and generate the root conftest.py. The gate style depends on `template_mode`:
+    bare gates ask via click.confirm (default no) before touching an existing file; template gates silently skip an
+    existing file with an INFO log.
+
+    `template_mode`: True — a scaffolded template occupies the target directory; existing files are left untouched
+    without confirmation. False — the interactive bare flow with confirmation gates.
+    `exit_code`: 0 on success; a non-zero goga-init/config-build exit code propagated on failure/cancel.
 
     Algorithm:
     1. Resolve the output root as the current working directory.
-    2. Goga-project config: when <cwd>/.goga/config.yml does NOT exist, call `run_goga_init`; when it DOES exist,
-       ask via click.confirm (default no) whether to re-run goga init and overwrite it, and only re-run on yes.
-       If non-zero, return it immediately.
-    3. Pybuggy tool config: when <cwd>/.goga/tools/pybuggy/config.yml does NOT exist, call `build_pybuggy_config`;
-       when it DOES exist, ask via click.confirm (default no) whether to rebuild it, and only rebuild on yes.
-       If non-zero (cancel/error) return it; on 0 (or a declined rebuild) continue. The recreate decision lives
-       here in the orchestrator — `build_pybuggy_config` itself always (over)writes without checking.
+    2. Goga-project config <cwd>/.goga/config.yml: when absent, call `run_goga_init` and propagate a non-zero code;
+       when present — template mode: log INFO (file untouched) and continue; bare mode: ask via click.confirm (default
+       no) whether to re-run goga init and only re-run on yes (a non-zero code propagates).
+    3. Pybuggy tool config <cwd>/.goga/tools/pybuggy/config.yml: when absent, call `build_pybuggy_config`; when
+       present — template mode: log INFO and skip; bare mode: ask via click.confirm (default no) whether to rebuild
+       and only rebuild on yes. A non-zero (cancel/error) propagates; a declined rebuild continues.
     4. Discover every .usages/*.md under the api cell (incl. asserts) from the installed goga_tool_pybuggy.api package.
-    5. For each discovered file, write its content to <cwd>/.goga/usages/cooks/pybuggy/<stem>.md.
-    6. Occupy the `conventions` slot: call `write_test_convention` with <cwd>/.goga/usages/conventions.md — the file
-       is always overwritten with the package asset version (no existence check, no confirmation).
+    5. For each discovered file: when <cwd>/.goga/usages/cooks/pybuggy/<stem>.md does NOT exist, write its content
+       there; when it exists — template mode: log INFO (file untouched) and skip; bare mode: overwrite with the
+       package version (bare behavior unchanged).
+    6. Deliver the `conventions` slot: when <cwd>/.goga/usages/conventions.md does NOT exist, call
+       `write_test_convention`; when it exists, log INFO and leave the file untouched. The key registration and the
+       annotation line always run (idempotent).
     7. Ensure build.review_executor.skip: true in <cwd>/.goga/config.yml via `ensure_review_executor_skip` — an
-       idempotent round-trip edit creating the nested build/review_executor mappings when missing and preserving the
-       rest of build (e.g. task_executor) verbatim; a declined goga-config rebuild migrates the flag into the
-       existing config all the same.
-    8. Register usage keys via `register_usages` with <cwd>/.goga/config.yml: the discovered pybuggy-<stem> keys AND
-       the key conventions -> .goga/usages/conventions.md (idempotent, skip-existing).
-    9. Register annotation lines via `register_annotations` with <cwd>/.goga/config.yml: the pybuggy-<stem> lines AND
-       the conventions line "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
-       (idempotent by backtick reference — an existing line carrying the reference is replaced).
+       idempotent round-trip edit; runs on every pass, including a skipped or declined goga-config recreate.
+    8. Augment the Dockerfile: call `install_pybuggy` with <cwd>/.goga/Dockerfile — idempotent; a no-op when the
+       Dockerfile is absent.
+    9. Register usage keys via `register_usages` and annotation lines via `register_annotations` with
+       <cwd>/.goga/config.yml (idempotent; the conventions key and line included).
     10. Log INFO for added/changed, WARNING for skipped.
-    11. Root conftest: resolve the path <cwd>/conftest.py; when it does NOT exist, call `write_pybuggy_conftest` with
-       it; when it DOES exist, ask via click.confirm (default no) whether to overwrite it — on yes call
-       `write_pybuggy_conftest`, on no log INFO (step skipped, file untouched) and continue. The overwrite decision
-       lives here in the orchestrator — `write_pybuggy_conftest` itself always (over)writes without checking.
+    11. Root conftest <cwd>/conftest.py: when absent, call `write_pybuggy_conftest`; when present — template mode: log
+        INFO and skip; bare mode: ask via click.confirm (default no) whether to overwrite — yes calls the writer, no
+        logs INFO (file untouched) and continues.
     12. Return 0.
 
     Requirements:
-    - Each config (goga .goga/config.yml and pybuggy .goga/tools/pybuggy/config.yml) is created when absent and
-      only recreated on explicit click.confirm (default no) when present; declining a recreate skips that step so
-      a plain repeat run just re-copies usages and skips registered keys.
-    - The config-build step (`build_pybuggy_config`) always (over)writes the tool config when it runs — the recreate
-      gate is `run_init`'s, not the builder's.
-    - After every successful run the `conventions` slot is consistent: <cwd>/.goga/usages/conventions.md carries the
-      package asset text, the key conventions -> .goga/usages/conventions.md is registered, and codemanifest.annotations
-      carries the conventions line from step 9.
-    - The `conventions` slot delivery runs on every successful pass — including a declined goga-config rebuild — so a
-      project with any prior slot content migrates automatically.
-    - After every successful run the consumer .goga/config.yml carries build.review_executor.skip: true — the block is
-      created in a fresh config and migrated into an existing one (a declined goga-config rebuild included) without
-      touching any other build content; when the flag already holds true the file is left byte-identical.
+    - Existing-file gates: bare — explicit click.confirm (default no) for the goga config, the tool config, and the
+      conftest, while the copied usages are overwritten as today; template — silent skip with an INFO log, no
+      interactive confirmation — for the goga config, the tool config, the conftest, and the copied usages alike.
+    - The `conventions` slot is delivered skip-if-exists in both gate styles: an existing file (brought by a template
+      or created by any earlier run) is never overwritten; an absent one is created from the package asset. The key
+      registration and the annotation line always run idempotently.
+    - After every successful run the consumer .goga/config.yml carries build.review_executor.skip: true; the
+      .goga/Dockerfile carries the pybuggy install line whenever the Dockerfile exists; the pybuggy usage keys and
+      annotation lines are registered — regardless of which files the target directory already contained.
+    - The pure writers (`write_pybuggy_conftest`, `write_test_convention`, and `build_pybuggy_config` via its builder
+      contract) always (over)write when called — every existence check and confirmation lives here in the orchestrator.
     - The usages/annotations bootstrap is idempotent.
-    - The root conftest.py is created when absent and only overwritten on explicit click.confirm (default no) when
-      present; declining skips the step (file untouched) so a repeat run stays idempotent.
-    - A conftest write failure is logged (ERROR) and fails the command with a non-zero exit — uniform with the other steps.
+    - A conftest write failure is logged (ERROR) and fails the command with a non-zero exit.
+    - A Dockerfile-augmentation failure in step 8 (an I/O error raised by `install_pybuggy`) is logged (ERROR) and
+      fails the command with a non-zero exit — uniform with the conftest failure handling.
 
     Constraints:
     - Do not register pybuggy usages/annotations and do not deliver the `conventions` slot when goga init failed/was
-      cancelled — propagate goga's exit code.
+      cancelled — propagate its exit code.
     - Do not copy usages of internal development cells (config, spec, output, matchcrest, plugin, commands).
     - Do not generate the conftest when an earlier step failed or was cancelled with a non-zero exit.
-    - Do not merge into an existing conftest — either a confirmed overwrite or a skip.
+    - Do not merge into an existing conftest — either a confirmed overwrite (bare) or a skip.
+    - Do not prompt about existing files in template mode — the template expresses the user's intent.
 
     Use `run_goga_init`, `build_pybuggy_config`, `write_test_convention`, `ensure_review_executor_skip`,
-    `register_usages`, `register_annotations`, `write_pybuggy_conftest`. Use `click` for the overwrite gates and error
-    mapping. Use `conventions` for logging/testing.
+    `install_pybuggy`, `register_usages`, `register_annotations`, `write_pybuggy_conftest`. Use `click` for the
+    bare-mode gates and error mapping. Use `conventions` for logging/testing.
 
 "build_pybuggy_config() -> exit_code:int":
   location: init.py
@@ -224,7 +289,7 @@ Annotations: |
     - Output deterministic — no parameterization, no placeholders, no version resolution.
 
     Constraints:
-    - Do not survey/prompt — pure (TTY-free); the overwrite gate lives in `run_init`.
+    - Do not survey/prompt — pure (TTY-free); the overwrite gate lives in `run_onboarding`.
     - Do not check for an existing file, merge into it, or confirm — always overwrite `path` on every call.
     - Do not verify the consumer environment (goga_tool_pybuggy / python-dotenv importability) — absence surfaces
       when the consumer runs pytest.
@@ -254,9 +319,9 @@ Annotations: |
     - Output deterministic for the same installed package.
 
     Constraints:
-    - Do not survey/prompt — pure (TTY-free); the delivery gate lives in `run_init`.
-    - Do not check for an existing file, merge into it, diff it, or confirm — always overwrite `path` on every call
-      (package-owned usage: locally modified or previously generated slot content is replaced by the package version).
+    - Do not survey/prompt — pure (TTY-free); the delivery gate lives in `run_onboarding`.
+    - Do not check for an existing file, merge into it, diff it, or confirm — always overwrite `path` on every call;
+      the skip-if-exists delivery gate lives in `run_onboarding`.
     - Do not read the asset from the cwd checkout or the network.
 
     Use `conventions` for type hints, structured logging, and testing.
@@ -283,7 +348,7 @@ Annotations: |
     line.
 
     `exit_code`: 0 on success; 1 on user cancellation (click.Abort) or generation failure (the routine returns a code
-    and never raises, so run_init — which calls it outside its own try/except — relies on this).
+    and never raises, so run_onboarding — which calls it outside its own try/except — relies on this).
 
     Algorithm:
     1. Instantiate Questionnaire() and FileGenerator() from goga.onboarding (NO InitLogic — manual per-field orchestration).
@@ -293,11 +358,11 @@ Annotations: |
        - codemanifest_annotations  = questionnaire.ask_codemanifest_annotations()
        - agent           = questionnaire.ask_agent()
        - image           = questionnaire.ask_image_name(language)   # name of the image BUILT from the Dockerfile
-                                                                     # (top-level image field); ask_image (pre-built
-                                                                     # pull, no-Dockerfile case) is NOT used
+                                                                         # (top-level image field); ask_image (pre-built
+                                                                         # pull, no-Dockerfile case) is NOT used
        - dockerfile_base_image = questionnaire.ask_base_image(language)  # FROM baseline for the Dockerfile
        - dockerfile_path = ".goga/Dockerfile"                       # hardcoded mandatory path; ask_dockerfile_path
-                                                                     # is NOT called — the Dockerfile cannot be skipped
+                                                                         # is NOT called — the Dockerfile cannot be skipped
        - env             = questionnaire.ask_env(agent)
        - pipeline_agent  = questionnaire.ask_pipeline_agent()       # no args; optional (confirm gate, defaults None)
        - pipeline_env    = questionnaire.ask_pipeline_env(pipeline_agent)
@@ -335,7 +400,7 @@ Annotations: |
     - Do NOT duplicate goga's prompt/generation logic — only orchestrate the existing ask_* methods (except
       ask_dockerfile_path, hardcoded) and FileGenerator.generate.
     - Do NOT modify goga FileGenerator — the pybuggy install line is appended post-generation by `install_pybuggy`.
-    - Do NOT propagate an exception on cancellation/failure — return a code (run_init relies on this).
+    - Do NOT propagate an exception on cancellation/failure — return a code (run_onboarding relies on this).
 
     Use `goga` for the per-field Questionnaire methods + FileGenerator.generate contract.
     Use `click` for click.Abort handling.
@@ -378,7 +443,7 @@ Annotations: |
 
     `config_path`: path to the consumer .goga/config.yml.
     `usage_keys`: mapping of usage key to the relative path of the usage file to register (pybuggy-<stem> →
-    .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
+      .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
     `added_keys`: the keys actually added (pre-existing keys are skipped and excluded).
 
     Algorithm:
@@ -450,9 +515,9 @@ Annotations: |
   location: init.py
   annotations: |
     Round-trip edit of the consumer .goga/config.yml enforcing build.review_executor.skip: true — the flag telling
-    goga to skip the review-executor stage of the build in pybuggy-initialized projects. Pure (no TTY); `run_init`
-    calls it unconditionally on every successful pass, so the block is created in a fresh config and migrated into
-    an existing one alike (a declined goga-config rebuild included).
+    goga to skip the review-executor stage of the build in pybuggy-initialized projects. Pure (no TTY); the onboarding
+    orchestrator calls it unconditionally on every successful pass, so the block is created in a fresh config and
+    migrated into an existing one alike (a declined goga-config rebuild included).
 
     `config_path`: path to the consumer .goga/config.yml.
     `changed`: true when the flag was added or corrected (file written); false when it already held true (no write).
@@ -478,26 +543,30 @@ Annotations: |
     Constraints:
     - Do not use pyyaml — it would reformat the file and drop comments.
     - Do not touch keys outside build.review_executor.skip.
-    - Do not prompt — pure (TTY-free); the run gate lives in `run_init`.
+    - Do not prompt — pure (TTY-free); the run gate lives in the onboarding orchestrator.
 
     Use `ruamel-yaml` for the round-trip load/modify/dump and the CommentedMap construction.
     Use `conventions` for type hints and structured logging.
 
-"init_cmd(ctx: click.Context)":
+"init_cmd(ctx: click.Context, tpl: str | None, ref: str | None, upgrade: bool)":
   location: init.py
   annotations: |
-    Click command wrapper for the top-level init command; carries no options or arguments, delegates to `run_init`, and
-    propagates the returned exit code via ctx.exit.
+    Click command wrapper for the top-level init command; binds the CLI surface — the optional positional <tpl> (a
+    local path or git URL of a copier-compatible template project, optionally carrying a #ref fragment), the option
+    --ref <git-ref>, and the flag --upgrade — delegates to `run_init`, and propagates the returned exit code via
+    ctx.exit.
 
     `ctx`: Click execution context used to control the process exit code.
+    `tpl`: template source — local path or git URL; absent in bare and upgrade modes.
+    `ref`: git ref override; None keeps the template's own ref resolution.
+    `upgrade`: migrate a previously scaffolded project instead of onboarding.
 
-    Use `click` for the command wrapper (@click.command("init"), @click.pass_context).
+    Use `click` for the command wrapper (@click.command, @click.argument, @click.option, @click.pass_context).
 
 ---
 
 Author: Goga
 CreatedAt: 27/07/26
 Description: |
-  Init command cell — initializes the consumer's goga-project and bootstraps the pybuggy test environment:
-  test-convention slot, api-cell consumer usages, tool config, Dockerfile install line, review-executor skip flag,
-  root conftest.
+  Init command cell — initializes the consumer's goga project (bare, from a template, or a template upgrade) and
+  bootstraps the pybuggy test environment.
