@@ -1,6 +1,11 @@
-"""init command handler — bootstraps the pybuggy test environment.
+"""init command handler — initializes the pybuggy test environment in three modes.
 
-The bootstrap covers the test-convention slot, api usages, tool config, and conftest.
+``run_init`` dispatches on the mode resolved from the CLI flags: **bare** (``pybuggy init``)
+runs the interactive onboarding pipeline with confirm gates (goga config, tool config, api
+usages, the test-convention slot, and conftest); **template** (``pybuggy init <tpl>
+[--ref R]``) scaffolds a copier template through the engine first, then runs the same
+onboarding with silent-skip gates; **upgrade** (``pybuggy init --upgrade [--ref R]``)
+migrates a previously scaffolded project through the engine alone, without onboarding.
 """
 
 import importlib.resources
@@ -445,7 +450,7 @@ def write_pybuggy_conftest(path: Path) -> None:
 
     Pure, TTY-free, deterministic emitter wiring the pybuggy plugin into the consumer's pytest
     run. No existence check and no overwrite confirmation — ``path`` is always (over)written on
-    every call; the overwrite gate lives in :func:`run_init`. Nothing is logged (mirrors
+    every call; the overwrite gate lives in :func:`run_onboarding`. Nothing is logged (mirrors
     :func:`write_pybuggy_config`).
 
     Args:
@@ -463,12 +468,11 @@ def write_pybuggy_conftest(path: Path) -> None:
 def write_test_convention(path: Path) -> None:
     """Occupy the consumer's ``conventions`` slot with the pybuggy test convention.
 
-    Pure writer of the consumer's test convention file — occupies the ``conventions`` slot with
-    the pybuggy test convention shipped inside the installed package. No TTY, no existence check,
-    no network: always (over)writes ``path`` with the packaged asset text, so a locally modified
-    or previously generated slot content is replaced by the package version (package-owned).
-    Nothing is logged — the delivery outcome is logged by the orchestrator
-    (:func:`run_init`), which owns the delivery gate.
+    Pure writer of the consumer's test convention file — writes the pybuggy test convention
+    shipped inside the installed package into the ``conventions`` slot. No TTY, no existence
+    check, no network: when called, it always (over)writes ``path`` with the packaged asset
+    text. Nothing is logged — the skip-if-exists delivery gate lives in
+    :func:`run_onboarding`, which owns the delivery decision and its logging.
 
     The asset is read from the installed ``goga_tool_pybuggy`` package (never the cwd checkout,
     never the network) via the same ``importlib.resources`` channel the api-usage discovery uses;
@@ -621,8 +625,9 @@ def build_pybuggy_config() -> int:
     is mandatory); subsequent prompts accept an empty name to finish.
 
     Mirrors :func:`run_goga_init`: it returns an exit code and never raises — a ``click.Abort`` (user
-    cancellation) or any other ``Exception`` is logged and echoed, returning ``1``. ``run_init``
-    relies on this never-raises contract (it calls this step outside its own try/except).
+    cancellation) or any other ``Exception`` is logged and echoed, returning ``1``.
+    :func:`run_onboarding` relies on this never-raises contract (it calls this step outside its
+    own try/except).
 
     Returns:
         0 on success; 1 on cancellation or failure.
@@ -730,15 +735,15 @@ def run_goga_init() -> int:
     and the codemanifest fields are collected without a prefill, so the ``conventions`` key never
     enters the answers from this flow and goga performs no convention download — initialization is
     fully offline. The consumer's ``conventions`` slot belongs to :func:`write_test_convention`
-    (delivered by :func:`run_init`); the residual case of a user manually typing ``conventions``
-    into the usages questionnaire is documented in the ``goga`` usage.
+    (delivered by :func:`run_onboarding`); the residual case of a user manually typing
+    ``conventions`` into the usages questionnaire is documented in the ``goga`` usage.
 
     Interactive (TTY prompts via click); callers and tests stub this routine via monkeypatch.
 
     Returns:
         0 on success; 1 on user cancellation (``click.Abort``) or a generation failure. The
-        routine returns a code and never raises, so ``run_init`` — which calls it outside its own
-        try/except — can propagate the code cleanly.
+        routine returns a code and never raises, so ``run_onboarding`` — which calls it outside
+        its own try/except — can propagate the code cleanly.
     """
     questionnaire = Questionnaire()
     generator = FileGenerator()
@@ -825,9 +830,9 @@ def _log_registration(
 ) -> None:
     """Log INFO for newly-registered usages/annotations and WARNING for already-present (skipped) ones.
 
-    Extracted from :func:`run_init` to keep it under the cyclomatic-complexity cap. A usage key counts as added
-    when it appears in the ``added_usage_keys`` list returned by :func:`register_usages`; an annotation key counts
-    as registered when it appears in the ``changed_annotation_keys`` list returned by
+    Extracted from :func:`run_onboarding` to keep it under the cyclomatic-complexity cap. A usage key counts as
+    added when it appears in the ``added_usage_keys`` list returned by :func:`register_usages`; an annotation key
+    counts as registered when it appears in the ``changed_annotation_keys`` list returned by
     :func:`register_annotations` (appended or replaced — an identical line is a no-op and logs as skipped).
 
     Args:
