@@ -492,7 +492,8 @@ Annotations: |
        identical text -> skip; found with different text -> replace that text line with the new line and record the
        key in `changed_keys`.
     5. When at least one line was appended or replaced, write the text back as a literal block scalar (|) under
-       codemanifest.annotations; ensure the parent directory of `config_path` exists and dump the document back.
+       codemanifest.annotations. Then ensure the parent directory of `config_path` exists and dump the document back —
+       the dump itself runs unconditionally; an unchanged document round-trips byte-identically (idempotency).
     6. Return `changed_keys`.
 
     Requirements:
