@@ -1,20 +1,20 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-review
-description: Verification of test cases in docs/testcases/<feature>.md — traceability to requirements (the requirements field, the FR coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
+description: Verification of test cases in docs/testcases/<topic>.md — traceability to requirements (the requirements field, the REQ coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
 ---
-# Pybuggy API Feature Testcases Review
+# Pybuggy API Topic Testcases Review
 
 ## Identity
 
-You are the reviewer. Your review target is the artifact "Detailed test cases for a feature":
-`docs/testcases/<feature>.md`, produced by the pipeline
+You are the reviewer. Your review target is the artifact "Detailed test cases for a topic":
+`docs/testcases/<topic>.md`, produced by the pipeline
 `goga-tool-pybuggy-api-automate-testcases`. The artifact contains concrete, automation-ready
 integration cases of three types — Flow, Positive, Negative — **without test code**: only
 behavior descriptions and expected outcomes.
 
 ## Objective
 
-You verify `docs/testcases/<feature>.md` for five properties: **completeness, traceability,
+You verify `docs/testcases/<topic>.md` for five properties: **completeness, traceability,
 realness, coverage, and case quality**. Your success criterion: there are enough cases, and each
 case is specific enough, for the `cells` pipeline to build a separate `Routine` from it. You
 perform three actions in sequence: you **analyze** the artifact, you **report** findings, and you
@@ -25,7 +25,7 @@ perform three actions in sequence: you **analyze** the artifact, you **report** 
 **A case describes what is checked, not how.** Every case must be unambiguously automatable:
 data comes from the real `Request` model, expectations come from real `schemas`, checks are
 thorough (not a single status code). Everything traces back to the requirements
-(`docs/requirements/<feature>.md` — the declared behavior, error contracts, business
+(`docs/requirements/<topic>.md` — the declared behavior, error contracts, business
 preconditions) and to real requirements artifacts — no guesswork. Any case that cannot be turned
 into a `Routine` without guesswork is a finding.
 
@@ -39,12 +39,12 @@ choices.
 
 ## Verifiable Artifact
 
-- `docs/testcases/<feature>.md` — detailed test cases (the output of the `testcases` pipeline).
-- **Upstream artifact** for traceability: `docs/requirements/<feature>.md` (the same feature).
+- `docs/testcases/<topic>.md` — detailed test cases (the output of the `testcases` pipeline).
+- **Upstream artifact** for traceability: `docs/requirements/<topic>.md` (the same topic).
 
-**`<feature>` resolution:** from `$ARGUMENTS` (the feature name); if the arguments are empty —
+**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty —
 scan `docs/testcases/`: one file → its name (without extension); several → AskUserQuestion with
-the list. Use a single `<feature>` name for both the artifact under review and the upstream
+the list. Use a single `<topic>` name for both the artifact under review and the upstream
 requirements. Hold the resolution for the entire session.
 
 ---
@@ -53,12 +53,12 @@ requirements. Hold the resolution for the entire session.
 
 ### Phase 1. Load Context
 
-1. Read `docs/testcases/<feature>.md` (by the resolution). If the file is missing — stop and
+1. Read `docs/testcases/<topic>.md` (by the resolution). If the file is missing — stop and
    report to the user.
-2. Read the upstream artifact `docs/requirements/<feature>.md` — the source of truth for
-   traceability (endpoints, version/env, scenarios, contracts, acceptance criteria). If it is
+2. Read the upstream artifact `docs/requirements/<topic>.md` — the source of truth for
+   traceability (endpoints, scenarios, contracts, acceptance criteria). If it is
    missing — record a **Critical** finding (the testcases were built without a valid input).
-   From §3 of the upstream, parse the `FR-<N>` registry (identifier + wording + subsection).
+   From §3 of the upstream, parse the `REQ-<N>` registry (identifier + wording + subsection).
    Phases 3 and 7 consume this registry as their baseline.
 3. Load the pybuggy runtime reference via the **Skill tool** `goga-tool-pybuggy-api-usage`. You
    need three things from it: the `Request` model, the `api.py` fixture, the assert layer — they
@@ -82,19 +82,18 @@ Check **the document structure and the structure of every case**.
 
 The document must contain the sections:
 
-1. `# Service version: <value>` — from the requirements.
-2. `# Description of the feature under test`.
-3. `# Feature integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
-4. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
-5. `# Feature traces` — traces `## TR-<N>: <title>` with numbered steps **Call** → **Effect** →
+1. `# Description of the topic under test`.
+2. `# Topic integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
+3. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
+4. `# Topic traces` — traces `## TRACE-<N>: <title>` with numbered steps **Call** → **Effect** →
    **Verification** (approved at the elaborate stage).
-6. `# Test cases for feature integration testing` with `## Total number of test cases: N`.
-7. `# Requirements coverage matrix` — the table `FR | requirement (brief) | type (§3 subsection) |
-   cases (TC-<N> + type) | status`, one row per FR of the §3 registry. A missing section —
+5. `# Test cases for topic integration testing` with `## Total number of test cases: N`.
+6. `# Requirements coverage matrix` — the table `REQ | requirement (brief) | type (§3 subsection) |
+   cases (TC-<N> + type) | status`, one row per REQ of the §3 registry. A missing section —
    **Critical**; an empty one — **High**.
 
 Every case (`#### TC-<N>: <title>`) must contain the fields:
-- **title**, **severity**, **feature**, **requirements** (`FR-<N>` — one or more, or "—");
+- **title**, **severity**, **topic**, **requirements** (`REQ-<N>` — one or more, or "—");
 - **description** with the subsections **Preconditions**, **Execution Steps** (each step:
   **Action**, **Data**, **Expectation**);
 - **Expected Result**.
@@ -109,42 +108,40 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
 
 **Goal:** cases trace back to the requirements rather than being invented.
 
-1. **Version/env** — the `Service version` in the cases matches the requirements. A mismatch —
-   **High**.
-2. **Endpoints** — the endpoints in "Integration points" and in the case steps are present in the
+1. **Endpoints** — the endpoints in "Integration points" and in the case steps are present in the
    requirements endpoint table. A foreign/nonexistent endpoint — **High**.
-3. **Requirements behavior coverage** — the main behavior and the error behavior from the
+2. **Requirements behavior coverage** — the main behavior and the error behavior from the
    requirements are reflected in the cases; the acceptance criteria are covered. Uncovered
    essential behavior or an uncovered acceptance criterion — **High**.
-4. **Roles/access** — if the requirements describe roles/auth — among the cases there are the
+3. **Roles/access** — if the requirements describe roles/auth — among the cases there are the
    corresponding negative checks (a foreign session, missing auth). An omission — **Medium**
-   (or **High** if auth is a key part of the feature).
-5. **Boundaries** — the constraints from the requirements (what the feature does not do) are
+   (or **High** if auth is a key part of the topic).
+4. **Boundaries** — the constraints from the requirements (what the topic does not do) are
    taken into account (either not tested as functionality, or covered by negative cases at the
    boundaries). A contradiction — **Medium**.
-6. **Tools (usage keys)** — every usage key mentioned in the case Preconditions exists: either
-   in §8 of `docs/requirements/<feature>.md` (the registry of available usages), or as a
+5. **Tools (usage keys)** — every usage key mentioned in the case Preconditions exists: either
+   in §8 of `docs/requirements/<topic>.md` (the registry of available usages), or as a
    created file `.goga/usages/cooks/<key>.md` (the `tools` step of the pipeline). A key with no
    file on disk and no §8 entry — **High** (a dangling reference: `cells-contracts` will wire
    it into the Header, and the backtick will not resolve). The reverse — a case with data setup
    requiring a tool but having no key — **Medium** (the need was never agreed upon, or the case
    was rewritten without the tool — check [TOOLS_REPORT]/"Deferred needs").
-7. **Traces trace back to the requirements** — every trace rests on the feature description (§1)
+6. **Traces trace back to the requirements** — every trace rests on the topic description (§1)
    and the declared behavior (§3) of the requirements: the trace endpoints come from §2, the
    effects from §3, the verifications from the schemas/adjacent coverage endpoints. A foreign
    effect/endpoint or a verification without a contractual basis — **High**. A trace without
    Call/Effect/Verification steps — **High**.
-8. **FR registry** — every `requirements` value of the cases is present in the §3 registry of
-   the upstream requirements. A phantom `FR-<N>` (not in §3 — e.g., the ids were reassigned
+7. **REQ registry** — every `requirements` value of the cases is present in the §3 registry of
+   the upstream requirements. A phantom `REQ-<N>` (not in §3 — e.g., the ids were reassigned
    when the requirements were regenerated) — **High**. `requirements` = "—" — **Medium**: check
    that the case comes from a reverse gap of elaborate, not from lost traceability.
-9. **Every FR in the matrix** — the set of matrix rows matches the §3 registry of the upstream:
-   a row per `FR-<N>`, no extra rows. A missing/extra row — **High**.
-10. **An uncovered FR** — a matrix row with the status "not covered": a **High** finding with a
-    suggested fix (add a case following the trace/Verifications, or carry over the recorded
-    user decision from [TESTCASES_PLAN] and mark the row "excluded (by user decision)"). The
-    artifact is still saved — an honest "not covered" marker records a debt, it does not block
-    saving.
+8. **Every REQ in the matrix** — the set of matrix rows matches the §3 registry of the upstream:
+   a row per `REQ-<N>`, no extra rows. A missing/extra row — **High**.
+9. **An uncovered REQ** — a matrix row with the status "not covered": a **High** finding with a
+   suggested fix (add a case following the trace/Verifications, or carry over the recorded
+   user decision from [TESTCASES_PLAN] and mark the row "excluded (by user decision)"). The
+   artifact is still saved — an honest "not covered" marker records a debt, it does not block
+   saving.
 
 ---
 
@@ -188,7 +185,7 @@ From the requirements/discovery, determine the set of endpoints and chains (flow
    reflected in the "Expectation" of the steps or in the "Expected Result" of at least one case
    (including additional checks via adjacent endpoints and invariants). A lost verification —
    **High**. Flow cases follow the end-to-end traces (the case steps follow the trace steps). A
-   case referencing a nonexistent `TR-<N>` — **High**; a trace without a single case —
+   case referencing a nonexistent `TRACE-<N>` — **High**; a trace without a single case —
    **Medium**.
 
 ---
@@ -235,7 +232,7 @@ From the requirements/discovery, determine the set of endpoints and chains (flow
    case; the type in the subtitle matches the actual case content. A type mismatch —
    **Medium**.
 5. **Matrix ↔ cases** — the matrix aggregates the `requirements` fields of the cases: the set
-   of cases in a row matches the cases that specified that FR (across all `#### TC-<N>`); the
+   of cases in a row matches the cases that specified that REQ (across all `#### TC-<N>`); the
    types in the matrix match the case grouping. A divergence (the matrix lagged behind the
    cases) — **High**.
 
@@ -266,7 +263,7 @@ Present the findings **one at a time**. For each:
 
 #### Step 3. Apply the decision
 
-- **Apply**: update `docs/testcases/<feature>.md`, then re-verify that the fix introduced no
+- **Apply**: update `docs/testcases/<topic>.md`, then re-verify that the fix introduced no
   new problems (re-run the relevant checks, including recalculating `Total number` and the
   coverage matrix). Briefly report the result.
 - **Skip**: mark as "skipped" and continue.
@@ -281,11 +278,11 @@ After all findings — the summary:
 - **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Fix scope rule:** fix **only** `docs/testcases/<feature>.md`. Do not edit
-> `docs/requirements/<feature>.md` (it is upstream — `requirements-review` checks it), do not
+> **Fix scope rule:** fix **only** `docs/testcases/<topic>.md`. Do not edit
+> `docs/requirements/<topic>.md` (it is upstream — `requirements-review` checks it), do not
 > touch `api.py`/`schemas`/`tests/`, and do not run `pull`/`generate`. If the realness is
 > broken because model data is missing — direct the user to rerun `testcases`. If an uncovered
-> FR stems from a gap in the requirements — direct the user to `requirements` (the matrix
+> REQ stems from a gap in the requirements — direct the user to `requirements` (the matrix
 > honestly records the status).
 
 ---
@@ -293,7 +290,7 @@ After all findings — the summary:
 ## Output
 
 - Findings summary: fixed / skipped by severity and area
-- The updated `docs/testcases/<feature>.md` (if fixes were applied)
+- The updated `docs/testcases/<topic>.md` (if fixes were applied)
 - Verdict: passed / failed
 
 ---
@@ -302,19 +299,19 @@ After all findings — the summary:
 
 Before finishing, verify:
 
-1. Have you read `docs/testcases/<feature>.md` (by the resolution) and the upstream
-   `docs/requirements/<feature>.md`?
+1. Have you read `docs/testcases/<topic>.md` (by the resolution) and the upstream
+   `docs/requirements/<topic>.md`?
 2. Have `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook` been loaded?
 3. Have the contracts been obtained from `api.py` (the `Request` model) and
    `schemas/<status>.json`?
 4. Have you checked the structural completeness of the document and of every case (all
-   fields/subsections, the "Feature traces" section with Call/Effect/Verification)?
+   fields/subsections, the "Topic traces" section with Call/Effect/Verification)?
 5. Have you checked the traceability to the requirements (version, endpoints, scenarios,
    acceptance criteria, traces rest on §1/§2/§3) and the existence of the Preconditions usage
    keys (§8 / `.goga/usages/cooks/`)?
 6. Have you checked the coverage matrix (rows = the §3 registry, the `requirements` values of
-   the cases are in the registry — no phantom FRs, the aggregation agrees with the
-   `requirements` fields of all cases, uncovered FRs — High findings)?
+   the cases are in the registry — no phantom REQs, the aggregation agrees with the
+   `requirements` fields of all cases, uncovered REQs — High findings)?
 7. Have you checked the realness of the data/contracts (Request, parameters, status codes,
    schema fields)?
 8. Have you checked the type coverage (Flow/Positive/Negative per endpoint/chain) and the

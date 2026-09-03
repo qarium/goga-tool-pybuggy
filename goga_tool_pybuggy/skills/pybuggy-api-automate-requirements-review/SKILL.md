@@ -1,19 +1,19 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-review
-description: Verification of the test requirements artifact docs/requirements/<feature>.md — section completeness, FR-<N> functional requirement identifiers in §3 (uniqueness and continuity), endpoint/contract/path realness (cross-check against the live spec via the pybuggy CLI and the disk), behavior completeness (main + error behavior)
+description: Verification of the test requirements artifact docs/requirements/<topic>.md — section completeness, REQ-<N> functional requirement identifiers in §3 (uniqueness and continuity), endpoint/contract/path realness (cross-check against the live spec via the pybuggy CLI and the disk), behavior completeness (main + error behavior)
 ---
-# Pybuggy API Feature Requirements Review
+# Pybuggy API Topic Requirements Review
 
 ## Identity
 
-You are the reviewer of the "Detailed Requirements for a Feature" artifact. You verify
-`docs/requirements/<feature>.md` — the output of the `goga-tool-pybuggy-api-automate-requirements`
-pipeline. The artifact describes the **behavior** of the feature under test for subsequent test case
+You are the reviewer of the "Detailed Requirements for a Topic" artifact. You verify
+`docs/requirements/<topic>.md` — the output of the `goga-tool-pybuggy-api-automate-requirements`
+pipeline. The artifact describes the **behavior** of the topic under test for subsequent test case
 and cell generation; it **contains no test code**.
 
 ## Objective
 
-Verify `docs/requirements/<feature>.md` for **completeness, realness, consistency, and
+Verify `docs/requirements/<topic>.md` for **completeness, realness, consistency, and
 test orientation** — ensure the requirements are sufficient for the `testcases` pipeline to derive
 concrete test cases from them, and for `cells` to derive Routines for those cases. You **analyze**
 the artifact, **report** findings, and **fix** them (with user approval).
@@ -34,10 +34,10 @@ provide concrete options (AskUserQuestion). Do not ask open-ended questions with
 
 ## Verifiable Artifact
 
-- `docs/requirements/<feature>.md` — detailed requirements for the feature (output of the
+- `docs/requirements/<topic>.md` — detailed requirements for the topic (output of the
   `requirements` pipeline).
 
-**`<feature>` resolution:** from `$ARGUMENTS` (feature name); on empty arguments, scan
+**`<topic>` resolution:** from `$ARGUMENTS` (topic name); on empty arguments, scan
 `docs/requirements/`: one file → its name (without extension); several → AskUserQuestion with the
 list. Hold the resolution for the entire session.
 
@@ -47,7 +47,7 @@ list. Hold the resolution for the entire session.
 
 ### Phase 1. Load Context
 
-1. Read the artifact at `docs/requirements/<feature>.md` (by the resolution). If the file is missing,
+1. Read the artifact at `docs/requirements/<topic>.md` (by the resolution). If the file is missing,
    stop and inform the user.
 2. Load the pybuggy runtime reference via **Skill tool** `goga-tool-pybuggy-api-usage` — to know the
    actual `Request` model, the `api.py` fixture, and response contracts (the source of truth for
@@ -75,13 +75,17 @@ list. Hold the resolution for the entire session.
 
 Verify that the artifact contains **all mandatory sections**:
 
-1. **Context and goal** — the service, the user's verbatim feature description, and the refined goal.
+1. **Context and goal** — the service, the user's verbatim topic description, and the refined goal.
    An empty verbatim description is **High** (the `elaborate` step of the `testcases` pipeline relies
-   on it for API matching).
-2. **Feature endpoints** — a table of `endpoint-id | spec | method | path | role in the feature` plus
+   on it for API matching). The **Spec version** and **Target environment** entries of §1 record the
+   topic's version context (ref / base URL) — their absence is **Medium** (downstream run commands
+   fall back to the standard environment and cannot verify the spec source; a **High** when the
+   topic evidently tests a feature branch). A feature ref together with the standard environment is
+   a contradiction — **High**: confirm with the user and record the decision.
+2. **Topic endpoints** — a table of `endpoint-id | spec | method | path | role in the topic` plus
    the generated artifact paths (`api.py`, `schemas`, the `tests/` directory).
 3. **Functional requirements** — main behavior, error behavior (contract), acceptance criteria,
-   constraints and boundaries; every requirement carries an `FR-<N>` identifier. A requirement
+   constraints and boundaries; every requirement carries an `REQ-<N>` identifier. A requirement
    without an identifier is **High** (invisible to case traceability in `testcases`).
 4. **Business preconditions and environment** — business preconditions (entities/roles/states as a
    need), the environment.
@@ -99,7 +103,7 @@ Verify that the artifact contains **all mandatory sections**:
 - A section exists but is empty or contains a placeholder (TBD, TODO, "…", «далее»/"later") —
   **High**.
 - Sections 6 ("Integration aspects") and 9 ("Already covered by tests") may be intentionally empty
-  when the feature is isolated / no coverage exists — then this is acceptable and **not a finding**,
+  when the topic is isolated / no coverage exists — then this is acceptable and **not a finding**,
   but only if explicitly marked «нет» / «покрытие отсутствует» (none / no coverage).
 - Section 8 mirrors the disk scan: if `.goga/usages/` is empty — an explicit «usages отсутствуют»
   mark (no usages) — not a finding; an empty section without the mark is **High**.
@@ -155,16 +159,16 @@ Verify that the artifact contains **all mandatory sections**:
    criterion without a contractual basis is **Medium**.
 5. **Invariants and side effects** — the declared invariants do not contradict the main behavior and
    the integration aspects. A contradiction is **High**.
-6. **Constraints** — the "Constraints and boundaries" section describes what the feature **does not
+6. **Constraints** — the "Constraints and boundaries" section describes what the topic **does not
    do**. Empty generic phrases are **Medium**.
 7. **Usage registry (§8)** — cross-check against the disk: every table key corresponds to an existing
    `.goga/usages/**/<key>.md` file (the table path matches the actual one); the role classification
    (runtime reference / data-mocks-utilities / other) is meaningful. A file under `.goga/usages/`
    missing from §8 is **Medium** (incomplete registry); a key without a file is **High** (a dangling
    reference for `testcases`); a path mismatch is **Medium**.
-8. **FR identifiers** — every item of §3 (all four subsections) has an `FR-<N>`; the identifiers are
+8. **REQ identifiers** — every item of §3 (all four subsections) has an `REQ-<N>`; the identifiers are
    unique (a duplicate is **High** — an ambiguous reference for cases) and continuous from 1 in
-   subsection order (a gap/break is **Medium**); `FR-<N>` appears only in §3 (outside §3 —
+   subsection order (a gap/break is **Medium**); `REQ-<N>` appears only in §3 (outside §3 —
    **Medium**).
 
 ---
@@ -180,10 +184,12 @@ Verify that the artifact contains **all mandatory sections**:
    The absence of either kind is **High**.
 3. **Roles and access** — for endpoints with `auth`, the artifact states who may call them and who
    may not (a foreign session, missing auth). An omission is **Medium** (or **High** if auth is a
-   key part of the feature).
+   key part of the topic).
 4. **Business preconditions** — the preconditions (entities/roles/states) are concrete, not "prepare
-   data". Vague preconditions are **Medium**.
-5. **Integrations and mocks** — if the feature touches several endpoints or external components,
+   data". Vague preconditions are **Medium**. The **Target environment (base URL)** entry of §4 agrees
+   with §1 (a non-standard environment ⇒ every recorded run command carries `--base-url <url>`); a
+   divergence between §1 and §4 is **High**.
+5. **Integrations and mocks** — if the topic touches several endpoints or external components,
    this is reflected (chains, mocks, side effects). An omission in the presence of such dependencies
    is **Medium**.
 6. **Links** — section 7 points to real spec `location`s. A non-existent/empty link is **Medium**.
@@ -214,7 +220,7 @@ Present findings **one at a time**. For each finding:
 
 #### Step 3. Apply the decision
 
-- **Apply**: update `docs/requirements/<feature>.md`, then re-verify that the fix introduced no new
+- **Apply**: update `docs/requirements/<topic>.md`, then re-verify that the fix introduced no new
   problems (re-run the relevant checks). Report the re-verification result briefly.
 - **Skip**: mark the finding as "skipped" and continue.
 - **Propose alternative**: discuss, agree, apply, re-verify.
@@ -228,7 +234,7 @@ After all findings — a summary:
 - **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Fix rule:** modify **only** the requirements artifact `docs/requirements/<feature>.md`. Do not
+> **Fix rule:** modify **only** the requirements artifact `docs/requirements/<topic>.md`. Do not
 > modify the generated `api.py`/`schemas`/`tests/` and do not run `pull`/`generate` — those belong
 > to the `requirements` pipeline's domain. If realness is broken because generation is missing,
 > direct the user to restart `requirements`.
@@ -238,7 +244,7 @@ After all findings — a summary:
 ## Output
 
 - Findings summary: fixed / skipped by severity and area
-- The updated `docs/requirements/<feature>.md` (if fixes were applied)
+- The updated `docs/requirements/<topic>.md` (if fixes were applied)
 - Verdict: passed / failed
 
 ---
@@ -247,14 +253,14 @@ After all findings — a summary:
 
 Before you finish, verify:
 
-1. Did you read the artifact `docs/requirements/<feature>.md` (using the resolution)?
+1. Did you read the artifact `docs/requirements/<topic>.md` (using the resolution)?
 2. Did you load `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`?
 3. Did you collect ground truth via `goga tool pybuggy endpoint list` and `endpoint info` for every
    endpoint?
 4. Did you check the generated artifact paths (`api.py`/`schemas`/`tests/`) on disk?
 5. Did you check structural completeness (all mandatory sections, no placeholders; §6/§9 optional,
    §8 — a registry with an explicit mark when usages are empty)?
-6. Did you check the §3 numbering (`FR-<N>` on every requirement of all subsections, uniqueness,
+6. Did you check the §3 numbering (`REQ-<N>` on every requirement of all subsections, uniqueness,
    continuity in subsection order)?
 7. Did you check the realness of endpoints/methods/paths/schemas — and the artifact freshness via
    `goga tool pybuggy endpoint diff` (an empty diff per endpoint is the pass)?

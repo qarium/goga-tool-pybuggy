@@ -1,11 +1,11 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-discovery
-description: Feature endpoint discovery and filtering, existing test coverage detection, contract drift detection, code generation
+description: Topic endpoint discovery and filtering, existing test coverage detection, contract drift detection, code generation
 ---
 
 ## Identity
 
-You are responsible for discovering and selecting the endpoints of the service under test that are relevant to the feature, for detecting the contract drift between the current spec and the generated artifacts, and for generating the artifacts: fixtures, request models, response schemas, and test directories.
+You are responsible for discovering and selecting the endpoints of the service under test that are relevant to the topic, for detecting the contract drift between the current spec and the generated artifacts, and for generating the artifacts: fixtures, request models, response schemas, and test directories.
 
 ## User Interaction Rule
 
@@ -17,9 +17,14 @@ At the endpoint selection stage, always ask the user to confirm the selection (2
 
 ### Step 1. Pull specifications (pull)
 
-1. Run: `goga tool pybuggy endpoint pull`.
-2. Specs without a `git:` block (local) are skipped with a WARNING status — this is normal; record the status of every spec.
-3. Record the pulled `specs` and their `location`.
+1. Run `goga tool pybuggy endpoint pull` **with the topic's spec ref** from [INTAKE_REPORT] ("Spec
+   version (ref)"): a feature ref → `--ref <ref>` (global) or `--ref <spec>:<ref>` (per-spec);
+   `default` or `local` → no `--ref` (and `local` skips pull entirely).
+2. A ref is set for a spec without a `git:` block (local) — record a WARNING in the report Notes
+   (the ref cannot be applied to a local spec).
+3. Specs without a `git:` block (local) are skipped with a WARNING status — this is normal; record the
+   status **and the effective ref** of every spec.
+4. Record the pulled `specs` and their `location`.
 
 ### Step 2. Scan project usages
 
@@ -34,10 +39,10 @@ At the endpoint selection stage, always ask the user to confirm the selection (2
 2. The output consists of lines of the form `* <endpoint-id> -> [METHOD] <path>`.
 3. Build the complete endpoint registry (endpoint-id, spec, method, path).
 
-### Step 4. Filter endpoints by feature
+### Step 4. Filter endpoints by topic
 
-1. Match the endpoints to the feature using the Feature Intake Report (by path, name, description).
-2. Account for chains: a feature may require several endpoints (for example, action initiation plus a status check by `id`).
+1. Match the endpoints to the topic using the Topic Intake Report (by path, name, description).
+2. Account for chains: a topic may require several endpoints (for example, action initiation plus a status check by `id`).
 3. When several `specs` exist, determine which spec each relevant endpoint belongs to.
 
 ### Step 5. Detect existing test coverage
@@ -66,7 +71,7 @@ At the endpoint selection stage, always ask the user to confirm the selection (2
 
 ### Step 7. Confirm the selection with the user
 
-1. Present the selected endpoints: id, method, path, the intended role in the feature, **the coverage status** (not covered / partially covered with the list of existing Routines / fully covered), **and the drift status** (in sync / drifted / ADD / REMOVED with the key changes).
+1. Present the selected endpoints: id, method, path, the intended role in the topic, **the coverage status** (not covered / partially covered with the list of existing Routines / fully covered), **and the drift status** (in sync / drifted / ADD / REMOVED with the key changes).
 2. For fully covered endpoints, offer to exclude them from further generation (the existing tests are reused), subject to user agreement.
 3. For **drifted** covered endpoints, offer the regeneration of their artifacts (Step 9 updates the fixtures from the current spec; the existing tests then need a drift re-check) — or keeping the stale contract, an explicit user decision recorded in the report.
 4. For **REMOVED** artifact directories, warn the user: the artifacts (and possibly tests) reference an endpoint that no longer exists in the spec.
@@ -96,7 +101,7 @@ STOP if:
 
 - `pull` failed and the specifications are unavailable locally;
 - `list` returned an empty result;
-- filtering by feature produced 0 endpoints;
+- filtering by topic produced 0 endpoints;
 - the user confirmed no endpoint;
 - `diff` failed (for example, unreadable or corrupt artifacts);
 - `generate` failed (for example, the `endpoint-id` is not found in the spec).
@@ -112,7 +117,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Specs (pull)
 
-[Table: spec | location | source (git/local) | pull status]
+[Table: spec | location | source (git/local) | ref (default / <ref>) | pull status]
 
 ## Project usages (.goga/usages/ scan)
 
@@ -123,9 +128,9 @@ If .goga/usages/ is missing or empty — state "usages are missing".]
 
 [Table: endpoint-id | spec | method | path — the complete list]
 
-## Selected feature endpoints
+## Selected topic endpoints
 
-[Table: endpoint-id | spec | method | path | role in the feature (initiator/verification/side-effect) | coverage status
+[Table: endpoint-id | spec | method | path | role in the topic (initiator/verification/side-effect) | coverage status
 (not covered / partial / full)]
 
 ## Existing coverage

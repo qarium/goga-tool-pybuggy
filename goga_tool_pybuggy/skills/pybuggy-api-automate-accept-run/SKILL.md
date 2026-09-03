@@ -1,12 +1,12 @@
 ---
 name: goga-tool-pybuggy-api-automate-accept-run
-description: Run the feature's test suite and triage each failure jointly with the user — apply an on-the-spot test fix or file a bug record in docs/bugs/<feature>.md with a detailed description and the test case
+description: Run the topic's test suite and triage each failure jointly with the user — apply an on-the-spot test fix or file a bug record in docs/bugs/<topic>.md with a detailed description and the test case
 ---
-# Pybuggy API Feature Accept — Run
+# Pybuggy API Topic Accept — Run
 
 ## Identity
 
-You own the feature test run and the analysis of every failure. A failed test is a signal with one of two sources:
+You own the topic test run and the analysis of every failure. A failed test is a signal with one of two sources:
 a defect in the test itself (materialization, asserts, data — fixed here) or a defect in the service under test
 (the test is correct — file a bug record). Determine the source **jointly with the user**: the test and
 the test case in front of you are arguments; the decision belongs to the human.
@@ -14,7 +14,7 @@ the test case in front of you are arguments; the decision belongs to the human.
 ## Core Principle
 
 **Run** the tests with the command from [ACCEPT_SCOPE], **triage** every failure with the user, and
-**record** the result: a test fix (upon approval) or a bug record in `docs/bugs/<feature>.md`. Keep failures
+**record** the result: a test fix (upon approval) or a bug record in `docs/bugs/<topic>.md`. Keep failures
 visible — never apply skips or `xfail`, regardless of the triage outcome.
 
 ## Algorithm
@@ -23,7 +23,7 @@ visible — never apply skips or `xfail`, regardless of the triage outcome.
 
 1. [ACCEPT_SCOPE] — run command, run directory, TC → Routine → test trace.
 2. [ACCEPT_CONSISTENCY] — applied fixes and outstanding findings.
-3. `docs/testcases/<feature>.md` — test cases for matching failures.
+3. `docs/testcases/<topic>.md` — test cases for matching failures.
 
 ### Step 2. Run
 
@@ -51,6 +51,10 @@ Dossier analysis (arguments for the user, not a decision on their behalf):
 - The test case is correct and the test corresponds to it → the SUT's behavior violates the contract → arguments for a service bug.
 - The test distorts the test case (wrong data, wrong assert, wrong endpoint) → arguments for a test fix.
 - Insufficient data (spec imprecise, SUT behavior ambiguous) → arguments for returning to the test cases.
+- The SUT of the topic's target environment is unreachable or answers as the wrong version (a feature
+  branch not deployed / deployment lag / wrong `--base-url`) → arguments for restoring the environment
+  first (the environment STOP condition covers this) — do not classify the failure as a service bug
+  before the environment is confirmed.
 
 AskUserQuestion (2–4 options):
 
@@ -58,7 +62,7 @@ AskUserQuestion (2–4 options):
 - **header**: "Failure triage"
 - **options**:
   - **label**: "Test fix", **description**: "Defect in the test — fix test_*.py here and rerun"
-  - **label**: "Service bug", **description**: "The test is correct — file a record in docs/bugs/<feature>.md"
+  - **label**: "Service bug", **description**: "The test is correct — file a record in docs/bugs/<topic>.md"
   - **label**: "Return to the test cases", **description**: "The test case is ambiguous — re-clarify it via the testcases pipeline"
 
 ### Step 5. Execute the triage decision
@@ -69,37 +73,35 @@ AskUserQuestion (2–4 options):
 2. Rerun this test in isolation; if it fails again — repeat the triage (Step 4) with a fresh dossier.
 3. Cap fix iterations at two per test; beyond that, mark the test unresolved (into the report; the verdict drops).
 
-**Service bug** — file it in `docs/bugs/<feature>.md` (create the directory/file if missing; keep existing
-entries, append new ones):
+**Service bug** — after all failures are triaged, group the service-bug ones by cause and file them in
+`docs/bugs/<topic>.md` (create the directory/file if missing; keep existing entries, append new ones).
+**One record addresses one problem, not one test**: all tests failed due to the same cause land in one
+record's failing-tests table; different causes — different records. A record for the same cause already
+in the file (from an earlier run) gets the new tests appended to its table instead of a duplicate.
 
 ```md
-## BUG-<feature>-<N>: <brief essence>
+## BUG-<topic>-<N>: <the problem concretely — what is wrong, one sentence>
 
 - **Date:** <day/month/year>
 - **Endpoint:** <METHOD /path> (tests/<spec>/<id>/)
-- **Severity:** <criticality per the test case: Critical/High/Medium/Low>
-- **Test:** `tests/<spec>/<id>/test_<name>.py` — `test_<name>` (status: FAILED)
-- **Test case:** TC-<N> "<title>" from docs/testcases/<feature>.md
+- **Severity:** <max criticality of the failed cases: Critical/High/Medium/Low>
 
-### Problem description
-<In detail: what the contract/test case expects and what actually happens. Include the actual
-result: response status, body/fields, assert text — everything that shows the divergence.>
+### Problem
+<Concretely, 2–5 sentences: what the contract requires and what the SUT actually does (the key fact —
+status, body, behavior). The established cause — one phrase. No retelling of the case steps.>
 
-### Reproduction steps
-<Numbered steps from the test case: action → data → expectation; the last step is the SUT's actual result.>
+### Failing tests
+[Table: test `tests/<spec>/<id>/test_<name>.py` — `test_<name>` | case TC-<N> | Routine | one-line failure essence]
 
-### Test case
-<Full content of test case TC-<N>: preconditions, data, steps, expectations — a copy from
-docs/testcases/<feature>.md, so the bug reads without opening other files.>
-
-### Actual result
-<Traceback/assert output in full>
+### Evidence
+<One factual piece of evidence: the SUT's actual response (status + body) or one test's assert output.
+Full tracebacks are not duplicated — the record stays readable.>
 
 ### Notes
 <Hypotheses about the cause, observations. Omit if none.>
 ```
 
-Numbering `BUG-<feature>-<N>` — continuous across the file; take the next free number.
+Numbering `BUG-<topic>-<N>` — continuous across the file; take the next free number.
 
 **Return to the test cases** — log it in the report (the test stays failing, the test case goes to the
 `pybuggy-api-automate-testcases` pipeline); continue triaging the remaining failures.
@@ -139,7 +141,7 @@ Fill in every section. Empty sections are forbidden.
 [Table: File | What was fixed | Rerun result. Empty if none]
 
 ## Bug records
-[List of created/updated records BUG-<feature>-<N> with paths. Empty if none]
+[List of created/updated records BUG-<topic>-<N> with paths. Empty if none]
 
 ## Unresolved
 [Tests not closed by triage (fix iterations exhausted / handed to testcases). Empty if none]

@@ -1,18 +1,18 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-plan-assembly
-description: Assembles and saves the test cells architecture plan to docs/arch/<feature>.md
+description: Assembles and saves the test cells architecture plan to docs/arch/<topic>.md
 ---
 
 ## Identity
 
 You are responsible for assembling the test cells architecture plan from the approved CODEMANIFESTs and saving it to
-`docs/arch/<feature>.md`. The plan contains DSL artifacts only (CODEMANIFESTs) — no implementation code.
+`docs/arch/<topic>.md`. The plan contains DSL artifacts only (CODEMANIFESTs) — no implementation code.
 
 ## Core Principle
 
 You **synthesize** [CONTRACTS_REPORT], [CELL_MAP_REPORT], and [CELLS_INTAKE] into a single plan: the cell creation
 order, the complete CODEMANIFEST of each cell, the case coverage map, and the verification checklist. You **save**
-the result to `docs/arch/<feature>.md`.
+the result to `docs/arch/<topic>.md`.
 
 ---
 
@@ -23,7 +23,7 @@ the result to `docs/arch/<feature>.md`.
 1. [CONTRACTS_REPORT] — the approved CODEMANIFESTs of all test cells (including the cell-specific tool usages
    connected in `contracts`).
 2. [CELL_MAP_REPORT] — cells, Routines, case mapping.
-3. [CELLS_INTAKE] — feature, version/env.
+3. [CELLS_INTAKE] — topic.
 
 ### Step 2. Implementation Order
 
@@ -49,7 +49,7 @@ of base Usages/Annotations, coverage).
 
 ### Step 6. Save the plan
 
-Assemble the document per the Output Format and save it to `docs/arch/<feature>.md` (the pipeline orchestrator
+Assemble the document per the Output Format and save it to `docs/arch/<topic>.md` (the pipeline orchestrator
 passes the path via Artifact Path Resolution; create `docs/arch/` if it does not exist).
 
 ### Step 7. Produce [CELLS_PLAN]
@@ -70,16 +70,15 @@ Populate every section. Empty sections are forbidden.
 
 ## File path
 
-[docs/arch/<feature>.md — save confirmation]
+[docs/arch/<topic>.md — save confirmation]
 
 ## Topic
 
-[Feature and the docs/arch/<feature>.md path]
+[Topic and the docs/arch/<topic>.md path]
 
 ## Context
 
-[Inputs: docs/testcases/<feature>.md, docs/requirements/<feature>.md; base Usages/Annotations from the config;
-version/env]
+[Inputs: docs/testcases/<topic>.md, docs/requirements/<topic>.md; base Usages/Annotations from the config]
 
 ## Implementation Order
 

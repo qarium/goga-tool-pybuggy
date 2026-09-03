@@ -25,7 +25,7 @@ to make design decisions about test cells.
 ## Context
 
 Tests are a separate project that uses pybuggy as its framework. A test cell is a folder of tests
-created by `goga tool pybuggy generate`:
+created by `goga tool pybuggy endpoint generate`:
 
 ```
 tests/<spec>/<endpoint-id>/
@@ -113,7 +113,7 @@ cases via parameterization — the mapping 1 case = 1 Routine is valid but not m
 
 - `Author` — always `Goga`.
 - `CreatedAt` — day/month/year.
-- `Description` — why this cell exists (which endpoints/feature it tests).
+- `Description` — why this cell exists (which endpoints/topic it tests).
 
 ## Routine annotation standard
 

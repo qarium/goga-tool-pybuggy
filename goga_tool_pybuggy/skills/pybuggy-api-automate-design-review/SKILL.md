@@ -1,12 +1,12 @@
 ---
 name: goga-tool-pybuggy-api-automate-design-review
-description: Verify the test design doc docs/design/<feature>.md — extends goga-review-design with test-specific checks (test_*.py materialization from test-cell CODEMANIFESTs, pytest as validation)
+description: Verify the test design doc docs/design/<topic>.md — extends goga-review-design with test-specific checks (test_*.py materialization from test-cell CODEMANIFESTs, pytest as validation)
 ---
-# Pybuggy API Feature Design Review
+# Pybuggy API Topic Design Review
 
 ## Identity
 
-You are a reviewer of the test design doc. You verify `docs/design/<feature>.md` for **test correctness**:
+You are a reviewer of the test design doc. You verify `docs/design/<topic>.md` for **test correctness**:
 the document must describe the materialization of integration tests, not production code. You build on `goga-review-design`
 and add pybuggy-specific checks.
 
@@ -17,7 +17,7 @@ of `test_*.py` with pytest validation. Find discrepancies, report them, and fix 
 
 ## Verifiable Artifact
 
-- `docs/design/<feature>.md` — the design doc under review (verified against test-cell CODEMANIFESTs).
+- `docs/design/<topic>.md` — the design doc under review (verified against test-cell CODEMANIFESTs).
 
 ## Phases
 
@@ -25,11 +25,11 @@ of `test_*.py` with pytest validation. Find discrepancies, report them, and fix 
 
 1. `goga-lang-disp` / `goga-cell-python` — language rules for the tests.
 2. `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook` — pybuggy runtime and test-cell DSL.
-3. Read `docs/design/<feature>.md` and every test-cell CODEMANIFEST that the design doc references.
+3. Read `docs/design/<topic>.md` and every test-cell CODEMANIFEST that the design doc references.
 
 ### Phase 2. Base Verification
 
-Invoke `goga-review-design` via the **Skill tool** with `<feature>` — this yields base findings (design ↔
+Invoke `goga-review-design` via the **Skill tool** with `<topic>` — this yields base findings (design ↔
 CODEMANIFEST consistency). Merge these findings with the test checks below.
 
 ### Phase 3. Test-Specific Checks
@@ -39,7 +39,9 @@ CODEMANIFEST consistency). Merge these findings with the test checks below.
    generation task bound to its `location`. A mismatch = **Critical**.
 3. **Runtime/fixtures:** the design doc uses the pybuggy `Api`/`Endpoint`/`ResponseWrapper` classes plus the assert layer. Their absence = **High**.
 4. **Validation:** the design doc enforces `pytest` as the verification tool. Its absence = **High** (this causes
-   `goga build` to not run the tests).
+   `goga build` to not run the tests). When `docs/requirements/<topic>.md` (§1/§4) defines a non-standard target
+   environment, the prescribed test commands must carry `--base-url <url>` — its absence = **High** (the tests
+   would run against the wrong SUT).
 5. **Restrictions:** the design doc introduces no Entities and no new `__init__.py`. A violation = **High**.
 6. **Request body — the `Request` model (positive/flow):** for **positive** and **flow** tests the design doc must
    require materializing a valid request body through the importable `Request` model from
@@ -65,4 +67,6 @@ with user approval, keeping the test focus.
 - combine the base `goga-review-design` findings with the test checks
 - cross-check Routine ↔ `location` ↔ `test_*.py`
 - require `pytest` as the validation in the design doc
+- require `--base-url <url>` in the prescribed test commands when the topic's requirements define a
+  non-standard target environment
 - require the `Request` model for valid request bodies in positive/flow tests (`dict` — negative tests only)

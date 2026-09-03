@@ -7,6 +7,8 @@ docs/pipelines/index.md:
   - goga_tool_pybuggy
 docs/pipelines/api-automate.md:
   - goga_tool_pybuggy
+docs/pipelines/api-fix.md:
+  - goga_tool_pybuggy
 docs/pipelines/workflows.md:
   - goga_tool_pybuggy
 docs/cli/init.md:

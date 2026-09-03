@@ -29,7 +29,7 @@ You **propose** the cell map as a hypothesis and **get approval** from the user
 
 Cell boundaries are a design decision: a cell groups endpoints and their test cases. Start from the
 **one cell per endpoint** hypothesis (`tests/<spec>/<endpoint-id>/`) and evaluate the alternatives: merging
-related endpoints of the same chain/feature into a single cell, or a separate cell for a group of test cases
+related endpoints of the same chain/topic into a single cell, or a separate cell for a group of test cases
 of one endpoint. Justify the choice by the cohesion of the test cases and by navigation convenience —
 not by a formal rule.
 

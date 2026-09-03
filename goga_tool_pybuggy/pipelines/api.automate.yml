@@ -5,6 +5,9 @@ description: "Pybuggy API-test automate lifecycle"
 - name: create-requirements
   title: "Create requirements"
   communication: true
+  prompt: |
+    Constrains:
+      - Don't research a project until you receive the task
   skills:
     - goga-tool-pybuggy-api-automate-requirements
 

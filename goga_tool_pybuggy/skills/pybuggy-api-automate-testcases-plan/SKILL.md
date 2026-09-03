@@ -1,11 +1,11 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-plan
-description: Feature test plan and test case matrix (Flow/Positive/Negative) linking cases to requirements FR-<N>
+description: Topic test plan and test case matrix (Flow/Positive/Negative) linking cases to requirements REQ-<N>
 ---
 
 ## Identity
 
-You build two artifacts: the feature test plan and the test case matrix. Both artifacts define integration points, testing goals, case types, and severity.
+You build two artifacts: the topic test plan and the test case matrix. Both artifacts define integration points, testing goals, case types, and severity.
 
 ## Core Principle
 
@@ -21,22 +21,22 @@ integration testing strategy that assigns each test case a type (`Flow / Positiv
 Load three inputs:
 
 1. [TESTCASES_INTAKE] supplies: requirements, declared behavior (mainline and error paths), business
-   preconditions, roles, and the functional requirements registry §3 (`FR-<N>`).
+   preconditions, roles, and the functional requirements registry §3 (`REQ-<N>`).
 2. [TESTCASES_DISCOVERY] supplies: actual endpoint contracts, the verification catalog, the severity
    scale, and the confirmed coverage scope.
-3. [TESTCASES_ELABORATION] supplies: approved feature traces (each trace = Call → Effect → Verification)
+3. [TESTCASES_ELABORATION] supplies: approved topic traces (each trace = Call → Effect → Verification)
    and the results of mapping the description to the API.
 
-### Step 2. Description of the feature under test
+### Step 2. Description of the topic under test
 
 Keep it brief (1–3 paragraphs): core functionality and business value, derived from the requirements plus
 service context. Do not restate the requirements verbatim — summarize them.
 
-### Step 3. Feature integration points
+### Step 3. Topic integration points
 
-Identify ALL in-service relationships the feature touches. Present a table:
+Identify ALL in-service relationships the topic touches. Present a table:
 
-`Endpoint` | `Data mutation/Read` | `Criticality for the feature`
+`Endpoint` | `Data mutation/Read` | `Criticality for the topic`
 
 For each integration point, account for three aspects: the initiating call, status checks by `id`, and
 side-effect reads/mutations.
@@ -45,7 +45,7 @@ side-effect reads/mutations.
 
 State concrete goals as a numbered list of action verbs (Verify / Ensure /
 Confirm) derived from the description (Step 2) and the integration points (Step 3). Focus on the
-feature's correctness in integration — not on unit-level details.
+topic's correctness in integration — not on unit-level details.
 
 ### Step 5. Test case matrix (skeleton)
 
@@ -70,15 +70,15 @@ Test types:
 - **Negative** — error handling and exceptional situations.
 
 Traceability rule: every Verification of every trace must land in the "affected fields/statuses" of at
-least one test case — none is lost. Assign each test case a source trace `TR-<N>` from
+least one test case — none is lost. Assign each test case a source trace `TRACE-<N>` from
 [TESTCASES_ELABORATION] and a preliminary `severity` from the discovery scale (based on the integration
 point's criticality).
 
-Requirements mapping: map each test case to the §3 registry requirements (`FR-<N>`) it verifies — one or
-more per case. Then reconcile the registry against the matrix: every `FR-<N>` is covered by at least one
+Requirements mapping: map each test case to the §3 registry requirements (`REQ-<N>`) it verifies — one or
+more per case. Then reconcile the registry against the matrix: every `REQ-<N>` is covered by at least one
 case or is explicitly excluded by the user. Resolve each gap via `AskUserQuestion` (2–4 options: add a
 case / exclude the requirement from scope with a reason / go back to requirements) and record the user's
-decision in the "Requirements coverage decisions" section. Any FR left without a case enters the
+decision in the "Requirements coverage decisions" section. Any REQ left without a case enters the
 artifact with the status "not covered" — an honest marker that `testcases-review` will flag.
 
 ### Step 6. Produce [TESTCASES_PLAN]
@@ -97,13 +97,13 @@ Fill in every section. Empty sections are forbidden.
 ```md
 # [TESTCASES_PLAN]
 
-## Description of the feature under test
+## Description of the topic under test
 
 [1–3 paragraphs: functionality and business value]
 
-## Feature integration points
+## Topic integration points
 
-[Table: Endpoint | Data mutation/Read | Criticality for the feature]
+[Table: Endpoint | Data mutation/Read | Criticality for the topic]
 
 ## Integration testing goals
 
@@ -113,11 +113,11 @@ Fill in every section. Empty sections are forbidden.
 
 ## Test case matrix
 
-[Table: case (name) | type (Flow/Positive/Negative) | requirements (FR-<N> — one or more) |
-endpoints | trace (TR-<N>) | affected fields/statuses | severity (blocker/critical/normal/minor/trivial)]
+[Table: case (name) | type (Flow/Positive/Negative) | requirements (REQ-<N> — one or more) |
+endpoints | trace (TRACE-<N>) | affected fields/statuses | severity (blocker/critical/normal/minor/trivial)]
 
 ## Requirements coverage decisions
 
-[For each FR without cases: FR | reason | user decision (AskUserQuestion). Empty if all FRs
+[For each REQ without cases: REQ | reason | user decision (AskUserQuestion). Empty if all REQs
 are covered by matrix cases.]
 ```

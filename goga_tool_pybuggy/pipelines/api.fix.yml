@@ -1,0 +1,35 @@
+name: PybuggyApiFix
+description: "Pybuggy API-test fix lifecycle"
+---
+
+- name: collect-failures
+  title: "Collect failures"
+  communication: true
+  prompt: |
+    Constrains:
+      - Don't research a project until you receive the task
+  skills:
+    - goga-tool-pybuggy-api-fix-collect
+
+- name: analyze-failures
+  title: "Analyze failure causes"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-fix-analyze
+
+- name: create-fix-plan
+  title: "Create fix plan"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-fix-plan
+
+- name: execute-fix-plan
+  title: "Execute fix plan"
+  skills:
+    - goga-tool-pybuggy-api-fix-execute
+
+- name: review-fixes
+  title: "Review fixes"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-fix-review
