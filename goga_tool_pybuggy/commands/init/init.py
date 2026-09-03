@@ -863,6 +863,50 @@ def _write_root_conftest(cwd: Path) -> None:
         raise click.ClickException(str(e)) from e
 
 
+# The three init modes (the contract fixes the literal strings) — bare onboarding, template
+# scaffolding, and template migration. Module-level constants so each mode value has a single
+# source: resolve_init_mode returns them, run_init dispatches on them.
+_BARE = "bare"
+_TEMPLATE = "template"
+_UPGRADE = "upgrade"
+
+
+def resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> str:
+    """Resolve the init mode from the CLI flags — pure validation and mapping.
+
+    Validates the flag combination and maps it to exactly one mode, mirroring the flag rules of
+    the goga init command: ``<tpl>`` and ``--upgrade`` are mutually exclusive, and ``--ref`` is
+    meaningful only with a template source or an upgrade. Invalid combinations raise
+    ``click.ClickException`` (click prints the message and exits 1); valid input never raises.
+    Pure — no TTY, no I/O, no side effects: the empty-string normalization of ``ref``/URL
+    fragments is the scaffold engine's concern, so ``None`` vs ``""`` reaches the engine verbatim.
+
+    Args:
+        tpl: Template source (local path or git URL, optionally with a ``#ref`` fragment) from
+            the positional argument; ``None`` when absent.
+        ref: Git ref override from ``--ref``; ``None`` when absent.
+        upgrade: Whether ``--upgrade`` is set.
+
+    Returns:
+        The resolved mode: ``_UPGRADE`` when ``upgrade`` is set, ``_TEMPLATE`` when ``tpl`` is
+        given, ``_BARE`` otherwise.
+
+    Raises:
+        click.ClickException: If ``tpl`` is combined with ``upgrade``, or ``ref`` is given
+            without ``tpl`` and without ``upgrade``.
+    """
+    if tpl is not None and upgrade:
+        raise click.ClickException(
+            "<tpl> and --upgrade are mutually exclusive "
+            "(--upgrade updates existing state tied to a specific repository)"
+        )
+    if ref is not None and tpl is None and not upgrade:
+        raise click.ClickException("--ref requires <tpl> or --upgrade")
+    if upgrade:
+        return _UPGRADE
+    return _TEMPLATE if tpl is not None else _BARE
+
+
 def run_init() -> int:
     """Initialize the goga-project, occupy the conventions slot, bootstrap the api usages, build the tool
     config, enforce the review-executor skip flag, generate the conftest.

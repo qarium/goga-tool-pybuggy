@@ -17,6 +17,7 @@ from goga_tool_pybuggy.commands.init import (
     install_pybuggy,
     register_annotations,
     register_usages,
+    resolve_init_mode,
     run_goga_init,
     run_init,
     write_pybuggy_config,
@@ -93,6 +94,28 @@ def test_run_init_signature() -> None:
     """run_init takes no parameters and returns an exit code (int)."""
     assert run_init.__code__.co_argcount == 0
     assert typing.get_type_hints(run_init)["return"] is int
+
+
+def test_resolve_init_mode_importable_from_facade() -> None:
+    """resolve_init_mode should be importable from the goga_tool_pybuggy.commands.init facade."""
+    from goga_tool_pybuggy.commands.init import resolve_init_mode as imported
+
+    assert imported is resolve_init_mode
+
+
+def test_resolve_init_mode_is_public_in_facade() -> None:
+    """resolve_init_mode is exposed on the facade __all__ (public contract)."""
+    from goga_tool_pybuggy.commands.init import __all__ as facade_all
+
+    assert "resolve_init_mode" in facade_all
+
+
+def test_resolve_init_mode_signature() -> None:
+    """resolve_init_mode has signature (tpl, ref, upgrade) and returns str."""
+    params = resolve_init_mode.__code__.co_varnames[: resolve_init_mode.__code__.co_argcount]
+
+    assert params == ("tpl", "ref", "upgrade")
+    assert typing.get_type_hints(resolve_init_mode)["return"] is str
 
 
 def test_register_usages_signature() -> None:
@@ -708,6 +731,72 @@ def test_run_init_propagates_config_build_failure_without_registering(
 
     assert register_spy.call_count == 0
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
+
+
+# resolve_init_mode logic tests ------------------------------------------------
+
+
+def test_resolve_init_mode_returns_bare_for_no_flags() -> None:
+    """No flags resolve to the bare mode (the default — the backwards-compatibility carrier).
+
+    Rules 1-2 pass (no invalid combination), then upgrade is False and tpl is None, so the
+    mapping returns bare.
+    """
+    assert resolve_init_mode(tpl=None, ref=None, upgrade=False) == "bare"
+
+
+def test_resolve_init_mode_returns_template_for_tpl() -> None:
+    """A positional template source resolves to the template mode."""
+    assert resolve_init_mode("https://host/repo.git", None, False) == "template"
+
+
+def test_resolve_init_mode_returns_upgrade_for_upgrade_flag() -> None:
+    """The --upgrade flag alone resolves to the upgrade mode."""
+    assert resolve_init_mode(None, None, True) == "upgrade"
+
+
+@pytest.mark.parametrize(
+    ("tpl", "ref", "upgrade", "expected"),
+    [
+        ("https://host/repo.git", "v2", False, "template"),
+        (None, "v2", True, "upgrade"),
+    ],
+)
+def test_resolve_init_mode_accepts_ref_with_tpl_and_with_upgrade(
+    tpl: str | None, ref: str | None, upgrade: bool, expected: str
+) -> None:
+    """--ref is valid with <tpl> (ref beats the URL fragment in the engine) and with --upgrade."""
+    assert resolve_init_mode(tpl, ref, upgrade) == expected
+
+
+def test_resolve_init_mode_rejects_tpl_with_upgrade() -> None:
+    """<tpl> combined with --upgrade raises ClickException (rule 1 — mutually exclusive)."""
+    with pytest.raises(click.ClickException) as excinfo:
+        resolve_init_mode("https://host/repo.git", None, True)
+
+    assert "mutually exclusive" in str(excinfo.value)
+
+
+def test_resolve_init_mode_rejects_ref_without_tpl_and_upgrade() -> None:
+    """--ref without <tpl> and without --upgrade raises ClickException (rule 2 — placement)."""
+    with pytest.raises(click.ClickException) as excinfo:
+        resolve_init_mode(None, "v2", False)
+
+    assert "--ref requires" in str(excinfo.value)
+
+
+def test_resolve_init_mode_valid_input_never_prompts() -> None:
+    """The routine is pure (TTY-free): no click.confirm/click.prompt on the valid paths."""
+    with (
+        mock.patch.object(click, "confirm") as confirm_mock,
+        mock.patch.object(click, "prompt") as prompt_mock,
+    ):
+        assert resolve_init_mode(None, None, False) == "bare"
+        assert resolve_init_mode("https://host/repo.git", "v2", False) == "template"
+        assert resolve_init_mode(None, "v2", True) == "upgrade"
+
+    assert confirm_mock.call_count == 0
+    assert prompt_mock.call_count == 0
 
 
 # run_goga_init contract tests ------------------------------------------------
