@@ -25,8 +25,9 @@ variables win).
 > There is **no import-time auto-wiring**: `pytest_plugins = ["goga_tool_pybuggy.plugin"]`
 > alone does NOT enable the plugin — the explicit `install()` call is required.
 
-`goga tool pybuggy init` generates this `conftest.py` for you (see
-[CLI — init](../cli/init.md)).
+`goga tool pybuggy init` generates this `conftest.py` for you when it is absent — an
+existing file is kept (bare mode: unless you confirm the overwrite) — see
+[CLI — init](../cli/init.md).
 
 ## What enabling wires
 

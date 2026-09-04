@@ -26,8 +26,8 @@ The command (see [CLI — init](cli/init.md)):
 1. Interactively initializes the goga project — creates `.goga/config.yml`
    (language fixed to `python`) and the mandatory `.goga/Dockerfile` with
    `RUN goga install pybuggy -v 1.0.x`.
-2. Occupies the `conventions` slot with the pybuggy test convention
-   (`.goga/usages/conventions.md`) — this file is package-owned and always overwritten.
+2. Delivers the `conventions` slot — creates `.goga/usages/conventions.md` with the
+   pybuggy test convention when the file is absent; an existing file is left untouched.
 3. Sets `build.review_executor.skip: true` in `.goga/config.yml` (idempotent).
 4. Registers the usage keys `pybuggy-api` / `pybuggy-asserts` in
    `codemanifest.usages` (idempotent; user-defined keys are never overwritten).
@@ -58,8 +58,11 @@ The command (see [CLI — init](cli/init.md)):
 
    plugin.install()
    ```
-Existing files (`.goga/config.yml`, `.goga/tools/pybuggy/config.yml`, `conftest.py`) are
-only overwritten after an explicit confirmation (default: **no**).
+This is the **bare** flow: existing files (`.goga/config.yml`,
+`.goga/tools/pybuggy/config.yml`, `conftest.py`) are only overwritten after an explicit
+confirmation (default: **no**). The command also scaffolds a project from a
+copier-compatible template (`init <tpl> [--ref <git-ref>]`) and upgrades a scaffolded
+project (`init --upgrade`) — see [CLI — init](cli/init.md).
 
 ## 3. Run the pipeline: `goga pipeline pybuggy:api.automate`
 

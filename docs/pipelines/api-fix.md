@@ -49,6 +49,7 @@ and holds for the entire cycle. Non-standard base URLs are passed to every run a
 | 3  | `create-fix-plan`  | Group the classified failures into an executable plan of tasks and approve it → `docs/fix/<topic>-plan.md` |
 | 4  | `execute-fix-plan` | Run the plan tasks in order, each with its own verification; final full run → `docs/fix/<topic>-execute.md` |
 | 5  | `review-fixes`     | Verify the executed plan and the final run, triage findings with you, deliver the cycle verdict → `docs/fix/<topic>-review.md` |
+| 6  | `commit-changes`   | Commit all added and modified files (except `docs/<defines|proposals|tasks|arch|design|plans>`) |
 
 ## Task classes
 
