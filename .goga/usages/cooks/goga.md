@@ -114,6 +114,7 @@ Both operations own their error handling — pybuggy receives only the exit code
 - The flow returns **a number and never raises an exception** on cancellation/failure (`click.Abort`→1, any other `Exception`→log+echo+1 — parity with the old `InitLogic.run()`); the caller prints the diagnostics itself.
 - `InitLogic`/`ask`/`ask_goga_config` **are not used** — manual per-field orchestration pins `language="python"` and splits the image into the built image's name (`ask_image_name`) and the `FROM` baseline (`ask_base_image`); `ask_image` (pre-built pull, no Dockerfile) **is never called** — a Dockerfile is mandatory.
 - pybuggy-driven initialization stays offline: the `conventions` key never enters the answers; the flow makes no network calls.
+- The `goga init` CLI refuses a bare re-initialization over an existing `.goga/` directory ("Project already initialized" on stderr, exit 1) — the behavior `pybuggy init` mirrors with its own already-initialized guard (this Python API has no such guard; the caller owns it).
 - This is an external package — reference it in CODEMANIFEST via `Usages`, **not** via `Imports` (Imports binds only project cells); place the absolute import at the top of the module, isort third-party group.
 
 ## Dependencies

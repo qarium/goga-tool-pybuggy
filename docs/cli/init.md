@@ -23,7 +23,7 @@ goga tool pybuggy init [<tpl>] [--ref <git-ref>] [--upgrade]
 
 | Mode | Invocation | Behavior |
 |------|------------|----------|
-| **bare** | `init` | Interactive onboarding of a fresh or existing project |
+| **bare** | `init` | Interactive onboarding of a fresh project; refused (exit 1) when `.goga/` already exists — the same guard `goga init` applies |
 | **template** | `init <tpl> [--ref]` | Scaffold the template project first, then run the onboarding with silent-skip gates |
 | **upgrade** | `init --upgrade [--ref]` | Migrate a previously scaffolded project to a newer template version; no onboarding |
 
@@ -50,19 +50,21 @@ command propagates them without wrapping.
 
 ## What the command does
 
-The onboarding pipeline (bare and template modes; upgrade skips it entirely):
+The onboarding pipeline (bare and template modes; upgrade skips it entirely). In bare mode the
+pipeline runs only in a fresh directory — an existing `.goga/` is refused up front (see
+[Idempotency](#idempotency)):
 
 1. **Goga project config** — `.goga/config.yml`. When absent, the goga project is
    initialized in-process (offline): the language is fixed to `python`, the goga
    "Download base convention" question is not asked — no network calls — and the
-   mandatory `.goga/Dockerfile` is generated. When present — bare mode asks whether to
-   re-create it (default: no); template mode silently skips it with an INFO log.
+   mandatory `.goga/Dockerfile` is generated. An existing config (template mode only)
+   is silently skipped with an INFO log.
 2. **Tool config** — `.goga/tools/pybuggy/config.yml` is built interactively when
-   absent (see below). When present — bare mode asks whether to rebuild it
-   (default: no); template mode silently skips it with an INFO log.
+   absent (see below). An existing file (template mode only) is silently skipped with
+   an INFO log.
 3. **Packaged usages** — `api.md`/`asserts.md` are copied to
-   `.goga/usages/cooks/pybuggy/`. When a target file exists — bare mode overwrites it
-   with the package version; template mode skips it with an INFO log.
+   `.goga/usages/cooks/pybuggy/` when absent; an existing target file (template mode)
+   is skipped with an INFO log.
 4. **Conventions slot** — `.goga/usages/conventions.md` is created from the package
    asset **only when absent** — in every mode; an existing file (brought by a template
    or created/modified earlier) is left untouched. The `conventions` usage key and the
@@ -80,8 +82,10 @@ The onboarding pipeline (bare and template modes; upgrade skips it entirely):
    backtick references are replaced or appended in `codemanifest.annotations`.
    Idempotent; user-defined keys and foreign lines are preserved.
 8. **Root conftest** — `<cwd>/conftest.py` is generated from the fixed template
-   (`load_dotenv()` → `plugin.install()`). When present — bare mode asks whether to
-   overwrite (default: no); template mode silently skips it with an INFO log.
+   (`load_dotenv()` → `plugin.install()`). A `conftest.py` that predates onboarding (a
+   project without `.goga/`) is overwritten only on confirmation (default: no) — the one
+   confirmation still reachable in bare mode; in template mode an existing file is
+   silently skipped with an INFO log.
 
 ## Interactive tool-config build
 
@@ -103,11 +107,11 @@ loading.
 
 ## Idempotency
 
-- **Bare mode.** A repeated run asks before re-creating the goga config, the tool
-  config, and `conftest.py` (all default: no). When everything is refused, the copied
-  `api.md`/`asserts.md` are still refreshed from the package, the `conventions` slot is
-  skipped (it already exists), and the review-executor flag, the Dockerfile install
-  line, and the registrations no-op. There are no `--force`/`--dry-run` flags.
+- **Bare mode.** A repeated invocation refuses up front, exactly like `goga init`: when
+  `.goga/` already exists the command prints `Project already initialized` to stderr and
+  exits with code `1` — no prompts, and not a single file is updated (the copied usages
+  are not refreshed, the configs and `conftest.py` are not re-created). To re-run the
+  onboarding, delete `.goga/` first. There are no `--force`/`--dry-run` flags.
 - **Template mode.** A repeated `init <tpl>` re-runs the scaffold (engine semantics)
   and then silently skips every existing file — no prompts.
 - **Upgrade mode.** No onboarding state is touched; the migration itself is managed by
@@ -118,7 +122,7 @@ loading.
 | Code | Meaning |
 |------|---------|
 | `0` | Success |
-| `1` | Invalid flag combination (`<tpl>` with `--upgrade`; `--ref` without `<tpl>`/`--upgrade`); goga initialization canceled/failed |
+| `1` | Invalid flag combination (`<tpl>` with `--upgrade`; `--ref` without `<tpl>`/`--upgrade`); project already initialized (bare invocation over an existing `.goga/` — zero writes); goga initialization canceled/failed |
 | scaffold engine code | A failed scaffold or migration — propagated unchanged; a failed scaffold leaves **no** onboarding side effects |
 | non-zero (`ClickException`) | Usages bootstrap, Dockerfile augmentation, or conftest write error |
 

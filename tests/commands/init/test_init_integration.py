@@ -101,11 +101,9 @@ def test_init_cmd_propagates_goga_cancel_without_writing_usages(
 
 
 def test_init_cmd_maps_bootstrap_failure_to_nonzero_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A bootstrap file-write failure surfaces as a non-zero exit through the wrapper."""
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("codemanifest:\n  usages: {}\n")
-    monkeypatch.chdir(tmp_path)
+    """A bootstrap file-write failure surfaces as a non-zero exit through the wrapper (fresh cwd)."""
+    monkeypatch.chdir(tmp_path)  # no .goga/ — the bare already-initialized guard does not fire
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
 
     runner = click.testing.CliRunner()
@@ -113,6 +111,35 @@ def test_init_cmd_maps_bootstrap_failure_to_nonzero_exit(tmp_path: Path, monkeyp
         result = runner.invoke(init_cmd, [])
 
     assert result.exit_code != 0
+
+
+def test_init_cmd_repeat_invocation_refuses_with_stderr_message(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A second CLI invocation over the onboarded project exits 1 with the goga-parity message.
+
+    The first invocation bootstraps the project (register_usages creates .goga/); the second
+    must refuse like `goga init` — "Project already initialized" on stderr, exit 1 — leaving
+    every artifact from run #1 byte-identical.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    runner = click.testing.CliRunner()
+    first = runner.invoke(init_cmd, [])
+    assert first.exit_code == 0
+    assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
+    artifacts_before = {path: path.read_bytes() for path in sorted((tmp_path / ".goga").rglob("*")) if path.is_file()}
+    artifacts_before[tmp_path / "conftest.py"] = (tmp_path / "conftest.py").read_bytes()
+
+    second = runner.invoke(init_cmd, [])
+
+    assert second.exit_code == 1
+    assert "Project already initialized" in second.stderr
+    artifacts_after = {path: path.read_bytes() for path in sorted((tmp_path / ".goga").rglob("*")) if path.is_file()}
+    artifacts_after[tmp_path / "conftest.py"] = (tmp_path / "conftest.py").read_bytes()
+    assert artifacts_after == artifacts_before  # nothing updated on the refused repeat run
 
 
 def test_init_cmd_end_to_end_template_mode_scaffolds_then_skips_existing(

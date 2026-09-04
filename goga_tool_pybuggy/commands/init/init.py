@@ -2,7 +2,9 @@
 
 ``run_init`` dispatches on the mode resolved from the CLI flags: **bare** (``pybuggy init``)
 runs the interactive onboarding pipeline with confirm gates (goga config, tool config, and
-conftest); **template** (``pybuggy init <tpl> [--ref R]``) scaffolds a copier template
+conftest) — refused up front with ``Project already initialized`` (stderr, exit 1) when a
+``.goga`` directory already exists, mirroring ``goga init``, so a repeat invocation never
+updates files; **template** (``pybuggy init <tpl> [--ref R]``) scaffolds a copier template
 through the engine first, then runs the same onboarding with silent-skip gates; **upgrade**
 (``pybuggy init --upgrade [--ref R]``) migrates a previously scaffolded project through the
 engine alone, without onboarding.
@@ -938,6 +940,12 @@ def run_onboarding(template_mode: bool) -> int:
     an existing file with an INFO log (a template-brought file is never overwritten and never
     prompted about).
 
+    Reachability: this routine is the public programmatic seam, and its gate contract holds for
+    direct callers. Through :func:`run_init` the bare existing-file branches for the goga config,
+    the tool config, and the copied usages are unreachable — the bare already-initialized guard
+    guarantees an absent ``.goga`` — so the only bare-mode confirmation reachable through the CLI
+    is the root-conftest gate (a ``conftest.py`` may exist without a ``.goga`` directory).
+
     Algorithm (12 steps):
 
     1. Resolve the output root as the current working directory.
@@ -1069,6 +1077,12 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
     delegates to ``Scaffold().upgrade(ref)`` alone and returns its code without any
     onboarding side effect.
 
+    Bare mode carries the already-initialized guard (``goga init`` parity): when the current
+    directory holds a ``.goga`` directory, a repeat invocation refuses up front —
+    ``Project already initialized`` on stderr, exit code 1 — with zero prompts and zero file
+    modifications. Template and upgrade modes are never guarded (a template may legitimately
+    bring its own ``.goga/``, and migration is the point of ``--upgrade``).
+
     The scaffold engine owns its error handling: a returned non-zero code is propagated
     unchanged (the code value is the engine's domain, never normalized to 1), and the guard
     sits before the :func:`run_onboarding` call — a failed scaffold leaves the target
@@ -1084,14 +1098,23 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
         upgrade: Whether ``--upgrade`` is set (template migration mode).
 
     Returns:
-        0 on success; the engine's non-zero code propagated unchanged; a non-zero
-        :func:`run_onboarding` code propagated as-is.
+        0 on success; 1 for an already-initialized refusal (bare mode over an existing
+        ``.goga/``) or a failed/cancelled onboarding step; the engine's non-zero code
+        propagated unchanged; a non-zero :func:`run_onboarding` code propagated as-is.
 
     Raises:
         click.ClickException: On an invalid flag combination (raised by
             :func:`resolve_init_mode`; click prints the message and exits 1).
     """
     mode = resolve_init_mode(tpl, ref, upgrade)
+
+    # Already-initialized guard — bare mode only, mirroring `goga init`: a repeat invocation
+    # over an initialized project must not update any file, so it refuses before the scaffold
+    # engine or the onboarding pipeline could write anything. The check is directory
+    # existence only — exactly goga's `Path(".goga").is_dir()`.
+    if mode == _BARE and Path(".goga").is_dir():
+        click.echo("Project already initialized", err=True)
+        return 1
 
     if mode == _UPGRADE:
         return Scaffold().upgrade(ref)
