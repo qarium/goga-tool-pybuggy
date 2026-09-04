@@ -27,8 +27,8 @@ Annotations: |
 
   Top-level bootstrap command pybuggy init — operates in three modes resolved from the flags. Bare onboarding (no
   arguments): initialize the goga-project (created when absent, recreated only on confirmation), deliver the
-  `conventions` slot of the consumer with the pybuggy test convention when absent, ship the consumer usages of the api
-  cell, interactively build .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), always
+  `conventions` slot of the consumer with the pybuggy test convention when absent, ship the packaged consumer usages,
+  interactively build .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), always
   enforce build.review_executor.skip: true, and generate the root conftest.py (written when absent, overwritten only
   on confirmation). Template onboarding (<tpl> with optional --ref): scaffold the template project first — a failed
   scaffold stops the command without onboarding side effects; after a successful scaffold the onboarding pipeline runs
@@ -42,7 +42,7 @@ Annotations: |
   enforcement to the pure `ensure_review_executor_skip`; the interactive config build to `build_pybuggy_config`
   (testable seam for the TTY survey), which delegates file emission to the pure `write_pybuggy_config`; the conftest
   emission to the pure `write_pybuggy_conftest`. The recreate/overwrite/skip decisions live in `run_onboarding`; the
-  writers themselves always (over)write. Usages are discovered from the installed goga_tool_pybuggy.api package. Use
+  writers themselves always (over)write. Usages are discovered from the installed package. Use
   relative imports inside the cell.
 
 ---
@@ -110,7 +110,7 @@ Annotations: |
   location: init.py
   annotations: |
     Onboarding pipeline of the init command: ensure the goga-project is initialized, build the pybuggy tool config,
-    deliver the `conventions` slot when absent, bootstrap the consumer usages of the api cell, enforce the
+    deliver the `conventions` slot when absent, bootstrap the packaged consumer usages, enforce the
     build.review_executor.skip flag, and generate the root conftest.py. The gate style depends on `template_mode`:
     bare gates ask via click.confirm (default no) before touching an existing file; template gates silently skip an
     existing file with an INFO log.
@@ -130,7 +130,7 @@ Annotations: |
     4. Discover every .usages/*.md under the api cell (incl. asserts) from the installed goga_tool_pybuggy.api package.
     5. For each discovered file: when <cwd>/.goga/usages/cooks/pybuggy/<stem>.md does NOT exist, write its content
        there; when it exists — template mode: log INFO (file untouched) and skip; bare mode: overwrite with the
-       package version (bare behavior unchanged).
+       package version.
     6. Deliver the `conventions` slot: when <cwd>/.goga/usages/conventions.md does NOT exist, call
        `write_test_convention`; when it exists, log INFO and leave the file untouched. The key registration and the
        annotation line always run (idempotent).
@@ -148,7 +148,7 @@ Annotations: |
 
     Requirements:
     - Existing-file gates: bare — explicit click.confirm (default no) for the goga config, the tool config, and the
-      conftest, while the copied usages are overwritten as today; template — silent skip with an INFO log, no
+      conftest, while the copied usages are always overwritten; template — silent skip with an INFO log, no
       interactive confirmation — for the goga config, the tool config, the conftest, and the copied usages alike.
     - The `conventions` slot is delivered skip-if-exists in both gate styles: an existing file (brought by a template
       or created by any earlier run) is never overwritten; an absent one is created from the package asset. The key

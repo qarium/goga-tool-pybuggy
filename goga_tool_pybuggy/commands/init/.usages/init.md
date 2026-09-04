@@ -72,7 +72,7 @@ registration of the `conventions` usage key and the annotation line is idempoten
   optional scalars (timeout, retries, assert_timeout, assert_delay, assert_field_class, assert_response_class), and
   at least one spec (name, type swagger|openapi, location, optional git block). headers/loader are written as
   commented examples, not prompted.
-- The consumer usages of the `api` cell (`api.md`, `asserts.md`, and any future sub-cell usages) are copied to
+- The packaged consumer usages (`api.md`, `asserts.md`, and any future sub-cell usages) are copied to
   `.goga/usages/cooks/pybuggy/` and registered in `.goga/config.yml` (keys `pybuggy-api`, `pybuggy-asserts`, ...);
   annotation lines are registered by backtick reference. Idempotent: existing keys are skipped, a matched annotation
   line is replaced, an unmatched one is appended, foreign lines are preserved.

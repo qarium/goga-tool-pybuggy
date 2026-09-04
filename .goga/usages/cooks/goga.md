@@ -78,7 +78,7 @@ Answer containers (frozen dataclasses, `kw_only=True`):
 
 ## The scaffolding contract
 
-Types from `goga.scaffold` (part of the same package since 1.2.0 — the pinned version already ships it):
+Types from `goga.scaffold`:
 
 - `Scaffold(dst_path: str = ".", answers_file: str = ".goga/scaffold.yml")` — wraps the copier template engine for a single scaffolding target. The goga hard conventions are construction state: `dst_path` (the target directory, cwd by default) and `answers_file` (the copier state file path, passed programmatically to both copier operations and overriding any `answers_file` declared in the template `copier.yml`).
 - `Scaffold.generate(template_input: str, ref_override: str | None) -> int` — primary project generation from a copier template. Parses `template_input` via `parse_template_ref` (a git URL, optionally carrying a ref fragment `url.git#ref`; `ref_override` — the `--ref` value — takes precedence over the fragment), resolves the project name via `resolve_scaffold_name()` (the git origin name, falling back to an interactive prompt), and injects **only** `project_name` programmatically; every remaining template question is asked interactively by copier (`defaults=False`; questionary TUI — a TTY is required). Returns 0 on success, 1 on any copier error — the cause is echoed to stderr; exceptions never propagate to the caller.
@@ -118,5 +118,5 @@ Both operations own their error handling — pybuggy receives only the exit code
 
 ## Dependencies
 
-- The calling package's `pyproject.toml` must list `goga` among its dependencies. `goga.scaffold` ships in the same package — the existing pin (`>=1.2.0,<1.3.0`) already carries it; using the scaffolding API needs no dependency change.
+- The calling package's `pyproject.toml` must list `goga` among its dependencies. `goga.scaffold` ships in the same package.
 - In dev, `goga` resolves from `.libs/goga` via a symlink into `site-packages` (dev snapshot newer than 1.1.2, no version metadata); **do NOT run `uv sync`** — it would recreate the dependencies and bring back an outdated resolver.

@@ -97,7 +97,8 @@ def test_init_cmd_propagates_exit_code_via_ctx(monkeypatch: pytest.MonkeyPatch) 
     result = runner.invoke(init_cmd, [])
 
     assert result.exit_code == 2
-    run_init_stub.assert_called_once_with(None, None, False)  # wrapper binds and forwards [] args
+    # [] parses to (None, None, False) — the wrapper forwards the parsed surface verbatim.
+    run_init_stub.assert_called_once_with(None, None, False)
 
 
 def test_init_cmd_forwards_upgrade_flag_to_run_init(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -767,9 +768,7 @@ def _stub_seams(monkeypatch: pytest.MonkeyPatch) -> tuple[mock.Mock, mock.Mock]:
     return run_goga_init_stub, build_stub
 
 
-def test_run_onboarding_template_mode_creates_missing_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_onboarding_template_mode_creates_missing_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Template mode over an empty cwd takes every gate's absent-branch and lands all artifacts."""
     monkeypatch.chdir(tmp_path)
     goga_stub, build_stub = _stub_seams(monkeypatch)
@@ -795,12 +794,7 @@ def test_run_onboarding_template_mode_augments_template_brought_files(
     """Template mode never prompts: template-brought configs/Dockerfile are augmented, not rebuilt."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True)
-    config.write_text(
-        "# template comment\n"
-        "build:\n"
-        "  task_executor:\n"
-        "    agent: claude\n"
-    )
+    config.write_text("# template comment\nbuild:\n  task_executor:\n    agent: claude\n")
     tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
     tool_config.parent.mkdir(parents=True)
     tool_config.write_text("base_url: https://template.example\n")
@@ -932,9 +926,7 @@ def test_run_onboarding_conventions_slot_skip_if_exists_in_bare_mode(
     assert "code writing rules" not in cfg["codemanifest"]["annotations"]  # legacy line replaced
 
 
-def test_run_onboarding_bare_mode_overwrites_existing_usages(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_onboarding_bare_mode_overwrites_existing_usages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Bare mode re-copies discovered usages over local edits (the bare/template asymmetry)."""
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True)
@@ -1121,7 +1113,7 @@ def test_stub_scaffold_mirrors_real_engine_call_surface() -> None:
     """The real goga Scaffold accepts exactly the calls run_init makes (stub parity guard).
 
     Every template/upgrade test drives a hand-written Scaffold stand-in whose generate/upgrade
-    signatures were copied from the engine; this pins the pinned goga engine itself to that
+    signatures were copied from the engine; this pins the version-pinned goga engine itself to that
     surface — default construction, two positional generate args, one positional (or omitted)
     upgrade arg — so a goga update that shifts it fails here instead of at runtime.
     """
@@ -1179,9 +1171,7 @@ def test_run_init_upgrade_runs_migration_only(tmp_path: Path, monkeypatch: pytes
     assert not (tmp_path / ".goga/usages/conventions.md").exists()
 
 
-def test_run_init_upgrade_success_skips_onboarding_entirely(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_init_upgrade_success_skips_onboarding_entirely(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A successful migration (rc 0) still never onboards — the zero-code branch is guarded too.
 
     The failing-code variants cannot catch a refactor that mirrors the template branch (capture

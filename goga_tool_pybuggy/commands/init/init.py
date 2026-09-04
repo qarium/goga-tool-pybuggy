@@ -1,11 +1,11 @@
 """init command handler — initializes the pybuggy test environment in three modes.
 
 ``run_init`` dispatches on the mode resolved from the CLI flags: **bare** (``pybuggy init``)
-runs the interactive onboarding pipeline with confirm gates (goga config, tool config, api
-usages, the test-convention slot, and conftest); **template** (``pybuggy init <tpl>
-[--ref R]``) scaffolds a copier template through the engine first, then runs the same
-onboarding with silent-skip gates; **upgrade** (``pybuggy init --upgrade [--ref R]``)
-migrates a previously scaffolded project through the engine alone, without onboarding.
+runs the interactive onboarding pipeline with confirm gates (goga config, tool config, and
+conftest); **template** (``pybuggy init <tpl> [--ref R]``) scaffolds a copier template
+through the engine first, then runs the same onboarding with silent-skip gates; **upgrade**
+(``pybuggy init --upgrade [--ref R]``) migrates a previously scaffolded project through the
+engine alone, without onboarding.
 """
 
 import importlib.resources
@@ -162,7 +162,7 @@ PYBUGGY_ANNOTATIONS: dict[str, str] = {
 
 # Annotation line for the ``conventions`` usage key — the test-convention slot occupied by
 # ``write_test_convention``. Like ``PYBUGGY_ANNOTATIONS`` above, it is the sole source of the
-# line registered under ``codemanifest.annotations`` (init step 8).
+# line registered under ``codemanifest.annotations`` (onboarding step 9).
 _CONVENTION_LINE = "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
 
 
@@ -1001,6 +1001,7 @@ def run_onboarding(template_mode: bool) -> int:
     # confirm — overwriting a config can discard user-customized codemanifest entries.
     if _gate_existing(goga_config, template_mode, ".goga/config.yml exists — re-run goga init and overwrite it?"):
         rc = run_goga_init()
+
         if rc != 0:
             return rc
 
@@ -1008,6 +1009,7 @@ def run_onboarding(template_mode: bool) -> int:
         pybuggy_config, template_mode, ".goga/tools/pybuggy/config.yml exists — rebuild it from the survey?"
     ):
         rc = build_pybuggy_config()
+
         if rc != 0:
             return rc
 
@@ -1016,6 +1018,7 @@ def run_onboarding(template_mode: bool) -> int:
 
         for stem, text in discovered:
             dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"
+
             if dest.exists() and template_mode:
                 logger.info("existing file kept untouched", extra={"path": str(dest)})
                 continue
@@ -1026,6 +1029,7 @@ def run_onboarding(template_mode: bool) -> int:
         # The conventions slot is delivered skip-if-exists in BOTH modes — existing content is
         # never overwritten (INFO) and never prompted about.
         slot = cwd / ".goga" / "usages" / "conventions.md"
+
         if slot.exists():
             logger.info("existing file kept untouched", extra={"path": str(slot)})
         else:
@@ -1094,6 +1098,7 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
 
     if mode == _TEMPLATE:
         engine_code = Scaffold().generate(tpl, ref)
+
         if engine_code != 0:
             return engine_code
 
@@ -1121,5 +1126,11 @@ def init_cmd(ctx: click.Context, tpl: str | None, ref: str | None, upgrade: bool
     ``pybuggy init <tpl> [--ref R]`` scaffolds a copier template first, then runs onboarding
     with silent-skip gates; ``pybuggy init --upgrade [--ref R]`` migrates a previously
     scaffolded project (no onboarding).
+
+    Args:
+        ctx: Click execution context used to control the process exit code.
+        tpl: Template source — local path or git URL; absent in bare and upgrade modes.
+        ref: Git ref override; None keeps the template's own ref resolution.
+        upgrade: Migrate a previously scaffolded project instead of onboarding.
     """
     ctx.exit(run_init(tpl, ref, upgrade))
