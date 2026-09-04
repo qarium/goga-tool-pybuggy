@@ -58,9 +58,9 @@ The command (see [CLI — init](cli/init.md)):
 
    plugin.install()
    ```
-This is the **bare** flow: existing files (`.goga/config.yml`,
-`.goga/tools/pybuggy/config.yml`, `conftest.py`) are only overwritten after an explicit
-confirmation (default: **no**). The command also scaffolds a project from a
+This is the **bare** flow: it runs in a fresh project. A repeated invocation (an existing
+`.goga/`) is refused — `Project already initialized`, exit code 1, nothing updated — the
+same guard `goga init` applies. The command also scaffolds a project from a
 copier-compatible template (`init <tpl> [--ref <git-ref>]`) and upgrades a scaffolded
 project (`init --upgrade`) — see [CLI — init](cli/init.md).
 

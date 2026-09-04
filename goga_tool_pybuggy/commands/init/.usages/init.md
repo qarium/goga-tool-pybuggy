@@ -5,7 +5,8 @@
 The `pybuggy init` command **initializes the goga project** and **bootstraps the pybuggy test environment** in the
 directory where it is invoked. It operates in three modes selected by the CLI arguments:
 
-- **bare** (`pybuggy init`) — interactive onboarding of a fresh or existing project;
+- **bare** (`pybuggy init`) — interactive onboarding of a fresh project; refused (exit 1) when `.goga/` already
+  exists — the same already-initialized guard `goga init` applies;
 - **template** (`pybuggy init <tpl> [--ref <git-ref>]`) — scaffold a copier-compatible template project first, then
   run the onboarding with silent-skip gates;
 - **upgrade** (`pybuggy init --upgrade [--ref <git-ref>]`) — migrate a previously scaffolded project to a newer
@@ -63,21 +64,25 @@ registration of the `conventions` usage key and the annotation line is idempoten
 
 ## Bare mode
 
-- The goga project initializes in-process via the `goga` package (the language is fixed to `python`; the Dockerfile is
-  mandatory: `FROM {base}` + the appended `RUN goga install pybuggy -v 1.0.x` line; no base-convention download —
-  initialization is offline). When `.goga/config.yml` already exists, re-creation is offered via a confirmation
-  (default `no`); declining skips the questionnaire.
-- The tool config `.goga/tools/pybuggy/config.yml` is built interactively when absent; a rebuild of an existing file
-  is offered via a confirmation (default `no`). The prompted keys: base_url (required, a Jinja2 template), the
-  optional scalars (timeout, retries, assert_timeout, assert_delay, assert_field_class, assert_response_class), and
-  at least one spec (name, type swagger|openapi, location, optional git block). headers/loader are written as
-  commented examples, not prompted.
+- **Already-initialized guard (goga init parity).** When the working directory holds a `.goga` directory, the command
+  refuses up front: `Project already initialized` on stderr, exit code 1 — no prompts, and not a single file is read
+  for update, refreshed, or overwritten. A repeated invocation therefore never updates files (the earlier
+  confirm-gated re-creation of the configs/conftest and the silent refresh of the copied usages are gone). To re-run
+  onboarding, delete `.goga/` first.
+- In a fresh directory the goga project initializes in-process via the `goga` package (the language is fixed to
+  `python`; the Dockerfile is mandatory: `FROM {base}` + the appended `RUN goga install pybuggy -v 1.0.x` line; no
+  base-convention download — initialization is offline).
+- The tool config `.goga/tools/pybuggy/config.yml` is built interactively. The prompted keys: base_url (required, a
+  Jinja2 template), the optional scalars (timeout, retries, assert_timeout, assert_delay, assert_field_class,
+  assert_response_class), and at least one spec (name, type swagger|openapi, location, optional git block).
+  headers/loader are written as commented examples, not prompted.
 - The packaged consumer usages (`api.md`, `asserts.md`, and any future sub-cell usages) are copied to
   `.goga/usages/cooks/pybuggy/` and registered in `.goga/config.yml` (keys `pybuggy-api`, `pybuggy-asserts`, ...);
   annotation lines are registered by backtick reference. Idempotent: existing keys are skipped, a matched annotation
   line is replaced, an unmatched one is appended, foreign lines are preserved.
-- The root `conftest.py` is created from a fixed template (`load_dotenv()` then `plugin.install()`); an existing file
-  is overwritten only on confirmation (default `no`).
+- The root `conftest.py` is created from a fixed template (`load_dotenv()` then `plugin.install()`). A `conftest.py`
+  that predates onboarding (a project without `.goga/`) is overwritten only on confirmation (default `no`) — the one
+  confirmation still reachable in bare mode.
 
 ## Entry point
 
@@ -89,7 +94,9 @@ registration of the `conventions` usage key and the annotation line is idempoten
 ## Exit codes
 
 - `0` — success.
-- `1` — invalid flag combination (`<tpl>` with `--upgrade`; `--ref` without `<tpl>`/`--upgrade`); goga-init canceled/failed.
+- `1` — invalid flag combination (`<tpl>` with `--upgrade`; `--ref` without `<tpl>`/`--upgrade`); project already
+  initialized (bare invocation over an existing `.goga/` — the goga-parity refusal, zero writes); goga-init
+  canceled/failed.
 - The scaffold engine's non-zero code — propagated unchanged (a failed scaffold or migration); a failed scaffold
   leaves no onboarding side effects.
 - Usages bootstrap errors (incl. convention delivery) and conftest write errors → `click.ClickException`
@@ -97,7 +104,9 @@ registration of the `conventions` usage key and the annotation line is idempoten
 
 ## Programmatic usage (tests/scripts)
 
-`run_init(tpl, ref, upgrade)` uses cwd as the output root and **returns an exit code (int)**; the flags mirror the CLI:
+`run_init(tpl, ref, upgrade)` uses cwd as the output root and **returns an exit code (int)**; the flags mirror the CLI.
+In bare mode an existing `.goga/` directory returns `1` (the already-initialized refusal — no prompt, no write;
+template and upgrade modes are never guarded):
 
       import pytest
       from goga_tool_pybuggy.commands.init import run_init
@@ -109,6 +118,8 @@ registration of the `conventions` usage key and the annotation line is idempoten
           assert run_init(tpl=None, ref=None, upgrade=False) == 0    # bare mode — no flags
           assert (tmp_path / '.goga/usages/conventions.md').exists()
           assert (tmp_path / 'conftest.py').exists()
+
+          assert run_init(tpl=None, ref=None, upgrade=False) == 1    # repeat run — refused, files untouched
 
       def test_failed_scaffold_stops_onboarding(tmp_path, monkeypatch):
           monkeypatch.chdir(tmp_path)
@@ -138,6 +149,7 @@ pure `write_test_convention` (always overwrites the given path; whether it runs 
 ## Preconditions and side effects
 
 - Requires the installed `goga` package (a pybuggy dependency) — onboarding and the scaffold engine.
+- Bare onboarding requires an absent `.goga/` directory — an initialized project is refused (exit 1, no writes).
 - Writes to `<cwd>/.goga/` (config, the Dockerfile install line, usages, the tool config) and `<cwd>/conftest.py`; the
   scaffold engine renders template files into `<cwd>` and may persist `.goga/scaffold.yml` (template-owned; must not
   be git-ignored in a scaffolded project).

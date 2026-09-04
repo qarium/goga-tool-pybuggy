@@ -26,14 +26,18 @@ Annotations: |
   methods + FileGenerator) and for template scaffolding via goga.scaffold (Scaffold.generate / Scaffold.upgrade).
 
   Top-level bootstrap command pybuggy init — operates in three modes resolved from the flags. Bare onboarding (no
-  arguments): initialize the goga-project (created when absent, recreated only on confirmation), deliver the
-  `conventions` slot of the consumer with the pybuggy test convention when absent, ship the packaged consumer usages,
-  interactively build .goga/tools/pybuggy/config.yml (built when absent, rebuilt only on confirmation), always
-  enforce build.review_executor.skip: true, and generate the root conftest.py (written when absent, overwritten only
-  on confirmation). Template onboarding (<tpl> with optional --ref): scaffold the template project first — a failed
-  scaffold stops the command without onboarding side effects; after a successful scaffold the onboarding pipeline runs
-  with silent-skip gates: a file that already exists is left untouched (INFO log, no confirmation), a missing file is
-  created through the normal flow. Upgrade (--upgrade with optional --ref): template migration only, no onboarding.
+  arguments) runs only in a not-yet-initialized directory: an existing .goga directory is refused up front exactly
+  like the goga init command refuses it — the message "Project already initialized" on stderr, exit code 1, no
+  prompts and no file modifications, so a repeated invocation never updates files. When .goga is absent the pipeline
+  initializes the
+  goga-project, delivers the `conventions` slot of the consumer with the pybuggy test convention when absent, ships
+  the packaged consumer usages, interactively builds .goga/tools/pybuggy/config.yml, always enforces
+  build.review_executor.skip: true, and generates the root conftest.py (written when absent; a pre-existing root
+  conftest.py without .goga is overwritten only on confirmation). Template onboarding (<tpl> with optional --ref):
+  scaffold the template project first — a failed scaffold stops the command without onboarding side effects; after
+  a successful scaffold the onboarding pipeline runs with silent-skip gates: a file that already exists is left
+  untouched (INFO log, no confirmation), a missing file is created through the normal flow. Upgrade (--upgrade with
+  optional --ref): template migration only, no onboarding.
 
   The handler `run_init` is the testable entry point: it resolves the mode, drives the scaffold engine, and delegates
   the onboarding pipeline to `run_onboarding`. The click wrapper `init_cmd` binds the CLI surface and delegates to
@@ -50,37 +54,49 @@ Annotations: |
 "run_init(tpl: str | None, ref: str | None, upgrade: bool) -> exit_code:int":
   location: init.py
   annotations: |
-    Handler for the init command — the testable entry point: resolves the operation mode, drives the template scaffold
-    engine in template and upgrade modes, and delegates the onboarding pipeline to `run_onboarding`.
+    Handler for the init command — the testable entry point: resolves the operation mode, applies the
+    already-initialized guard in bare mode, drives the template scaffold engine in template and upgrade modes, and
+    delegates the onboarding pipeline to `run_onboarding`.
 
     `tpl`: template source (local path or git URL, optionally with a #ref fragment); None in bare and upgrade modes.
     `ref`: git ref override; overrides the URL fragment in template mode and the migration target in upgrade mode.
     `upgrade`: run template migration only.
-    `exit_code`: 0 on success; a non-zero scaffold exit code propagated as-is; a non-zero onboarding code propagated.
+    `exit_code`: 0 on success; 1 for an already-initialized refusal (bare mode over an existing .goga directory) or
+    a failed/cancelled onboarding step; a non-zero scaffold exit code propagated as-is.
 
     Algorithm:
     1. Resolve the mode via `resolve_init_mode` — an invalid flag combination raises click.ClickException (message,
        exit 1).
-    2. Upgrade mode: run the template migration via Scaffold.upgrade with `ref` and return its exit code — no
+    2. Already-initialized guard (bare mode only, goga init parity): when the current working directory holds a .goga
+       directory, echo "Project already initialized" to stderr and return 1 — before the scaffold engine is built and
+       before any onboarding step runs. Template and upgrade modes are never guarded (a template may legitimately
+       bring its own .goga; migration is the point of --upgrade).
+    3. Upgrade mode: run the template migration via Scaffold.upgrade with `ref` and return its exit code — no
        onboarding runs.
-    3. Template mode: scaffold the template into the current working directory via Scaffold.generate with `tpl` and
+    4. Template mode: scaffold the template into the current working directory via Scaffold.generate with `tpl` and
        `ref`; a non-zero code stops the command with that code — no onboarding side effects are applied.
-    4. Return the result of `run_onboarding` with template_mode set according to the resolved mode.
+    5. Return the result of `run_onboarding` with template_mode set according to the resolved mode.
 
     Requirements:
+    - The guard checks directory existence only (is_dir on .goga, exactly like goga init); a .goga regular file does
+      not trip it.
+    - A guard refusal performs zero prompts and zero file writes — no file is read, updated, or refreshed.
     - The scaffold engine owns its error handling: the routine receives only the exit code and never wraps engine
       exceptions or diagnostics.
     - In template mode no onboarding side effect (usages copies, conventions slot, config augmentations, conftest) is
       applied when the scaffold failed.
-    - Exit codes: 0 success; the engine's non-zero code propagated unchanged; flag-validation failures exit 1.
+    - Exit codes: 0 success; the engine's non-zero code propagated unchanged; flag-validation failures and the
+      already-initialized refusal exit 1.
 
     Constraints:
     - Do not run onboarding in upgrade mode — no prompts, no file augmentation.
+    - Do not guard template or upgrade mode — the guard is bare-only.
+    - Do not delete, move, or modify .goga on refusal — refuse and exit.
     - Do not inject answers into the template beyond project_name — the engine resolves it (see `goga`).
     - Do not import copier directly — the engine is reached through `goga` only.
 
     Use `resolve_init_mode`, `run_onboarding`. Use `goga` for the Scaffold.generate/upgrade contract. Use `click` for
-    the ClickException propagation. Use `conventions` for logging/testing.
+    the ClickException propagation and the stderr echo. Use `conventions` for logging/testing.
 
 "resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> mode:str":
   location: init.py
@@ -113,7 +129,10 @@ Annotations: |
     deliver the `conventions` slot when absent, bootstrap the packaged consumer usages, enforce the
     build.review_executor.skip flag, and generate the root conftest.py. The gate style depends on `template_mode`:
     bare gates ask via click.confirm (default no) before touching an existing file; template gates silently skip an
-    existing file with an INFO log.
+    existing file with an INFO log. This routine is the public programmatic seam and its gate contract holds for
+    direct callers; through `run_init` the bare existing-file branches for the goga config, the tool config, and the
+    copied usages are unreachable (the bare already-initialized guard guarantees an absent .goga), so the only
+    bare-mode confirmation reachable through the CLI is the root-conftest gate.
 
     `template_mode`: True — a scaffolded template occupies the target directory; existing files are left untouched
     without confirmation. False — the interactive bare flow with confirmation gates.

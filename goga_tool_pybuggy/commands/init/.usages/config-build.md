@@ -3,9 +3,10 @@
 ## Domain
 
 The `pybuggy init` command step that interactively builds the tool configuration file
-`.goga/tools/pybuggy/config.yml` (plugin options + the specs section) — immediately when the file is missing; when it
-exists, the step is gated by the command mode (see Overwriting). The audience is the integrator wiring pybuggy in,
-and the consumer's goga agent.
+`.goga/tools/pybuggy/config.yml` (plugin options + the specs section) — when the file is missing. Via the CLI this is
+always the case in bare mode (an existing `.goga/` is refused up front by the already-initialized guard); in template
+mode an existing file is skipped (see Overwriting). The audience is the integrator wiring pybuggy in, and the
+consumer's goga agent.
 
 ## What is prompted
 
@@ -20,11 +21,13 @@ and the consumer's goga agent.
 
 The rebuild decision lives in the onboarding orchestrator, not in the builder:
 
-- bare mode — when the file does not exist it is built without asking; when it exists, the command asks via
-  `click.confirm` (default `no`) and rebuilds only on `yes`; on refusal the step is skipped and the rest of `init`
-  continues (exit 0).
+- bare mode via the CLI — the file can only be missing: a repeat invocation is refused by the already-initialized
+  guard before this step (an existing `.goga/` → `Project already initialized`, exit 1, no rebuild).
 - template mode — when the file exists after scaffolding it is silently skipped with an INFO log (no confirmation);
   when absent it is built through the normal interactive flow.
+- `run_onboarding(template_mode=False)` called directly (the programmatic seam) — when the file exists, the pipeline
+  asks via `click.confirm` (default `no`) and rebuilds only on `yes`; on refusal the step is skipped and the rest of
+  the pipeline continues (exit 0).
 
 The testable seam `build_pybuggy_config` itself always overwrites the file with no checks and no confirmations — a
 direct programmatic call always (over)writes.

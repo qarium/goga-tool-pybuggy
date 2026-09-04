@@ -322,10 +322,14 @@ def test_run_init_ensures_review_executor_skip_in_fresh_project(
     assert cfg["build"]["review_executor"]["skip"] is True
 
 
-def test_run_init_migrates_review_executor_skip_into_existing_config(
+def test_run_onboarding_template_mode_migrates_review_executor_skip_into_existing_config(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A declined goga-config rebuild still migrates the flag into the existing build block."""
+    """A template-brought config (no goga recreate) still migrates the flag into the build block.
+
+    Via the CLI an existing .goga/config.yml is reachable only in template mode now — the bare
+    already-initialized guard refuses an initialized project up front.
+    """
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text(
@@ -337,11 +341,9 @@ def test_run_init_migrates_review_executor_skip_into_existing_config(
         "    conventions: .goga/usages/conventions.md\n"
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
+    _stub_seams(monkeypatch)
 
-    assert run_init(None, None, False) == 0
+    assert run_onboarding(template_mode=True) == 0
 
     cfg = yaml.safe_load(config.read_text())
     assert cfg["build"]["task_executor"]["agent"] == "claude"  # existing build content preserved
@@ -358,11 +360,14 @@ def test_run_init_does_not_ensure_flag_when_goga_init_fails(tmp_path: Path, monk
     assert not (tmp_path / ".goga/config.yml").exists()
 
 
-def test_run_init_leaves_divergent_conventions_key_untouched(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A pre-existing `conventions` key pointing elsewhere is skipped (register_usages never
+def test_run_onboarding_template_mode_leaves_divergent_conventions_key_untouched(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A template-carried `conventions` key pointing elsewhere is skipped (register_usages never
     overwrites), while the slot file and the annotation line still migrate to the package version.
 
-    Pins the skip-existing contract for the residual case where goga's usages survey recorded a
+    Pins the skip-existing contract for the residual case where a config (now only reachable in
+    template mode via the CLI — bare is refused by the already-initialized guard) records a
     user-typed `conventions` key with a custom path: the key (a user-defined entry, per the
     CODEMANIFEST requirement "existing keys are never overwritten") is left as-is and logs as
     skipped; the package-owned slot file and the annotation line are still delivered.
@@ -377,11 +382,9 @@ def test_run_init_leaves_divergent_conventions_key_untouched(tmp_path: Path, mon
         "    Use `conventions` for code writing rules and testing.\n"
     )
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
+    _stub_seams(monkeypatch)
 
-    assert run_init(None, None, False) == 0
+    assert run_onboarding(template_mode=True) == 0
 
     # The slot file is delivered unconditionally regardless of where the key points.
     assert (tmp_path / ".goga/usages/conventions.md").read_text(encoding="utf-8") == _ASSET_TEXT
@@ -410,23 +413,23 @@ def test_run_init_logs_registered_and_skipped_keys(
     assert not [r for r in caplog.records if "skipped" in r.message]  # fresh project: nothing skipped
 
 
-def test_run_init_logs_skipped_on_idempotent_rerun(
+def test_run_onboarding_template_mode_rerun_logs_skipped_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """A repeat run logs WARNING 'already registered, skipped' for every usage and annotation key.
+    """A template-mode rerun logs WARNING 'already registered, skipped' for every key.
 
-    Pins the `changed` (vs `added`) plumbing of _log_registration: on an idempotent rerun nothing
-    was added and no annotation line changed, so every key must log as skipped — swapping the
-    INFO/WARNING conditions or dropping the changed_annotation_keys threading fails this test.
+    A repeat bare run_init is refused by the already-initialized guard, so the idempotent-rerun
+    logging lives in template mode (a re-scaffold over a registered project). Pins the `changed`
+    (vs `added`) plumbing of _log_registration: on an idempotent rerun nothing was added and no
+    annotation line changed, so every key must log as skipped — swapping the INFO/WARNING
+    conditions or dropping the changed_annotation_keys threading fails this test.
     """
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
-    assert run_init(None, None, False) == 0  # first run registers everything
+    _stub_seams(monkeypatch)
+    assert run_onboarding(template_mode=True) == 0  # first run registers everything
 
     with caplog.at_level(logging.WARNING):
-        assert run_init(None, None, False) == 0
+        assert run_onboarding(template_mode=True) == 0
 
     warn_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
     assert "usage already registered, skipped" in warn_messages
@@ -566,23 +569,25 @@ def test_run_init_does_not_write_conftest_when_bootstrap_fails(tmp_path: Path, m
     assert not (tmp_path / "conftest.py").exists()
 
 
-def test_run_init_idempotent_repeat_run_preserves_existing_conftest(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A repeat run with every confirm declined leaves the conftest written by run #1 untouched."""
+def test_run_init_repeat_run_refuses_and_preserves_conftest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A repeat bare run is refused (exit 1): the conftest written by run #1 stays untouched.
+
+    Run #1 bootstraps the project (register_usages creates .goga/), so run #2 trips the
+    already-initialized guard before any gate — the old confirm dance is gone.
+    """
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    # run #1: fresh cwd -> bootstrap creates .goga/config.yml, conftest written without a prompt;
-    # run #2: goga config exists -> confirm #1 declined, conftest exists -> confirm #2 declined.
-    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
+    confirm = mock.Mock(return_value=False)
+    monkeypatch.setattr(click, "confirm", confirm)
 
     assert run_init(None, None, False) == 0
     after_first = (tmp_path / "conftest.py").read_text(encoding="utf-8")
     assert after_first == EXPECTED_CONFTEST
 
-    assert run_init(None, None, False) == 0
+    assert run_init(None, None, False) == 1  # .goga/ from run #1 → guard refuses
     assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == after_first
+    assert confirm.call_count == 0  # run #2 never reached a gate
 
 
 def test_run_init_propagates_abort_on_conftest_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -609,22 +614,58 @@ def test_run_init_recursive_discovery_picks_subcell(tmp_path: Path, monkeypatch:
     assert (tmp_path / ".goga/usages/cooks/pybuggy/asserts.md").exists()
 
 
-def test_run_init_in_initialized_project_skips_goga_init(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """On an already-initialized project run_init asks to recreate goga config; declining skips run_goga_init."""
+def test_run_init_bare_refuses_initialized_project_without_side_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A repeat bare invocation over an existing .goga/ refuses: stderr message, exit 1, zero side effects.
+
+    goga init parity: the guard fires before any prompt or write — run_goga_init,
+    build_pybuggy_config, and click.confirm are never called, and every existing file stays
+    byte-identical (no usages refresh, no config augmentation, no conftest overwrite).
+    """
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
+    usage = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md"
+    usage.parent.mkdir(parents=True, exist_ok=True)
+    usage.write_text("locally edited api usage", encoding="utf-8")
+    conftest = tmp_path / "conftest.py"
+    conftest.write_text("# custom conftest\n", encoding="utf-8")
+    before = {p: p.read_bytes() for p in (config, usage, conftest)}
     monkeypatch.chdir(tmp_path)
-    run_goga_init_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
+    goga_spy = mock.Mock(return_value=0)
+    build_spy = mock.Mock(return_value=0)
+    confirm = mock.Mock(return_value=False)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", goga_spy)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
+    monkeypatch.setattr(click, "confirm", confirm)
+
+    assert run_init(None, None, False) == 1
+
+    assert "Project already initialized" in capsys.readouterr().err
+    assert goga_spy.call_count == 0
+    assert build_spy.call_count == 0
+    assert confirm.call_count == 0
+    assert {p: p.read_bytes() for p in (config, usage, conftest)} == before  # nothing updated
+
+
+def test_run_init_bare_guard_checks_directory_existence_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A `.goga` regular file does not trip the guard (is_dir parity with goga init).
+
+    The flow proceeds into onboarding (run_goga_init is reached); the bootstrap then fails
+    creating `.goga/...` children under a regular file, mapping the OSError to
+    ClickException — the same degenerate-state behavior goga's guard produces.
+    """
+    (tmp_path / ".goga").write_text("not a directory\n")
+    monkeypatch.chdir(tmp_path)
+    goga_spy = mock.Mock(return_value=0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", goga_spy)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline goga recreate
 
-    assert run_init(None, None, False) == 0
+    with pytest.raises(click.ClickException):
+        run_init(None, None, False)
 
-    assert run_goga_init_spy.call_count == 0
-    cfg = yaml.safe_load(config.read_text())
-    assert {"pybuggy-api", "pybuggy-asserts"} <= set(cfg["codemanifest"]["usages"])
+    assert goga_spy.call_count == 1  # guard passed: `.goga` exists but is not a directory
 
 
 def test_run_init_propagates_goga_cancel_without_registering(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -640,29 +681,36 @@ def test_run_init_propagates_goga_cancel_without_registering(tmp_path: Path, mon
     assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
 
 
-def test_run_init_idempotent_second_run_no_diff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A second run_init (both recreates declined) overwrites copied files and skips keys — no diff."""
+def test_run_init_second_bare_run_refuses_with_no_config_diff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A second bare run refuses (the .goga/ created by run #1 trips the guard) and writes nothing.
+
+    The onboarding of run #1 itself creates .goga/config.yml (register_usages), so the repeat
+    invocation cannot update files: exit 1 and a byte-identical config.
+    """
     config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
     monkeypatch.chdir(tmp_path)
     run_goga_init_spy = mock.Mock(return_value=0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline both recreates
 
-    run_init(None, None, False)
+    assert run_init(None, None, False) == 0  # fresh cwd → onboarding creates the config
     before = config.read_text()
 
-    run_init(None, None, False)
-    after = config.read_text()
+    assert run_init(None, None, False) == 1  # refused
 
-    assert run_goga_init_spy.call_count == 0
-    assert before == after
+    assert run_goga_init_spy.call_count == 1  # called only by the fresh run #1
+    assert config.read_text() == before
 
 
-def test_run_init_recreates_goga_config_on_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When .goga/config.yml exists and the user confirms, run_init re-runs run_goga_init (overwrites)."""
+def test_run_onboarding_bare_mode_recreates_goga_config_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seam contract: bare mode with an existing .goga/config.yml re-runs run_goga_init on confirm.
+
+    Through run_init this branch is unreachable (the bare already-initialized guard refuses an
+    existing .goga/ up front); the onboarding pipeline itself keeps the documented gate for
+    direct programmatic callers.
+    """
     config = tmp_path / ".goga" / "config.yml"
     config.parent.mkdir(parents=True, exist_ok=True)
     config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
@@ -672,13 +720,15 @@ def test_run_init_recreates_goga_config_on_confirm(tmp_path: Path, monkeypatch: 
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
     monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))  # accept goga recreate
 
-    assert run_init(None, None, False) == 0
+    assert run_onboarding(template_mode=False) == 0
 
     assert run_goga_init_spy.call_count == 1
 
 
-def test_run_init_rebuilds_pybuggy_config_on_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When the pybuggy tool config exists and the user confirms, run_init rebuilds it."""
+def test_run_onboarding_bare_mode_rebuilds_pybuggy_config_on_confirm(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seam contract: bare mode rebuilds an existing tool config only on an explicit confirm."""
     (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
     (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
     config = tmp_path / ".goga" / "config.yml"
@@ -691,13 +741,15 @@ def test_run_init_rebuilds_pybuggy_config_on_confirm(tmp_path: Path, monkeypatch
     # decline goga recreate, accept pybuggy rebuild
     monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, True]))
 
-    assert run_init(None, None, False) == 0
+    assert run_onboarding(template_mode=False) == 0
 
     assert build_spy.call_count == 1
 
 
-def test_run_init_skips_pybuggy_rebuild_on_decline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When the pybuggy tool config exists and the user declines, run_init skips build_pybuggy_config."""
+def test_run_onboarding_bare_mode_skips_pybuggy_rebuild_on_decline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Seam contract: declining the rebuild skips build_pybuggy_config; the pipeline continues."""
     (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
     (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
     config = tmp_path / ".goga" / "config.yml"
@@ -710,19 +762,16 @@ def test_run_init_skips_pybuggy_rebuild_on_decline(tmp_path: Path, monkeypatch: 
     # decline both recreates
     monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
 
-    assert run_init(None, None, False) == 0
+    assert run_onboarding(template_mode=False) == 0
 
     assert build_spy.call_count == 0
 
 
 def test_run_init_maps_bootstrap_failure_to_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_init should map a file-write failure to click.ClickException."""
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("codemanifest:\n  usages: {}\n")
-    monkeypatch.chdir(tmp_path)
+    """A file-write failure inside the bootstrap maps to click.ClickException (fresh cwd)."""
+    monkeypatch.chdir(tmp_path)  # no .goga/ — the bare guard does not fire
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
     monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline goga recreate
 
     with (
         mock.patch("goga_tool_pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")),
@@ -1152,6 +1201,22 @@ def test_run_init_template_scaffolds_then_onboards_template_mode(
     assert run_init("https://host/repo.git#v1", "v9", False) == 0
 
     assert stub.generate_calls == [("https://host/repo.git#v1", "v9")]
+    assert onboarding_calls == [(True,)]
+
+
+def test_run_init_template_mode_not_guarded_by_existing_goga(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Template mode ignores the already-initialized guard — a template may bring its own .goga/.
+
+    The guard mirrors `goga init` and guards BARE onboarding only; scaffolded onboarding runs
+    with its silent-skip gates even when .goga/ already exists.
+    """
+    (tmp_path / ".goga").mkdir()
+    monkeypatch.chdir(tmp_path)
+    _stub_scaffold(monkeypatch, generate_rc=0)
+    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
+
+    assert run_init("https://host/repo.git", None, False) == 0
+
     assert onboarding_calls == [(True,)]
 
 
