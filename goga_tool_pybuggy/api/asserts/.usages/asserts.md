@@ -167,17 +167,20 @@ pybuggy evaluates both against the whole body.
 | `is_in(value)`        | —                 | Value is an **element of** `value` (`value` is a container)                                                     |
 | `is_not_in(value)`    | —                 | Value is **not** an element of `value`                                                                          |
 | `is_subset(value)`    | —                 | Iterable value is a subset of `value`                                                                           |
+| `is_intersect(value)` | —                 | Iterable value shares at least one element with `value`                                                         |
 | `is_disjoint(value)`  | —                 | Iterable value shares no elements with `value`                                                                  |
 
 ```python
 response.expect("name").contains("abc")
 response.expect("tags").is_in(["x", "y"])
 response.expect("filters").is_subset({"a": 1, "b": 2})
+response.expect("tags").is_intersect({"x", "z"})
 ```
 
 > Mind the argument direction: in `is_in(value)` / `is_subset(value)` /
-> `is_disjoint(value)`, `value` is the **second** operand (the container/superset),
-> while the resolved field is the first operand. `is_subset`/`is_disjoint` build sets
+> `is_intersect(value)` / `is_disjoint(value)`, `value` is the **second** operand
+> (the container/superset), while the resolved field is the first operand.
+> `is_subset`/`is_intersect`/`is_disjoint` build sets
 > via `set()`; therefore both the resolved value and `value` must be **iterable and
 > hashable**; a non-iterable value → `ValueError`.
 
