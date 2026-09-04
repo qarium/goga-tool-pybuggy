@@ -48,7 +48,7 @@ artifact. Ask via AskUserQuestion (one question per message, 2–4 options):
 
 3. **Target environment (base URL of test runs)** — where the tests must send requests:
 
-   - **"Standard (.env / QA_BASE_URL)"** — nothing changes;
+   - **"Standard (.env / BASE_URL)"** — nothing changes;
    - **"Feature environment"** — the URL of the environment the branch is deployed to (user input);
    - **"base_url template value"** — when the plugin config `base_url` is a Jinja2 template, name
      the variable value it renders from.
@@ -102,7 +102,7 @@ decision; for a feature ref, why this ref (which service branch the topic tests)
 
 ## Target environment (base URL)
 
-[standard (.env / QA_BASE_URL) | the explicit URL of the environment under test — recorded test run
+[standard (.env / BASE_URL) | the explicit URL of the environment under test — recorded test run
 commands will carry `pytest ... --base-url <url>`; for a feature environment, where the branch is deployed]
 
 ## Known Signals

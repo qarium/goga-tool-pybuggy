@@ -35,7 +35,7 @@ From each cell's CODEMANIFEST:
 1. Base command: `pytest <paths> -q`, where `<paths>` are the topic's cell directories (`tests/<spec>/` or `tests/<spec>/<id>/` per cell).
 2. Target environment: read it from `docs/requirements/<topic>.md` (§1 "Target environment" / §4). When a
    non-standard base URL is recorded — append `--base-url <url>` to the command (the topic's SUT is that
-   environment; the standard `.env`/`QA_BASE_URL` value would target the wrong service). Standard
+   environment; the standard `.env`/`BASE_URL` value would target the wrong service). Standard
    environment — no flag. Record the resolved environment in the report.
 3. If a topic's cells span multiple `<spec>` values, list all paths in a single command.
 4. Record the run root: the directory that contains `conftest.py` (pytest runs from there).

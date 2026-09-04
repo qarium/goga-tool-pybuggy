@@ -32,7 +32,7 @@ existing file is kept (bare mode: unless you confirm the overwrite) — see
 ## What enabling wires
 
 - **CLI options** — `--base-url` (resolves `base_url`, required; a typed flag overrides
-  the config-file and `QA_BASE_URL` value), `--api-timeout` (resolves `timeout`),
+  the config-file and `BASE_URL` value), `--api-timeout` (resolves `timeout`),
   `--retries` (the flaky rerun count), `--api-assert-timeout` / `--api-assert-delay`
   (the assert-polling baseline). The remaining options (`headers`,
   `assert_field_class`, `assert_response_class`) have no CLI flag —

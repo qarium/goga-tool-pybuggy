@@ -32,7 +32,7 @@ argument when they name a branch and/or an environment; otherwise it asks you:
      `--ref <spec>:<ref>`);
    - *local spec* — no `pull` at all.
 2. **Run environment (base URL)** — which service version is tested:
-   - *standard* — the `.env` / `QA_BASE_URL` default;
+   - *standard* — the `.env` / `BASE_URL` default;
    - *explicit URL* — the environment where the version under test is deployed.
 
 A feature branch combined with the standard environment triggers a warning question

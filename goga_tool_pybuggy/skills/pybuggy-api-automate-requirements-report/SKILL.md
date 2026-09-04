@@ -56,7 +56,7 @@ content follows the format below. Fill in every section. Empty sections are forb
 - **Topic goal:** [Refined goal]
 - **Spec version:** [default branch | `ref <ref>` (per spec when they differ) | local spec, no pull —
   the confirmed version context; pull/generate/diff commands of this topic use it]
-- **Target environment:** [standard (.env / QA_BASE_URL) | `<url>` of the environment under test —
+- **Target environment:** [standard (.env / BASE_URL) | `<url>` of the environment under test —
   test run commands of this topic carry `--base-url <url>`]
 
 **2. Topic endpoints:**
@@ -88,7 +88,7 @@ subsection order, no gaps, no duplicates) — the registry for test case traceab
 
 - Business preconditions (entities/roles/states — stated as a need): [...]
 - Environment (env/version): [...]
-- Target environment (base URL): [standard `.env`/`QA_BASE_URL` | `<url>` where the SUT of this
+- Target environment (base URL): [standard `.env`/`BASE_URL` | `<url>` where the SUT of this
   topic is deployed — recorded run commands use `pytest ... --base-url <url>`]
 
 **5. Roles and permissions:**

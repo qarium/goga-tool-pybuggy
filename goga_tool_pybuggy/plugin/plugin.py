@@ -54,7 +54,7 @@ from pluginator import CommandLine, define
 
 from ..api import Api
 from . import defaults
-from .envvars import QA_API_TIMEOUT, QA_BASE_URL
+from .envvars import API_TIMEOUT, BASE_URL
 from .loaders import BaseLoader, ModuleLoader, PackageLoader
 from .render import render_base_url
 
@@ -136,14 +136,14 @@ class ApiPlugin:
         plugin_config: anchor declaration; ``BasePlugin`` supplies the parsed
             yaml dict.
         base_url: service base URL as a Jinja2 template string (required;
-            ``QA_BASE_URL`` env / ``--base-url`` CLI). Rendered once in
+            ``BASE_URL`` env / ``--base-url`` CLI). Rendered once in
             ``configure()`` against the environment + passed CLI options and stored
             back on ``self.base_url``; a plain URL without placeholders renders to
             itself. When ``--base-url`` is actually typed on the CLI, its value is
             applied with top precedence — overriding the plugin config and
-            ``QA_BASE_URL`` (see ``configure()``).
+            ``BASE_URL`` (see ``configure()``).
         headers: default request headers (default ``{}``).
-        timeout: request timeout in seconds (nullable; ``QA_API_TIMEOUT`` env /
+        timeout: request timeout in seconds (nullable; ``API_TIMEOUT`` env /
             ``--api-timeout`` CLI).
         retries: flaky rerun count for the test run (default ``0``/no reruns;
             ``--retries`` CLI). When positive, ``pytest_collection_modifyitems``
@@ -168,7 +168,7 @@ class ApiPlugin:
     base_url = define.option(
         str,
         plugin_config_key=PluginConfigKeys.BASE_URL,
-        env_var=QA_BASE_URL,
+        env_var=BASE_URL,
         command_line=CommandLine("--base-url", action="store", help="Base URL of the service under test"),
         required=True,
     )
@@ -176,7 +176,7 @@ class ApiPlugin:
     timeout = define.option(
         float,
         plugin_config_key=PluginConfigKeys.TIMEOUT,
-        env_var=QA_API_TIMEOUT,
+        env_var=API_TIMEOUT,
         command_line=CommandLine("--api-timeout", action="store", help="Network timeout"),
         nullable=True,
     )
@@ -266,7 +266,7 @@ class ApiPlugin:
         yields one clean URL.
 
         When the user typed ``--base-url``, its value is applied first, with top
-        precedence over the plugin config and ``QA_BASE_URL``: the pluginator
+        precedence over the plugin config and ``BASE_URL``: the pluginator
         chain resolves the config before the CLI, so the typed CLI value is
         re-applied here to make the CLI authoritative for ``base_url``. The CLI
         value is itself a Jinja2 template and renders against the same context.

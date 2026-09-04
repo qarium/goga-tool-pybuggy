@@ -21,7 +21,7 @@ from pluginator import install_pytest_plugins, call_context
 class PyBuggyPlugin:
     plugin_config: dict  # the parsed yaml lands in this attribute (see BasePlugin.plugin_config)
 
-    base_url = define.option(str, env_var="QA_BASE_URL", command_line=CommandLine("--base-url"))
+    base_url = define.option(str, env_var="BASE_URL", command_line=CommandLine("--base-url"))
 ```
 
 - `define.plugin(name, /, *, config=None, default_config=None, deps=None, actions=None)`.
@@ -37,7 +37,7 @@ class PyBuggyPlugin:
 ```python
 base_url = define.option(
     str,
-    env_var="QA_BASE_URL",
+    env_var="BASE_URL",
     plugin_config_key="base_url",
     command_line=CommandLine("--base-url", action="store", help="Base URL"),
     default_from="_default_base_url",

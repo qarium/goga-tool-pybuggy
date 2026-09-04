@@ -12,9 +12,9 @@ section (generated-fixture discovery).
 
 | Option                | Type           | Env (default)    | CLI flag               | Default  |
 |-----------------------|----------------|------------------|------------------------|----------|
-| `base_url`            | `str`          | `QA_BASE_URL`    | `--base-url`           | required |
+| `base_url`            | `str`          | `BASE_URL`       | `--base-url`           | required |
 | `headers`             | `dict[str, str]` | —              | —                      | `{}`     |
-| `timeout`             | `float`        | `QA_API_TIMEOUT` | `--api-timeout`        | `None`   |
+| `timeout`             | `float`        | `API_TIMEOUT`    | `--api-timeout`        | `None`   |
 | `retries`             | `int`          | —                | `--retries`            | `0`      |
 | `assert_timeout`      | `int`          | —                | `--api-assert-timeout` | `None`   |
 | `assert_delay`        | `float`        | —                | `--api-assert-delay`   | `None`   |
@@ -32,7 +32,7 @@ Each option resolves by the first non-empty source:
 
 So the config file overrides env, env overrides the CLI flag, the flag overrides the
 default. **`base_url` is the exception** — when you actually type `--base-url`, its value
-wins over the config file and `QA_BASE_URL`.
+wins over the config file and `BASE_URL`.
 
 ### `base_url` as a Jinja2 template
 

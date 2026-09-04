@@ -4,8 +4,8 @@ Mirrors the source layout (`tests/plugin/test_plugin.py`). Covers the contract
 surface (importability + presence of the option descriptors and the `api`
 method) and the behavioral logic of the `ApiPlugin` fixture.
 
-Note: option resolution is driven through env vars (``QA_BASE_URL`` /
-``QA_API_TIMEOUT``), the documented resolution chain. The `Api` constructor is
+Note: option resolution is driven through env vars (``BASE_URL`` /
+``API_TIMEOUT``), the documented resolution chain. The `Api` constructor is
 mocked in the positive case so the fixture logic is asserted independently of
 the `resq` network layer (constructing `Api` performs no network I/O, but the
 stub `resq` here has no `Session`).
@@ -182,6 +182,13 @@ class TestApiPluginContract:
             "ASSERT_RESPONSE_CLASS",
         }
 
+    def test_env_var_names_contract(self):
+        """The env-contract names are exactly BASE_URL and API_TIMEOUT."""
+        from goga_tool_pybuggy.plugin import envvars
+
+        assert envvars.BASE_URL == "BASE_URL"
+        assert envvars.API_TIMEOUT == "API_TIMEOUT"
+
 
 class TestApiPluginLogic:
     """Behavioral logic tests for the `api` fixture.
@@ -193,8 +200,8 @@ class TestApiPluginLogic:
 
     def test_api_fixture_builds_api_from_options(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://x.example")
-        monkeypatch.setenv("QA_API_TIMEOUT", "5")
+        monkeypatch.setenv("BASE_URL", "https://x.example")
+        monkeypatch.setenv("API_TIMEOUT", "5")
 
         plugin = ApiPlugin(context={})
         # The assert-polling / pluggable-class options resolve from the plugin
@@ -230,7 +237,7 @@ class TestApiPluginLogic:
 
     def test_base_url_required_raises_in_configure(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         # base_url resolves nowhere (no config/env/CLI) -> configure() raises the
         # required-option ValueError (rendering happens eagerly in configure(),
@@ -241,9 +248,21 @@ class TestApiPluginLogic:
         with pytest.raises(ValueError, match="base_url"):
             plugin.configure()
 
+    def test_old_qa_env_names_not_resolved(self, tmp_path, monkeypatch):
+        """The retired QA_BASE_URL/QA_API_TIMEOUT names are no longer env sources."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BASE_URL", raising=False)
+        monkeypatch.setenv("QA_BASE_URL", "https://old.example")
+
+        plugin = ApiPlugin(context={})
+        plugin.init_pytest_config(_FakePytestConfig())  # --base-url absent
+
+        with pytest.raises(ValueError, match="base_url"):
+            plugin.configure()
+
     def test_api_fixture_uses_config_file_base_url(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
@@ -274,8 +293,8 @@ class TestApiPluginLogic:
         must have invoked close() on the constructed Api exactly once.
         """
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://x.example")
-        monkeypatch.setenv("QA_API_TIMEOUT", "5")  # resolve via env
+        monkeypatch.setenv("BASE_URL", "https://x.example")
+        monkeypatch.setenv("API_TIMEOUT", "5")  # resolve via env
 
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {"assert_timeout": 1, "assert_delay": 0.1}
@@ -306,7 +325,7 @@ class TestApiPluginConfigure:
 
     def test_configure_renders_env_placeholder(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://{{ qa_host }}.svc.example")
+        monkeypatch.setenv("BASE_URL", "https://{{ qa_host }}.svc.example")
         monkeypatch.setenv("qa_host", "dev")
 
         plugin = ApiPlugin(context={})
@@ -316,7 +335,7 @@ class TestApiPluginConfigure:
 
     def test_configure_renders_cli_option(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://{{ env }}.svc.example")
+        monkeypatch.setenv("BASE_URL", "https://{{ env }}.svc.example")
 
         plugin = ApiPlugin(context={})
         _lifecycle(plugin, args=["--env", "dev"], options={"env": "dev"})
@@ -325,7 +344,7 @@ class TestApiPluginConfigure:
 
     def test_configure_renders_multiple_cli_options(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://{{ env }}.svc.example/api/{{ version }}")
+        monkeypatch.setenv("BASE_URL", "https://{{ env }}.svc.example/api/{{ version }}")
 
         plugin = ApiPlugin(context={})
         _lifecycle(
@@ -339,7 +358,7 @@ class TestApiPluginConfigure:
     def test_configure_no_placeholders_backward_compat(self, tmp_path, monkeypatch):
         """A plain URL without Jinja placeholders renders to itself (backward compat)."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://plain.example/api")
+        monkeypatch.setenv("BASE_URL", "https://plain.example/api")
 
         plugin = ApiPlugin(context={})
         _lifecycle(plugin)
@@ -355,7 +374,7 @@ class TestApiPluginConfigure:
         pluginator calls configure() exactly once at configphase.
         """
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://{{ env }}.svc.example")
+        monkeypatch.setenv("BASE_URL", "https://{{ env }}.svc.example")
 
         plugin = ApiPlugin(context={})
         _lifecycle(plugin, args=["--env", "dev"], options={"env": "dev"})
@@ -374,7 +393,7 @@ class TestApiPluginConfigure:
         rendering context passed to render_base_url.
         """
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://x.example")
+        monkeypatch.setenv("BASE_URL", "https://x.example")
 
         plugin = ApiPlugin(context={})
         # args names ONLY --env; option carries env plus an unrelated internal key.
@@ -393,7 +412,7 @@ class TestApiPluginConfigure:
     def test_passed_cli_options_excludes_none(self, tmp_path, monkeypatch):
         """A typed option resolving to None is excluded (does not clobber env)."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://x.example")
+        monkeypatch.setenv("BASE_URL", "https://x.example")
 
         plugin = ApiPlugin(context={})
         # --unset is typed but resolves to None -> dropped from the context.
@@ -411,7 +430,7 @@ class TestApiPluginConfigure:
     def test_configure_uses_base_url_resolution(self, tmp_path, monkeypatch):
         """base_url is resolved (config->env->CLI->required) before rendering."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
@@ -428,14 +447,14 @@ class TestBaseUrlCliPrecedence:
 
     The pluginator chain resolves the config before the CLI, so a typed
     ``--base-url`` is re-applied in ``configure()`` with top precedence over
-    the config file and ``QA_BASE_URL``. The CLI value is itself a Jinja2
+    the config file and ``BASE_URL``. The CLI value is itself a Jinja2
     template rendered against the same context.
     """
 
     def test_cli_base_url_overrides_config(self, tmp_path, monkeypatch):
         # The reported bug: the config-file base_url used to win over the CLI flag.
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
@@ -452,7 +471,7 @@ class TestBaseUrlCliPrecedence:
 
     def test_cli_base_url_overrides_env(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "https://env.example")
+        monkeypatch.setenv("BASE_URL", "https://env.example")
 
         plugin = ApiPlugin(context={})
         _lifecycle(
@@ -466,7 +485,7 @@ class TestBaseUrlCliPrecedence:
     def test_cli_base_url_renders_as_template(self, tmp_path, monkeypatch):
         # The typed --base-url value is a template, rendered like any other source.
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         plugin = ApiPlugin(context={})
         _lifecycle(
@@ -481,7 +500,7 @@ class TestBaseUrlCliPrecedence:
         # Without a typed flag the pluginator chain stands (config wins); an
         # option present on the namespace but NOT typed must not be applied.
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
@@ -504,7 +523,7 @@ class TestApiPluginJinjaBaseUrl:
 
     def test_configure_renders_jinja_variable(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "http://{{ env }}.svc.example/api")
+        monkeypatch.setenv("BASE_URL", "http://{{ env }}.svc.example/api")
 
         plugin = ApiPlugin(context={})
         _lifecycle(plugin, args=["--env", "dev"], options={"env": "dev"})
@@ -513,7 +532,7 @@ class TestApiPluginJinjaBaseUrl:
 
     def test_configure_jinja_conditional_url_match(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", _JINJA_CONDITIONAL_URL)
+        monkeypatch.setenv("BASE_URL", _JINJA_CONDITIONAL_URL)
 
         plugin = ApiPlugin(context={})
         _lifecycle(
@@ -526,7 +545,7 @@ class TestApiPluginJinjaBaseUrl:
 
     def test_configure_jinja_conditional_url_no_match(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", _JINJA_CONDITIONAL_URL)
+        monkeypatch.setenv("BASE_URL", _JINJA_CONDITIONAL_URL)
 
         plugin = ApiPlugin(context={})
         _lifecycle(
@@ -542,7 +561,7 @@ class TestApiPluginJinjaBaseUrl:
         import jinja2
 
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setenv("QA_BASE_URL", "http://{{ undefined_var }}.svc.example")
+        monkeypatch.setenv("BASE_URL", "http://{{ undefined_var }}.svc.example")
 
         plugin = ApiPlugin(context={})
         with pytest.raises(jinja2.UndefinedError):
@@ -552,7 +571,7 @@ class TestApiPluginJinjaBaseUrl:
         """Both os.environ and the passed CLI options are available in the Jinja context."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("QA_HOST", "env-host")
-        monkeypatch.setenv("QA_BASE_URL", "http://{{ QA_HOST }}.svc.example/{{ region }}")
+        monkeypatch.setenv("BASE_URL", "http://{{ QA_HOST }}.svc.example/{{ region }}")
 
         plugin = ApiPlugin(context={})
         _lifecycle(plugin, args=["--region", "eu"], options={"region": "eu"})
@@ -568,7 +587,7 @@ class TestApiPluginJinjaBaseUrl:
         strips it, so the URL is clean.
         """
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
@@ -596,7 +615,7 @@ class TestApiPluginJinjaBaseUrl:
         (`/api/v1 -feature-123`). render_base_url strips it.
         """
         monkeypatch.chdir(tmp_path)
-        monkeypatch.delenv("QA_BASE_URL", raising=False)
+        monkeypatch.delenv("BASE_URL", raising=False)
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)

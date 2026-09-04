@@ -9,9 +9,9 @@ configuration.
 
 | Option                | Type           | Env (default)    | CLI flag               | Config key            | Default  |
 |-----------------------|----------------|------------------|------------------------|-----------------------|----------|
-| base_url              | str            | `QA_BASE_URL`    | `--base-url`           | base_url              | required |
+| base_url              | str            | `BASE_URL`       | `--base-url`           | base_url              | required |
 | headers               | dict[str, str] | —                | —                      | headers               | `{}`     |
-| timeout               | float          | `QA_API_TIMEOUT` | `--api-timeout`        | timeout               | None     |
+| timeout               | float          | `API_TIMEOUT`    | `--api-timeout`        | timeout               | None     |
 | retries               | int            | —                | `--retries`            | retries               | 0        |
 | assert_timeout        | int            | —                | `--api-assert-timeout` | assert_timeout        | None     |
 | assert_delay          | float          | —                | `--api-assert-delay`   | assert_delay          | None     |
@@ -30,7 +30,7 @@ Each option resolves by the first non-empty source, in this order (the pluginato
 So the config file overrides env, env overrides the CLI flag, and the CLI flag overrides the default.
 
 `base_url` is the exception — the CLI flag is authoritative: when you actually type `--base-url` on the command
-line, its value overrides the config file and `QA_BASE_URL` (applied in `configure()` before rendering; the
+line, its value overrides the config file and `BASE_URL` (applied in `configure()` before rendering; the
 pluginator chain alone would let the config/env win). When the flag is not typed, `base_url` keeps the order
 above (config → env → required). The CLI value is itself a Jinja2 template and renders against the same context:
 
