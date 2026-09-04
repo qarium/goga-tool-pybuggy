@@ -6,7 +6,7 @@ description: "Pybuggy API-test fix lifecycle"
   title: "Collect failures"
   communication: true
   prompt: |
-    Constrains:
+    Constraints:
       - Don't research a project until you receive the task
   skills:
     - goga-tool-pybuggy-api-fix-collect
@@ -33,3 +33,12 @@ description: "Pybuggy API-test fix lifecycle"
   communication: true
   skills:
     - goga-tool-pybuggy-api-fix-review
+
+- name: commit-changes
+  title: "Commit changes"
+  communication: true
+  prompt: |
+    Commit all added and modified files.
+
+    Constraints:
+    - Except changes in `docs/<defines|proposals|tasks|arch|design|plans>`.

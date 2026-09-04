@@ -115,6 +115,60 @@ def test_init_cmd_maps_bootstrap_failure_to_nonzero_exit(tmp_path: Path, monkeyp
     assert result.exit_code != 0
 
 
+def test_init_cmd_end_to_end_template_mode_scaffolds_then_skips_existing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Template mode through the real CLI parsing: engine scaffolded, then template-mode onboarding."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+
+    generate_calls: list[tuple[str, str | None]] = []
+
+    class StubScaffold:
+        """Recording engine stand-in: no copier, no network, no TTY."""
+
+        def generate(self, template_input: str, ref_override: str | None) -> int:
+            generate_calls.append((template_input, ref_override))
+            return 0
+
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Scaffold", StubScaffold)
+
+    runner = click.testing.CliRunner()
+    result = runner.invoke(init_cmd, ["https://host/repo.git#v1", "--ref", "v9"])
+
+    assert result.exit_code == 0
+    # The wrapper forwards the parsed surface verbatim to the engine.
+    assert generate_calls == [("https://host/repo.git#v1", "v9")]
+
+    # Onboarding ran in template mode and delivered every absent artifact.
+    assert (tmp_path / ".goga/usages/conventions.md").exists()
+    assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
+    assert (tmp_path / "conftest.py").exists()
+
+    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
+    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
+    assert cfg["build"]["review_executor"]["skip"] is True
+
+
+def test_init_cmd_rejects_tpl_with_upgrade_without_side_effects(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The `<tpl> --upgrade` combination exits 1 with the message printed and nothing written."""
+    monkeypatch.chdir(tmp_path)
+    engine = mock.Mock()
+    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Scaffold", engine)
+
+    runner = click.testing.CliRunner()
+    result = runner.invoke(init_cmd, ["tpl", "--upgrade"])
+
+    assert result.exit_code == 1
+    assert "mutually exclusive" in result.output
+    assert not (tmp_path / ".goga").exists()
+    assert not (tmp_path / "conftest.py").exists()
+    engine.assert_not_called()  # flag validation fails before the engine is ever built
+
+
 # Top-level command registration --------------------------------------------
 
 

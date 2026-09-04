@@ -51,6 +51,7 @@ docs/matchers/matchers.md:
 docs/plugin/index.md:
   - goga_tool_pybuggy/plugin
   - goga_tool_pybuggy/api
+  - goga_tool_pybuggy/commands/init
   - goga_tool_pybuggy
 docs/plugin/loaders.md:
   - goga_tool_pybuggy/plugin/loaders
