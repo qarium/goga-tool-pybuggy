@@ -141,6 +141,22 @@ class TestFieldMatchers:
         _expect()("data.name").is_in(["abc", "zzz"])
         _expect()("data.name").is_not_in(["zzz"])
 
+    def test_is_intersect(self) -> None:
+        """``is_intersect`` passes when the field shares an element with ``value``."""
+        _expect()("data.tags").is_intersect({"xx", "zz"})
+        with pytest.raises(AssertionError):
+            _expect()("data.tags").is_intersect({"zz"})
+
+    def test_is_intersect_in_array(self) -> None:
+        """``is_intersect`` element-wise over a list of lists with ``any``."""
+        body = {"data": {"rows": [[1, 2], [2, 3]]}, "error": None}
+        expect = Expect(FakeResponse(status_code=200, body=body), AssertConfig(expected_status=200))
+
+        expect("data.rows", in_array=True).is_intersect({2}, any=True)
+        expect("data.rows", in_array=True).is_intersect({2})
+        with pytest.raises(AssertionError):
+            expect("data.rows", in_array=True).is_intersect({9}, any=True)
+
     def test_empty_and_not_empty(self) -> None:
         """``empty``/``not_empty`` on falsy/truthy values."""
         body = {"data": {"blank": "", "filled": "x"}, "error": None}

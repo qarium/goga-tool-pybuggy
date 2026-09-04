@@ -36,6 +36,7 @@ from ...matchcrest import (
     ValueIsEqualMatcher,
     ValueIsGreaterMatcher,
     ValueIsInMatcher,
+    ValueIsIntersectMatcher,
     ValueIsLesserMatcher,
     ValueIsNotEmpty,
     ValueIsNotEqualMatcher,
@@ -545,6 +546,24 @@ class AssertField(BaseAssert):
         """Assert the resolved iterable is disjoint from ``value``."""
         matcher = self._create_matcher(
             ValueIsDisjointMatcher, value, any=any, in_array=self._in_array, timeout=timeout, delay=delay
+        )
+        assert_that(self._context, matcher, reason=reason)
+
+        return self
+
+    def is_intersect(
+        self,
+        value: Any,
+        /,
+        *,
+        reason: str = "",
+        any: bool = False,
+        timeout: int | float | None = None,
+        delay: int | float | None = None,
+    ) -> AssertField:
+        """Assert the resolved iterable intersects ``value``."""
+        matcher = self._create_matcher(
+            ValueIsIntersectMatcher, value, any=any, in_array=self._in_array, timeout=timeout, delay=delay
         )
         assert_that(self._context, matcher, reason=reason)
 

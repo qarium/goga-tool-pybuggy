@@ -86,7 +86,7 @@ The options `any`/`in_array` control collection handling: `in_array=True` makes 
 | `ValueIsEmpty()` / `ValueIsNotEmpty()` | empty/not empty | — |
 | `ValueIsUrlMatcher(*, is_live, allowed_protocols)` | valid URL (+ optional liveness) | `is_live`, protocols |
 | `ValueDateEqualMatcher(d)` / `Greater` / `Lesser` | date equal/greater/less (via timestamp) | — |
-| `ValueIsSubsetMatcher(s)` / `ValueIsDisjointMatcher(s)` | subset/disjoint | — |
+| `ValueIsSubsetMatcher(s)` / `ValueIsIntersectMatcher(s)` / `ValueIsDisjointMatcher(s)` | subset/intersects/disjoint | — |
 
 ```python
 assert_that(ValCtx(row), ValueIsEqualMatcher("admin"))

@@ -269,8 +269,8 @@ Annotations: |
 "BaseValueMatcher::BaseSetValueMatcher(expected_value: Any, ...kwargs)":
   location: value.py
   annotations: |
-    Internal abstract base for the set-theory value matchers (subset, disjoint). Requires `expected_value` to be
-    iterable and re-validates the current value's iterability on each assertion. Not exported through the facade.
+    Internal abstract base for the set-theory value matchers (subset, intersect, disjoint). Requires `expected_value`
+    to be iterable and re-validates the current value's iterability on each assertion. Not exported through the facade.
 
     Algorithm:
     1. Raise ValueError when `expected_value` is not iterable.
@@ -365,6 +365,12 @@ Annotations: |
   location: value.py
   annotations: |
     Assert each value (as a set) is a subset of `expected_value`. Requires iterable values and expected_value. `any` short-circuits on the first subset.
+
+"BaseMatcher::ValueIsIntersectMatcher(expected_value: Iterable, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
+  location: value.py
+  annotations: |
+    Assert each value (as a set) intersects `expected_value` (shares at least one element). Requires iterable values
+    and expected_value. `any` short-circuits on the first intersecting set.
 
 "BaseMatcher::ValueIsDisjointMatcher(expected_value: Iterable, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
   location: value.py

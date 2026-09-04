@@ -16,6 +16,7 @@ from goga_tool_pybuggy.matchcrest.matchers import (
     ValueIsEqualMatcher,
     ValueIsGreaterMatcher,
     ValueIsInMatcher,
+    ValueIsIntersectMatcher,
     ValueIsLesserMatcher,
     ValueIsNotEmpty,
     ValueIsNotEqualMatcher,
@@ -225,6 +226,27 @@ class TestValueIsSubsetMatcher:
         """A non-iterable value violates the set-matcher precondition (ValueError)."""
         with pytest.raises(ValueError, match="iterable values"):
             ValueIsSubsetMatcher({1, 2})._matches(ctx(5))
+
+
+class TestValueIsIntersectMatcher:
+    def test_intersect_passes(self, ctx):
+        assert _ok(ValueIsIntersectMatcher({1, 2}), ctx, [2, 9])
+
+    def test_no_intersect_fails(self, ctx):
+        assert _bad(ValueIsIntersectMatcher({1, 2}), ctx, [3, 4])
+
+    def test_non_iterable_value_raises(self, ctx):
+        """A non-iterable value violates the set-matcher precondition (ValueError)."""
+        with pytest.raises(ValueError, match="iterable values"):
+            ValueIsIntersectMatcher({1, 2})._matches(ctx(5))
+
+    def test_in_array_requires_every_element_to_intersect(self, ctx):
+        assert _ok(ValueIsIntersectMatcher({2}, in_array=True), ctx, [[1, 2], [2, 3]])
+        assert _bad(ValueIsIntersectMatcher({2}, in_array=True), ctx, [[1, 2], [3, 4]])
+
+    def test_in_array_any_short_circuits_on_first_intersection(self, ctx):
+        assert _ok(ValueIsIntersectMatcher({2}, any=True, in_array=True), ctx, [[3, 4], [9, 2]])
+        assert _bad(ValueIsIntersectMatcher({2}, any=True, in_array=True), ctx, [[3, 4], [9, 10]])
 
 
 class TestValueIsDisjointMatcher:

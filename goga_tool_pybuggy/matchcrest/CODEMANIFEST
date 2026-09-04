@@ -36,6 +36,7 @@ Imports:
       - ValueIsInMatcher
       - ValueIsNotInMatcher
       - ValueIsSubsetMatcher
+      - ValueIsIntersectMatcher
       - ValueIsDisjointMatcher
     Usages:
       - matchers
@@ -105,6 +106,7 @@ Annotations: |
 ->ValueIsInMatcher: {}
 ->ValueIsNotInMatcher: {}
 ->ValueIsSubsetMatcher: {}
+->ValueIsIntersectMatcher: {}
 ->ValueIsDisjointMatcher: {}
 
 ---

@@ -81,7 +81,7 @@ The options `any`/`in_array` control collection handling (see
 | `ValueIsEmpty()` / `ValueIsNotEmpty()` | Empty/not empty | — |
 | `ValueIsUrlMatcher(*, is_live, allowed_protocols)` | Valid URL (+ optional liveness) | `is_live`, protocols |
 | `ValueDateEqualMatcher(d)` / `Greater` / `Lesser` | Date equal/greater/less (via timestamp) | — |
-| `ValueIsSubsetMatcher(s)` / `ValueIsDisjointMatcher(s)` | Subset/disjoint | — |
+| `ValueIsSubsetMatcher(s)` / `ValueIsIntersectMatcher(s)` / `ValueIsDisjointMatcher(s)` | Subset/intersects/disjoint | — |
 
 ## Exception matchers
 

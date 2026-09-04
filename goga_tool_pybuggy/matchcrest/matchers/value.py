@@ -714,6 +714,34 @@ class ValueIsSubsetMatcher(BaseSetValueMatcher):
         return MatchResult(True)
 
 
+class ValueIsIntersectMatcher(BaseSetValueMatcher):
+    def _assert(self, item: BaseContext) -> MatchResult:
+        current_value = item.value
+        self._throw_if_not_iterable(current_value)
+
+        errors: list[str] = []
+        expectations = [
+            f'Set of "{item.key}" should intersect {pformat(self.expected_value)}',
+        ]
+
+        if not self.in_array:
+            current_value = [current_value]
+
+        expected_set = set(self.expected_value)
+
+        for value in current_value:
+            intersection = set(value) & expected_set
+            if self.any and intersection:
+                return MatchResult(True)
+            if not intersection:
+                errors.append(f"{pformat(value)} does not intersect {pformat(self.expected_value)}")
+
+        if errors:
+            return MatchResult(False, errors=errors, expectations=expectations)
+
+        return MatchResult(True)
+
+
 class ValueIsDisjointMatcher(BaseSetValueMatcher):
     def _assert(self, item: BaseContext) -> MatchResult:
         current_value = item.value

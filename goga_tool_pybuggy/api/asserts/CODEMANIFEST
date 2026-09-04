@@ -251,6 +251,8 @@ Annotations: |
       Assert the resolved iterable is a subset of `value` (ValueIsSubsetMatcher).
     "is_disjoint(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
       Assert the resolved iterable is disjoint from `value` (ValueIsDisjointMatcher).
+    "is_intersect(value: Any, reason: str = '', any: bool = False, timeout: int | float | None = None, delay: int | float | None = None) -> chain: AssertField": |
+      Assert the resolved iterable intersects `value` — shares at least one element (ValueIsIntersectMatcher).
     "raise_exc(expected_exc: type[Exception] | tuple[type[Exception], ...], reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> ctx: contextmanager": |
       Context manager asserting that accessing the value raises one of `expected_exc` (RaisedExceptionMatcher); yields the value.
     "not_raise_exc(reason: str = '', timeout: int | float | None = None, delay: int | float | None = None) -> ctx: contextmanager": |

@@ -86,10 +86,11 @@ All methods except `raise_exc` / `not_raise_exc` accept `reason`/`any`/`timeout`
 | `is_in(value)` | Value is an element of `value` (`value` is the container) |
 | `is_not_in(value)` | Value is not an element of `value` |
 | `is_subset(value)` | Iterable value is a subset of `value` |
+| `is_intersect(value)` | Iterable value shares at least one element with `value` |
 | `is_disjoint(value)` | Iterable value shares no elements with `value` |
 
-> Argument direction: in `is_in`/`is_subset`/`is_disjoint`, `value` is the **second**
-> operand (the container/superset). `is_subset`/`is_disjoint` build sets via `set()` —
+> Argument direction: in `is_in`/`is_subset`/`is_intersect`/`is_disjoint`, `value` is the **second**
+> operand (the container/superset). `is_subset`/`is_intersect`/`is_disjoint` build sets via `set()` —
 > both operands must be iterable and hashable.
 
 ```python
