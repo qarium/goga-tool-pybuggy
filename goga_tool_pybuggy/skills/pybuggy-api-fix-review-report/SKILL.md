@@ -16,7 +16,8 @@ You assemble the final review artifact with the fix cycle verdict and save it to
     - **ITERATE** — open items exist: findings or failed tasks that went into a new fix cycle or plan reassembly;
     - **FIXED_WITH_NOTES** — findings or failed tasks exist that the user accepted as is; no open items remain;
     - **FAILED** — the plan was not executed, or regressions were not closed by user decisions;
-    - **FIXED** — all tasks are `done`, the final run matches the expected result, and there are no findings.
+    - **FIXED** — all tasks are `done`, the final run matches the expected result, and every finding is resolved:
+      absent, or fixed on the spot with its check passed.
 3. Save `docs/fix/<topic>-review.md` (the path is passed by the orchestrator) according to the format below.
 
 ---
@@ -35,6 +36,10 @@ The content of the saved file. Fill in every section.
 ## Findings
 
 [Table: location | problem | severity | user decision. "no findings" — if empty]
+
+## On-the-spot fixes
+
+[Table: object | fix applied | check + outcome | changed files. "none" — if there were no fix-now decisions]
 
 ## Failed tasks
 

@@ -42,26 +42,26 @@ and holds for the entire cycle. Non-standard base URLs are passed to every run a
 
 ## Stages
 
-| #  | Stage              | Purpose                                                                                          |
-|----|--------------------|--------------------------------------------------------------------------------------------------|
-| 1  | `collect-failures` | Fix the topic version; capture the failure data (argument, or a local `pytest` run) → `docs/fix/<topic>-collect.md` |
-| 2  | `analyze-failures` | Build a per-failure dossier with evidence, then classify the cause *with you* → `docs/fix/<topic>-analysis.md` |
-| 3  | `create-fix-plan`  | Group the classified failures into an executable plan of tasks and approve it → `docs/fix/<topic>-plan.md` |
-| 4  | `execute-fix-plan` | Run the plan tasks in order, each with its own verification; final full run → `docs/fix/<topic>-execute.md` |
-| 5  | `review-fixes`     | Verify the executed plan and the final run, triage findings with you, deliver the cycle verdict → `docs/fix/<topic>-review.md` |
-| 6  | `commit-changes`   | Commit all added and modified files (except `docs/<defines|proposals|tasks|arch|design|plans>`) |
+| # | Stage              | Purpose                                                                                                                        |
+|---|--------------------|--------------------------------------------------------------------------------------------------------------------------------|
+| 1 | `collect-failures` | Fix the topic version; capture the failure data (argument, or a local `pytest` run) → `docs/fix/<topic>-collect.md`            |
+| 2 | `analyze-failures` | Build a per-failure dossier with evidence, then classify the cause *with you* → `docs/fix/<topic>-analysis.md`                 |
+| 3 | `create-fix-plan`  | Group the classified failures into an executable plan of tasks and approve it → `docs/fix/<topic>-plan.md`                     |
+| 4 | `execute-fix-plan` | Run the plan tasks in order, each with its own verification; final full run → `docs/fix/<topic>-execute.md`                    |
+| 5 | `review-fixes`     | Verify the executed plan and the final run, triage findings with you, deliver the cycle verdict → `docs/fix/<topic>-review.md` |
+| 6 | `commit-changes`   | Commit all added and modified files (except `docs/<defines                                                                     |proposals|tasks|arch|design|plans>`) |
 
 ## Task classes
 
 The plan tasks are dispatched by cause class, each to a dedicated executor skill:
 
-| Class          | Means                                                                     |
-|----------------|---------------------------------------------------------------------------|
-| `environment`  | the run environment is broken — restore it                                |
-| `spec-drift`   | the spec changed — bring the cell in line with the new contract            |
-| `case-defect`  | the test case itself is wrong — fix the Routine annotation and the test    |
-| `test-defect`  | the test code is wrong — fix the test per the Routine annotation           |
-| `service-bug`  | the service is at fault — record a `BUG-<topic>-<N>` entry in `docs/bugs/<topic>.md` |
+| Class         | Means                                                                                |
+|---------------|--------------------------------------------------------------------------------------|
+| `environment` | the run environment is broken — restore it                                           |
+| `spec-drift`  | the spec changed — bring the cell in line with the new contract                      |
+| `case-defect` | the test case itself is wrong — fix the Routine annotation and the test              |
+| `test-defect` | the test code is wrong — fix the test per the Routine annotation                     |
+| `service-bug` | the service is at fault — record a `BUG-<topic>-<N>` entry in `docs/bugs/<topic>.md` |
 
 Every task gets up to **3 attempts** (one executor call = one attempt = actions plus
 verification); a task that still fails after its budget surfaces in the review stage.

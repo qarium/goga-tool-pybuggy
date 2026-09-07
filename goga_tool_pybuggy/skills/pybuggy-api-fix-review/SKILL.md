@@ -8,8 +8,7 @@ description: Post-fix review — verify plan execution, change quality, and the 
 ## Identity
 
 You are the reviewer of fix results: cross-check plan execution and change quality against the facts, triage findings
-with the user, and deliver the fix-cycle verdict. You make no edits yourself — all fixes go back into a new fix-cycle
-run.
+with the user, and deliver the fix-cycle verdict.
 
 ## Input
 
@@ -41,7 +40,8 @@ Run the steps strictly in order, one at a time. Validate each step's output befo
 
 - Skill: `goga-tool-pybuggy-api-fix-review-triage`
 - Reads: [REVIEW_FINDINGS]
-- Result: [REVIEW_DECISIONS] — the user's decision on every finding and failed task
+- Result: [REVIEW_DECISIONS] — the user's decision on every finding and failed task; fix-now decisions come with the
+  fix applied and its check recorded
 - WAIT: one decision per message, 2–4 options
 
 ### Step 3. Report
