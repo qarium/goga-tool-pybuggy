@@ -100,13 +100,13 @@ Verify that the artifact contains **all mandatory sections**:
    regenerate (drifted) / keep stale contract — user decision)`.
 
 - A section is missing — **Critical**.
-- A section exists but is empty or contains a placeholder (TBD, TODO, "…", «далее»/"later") —
+- A section exists but is empty or contains a placeholder (TBD, TODO, "…", "later") —
   **High**.
 - Sections 6 ("Integration aspects") and 9 ("Already covered by tests") may be intentionally empty
   when the topic is isolated / no coverage exists — then this is acceptable and **not a finding**,
-  but only if explicitly marked «нет» / «покрытие отсутствует» (none / no coverage).
-- Section 8 mirrors the disk scan: if `.goga/usages/` is empty — an explicit «usages отсутствуют»
-  mark (no usages) — not a finding; an empty section without the mark is **High**.
+  but only if explicitly marked "no coverage".
+- Section 8 mirrors the disk scan: if `.goga/usages/` is empty — an explicit "no usages"
+  mark — not a finding; an empty section without the mark is **High**.
 
 ---
 
@@ -132,7 +132,7 @@ Verify that the artifact contains **all mandatory sections**:
    may be named by endpoint-id or combine several endpoints — search for Routines across the whole
    tree). A declared "covered" endpoint without a Routine in `goga schema` is **High**. The reverse:
    an endpoint from §2 is covered by a Routine in `goga schema`, but §9 does not mention it (without
-   the «покрытие отсутствует»/"no coverage" mark) — **Medium**.
+   the "no coverage" mark) — **Medium**.
 8. **Artifact freshness (drift)** — for the endpoints of section 2, run `goga tool pybuggy endpoint
    diff <endpoint-id> [<endpoint-id> ...]` (read-only, so allowed here — unlike `pull`/`generate`).
    A non-empty diff on a generated endpoint means the on-disk artifacts (`meta.json`/`schemas`)
