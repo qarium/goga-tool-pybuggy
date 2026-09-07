@@ -1,70 +1,72 @@
 ---
 name: goga-tool-pybuggy-api-fix-execute-bug
-description: Исполнение задачи класса service-bug — баг-запись в docs/bugs/<topic>.md
+description: Execute a service-bug class task — write a bug record to docs/bugs/<topic>.md
 ---
 # Pybuggy API Fix Execute — Bug
 
-## Идентичность
+## Identity
 
-Ты исполняешь одну задачу класса `service-bug`: оформляешь баг-запись сервиса по досье, конкретизированному в задаче плана.
+You execute one task of class `service-bug`: you write a bug record for the service from the dossier already
+specified in the plan task.
 
-## Алгоритм
+## Algorithm
 
-1. Возьми задачу `FIX-<N>` (класс `service-bug`) из плана: проблема, упавшие тесты и досье уже прописаны в задаче.
-   Оркестратор передаёт номер попытки.
-2. Допиши в `docs/bugs/<topic>.md` запись `BUG-<topic>-<N>` (сквозная нумерация; существующие записи сохрани,
-   новую — в конец файла) по шаблону ниже. Одна запись — одна проблема и все упавшие из-за неё тесты; полные
-   traceback оставь в `docs/fix/<topic>-log.txt`. Файл создаётся с шапкой `# Bugs — <topic>` и кратким описанием
-   (1–2 строки), записи дописываются под ней.
-3. Проверка задачи: запись создана. Красные тесты — ожидаемый исход, не провал. Один вызов = одна попытка: запись
-   не создаётся — верни `failed` с причиной, не перечитывай и не переписывай файл по кругу.
-4. Сформируй [FIX_TASK_RESULT].
+1. Take the `FIX-<N>` task (class `service-bug`) from the plan: the problem, the failed tests, and the dossier are
+   already written in the task. The orchestrator passes the attempt number.
+2. Append the record `BUG-<topic>-<N>` to `docs/bugs/<topic>.md` (sequential numbering; keep the existing records
+   intact, append the new one to the end of the file) using the template below. One record covers one problem and
+   all tests that failed because of it; keep the full traceback in `docs/fix/<topic>-log.txt`. The file is created
+   with the header `# Bugs — <topic>` and a brief description (1–2 lines); records are appended under it.
+3. Task verification: the record is created. Red tests are the expected outcome, not a failure. One call = one
+   attempt: if the record is not created, return `failed` with the reason — do not re-read and re-write the file
+   in a loop.
+4. Produce [FIX_TASK_RESULT].
 
-## Шаблон записи
+## Record template
 
 ```md
-## BUG-<topic>-<N>: <проблема конкретно — что не так, одним предложением>
+## BUG-<topic>-<N>: <the problem stated concretely — what is wrong, in one sentence>
 
-- **Date:** <день/месяц/год>
+- **Date:** <day/month/year>
 - **Endpoint:** <METHOD /path> (tests/<spec>/<id>/)
-- **Severity:** <максимальная критичность упавших кейсов: Critical/High/Medium/Low>
+- **Severity:** <the highest severity among the failed cases: Critical/High/Medium/Low>
 
 ### Problem
-<Конкретно, 2–5 предложений: что требует контракт/спека и что фактически делает сервис (ключевой факт —
-статус, тело, поведение). Установленная причина — одной фразой.>
+<Concrete, 2–5 sentences: what the contract/spec requires and what the service actually does (the key fact —
+status, body, behavior). The established cause — in one phrase.>
 
 ### Failing tests
-[Таблица: тест `tests/<spec>/<id>/test_<name>.py` — `test_<name>` | кейс TC-<N> | Routine | суть падения]
+[Table: test `tests/<spec>/<id>/test_<name>.py` — `test_<name>` | case TC-<N> | Routine | essence of the failure]
 
 ### Evidence
-<Одно фактическое свидетельство: фактический ответ сервиса (статус + тело) либо вывод ассерта одного из
-тестов. <Traceback/вывод ассерта целиком из `docs/fix/<topic>-log.txt`.>
+<One factual piece of evidence: the actual service response (status + body) or the assert output of one of the
+tests. <Traceback/assert output in full from `docs/fix/<topic>-log.txt`.>
 
 ### Notes
-<Гипотезы, контрольные эксперименты, наблюдения. Опусти, если пусто.>
+<Hypotheses, control experiments, observations. Omit if empty.>
 ```
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are forbidden.
 
 ```md
 # [FIX_TASK_RESULT]
 
-## Задача
-[FIX-<N>, класс `service-bug`, проблема + упавшие тесты | попытка N/3]
+## Task
+[FIX-<N>, class `service-bug`, problem + failed tests | attempt N/3]
 
-## Статус
-[done — запись создана / failed — что помешало. После 3-й попытки — окончательный]
+## Status
+[done — record created / failed — what prevented it. Final after the 3rd attempt]
 
-## Результат проверки
-[номер записи BUG-<topic>-<N> + путь к файлу; тесты красные — ожидаемо]
+## Verification result
+[record number BUG-<topic>-<N> + file path; tests red — expected]
 
-## Изменённые файлы
+## Changed files
 [docs/bugs/<topic>.md]
 
-## Замечания
-[что осталось нездоровым. Пусто, если ничего]
+## Remarks
+[what remains unhealthy. Empty if nothing]
 ```

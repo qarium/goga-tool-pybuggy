@@ -1,78 +1,80 @@
 ---
 name: goga-tool-pybuggy-api-fix-review-verify
-description: Статическая сверка исполнения плана — полнота, критерии готовности, качество правок, регрессии
+description: Static verification of plan execution — completeness, readiness criteria, quality of the changes, regressions
 ---
 
 # Pybuggy API Fix Review — Verify
 
-## Идентичность
+## Identity
 
-Ты сверяешь результаты исправлений с планом и фактами: полнота исполнения, критерии готовности, качество правок по
-изменённым файлам, регрессии. Ты фиксируешь находки — решения по ним принимает пользователь на триаже.
+You verify the fix results against the plan and the facts: completeness of plan execution, readiness criteria, the
+quality of the changes in the changed files, and regressions. You record findings — the user makes the decisions on
+them at triage.
 
-## Алгоритм
+## Algorithm
 
-### Шаг 1. Полнота исполнения
+### Step 1. Completeness of execution
 
-Каждая задача `FIX-<N>` из `docs/fix/<topic>-plan.md` имеет статус (`done`/`failed`) в
-`docs/fix/<topic>-execute.md`; пропусков нет.
+Verify that every `FIX-<N>` task from `docs/fix/<topic>-plan.md` has a status (`done`/`failed`) recorded in
+`docs/fix/<topic>-execute.md`; any missing task is an omission.
 
-### Шаг 2. Критерии готовности плана
+### Step 2. Plan readiness criteria
 
-1. Проверки задач из плана пройдены (по execute-отчёту).
-2. `service-bug` — записи созданы в `docs/bugs/<topic>.md` по шаблону
-   `goga-tool-pybuggy-api-fix-execute-bug`, тесты честно красные.
-3. Финальный прогон (`docs/fix/<topic>-log-final.txt`) сходится с ожиданием: зелёные все, кроме `service-bug` тестов с
-   баг-записями.
+1. The task checks from the plan have passed (per the execute report).
+2. `service-bug` — records are created in `docs/bugs/<topic>.md` according to the
+   `goga-tool-pybuggy-api-fix-execute-bug` template, and the tests are genuinely red.
+3. The final run (`docs/fix/<topic>-log-final.txt`) matches the expected result: all tests are green except the
+   `service-bug` tests that have bug records.
 
-### Шаг 3. Качество правок по изменённым файлам
+### Step 3. Quality of the changes, per changed file
 
-Из секции «Изменённые файлы» execute-отчёта проверь каждый файл:
+From the "Changed files" section of the execute report, check each file:
 
-1. `test_*.py` — валидное тело через `Request(...)`; raw `dict` — только негатив; без `pytest.skip`/skip-маркеров/
-   `xfail`; тело линейно; тест соответствует аннотации Routine своей клетки.
-2. CODEMANIFEST — DSL-валидность (структура секций, порядок, пустые строки между секциями); существующие Routine не
-   удалены.
-3. Артефакты `api/` — `goga tool pybuggy endpoint diff <endpoint-id>` пуст по затронутым эндпоинтам
-   (при ref топика из `docs/fix/<topic>-collect.md`: спека на диске обязана быть приведена к ref топика,
-   иначе diff недостоверен).
-4. `docs/bugs/<topic>.md` — записи по шаблону `goga-tool-pybuggy-api-fix-execute-bug`, сквозная нумерация.
+1. `test_*.py` — a valid body via `Request(...)`; a raw `dict` in negative cases only; no `pytest.skip`, skip markers,
+   or `xfail`; the body is linear; the test matches the Routine annotation of its cell.
+2. CODEMANIFEST — DSL validity (section structure, order, blank lines between sections); existing Routines are not
+   removed.
+3. `api/` artifacts — `goga tool pybuggy endpoint diff <endpoint-id>` is empty for the affected endpoints (when the
+   topic has a ref from `docs/fix/<topic>-collect.md`: the spec on disk must be at the topic's ref, otherwise the diff
+   is unreliable).
+4. `docs/bugs/<topic>.md` — records according to the `goga-tool-pybuggy-api-fix-execute-bug` template, with sequential
+   numbering.
 
-### Шаг 4. Регрессии
+### Step 4. Regressions
 
-Новые красные тесты финального прогона против исходного `docs/fix/<topic>-collect.md` — каждая регрессия это находка.
+New red tests in the final run compared to the original `docs/fix/<topic>-collect.md` — every regression is a finding.
 
-### Шаг 5. Сформируй [REVIEW_FINDINGS]
+### Step 5. Assemble [REVIEW_FINDINGS]
 
-Severity: `Critical` (маскировка падений, потерянные Routine, план не исполнен), `High` (нарушение инвариантов правок,
-регрессия, несходство прогона), `Medium` (неполнота записей, отклонения от шаблона).
+Severity: `Critical` (masked failures, lost Routines, plan not executed), `High` (Edit Invariants violation, regression,
+run mismatch), `Medium` (incomplete records, deviations from the template).
 
 ---
 
-## Формат вывода
+## Output Format
 
-Заполни каждую секцию. Пустые секции запрещены («находок нет» / «нет» — явная отметка).
+Fill in every section. Empty sections are prohibited ("no findings" / "none" — an explicit mark).
 
 ```md
 # [REVIEW_FINDINGS]
 
-## Полнота исполнения
+## Completeness of execution
 
-[все FIX-<N> со статусами / пропуски как находки]
+[every FIX-<N> with its status / omissions as findings]
 
-## Финальный прогон vs ожидание
+## Final run vs expectation
 
-[сходится / расхождения с перечнем]
+[matches / discrepancies with a list]
 
-## Находки
+## Findings
 
-[Таблица: место (файл/задача/прогон) | проблема | severity (Critical/High/Medium) | evidence. «находок нет» — если пусто]
+[Table: location (file/task/run) | problem | severity (Critical/High/Medium) | evidence. "no findings" — if empty]
 
-## Failed-задачи
+## Failed tasks
 
-[Таблица: FIX-<N> | класс | результат проверки. «нет» — если все done]
+[Table: FIX-<N> | class | check result. "none" — if all are done]
 
-## Регрессии
+## Regressions
 
-[Тесты, зелёные в collect и красные в финальном прогоне. «нет» — если пусто]
+[Tests green in collect and red in the final run. "none" — if empty]
 ```

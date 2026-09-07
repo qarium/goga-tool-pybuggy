@@ -1,51 +1,48 @@
 ---
 name: goga-tool-pybuggy-api-fix-collect-report
-description: Сборка репорта о падениях и сохранение в docs/fix/<topic>-collect.md
+description: Assemble the collect report and save it to docs/fix/<topic>-collect.md
 ---
 # Pybuggy API Fix Collect — Report
 
-## Идентичность
+## Identity
 
-Ты собираешь итоговый репорт сбора из результатов шагов и сохраняешь его на диск.
+You assemble the final collect report from the step results and save it to disk.
 
-## Алгоритм
+## Algorithm
 
-1. Собери входы: [FIX_INTAKE], [FIX_FAILURES].
-2. Путь: `docs/fix/<topic>-collect.md` (передаёт оркестратор).
-3. Сохрани документ по формату ниже (создай `docs/fix/`, если её нет; повторный запуск — перезапись файла).
-4. Версию топика из [FIX_INTAKE] перенеси в артефакт (секция «Версия топика»).
-5. Полные traceback остаются в логе `docs/fix/<topic>-log.txt` — в репорте достаточно пути к логу.
+1. Collect the inputs: [FIX_INTAKE], [FIX_FAILURES].
+2. Target path: `docs/fix/<topic>-collect.md` (the orchestrator passes it).
+3. Save the document in the format below (create `docs/fix/` if it does not exist; a re-run overwrites the file).
+4. Transfer the topic version from [FIX_INTAKE] to the artifact (the "Topic Version" section).
+5. Keep full tracebacks in the log `docs/fix/<topic>-log.txt` — the report needs only the path to the log.
 
 ---
 
-## Формат вывода
+## Output Format
 
-Содержимое сохраняемого файла. Заполни каждую секцию.
+The content of the saved file. Fill in every section.
 
 ```md
 # Fix Report: <topic>
 
-## Источник данных
-[описание / локальный прогон]
+## Data Source
+[description / local run]
 
-## Версия топика
-[Ветвь спеки: default / <ref> / local | Окружение: standard / <url> | Расхождение с логом: нет / <что
-найдено> — из [FIX_INTAKE]. Дальнейшие стадии цикла (analyze/plan/execute/review) читают версию только отсюда]
+## Topic Version
+[Spec branch: default / <ref> / local | Environment: standard / <url> | Log divergence: none / <what was found> — from [FIX_INTAKE]. The subsequent cycle stages (analyze/plan/execute/review) read the topic version only from this section]
 
-## Описание проблемы (дословно)
-[из [FIX_INTAKE]; «не предоставлено» — если отсутствует]
+## Problem Description (verbatim)
+[from [FIX_INTAKE]; "not provided" if missing]
 
-## Прогон
-[Команда: ... | Лог: docs/fix/<topic>-log.txt | Код выхода: ... | Итог: passed X, failed Y, errors Z, skipped W.
-«прогон не выполнялся» — если источником было только описание]
+## Run
+[Command: ... | Log: docs/fix/<topic>-log.txt | Exit code: ... | Totals: passed X, failed Y, errors Z, skipped W. "no run was performed" if the source was description-only]
 
-## Упавшие тесты
-[Таблица: тест | клетка (tests/<spec>/<id>/) | файл | исход (FAILED/ERROR/SKIPPED) | категория | суть.
-«падений нет» — если пусто]
+## Failed Tests
+[Table: test | cell (tests/<spec>/<id>/) | file | outcome (FAILED/ERROR/SKIPPED) | category | summary. "no failures" if empty]
 
-## Полные traceback
-[лог `docs/fix/<topic>-log.txt` либо «в данных описания, см. выше»]
+## Full Tracebacks
+[the log `docs/fix/<topic>-log.txt` or "in the description data, see above"]
 
-## Итог
-[N упавших/замаскированных тестов, распределение по категориям | «падений нет»]
+## Totals
+[N failed/masked tests, distribution by category | "no failures"]
 ```

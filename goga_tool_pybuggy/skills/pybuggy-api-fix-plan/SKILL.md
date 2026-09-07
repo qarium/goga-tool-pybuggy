@@ -1,37 +1,37 @@
 ---
 name: goga-tool-pybuggy-api-fix-plan
-description: Построение плана исправлений клеток из классификации анализа
+description: Building the cell fix plan from the analysis classification
 ---
 
 # Pybuggy API Fix — Plan
 
 ## Identity
 
-Ты — оркестратор построения плана исправлений.
+You are the orchestrator of fix-plan construction.
 
-## Вход
+## Input
 
-`docs/fix/<topic>-analysis.md` — артефакт анализа. `<topic>`: из `$ARGUMENTS`; Документ фиксируется на всю сессию и
-передаётся в саб-скиллы.
+`docs/fix/<topic>-analysis.md` — the analysis artifact. `<topic>`: from `$ARGUMENTS`. The document is pinned
+for the entire session and passed to every sub-skill.
 
 ## Pipeline
 
-Шаги строго последовательно, по одному за раз. Вывод каждого шага валидируется до начала следующего.
+Run the steps strictly sequentially, one at a time. Validate each step's output before starting the next.
 
 ### Step 1. Build — WAIT
 
-- Скилл: `goga-tool-pybuggy-api-fix-plan-build`
-- Читает: `docs/fix/<topic>-analysis.md`
-- Результат: [FIX_PLAN_ITEMS] — пункты плана, сгруппированные по клеткам, утверждённые пользователем
-- WAIT: утверждение плана, итерации до подтверждения
-- STOP: analysis-артефакт отсутствует — вернись к стадии analyze; пользователь отклонил план после итерации
+- Skill: `goga-tool-pybuggy-api-fix-plan-build`
+- Reads: `docs/fix/<topic>-analysis.md`
+- Result: [FIX_PLAN_ITEMS] — plan items grouped by cell, approved by the user
+- WAIT: plan approval — iterate until the user confirms
+- STOP: the analysis artifact is missing — return to the analyze stage; the user rejected the plan after an iteration
 
 ### Step 2. Report
 
-- Скилл: `goga-tool-pybuggy-api-fix-plan-report`
-- Читает: [FIX_PLAN_ITEMS]
-- Результат: [FIX_PLAN] — сохранён в `docs/fix/<topic>-plan.md`
+- Skill: `goga-tool-pybuggy-api-fix-plan-report`
+- Reads: [FIX_PLAN_ITEMS]
+- Result: [FIX_PLAN] — saved to `docs/fix/<topic>-plan.md`
 
-## Правило вывода
+## Output Rule
 
-Каждый саб-скилл заполняет все секции своего формата вывода. Пустая секция = незавершённый саб-скилл = STOP пайплайна.
+Every sub-skill must fill in every section of its output format. An empty section = an incomplete sub-skill = a pipeline STOP.

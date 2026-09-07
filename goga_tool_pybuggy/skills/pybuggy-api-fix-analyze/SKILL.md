@@ -1,44 +1,44 @@
 ---
 name: goga-tool-pybuggy-api-fix-analyze
-description: Анализ причин падений — по каждому тесту причина и класс, интерактивно с пользователем
+description: Failure root-cause analysis — for each failed test, determine the cause and the failure class interactively with the user
 ---
 
 # Pybuggy API Fix — Analyze
 
 ## Identity
 
-Ты — оркестратор анализа причин падений.
+You are the orchestrator of failure root-cause analysis.
 
-## Вход
+## Input
 
-`docs/fix/<topic>-collect.md` — репорт collect. `<topic>`: из `$ARGUMENTS`; Документ фиксируется на всю сессию и
-передаётся в саб-скиллы.
+`docs/fix/<topic>-collect.md` — the collect report. `<topic>` comes from `$ARGUMENTS`. The document is pinned
+for the entire session and passed to every sub-skill.
 
 ## Pipeline
 
-Шаги строго последовательно, по одному за раз. Вывод каждого шага валидируется до начала следующего.
+The steps run strictly in sequence, one step at a time. The pipeline validates each step's output before the next step starts.
 
 ### Step 1. Diagnose
 
-- Скилл: `goga-tool-pybuggy-api-fix-analyze-diagnose`
-- Читает: `docs/fix/<topic>-collect.md`
-- Результат: [FIX_EVIDENCE] — по каждому падению досье, доказательства, гипотеза класса
-- STOP: collect-репорт или лог недоступен; 0 падений в репорте — «падений нет», завершить пайплайн
+- Skill: `goga-tool-pybuggy-api-fix-analyze-diagnose`
+- Reads: `docs/fix/<topic>-collect.md`
+- Result: [FIX_EVIDENCE] — per failure: dossier, evidence, class hypothesis
+- STOP: the collect report or the log is unavailable; 0 failures in the report — output "no failures" and terminate the pipeline
 
 ### Step 2. Classify — WAIT
 
-- Скилл: `goga-tool-pybuggy-api-fix-analyze-classify`
-- Читает: [FIX_EVIDENCE]
-- Результат: [FIX_CLASSIFICATION] — по каждому падению класс, основание, решение, план-направление
-- WAIT: по каждому падению — вопрос пользователю
-- STOP: пользователь прервал разбор
+- Skill: `goga-tool-pybuggy-api-fix-analyze-classify`
+- Reads: [FIX_EVIDENCE]
+- Result: [FIX_CLASSIFICATION] — per failure: class, justification, resolution, plan direction
+- WAIT: ask the user one question per failure
+- STOP: the user aborted the triage
 
 ### Step 3. Report
 
-- Скилл: `goga-tool-pybuggy-api-fix-analyze-report`
-- Читает: [FIX_EVIDENCE], [FIX_CLASSIFICATION]
-- Результат: [FIX_ANALYSIS] — сохранён в `docs/fix/<topic>-analysis.md`
+- Skill: `goga-tool-pybuggy-api-fix-analyze-report`
+- Reads: [FIX_EVIDENCE], [FIX_CLASSIFICATION]
+- Result: [FIX_ANALYSIS] — saved to `docs/fix/<topic>-analysis.md`
 
-## Правило вывода
+## Output Rule
 
-Каждый саб-скилл заполняет все секции своего формата вывода. Пустая секция = незавершённый саб-скилл = STOP пайплайна.
+Every sub-skill must fill in every section of its output format. An empty section = an incomplete sub-skill = a pipeline STOP.

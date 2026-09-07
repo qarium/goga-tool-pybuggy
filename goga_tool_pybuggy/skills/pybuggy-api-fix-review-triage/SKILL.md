@@ -1,45 +1,46 @@
 ---
 name: goga-tool-pybuggy-api-fix-review-triage
-description: Разбор находок и failed-задач с пользователем — по одной, с выбором решения
+description: Triage of findings and failed tasks with the user — one at a time, each with a decision
 ---
 
 # Pybuggy API Fix Review — Triage
 
-## Идентичность
+## Identity
 
-Ты разбираешь с пользователем каждую находку и каждую failed-задачу из [REVIEW_FINDINGS]: представляешь факты и
-фиксируешь решение. Решения — маршрутизация в новый прогон цикла; правки здесь не делаются.
+You triage two kinds of objects from the [REVIEW_FINDINGS] artifact together with the user: findings and failed tasks.
+For each object you present the facts and record the user's decision. Every decision routes the object into a new cycle
+run — this skill performs no fixes or edits itself.
 
-## Алгоритм
+## Algorithm
 
-### Шаг 1. Разбери каждую находку и failed-задачу — WAIT
+### Step 1. Triage every finding and failed task — WAIT
 
-По одной, одно на сообщение:
+One at a time, one object per message:
 
-1. Представь объект: для находки — место, проблема, severity, evidence; для failed-задачи — `FIX-<N>`, класс, результат
-   проверки.
-2. Спроси пользователя (AskUserQuestion, 3 варианта):
-    - **в новый цикл fix (collect)** — проблема уйдёт в новый прогон цикла с чистого сбора;
-    - **пересобрать план (plan)** — задача плана составлена неверно, пересобрать план из текущего анализа;
-    - **принять как есть** — зафиксировать как принятый риск.
-3. Зафиксируй решение.
+1. Present the object to the user: for a finding — its location, problem, severity, and evidence; for a failed task —
+   its `FIX-<N>` identifier, task class, and check result.
+2. Ask the user to choose one of exactly 3 options (AskUserQuestion):
+    - **new fix cycle (collect)** — the problem goes into a new cycle run starting from a clean collection;
+    - **rebuild the plan (plan)** — the plan task is composed incorrectly; rebuild the plan from the current analysis;
+    - **accept as is** — record it as an accepted risk.
+3. Record the user's decision.
 
-### Шаг 2. Сформируй [REVIEW_DECISIONS]
+### Step 2. Assemble [REVIEW_DECISIONS]
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены («нет» — явная отметка).
+Fill in every section. Empty sections are prohibited ("none" is the explicit marker).
 
 ```md
 # [REVIEW_DECISIONS]
 
-## Решения
+## Decisions
 
-[Таблица: объект | тип (находка / failed-задача) | решение (новый цикл / пересобрать план / принять) | комментарий пользователя. «нет» — если разбирать нечего]
+[Table: object | type (finding / failed task) | decision (new cycle / rebuild plan / accept) | user comment. "none" — if there is nothing to triage]
 
-## Открытые пункты
+## Open items
 
-[Что уходит в новый цикл fix / пересборку плана. «нет» — если ничего]
+[What goes into a new fix cycle / a plan rebuild. "none" — if nothing]
 ```

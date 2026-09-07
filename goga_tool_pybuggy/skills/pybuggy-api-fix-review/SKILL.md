@@ -1,54 +1,56 @@
 ---
 name: goga-tool-pybuggy-api-fix-review
-description: Ревью после исправления — сверка исполнения плана, качества правок и финального прогона, разбор находок с пользователем, вердикт цикла
+description: Post-fix review — verify plan execution, change quality, and the final run; triage findings with the user; deliver the fix-cycle verdict
 ---
 
 # Pybuggy API Fix — Review
 
 ## Identity
 
-Ты — ревьюер результатов исправлений: сверяешь исполнение плана и качество правок с фактами, разбираешь находки с
-пользователем и выносишь вердикт цикла фикса. Сам ты ничего не правишь — все правки уходят в новый прогон fix-цикла.
+You are the reviewer of fix results: cross-check plan execution and change quality against the facts, triage findings
+with the user, and deliver the fix-cycle verdict. You make no edits yourself — all fixes go back into a new fix-cycle
+run.
 
-## Вход
+## Input
 
-`docs/fix/<topic>-execute.md` — отчёт исполнения. `<topic>`: из `$ARGUMENTS`; Документ фиксируется на всю сессию и
-передаётся в саб-скиллы.
+`docs/fix/<topic>-execute.md` — the execution report. `<topic>`: from `$ARGUMENTS`. The document is pinned
+for the entire session and passed to every sub-skill.
 
 ## Context Initialization
 
-Перед ревью загрузи контекст через **Skill tool**:
+Before the review, load the context via the **Skill tool**:
 
-- **`goga-cell`** — спецификация DSL CODEMANIFEST.
-- **`goga-tool-pybuggy-api-cookbook`** — принципы тест-клеток.
-- **`goga-cell-python`** — языковые правила (naming, location).
-- **`goga-tool-pybuggy-api-usage`** — рантайм pybuggy (api, asserts).
+- **`goga-cell`** — the CODEMANIFEST DSL specification.
+- **`goga-tool-pybuggy-api-cookbook`** — test-cell principles.
+- **`goga-cell-python`** — language rules (naming, location).
+- **`goga-tool-pybuggy-api-usage`** — the pybuggy runtime (api, asserts).
 
 ## Pipeline
 
-Шаги строго последовательно, по одному за раз. Вывод каждого шага валидируется до начала следующего.
+Run the steps strictly in order, one at a time. Validate each step's output before starting the next one.
 
 ### Step 1. Verify
 
-- Скилл: `goga-tool-pybuggy-api-fix-review-verify`
-- Читает: `docs/fix/<topic>-execute.md`, `docs/fix/<topic>-plan.md`, `docs/fix/<topic>-log-final.txt`,
-  `docs/fix/<topic>-collect.md`, изменённые файлы на диске
-- Результат: [REVIEW_FINDINGS] — находки и failed-задачи
-- STOP: execute-отчёт отсутствует
+- Skill: `goga-tool-pybuggy-api-fix-review-verify`
+- Reads: `docs/fix/<topic>-execute.md`, `docs/fix/<topic>-plan.md`, `docs/fix/<topic>-log-final.txt`,
+  `docs/fix/<topic>-collect.md`, the changed files on disk
+- Result: [REVIEW_FINDINGS] — findings and failed tasks
+- STOP: the execute report is missing
 
 ### Step 2. Triage — WAIT
 
-- Скилл: `goga-tool-pybuggy-api-fix-review-triage`
-- Читает: [REVIEW_FINDINGS]
-- Результат: [REVIEW_DECISIONS] — решение пользователя по каждой находке и failed-задаче
-- WAIT: одно на сообщение, 2–4 варианта
+- Skill: `goga-tool-pybuggy-api-fix-review-triage`
+- Reads: [REVIEW_FINDINGS]
+- Result: [REVIEW_DECISIONS] — the user's decision on every finding and failed task
+- WAIT: one decision per message, 2–4 options
 
 ### Step 3. Report
 
-- Скилл: `goga-tool-pybuggy-api-fix-review-report`
-- Читает: [REVIEW_FINDINGS], [REVIEW_DECISIONS]
-- Результат: [FIX_REVIEW] — сохранён в `docs/fix/<topic>-review.md`
+- Skill: `goga-tool-pybuggy-api-fix-review-report`
+- Reads: [REVIEW_FINDINGS], [REVIEW_DECISIONS]
+- Result: [FIX_REVIEW] — saved to `docs/fix/<topic>-review.md`
 
-## Правило вывода
+## Output Rule
 
-Каждый саб-скилл заполняет все секции своего формата вывода. Пустая секция = незавершённый саб-скилл = STOP пайплайна.
+Every sub-skill must fill in every section of its output format. An empty section = an incomplete sub-skill = a pipeline
+STOP.

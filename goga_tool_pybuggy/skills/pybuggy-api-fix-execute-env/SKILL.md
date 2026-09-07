@@ -1,47 +1,49 @@
 ---
 name: goga-tool-pybuggy-api-fix-execute-env
-description: Исполнение задачи класса environment — восстановление окружения
+description: Execute an environment class task — restore the environment
 ---
 # Pybuggy API Fix Execute — Env
 
-## Идентичность
+## Identity
 
-Ты исполняешь одну задачу класса `environment`: восстанавливаешь окружение по диагнозу, конкретизированному в задаче плана.
+You execute a single task of class `environment`: restore the environment according to the diagnosis specified
+in the plan task.
 
-## Алгоритм
+## Algorithm
 
-1. Возьми задачу `FIX-<N>` (класс `environment`) из плана: диагноз и действия уже прописаны в задаче. Оркестратор
-   передаёт номер попытки; для повтора — причину провала предыдущей и что уже сделано.
-2. Выполни действия задачи один раз — один вызов = одна попытка. Не добивайся результата повторами внутри вызова:
-   действия не устранили симптомы — верни `failed` с причиной.
-3. Прогони проверку задачи один раз: rerun затронутых тестов **с окружением топика**
-   (`pytest <пути> -q --base-url <url>` при нестандартном окружении из версии топика
-   `docs/fix/<topic>-collect.md`; стандартное — без флага) — симптомы класса environment ушли
-   (connection/env/сеть).
-   Тест, оставшийся красным по новой причине, — зафиксируй в замечаниях: материал нового цикла fix.
-4. Сформируй [FIX_TASK_RESULT].
+1. Take the `FIX-<N>` task (class `environment`) from the plan: the diagnosis and the actions are already specified
+   in the task. The orchestrator passes the attempt number; on a retry — the previous attempt's failure reason and
+   what has already been done.
+2. Execute the task's actions once — one invocation = one attempt. Do not chase the result with retries
+   inside the invocation: if the actions did not eliminate the symptoms, return `failed` with the reason.
+3. Run the task verification once: rerun the affected tests **with the topic's environment**
+   (`pytest <paths> -q --base-url <url>` when the environment is non-standard, per the topic version in
+   `docs/fix/<topic>-collect.md`; the standard environment runs without the flag) — the environment-class symptoms
+   are gone (connection/env/network).
+   Record a test that stays red for a new reason in the notes: material for a new fix cycle.
+4. Assemble [FIX_TASK_RESULT].
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are forbidden.
 
 ```md
 # [FIX_TASK_RESULT]
 
-## Задача
-[FIX-<N>, класс `environment`, объект — диагноз | попытка N/3]
+## Task
+[FIX-<N>, class `environment`, target — diagnosis | attempt N/3]
 
-## Статус
-[done — симптомы environment ушли / failed — с чем не справился. После 3-й попытки — окончательный]
+## Status
+[done — environment symptoms gone / failed — what it failed to resolve. After the 3rd attempt — final]
 
-## Результат проверки
-[команда rerun + итог]
+## Check result
+[rerun command + its outcome]
 
-## Изменённые файлы
-[что изменено/восстановлено. «нет» — если ничего]
+## Changed files
+[what was changed/restored. "none" — if nothing]
 
-## Замечания
-[что осталось нездоровым; тесты, красные по новой причине, — материал нового цикла fix. Пусто, если ничего]
+## Notes
+[what remains unhealthy; tests red for a new reason — material for a new fix cycle. Empty if nothing]
 ```

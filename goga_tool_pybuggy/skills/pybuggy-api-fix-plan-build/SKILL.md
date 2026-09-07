@@ -1,139 +1,146 @@
 ---
 name: goga-tool-pybuggy-api-fix-plan-build
-description: Сборка задач плана из классификации — правила объединения, инструкции по классам, порядок, утверждение
+description: Build fix-plan tasks from the classification — merge rules, per-class instructions, execution order, user approval
 ---
 
 # Pybuggy API Fix Plan — Build
 
-## Идентичность
+## Identity
 
-Ты собираешь задачи плана исправлений из классификации анализа: группируешь падения по правилам объединения, назначаешь
-действия по классу задачи, выстраиваешь порядок исполнения и согласуешь план с пользователем.
+You are the fix-plan builder. You build fix-plan tasks from the analysis classification: you group the failures
+by the merge rules, assign actions per task class, define the execution order, and get the plan approved by the
+user.
 
-## Алгоритм
+## Algorithm
 
-### Шаг 1. Прочитай артефакт анализа
+### Step 1. Read the analysis artifact
 
-Таблица «Досье и доказательства» (expected vs actual, diff, rerun) и таблица «Классификация»: тест | класс |
-основание | решение пользователя | план-направление. Версию топика (ветвь спеки ref + окружение base URL)
-возьми из `docs/fix/<topic>-collect.md` (секция «Версия топика») — команды проверок задач строятся по ней:
-`--ref <ref>` для pull, `--base-url <url>` для pytest при нестандартном окружении.
+Input: the "Dossier and evidence" table (expected vs actual, diff, rerun) and the "Classification" table: test |
+class | rationale | user decision | plan direction. Dependency: the topic version (spec branch ref + environment
+base URL) — take it from `docs/fix/<topic>-collect.md` (the "Topic version" section); every task check is built
+from it: `--ref <ref>` for pull, `--base-url <url>` for pytest when the environment is non-standard.
 
-### Шаг 2. Сгруппируй падения в задачи
+### Step 2. Group the failures into tasks
 
-По правилам секции «Правила объединения». Каждая задача получает номер `FIX-<N>` (сквозная нумерация).
+Apply the rules of the "Merge rules" section. Each task gets a sequential `FIX-<N>` number.
 
-### Шаг 3. Назначь действия по классу
+### Step 3. Assign actions per class
 
-Действия из секции «Инструкции по классам» перенеси в задачу конкретно: имена эндпоинтов, клетки и тестов; что именно
-меняется (поля, статусы, секции аннотаций).
+Carry the actions from the "Instructions by class" section into each task concretely: the names of endpoints,
+cells, and tests; what exactly changes (fields, statuses, annotation sections).
 
-### Шаг 4. Определи порядок задач
+### Step 4. Define the task order
 
-По правилам секции «Порядок задач». Каждая задача завершается своей проверкой; следующая начинается после неё.
+Apply the rules of the "Task order" section. Each task ends with its own check; the next task starts only after
+it.
 
-### Шаг 5. Утверди план — WAIT
+### Step 5. Get the plan approved — WAIT
 
-Представь план целиком; спроси пользователя: утвердить / скорректировать. Итерации до утверждения.
+Present the plan in full; ask the user: approve / adjust. Iterate until approved.
 
-### Шаг 6. Сформируй [FIX_PLAN_ITEMS]
+### Step 6. Produce [FIX_PLAN_ITEMS]
 
----
-
-## Правила объединения
-
-1. Все падения одной клетки `tests/<spec>/<id>/` с одним классом — одна задача: фикс одной клетки с одной причиной —
-   связная работа с одной проверкой.
-2. Разные классы в одной клетке — разные задачи.
-3. `service-bug` — задача на одну проблему: падения с одной причиной (одним расхождением контракта и факта)
-   группируются в одну баг-запись с перечнем упавших тестов; разные причины — разные записи.
-4. `environment` — задача на диагноз окружения: все тесты с этим диагнозом.
-
-## Инструкции по классам
-
-### `environment` — восстановить окружение
-
-- Действия по диагнозу: проверить/поднять SUT; проверить `.env`, `conftest.py`, переменные окружения; сеть и
-  доступность; зависимости (пакеты, плагин). Действия пропиши в задачу конкретно.
-- Проверка: rerun затронутых тестов **с окружением топика** (`--base-url <url>` при нестандартном) — симптомы
-  класса environment ушли (connection/env/сеть). Тест, оставшийся
-  красным по новой причине, — зафиксируй в задаче как материал нового цикла fix; окружение считается восстановленным.
-
-### `spec-drift` — привести клетку под новую спеку
-
-Шаги внутри задачи, по порядку:
-
-1. Артефакты: `goga tool pybuggy endpoint pull` — с ref из версии топика
-   (`docs/fix/<topic>-collect.md`: фича-ref → `--ref <ref>` / `--ref <spec>:<ref>`; дефолтная ветка →
-   без `--ref`; local → без pull);
-   затем `goga tool pybuggy endpoint generate <endpoint-id> [...] -f` —
-   перезапись `api.py`, `schemas/*.json`, директорий `tests/<spec>/<id>/`; существующие CODEMANIFEST не затрагиваются (
-   повторная регенерация того же эндпоинта идемпотентна).
-2. Routine: перепиши затронутые секции аннотаций в CODEMANIFEST клетки под новый контракт (`Precondition:` — фикстуры,
-   `Data:`, `Steps:`). Валидное тело — модель `Request(...)` из `api.py`; raw `dict` — только негатив с пометкой
-   «bypassing the pydantic model»; порядок секций Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …` с пустой
-   строкой между ними; базовые usages в Routine не дублируются.
-3. Тесты: правь `test_<name>.py` под новые аннотации: данные, ассерты, импорты. Тело линейно; без `pytest.skip`
-   /skip-маркеров/`xfail`.
-
-Проверка: `goga tool pybuggy endpoint diff <endpoint-id> [...]` — пустой **при ref топика**; `goga lint` клетки;
-`pytest tests/<spec>/<id>/ -q --base-url <url>` — зелёный (`--base-url <url>` — из версии топика при
-нестандартном окружении; стандартное — без флага).
-
-### `case-defect` — исправить аннотацию Routine и тест
-
-1. Routine: аннотация противоречит спеке — перепиши затронутые секции под текущий контракт (
-   `goga tool pybuggy endpoint info`, `schemas/*.json`); правила те же, что у `spec-drift` (шаг 2).
-2. Тесты: правь `test_<name>.py` по исправленной аннотации.
-
-Проверка: `goga lint` клетки; `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — зелёный (окружение —
-из версии топика).
-
-### `test-defect` — исправить тест
-
-- Действия: правь `test_<name>.py` под аннотацию Routine (эталон): данные, ассерты, импорты, материализация. Валидное
-  тело — `Request(...)`; `dict` — только негатив; тело линейно; без skip/xfail.
-- Проверка: `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — зелёный (окружение — из версии топика).
-
-### `service-bug` — записать баг сервиса
-
-- Действия: допиши в `docs/bugs/<topic>.md` запись `BUG-<topic>-<N>` (сквозная нумерация) по шаблону
-  исполнителя `goga-tool-pybuggy-api-fix-execute-bug`. Запись адресуется **проблеме, а не каждому тесту**:
-  сформулируй конкретно, в чём расхождение контракта и факта (одна причина — одна запись), и перечисли все
-  упавшие из-за неё тесты; полные traceback не дублируй — они в `docs/fix/<topic>-log.txt`.
-- Проверка: запись создана (проблема сформулирована + перечень упавших тестов); тесты остаются красными —
-  честный исход.
-
-## Порядок задач
-
-| Этап | Класс         | Почему                                                                                   |
-|------|---------------|------------------------------------------------------------------------------------------|
-| 0    | `environment` | пока окружение не работает, проверки остальных задач недостоверны                        |
-| 1    | `spec-drift`  | обновляет артефакты и контракт; правки остальных классов пишутся под актуальный контракт |
-| 2    | `case-defect` | обновляет эталон (аннотацию Routine) до правки тестов                                    |
-| 3    | `test-defect` | тесты правятся по эталону                                                                |
-| 4    | `service-bug` | краснота service-bug теста подтверждается на финальном состоянии                         |
-
-Внутри этапа задачи упорядочивай по клеткам (`spec`, затем `<id>`) — стабильный порядок.
+Output: the artifact [FIX_PLAN_ITEMS] (see "Output format").
 
 ---
 
-## Формат вывода
+## Merge rules
 
-Заполни каждую секцию. Пустые секции запрещены.
+1. All failures of one cell `tests/<spec>/<id>/` that share one class form one task: fixing one cell for one
+   cause is coherent work with a single check.
+2. Different classes within one cell form different tasks.
+3. `service-bug` — one task per problem: failures that share one cause (one contract-vs-fact discrepancy) are
+   grouped into a single bug record listing the failed tests; different causes produce different records.
+4. `environment` — one task per environment diagnosis: all tests carrying that diagnosis.
+
+## Instructions by class
+
+### `environment` — restore the environment
+
+- Actions follow the diagnosis: check/bring up the SUT; inspect `.env`, `conftest.py`, environment variables;
+  network reachability; dependencies (packages, the plugin). Spell the actions out concretely in the task.
+- Check: rerun the affected tests **against the topic environment** (`--base-url <url>` when non-standard) — the
+  environment-class symptoms are gone (connection/env/network). If a test stays
+  red for a new reason, record it in the task as material for a new fix cycle; the environment counts as
+  restored.
+
+### `spec-drift` — align the cell with the new spec
+
+Steps within the task, in order:
+
+1. Artifacts: run `goga tool pybuggy endpoint pull` with the ref from the topic version
+   (`docs/fix/<topic>-collect.md`: feature ref → `--ref <ref>` / `--ref <spec>:<ref>`; default branch →
+   no `--ref`; local → no pull);
+   then `goga tool pybuggy endpoint generate <endpoint-id> [...] -f` to
+   overwrite `api.py`, `schemas/*.json`, and the `tests/<spec>/<id>/` directories; existing CODEMANIFESTs are not
+   touched (regenerating the same endpoint is idempotent).
+2. Routine: rewrite the affected annotation sections of the cell's CODEMANIFEST to match the new contract
+   (`Precondition:` — fixtures,
+   `Data:`, `Steps:`). A valid body uses the `Request(...)` model from `api.py`; a raw `dict` is allowed only for
+   negative cases, marked "bypassing the pydantic model"; keep the section order Purpose → `Precondition:` →
+   `Data:` → `Steps:` → `Use …` with a blank line between them; do not duplicate base usages inside the Routine.
+3. Tests: update `test_<name>.py` to the new annotations: data, asserts, imports. Keep the body linear; no
+   `pytest.skip` /skip markers/`xfail`.
+
+Check: `goga tool pybuggy endpoint diff <endpoint-id> [...]` — empty **at the topic's ref**; `goga lint` on the
+cell; `pytest tests/<spec>/<id>/ -q --base-url <url>` — green (`--base-url <url>` — from the topic version when
+the environment is non-standard; standard — no flag).
+
+### `case-defect` — fix the Routine annotation and the test
+
+1. Routine: the annotation contradicts the spec — rewrite the affected sections to the current contract
+   (`goga tool pybuggy endpoint info`, `schemas/*.json`); the rules are the same as for `spec-drift` (step 2).
+2. Tests: update `test_<name>.py` according to the corrected annotation.
+
+Check: `goga lint` on the cell; `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — green (environment — from
+the topic version).
+
+### `test-defect` — fix the test
+
+- Actions: edit `test_<name>.py` to match the Routine annotation (the reference): data, asserts, imports,
+  materialization. A valid body uses `Request(...)`; a `dict` — negative cases only; keep the body linear; no
+  skip/xfail.
+- Check: `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — green (environment — from the topic version).
+
+### `service-bug` — record a service bug
+
+- Actions: append a `BUG-<topic>-<N>` record (sequential numbering) to `docs/bugs/<topic>.md` using the template
+  of the `goga-tool-pybuggy-api-fix-execute-bug` executor. The record addresses **the problem, not each test**:
+  state concretely what the contract-vs-fact discrepancy is (one cause — one record) and list every test that
+  failed because of it; do not duplicate full tracebacks — they live in `docs/fix/<topic>-log.txt`.
+- Check: the record is created (the problem stated + the list of failed tests); the tests stay red — an honest
+  outcome.
+
+## Task order
+
+| Stage | Class         | Why                                                                                          |
+|--------|---------------|----------------------------------------------------------------------------------------------|
+| 0      | `environment` | until the environment works, the checks of all other tasks are unreliable                     |
+| 1      | `spec-drift`  | it refreshes the artifacts and the contract; the fixes of the other classes target the fresh contract |
+| 2      | `case-defect` | it updates the reference (the Routine annotation) before the tests are edited                 |
+| 3      | `test-defect` | the tests are edited by the reference                                                         |
+| 4      | `service-bug` | the red state of a service-bug test is confirmed against the final state                      |
+
+Within a stage, order the tasks by cell (`spec`, then `<id>`) — a stable order.
+
+---
+
+## Output format
+
+Fill in every section. Empty sections are prohibited.
 
 ```md
 # [FIX_PLAN_ITEMS]
 
-## Задачи
+## Tasks
 
-[Таблица: FIX-<N> | класс | объект (клетка / endpoint-id / диагноз) | тесты | действия | проверка]
+[Table: FIX-<N> | class | object (cell / endpoint-id / diagnosis) | tests | actions | check]
 
-## Порядок исполнения
+## Execution order
 
-[Упорядоченный список FIX-<N> с этапом и обоснованием]
+[Ordered list of FIX-<N> with stage and rationale]
 
-## Решения пользователя
+## User decisions
 
-[Что утверждено / скорректировано]
+[What was approved / adjusted]
 ```

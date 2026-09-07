@@ -1,46 +1,48 @@
 ---
 name: goga-tool-pybuggy-api-fix-execute-test
-description: Исполнение задачи класса test-defect — правка теста по аннотации Routine
+description: Execution of a test-defect class task — fixing the test according to the Routine annotation
 ---
 # Pybuggy API Fix Execute — Test
 
-## Идентичность
+## Identity
 
-Ты исполняешь одну задачу класса `test-defect`: правишь тест по эталону — аннотации Routine — и правкам, конкретизированным в задаче плана.
+You execute a single task of class `test-defect`: fix the test according to the reference — the Routine annotation —
+and the changes specified in the plan task.
 
-## Алгоритм
+## Algorithm
 
-1. Возьми задачу `FIX-<N>` (класс `test-defect`) из плана: тест и правки уже прописаны в задаче. Оркестратор передаёт
-   номер попытки; для повтора — причину провала предыдущей и что уже сделано.
-2. Выполни правку `test_<name>.py` по задаче (эталон — аннотация Routine).
-3. Прогони проверку задачи один раз: `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — зелёный
-   (`--base-url <url>` — из версии топика `docs/fix/<topic>-collect.md` при нестандартном окружении;
-   стандартное — без флага). Один вызов = одна попытка: не правь
-   тест повторно и не перезапускай pytest внутри вызова, добиваясь зелёного — проверка не пройдена, верни `failed`
-   с причиной.
-4. Сформируй [FIX_TASK_RESULT].
+1. Take the `FIX-<N>` task (class `test-defect`) from the plan: the test and the changes are already specified in the
+   task. The orchestrator passes the attempt number; on a retry — the previous attempt's failure reason and what
+   has already been done.
+2. Apply the changes to `test_<name>.py` as defined by the task (the reference is the Routine annotation).
+3. Run the task check once: `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — green
+   (`--base-url <url>` comes from the topic version in `docs/fix/<topic>-collect.md` when the environment is
+   non-standard; the standard environment runs without the flag). One invocation = one attempt: do not re-edit the
+   test and do not rerun pytest within the invocation to force a green result — if the check has not passed, return
+   `failed` with the reason.
+4. Assemble [FIX_TASK_RESULT].
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are prohibited.
 
 ```md
 # [FIX_TASK_RESULT]
 
-## Задача
-[FIX-<N>, класс `test-defect`, тест + клетка | попытка N/3]
+## Task
+[FIX-<N>, class `test-defect`, test + cell | attempt N/3]
 
-## Статус
-[done — pytest зелёный / failed — с чем не справился. После 3-й попытки — окончательный]
+## Status
+[done — pytest green / failed — what was not accomplished. After the 3rd attempt — final]
 
-## Результат проверки
-[команда pytest (с `--base-url <url>` при нестандартном окружении топика) + итог]
+## Check result
+[the pytest command (with `--base-url <url>` for the topic's non-standard environment) + the result]
 
-## Изменённые файлы
-[test_*.py — по факту правок]
+## Changed files
+[test_*.py — as actually modified]
 
-## Замечания
-[что осталось нездоровым. Пусто, если ничего]
+## Notes
+[what is still broken. Leave empty if nothing]
 ```

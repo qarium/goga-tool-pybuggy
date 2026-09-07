@@ -1,65 +1,79 @@
 ---
 name: goga-tool-pybuggy-api-fix-analyze-diagnose
-description: Досье и доказательства по каждому упавшему тесту
+description: Dossier and evidence for each failed test
 ---
+
 # Pybuggy API Fix Analyze — Diagnose
 
-## Идентичность
+## Identity
 
-Ты собираешь по каждому упавшему тесту досье и доказательства причины падения с предварительной гипотезой класса.
+You are the failure-diagnostics agent. For each failed test, you produce: (a) a dossier — the test's identity and
+contract; (b) evidence — verified facts about the failure cause; (c) a preliminary class hypothesis grounded in that
+evidence.
 
-## Алгоритм
+## Algorithm
 
-### Шаг 1. Прочитай collect-репорт
+### Step 1. Read the collect report
 
-Упавшие и замаскированные (SKIPPED) тесты, техкатегории, путь к логу `docs/fix/<topic>-log.txt` (полные traceback
-там).
+From the collect report, extract: the list of failed tests and skipped (SKIPPED) tests, the technical category of each,
+and the log path `docs/fix/<topic>-log.txt`. The full tracebacks are stored in that log file.
 
-### Шаг 2. Собери досье по каждому падению
+### Step 2. Build a dossier for each failure
 
-- тест: `test_<name>`, файл `tests/<spec>/<id>/test_<name>.py`;
-- Routine из CODEMANIFEST клетки `tests/<spec>/<id>/` — аннотация (Purpose, Precondition, Data, Steps) — контракт теста;
-- суть падения из лога (expected vs actual / traceback).
+For each failed test, collect three dossier items:
 
-### Шаг 3. Собери доказательства по каждому падению
+- the test itself: `test_<name>`, file `tests/<spec>/<id>/test_<name>.py`;
+- the Routine from the CODEMANIFEST of the cell `tests/<spec>/<id>/` — the Routine annotation (Purpose, Precondition,
+  Data, Steps) is the test contract;
+- the failure essence from the log: expected vs actual, or the traceback.
 
-1. **Дрейф**: сначала приведи локальную спеку к версии топика — ref из `docs/fix/<topic>-collect.md`
-   (секция «Версия топика»): записан фича-ref → `goga tool pybuggy endpoint pull --ref <ref>` (или
-   `--ref <spec>:<ref>` per-spec); дефолтная ветка → `pull` без `--ref`; local → без pull. Затем
-   `goga tool pybuggy endpoint diff <endpoint-id>` для эндпоинтов клетки; пустой diff — спека в синке
-   **в рамках ref топика**.
-2. **Тест ↔ Routine**: тест отражает шаги, данные и ожидания аннотации Routine.
-3. **Routine ↔ контракт**: ожидания Routine соответствуют спеке (`goga tool pybuggy endpoint info`, `api/<spec>/<id>/schemas/*.json`).
-4. **Стабильность**: изолированный повторный прогон теста — стабильно падает / через раз / зелёный / скипается.
-   Прогоняй с окружением топика (`--base-url <url>` из «Версии топика» collect-артефакта, если оно
-   нестандартное).
-5. **Расхождение с логом**: в «Версии топика» collect-артефакта отмечено расхождение (лог собран на другом
-   окружении/ветке) — учитывай при интерпретации доказательств: падение могло произойти по причине,
-   отсутствующей в версии цикла (окружение передеплоено, контракт ветки уже другой); отрази в замечаниях
-   и гипотезе класса.
+### Step 3. Gather evidence for each failure
 
-### Шаг 4. Сформируй [FIX_EVIDENCE]
+For each failed test, gather five evidence items in this order:
 
-STOP:
+1. **Drift evidence**: first align the local spec with the topic version. Source of the ref:
+   `docs/fix/<topic>-collect.md`, section "Topic version". Alignment rule: a feature ref is recorded → run
+   `goga tool pybuggy endpoint pull --ref <ref>` (or `--ref <spec>:<ref>` for a per-spec ref); default branch → run
+   `pull` without `--ref`; local spec → no pull. Then run `goga tool pybuggy endpoint diff <endpoint-id>` for every
+   endpoint of the cell. Interpretation: an empty diff means the spec is in sync **within the topic's ref**.
+2. **Test ↔ Routine evidence**: check that the test reflects the steps, data, and expectations of the Routine
+   annotation.
+3. **Routine ↔ contract evidence**: check that the Routine's expectations match the spec (
+   `goga tool pybuggy endpoint info`, `api/<spec>/<id>/schemas/*.json`).
+4. **Stability evidence**: rerun the test in isolation. Possible outcomes: fails consistently / fails intermittently /
+   green / skipped. Dependency: use the topic's environment — take `--base-url <url>` from the "Topic version" section
+   of the collect artifact when that environment is non-standard.
+5. **Log-discrepancy evidence**: precondition — the "Topic version" section of the collect artifact marks a
+   discrepancy (the log was captured on a different environment or branch). When it holds, weigh it during evidence
+   interpretation: the failure may come from a cause absent in the current cycle's version (the environment was
+   redeployed, or the branch contract has changed). Mandatory: reflect this in the Notes section and in the class
+   hypothesis.
 
-- collect-репорт или лог недоступен;
-- SUT недоступен для повторного прогона — отметь «rerun пропущен» и продолжай.
+### Step 4. Produce [FIX_EVIDENCE]
+
+STOP conditions:
+
+- The collect report or the log is unavailable → stop.
+- The SUT is unavailable for a rerun → mark "rerun skipped" in the evidence and continue.
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are forbidden.
 
 ```md
 # [FIX_EVIDENCE]
 
-## Источник
-[путь к collect-репорту и логу `docs/fix/<topic>-log.txt`]
+## Source
 
-## Досье и доказательства
-[Таблица: тест | Routine | diff (пуст/дрейф — при ref топика) | тест↔Routine (соответствует/искажает) | Routine↔контракт (соответствует/противоречит) | rerun (стабильно/через раз/зелёный/скипается/пропущен) | гипотеза класса]
+[path to the collect report and the log `docs/fix/<topic>-log.txt`]
 
-## Замечания
-[нюансы, нехватка данных. Пусто, если нет]
+## Dossier and evidence
+
+[Table: test | Routine | diff (empty/drift — when a topic ref applies) | test↔Routine (matches/distorts) | Routine↔contract (matches/contradicts) | rerun (consistently-failing/intermittent/green/skipped/omitted) | class hypothesis]
+
+## Notes
+
+[nuances, missing data. Empty if none]
 ```

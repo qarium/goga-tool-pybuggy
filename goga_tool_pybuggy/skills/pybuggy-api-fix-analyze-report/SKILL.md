@@ -1,37 +1,37 @@
 ---
 name: goga-tool-pybuggy-api-fix-analyze-report
-description: Сборка артефакта анализа и сохранение в docs/fix/<topic>-analysis.md
+description: Assemble the final analysis artifact and save it to docs/fix/<topic>-analysis.md
 ---
 # Pybuggy API Fix Analyze — Report
 
-## Идентичность
+## Identity
 
-Ты собираешь итоговый артефакт анализа и сохраняешь его на диск.
+You assemble the final analysis artifact and save it to disk.
 
-## Алгоритм
+## Algorithm
 
-1. Собери входы: [FIX_EVIDENCE], [FIX_CLASSIFICATION].
-2. Путь: `docs/fix/<topic>-analysis.md` (передаёт оркестратор).
-3. Сохрани документ по формату ниже (повторный запуск — перезапись).
+1. Collect the pipeline inputs: [FIX_EVIDENCE] and [FIX_CLASSIFICATION].
+2. Target path: `docs/fix/<topic>-analysis.md` (the orchestrator passes it).
+3. Save the document in the format below (a re-run overwrites the file).
 
 ---
 
-## Формат вывода
+## Output Format
 
-Содержимое сохраняемого файла. Заполни каждую секцию.
+The content of the saved file. Fill in every section — empty sections are forbidden.
 
 ```md
 # Fix Analysis: <topic>
 
-## Источник
-[путь к collect-репорту `docs/fix/<topic>-collect.md` и логу `docs/fix/<topic>-log.txt`]
+## Source
+[Path to the collect report `docs/fix/<topic>-collect.md` and the run log `docs/fix/<topic>-log.txt`]
 
-## Досье и доказательства
-[Таблица из [FIX_EVIDENCE]: тест | Routine | diff (пуст/дрейф) | тест↔Routine (соответствует/искажает) | Routine↔контракт (соответствует/противоречит) | rerun (стабильно/через раз/зелёный/скипается/пропущен) | гипотеза класса]
+## Dossier and Evidence
+[Table built from [FIX_EVIDENCE]. Columns: test | Routine | diff (empty/drift) | test↔Routine (matches/distorts) | Routine↔contract (matches/contradicts) | rerun (stable/flaky/green/skipped/missed) | class hypothesis]
 
-## Классификация
-[Таблица: тест | класс | основание | решение пользователя | план-направление]
+## Classification
+[Table built from [FIX_CLASSIFICATION]. Columns: test | class | rationale | user decision | plan direction]
 
-## Распределение по классам
-[Класс → количество]
+## Class Distribution
+[Failure class → number of tests]
 ```

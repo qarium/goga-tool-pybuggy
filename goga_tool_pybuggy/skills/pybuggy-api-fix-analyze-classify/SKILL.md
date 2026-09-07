@@ -1,50 +1,52 @@
 ---
 name: goga-tool-pybuggy-api-fix-analyze-classify
-description: Классификация причины каждого падения вместе с пользователем
+description: Classify the root cause of each test failure jointly with the user
 ---
 # Pybuggy API Fix Analyze — Classify
 
-## Идентичность
+## Identity
 
-Ты для каждого теста определяешь причину падения и категоризируешь её в классы. Решение принимается вместе с пользователем.
+For every failed test, you determine the root cause of the failure and assign it to exactly one class. You make each decision together with the user.
 
-## Алгоритм
+## Algorithm
 
-### Шаг 1. Классы причин
+### Step 1. Cause classes
 
-| Класс         | Признак                                                                        | План-направление                                     |
-|---------------|--------------------------------------------------------------------------------|------------------------------------------------------|
-| `spec-drift`  | спека изменилась: `endpoint diff` непуст                                       | регенерация артефактов + обновление Routine и тестов |
-| `service-bug` | diff пуст; Routine и тест соответствуют контракту; сервис отвечает не по спеке | баг-запись `docs/bugs/<topic>.md`                  |
-| `test-defect` | тест искажает Routine: данные, ассерт, импорт, материализация                  | правка `test_*.py`                                   |
-| `case-defect` | Routine (аннотация) противоречит спеке/schemas                                 | обновление Routine в CODEMANIFEST                    |
-| `environment` | SUT/env/сеть/тулы                                                              | восстановление окружения/зависимостей                |
+| Class         | Symptom                                                                                        | Plan direction                                               |
+|---------------|------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
+| `spec-drift`  | the spec has changed: `endpoint diff` is non-empty                                             | regenerate the artifacts + update the Routine and the tests   |
+| `service-bug` | diff is empty; the Routine and the test comply with the contract; the service deviates from the spec | file a bug record in `docs/bugs/<topic>.md`                |
+| `test-defect` | the test distorts the Routine: data, assert, import, materialization                           | fix `test_*.py`                                              |
+| `case-defect` | the Routine (annotation) contradicts the spec/schemas                                          | update the Routine in the CODEMANIFEST                       |
+| `environment` | SUT/env/network/tools                                                                          | restore the environment/dependencies                         |
 
-Классы — исчерпывающий набор: каждое падение получает один из них.
+The classes form an exhaustive set: every failure maps to exactly one of them.
 
-### Шаг 2. Разбери каждое падение — WAIT
+### Step 2. Analyze each failure — WAIT
 
-По каждому падению из [FIX_EVIDENCE], одно на сообщение:
+Process each failure from [FIX_EVIDENCE], one failure per message:
 
-1. Представь досье, доказательства и гипотезу класса.
-2. Спроси пользователя: подтвердить гипотезу / другой класс из таблицы.
-3. Разбор падения продолжается — дополнительные вопросы и дозапрос доказательств — пока класс не станет конкретным (один из пяти).
-4. Зафиксируй класс, основание и решение.
+1. Present the dossier, the evidence, and the class hypothesis.
+2. Ask the user to confirm the hypothesis or select a different class from the table.
+3. Continue the analysis of the same failure — additional questions and further evidence requests — until the class is concrete (one of the five).
+4. Record the class, the rationale, and the user decision.
 
-### Шаг 3. Сформируй [FIX_CLASSIFICATION]
+### Step 3. Produce [FIX_CLASSIFICATION]
+
+Assemble the [FIX_CLASSIFICATION] artifact from the recorded classifications.
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are prohibited.
 
 ```md
 # [FIX_CLASSIFICATION]
 
-## Классификация
-[Таблица: тест | класс | основание | решение пользователя | план-направление]
+## Classification
+[Table: test | class | rationale | user decision | plan direction]
 
-## Распределение по классам
-[Класс → количество]
+## Distribution by classes
+[Class → count]
 ```

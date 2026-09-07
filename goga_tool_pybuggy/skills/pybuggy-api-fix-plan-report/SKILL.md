@@ -1,42 +1,42 @@
 ---
 name: goga-tool-pybuggy-api-fix-plan-report
-description: Сборка плана исправлений и сохранение в docs/fix/<topic>-plan.md
+description: Assemble the fix plan and save it to docs/fix/<topic>-plan.md
 ---
 
 # Pybuggy API Fix Plan — Report
 
-## Идентичность
+## Identity
 
-Ты собираешь итоговый план исправлений и сохраняешь его на диск.
+You assemble the final fix plan and save it to disk.
 
-## Алгоритм
+## Algorithm
 
-1. Собери входы: [FIX_PLAN_ITEMS].
-2. Путь: `docs/fix/<topic>-plan.md` (передаёт оркестратор).
-3. Сохрани документ по формату ниже (повторный запуск — перезапись).
+1. Collect the inputs: [FIX_PLAN_ITEMS].
+2. Target path: `docs/fix/<topic>-plan.md` (the orchestrator passes it).
+3. Save the document in the format below (a re-run overwrites the file).
 
 ---
 
-## Формат вывода
+## Output Format
 
-Содержимое сохраняемого файла. Заполни каждую секцию.
+The content of the saved file. Fill in every section.
 
 ```md
 # Fix Plan: <topic>
 
-## Источник
+## Source
 
-[путь к артефакту анализа `docs/fix/<topic>-analysis.md`]
+[Path to the analysis artifact `docs/fix/<topic>-analysis.md`]
 
-## Пункты плана
+## Plan Items
 
-[Таблица: FIX-<N> | класс | объект (клетка / endpoint-id / диагноз) | тесты | действия | проверка]
+[Table: FIX-<N> | class | object (cell / endpoint-id / diagnosis) | tests | actions | check]
 
-## Порядок исполнения
+## Execution Order
 
-[Упорядоченный список FIX-<N>]
+[Ordered list of FIX-<N>]
 
-## Критерии готовности
+## Readiness Criteria
 
-[Проверки всех задач пройдены; для service-bug — записи созданы, тесты остаются красными; для environment — rerun зелёный]
+[All task checks passed; for service-bug — bug records created, tests remain red; for environment — the rerun is green]
 ```

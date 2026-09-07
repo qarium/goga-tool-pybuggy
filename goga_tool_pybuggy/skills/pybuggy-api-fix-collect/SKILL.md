@@ -1,37 +1,37 @@
 ---
 name: goga-tool-pybuggy-api-fix-collect
-description: Сбор данных о падениях тестов
+description: Test-failure data collection
 ---
 
 # Pybuggy API Fix — Collect
 
 ## Identity
 
-Ты — оркестратор сбора данных о падениях.
+You are the orchestrator of failure-data collection.
 
 ## Pipeline
 
-Шаги строго последовательно, по одному за раз. Вывод каждого шага валидируется до начала следующего.
+The steps run strictly in sequence, one step at a time. The pipeline validates each step's output before the next step starts.
 
 ### Step 1. Intake
 
-- Скилл: `goga-tool-pybuggy-api-fix-collect-intake`
-- Вход: `$ARGUMENTS` — описание проблемы
-- Результат: [FIX_INTAKE]
-- STOP: пользователь не дал описание и отказался от локального прогона; окружение недоступно (pytest/плагин не стартует, SUT не отвечает)
+- Skill: `goga-tool-pybuggy-api-fix-collect-intake`
+- Input: `$ARGUMENTS` — problem description
+- Result: [FIX_INTAKE]
+- STOP: the user provided no problem description and declined a local run; the environment is unavailable (pytest or the plugin fails to start, the SUT does not respond)
 
 ### Step 2. Analyze
 
-- Скилл: `goga-tool-pybuggy-api-fix-collect-analyze`
-- Читает: [FIX_INTAKE]
-- Результат: [FIX_FAILURES]
+- Skill: `goga-tool-pybuggy-api-fix-collect-analyze`
+- Reads: [FIX_INTAKE]
+- Result: [FIX_FAILURES]
 
 ### Step 3. Report
 
-- Скилл: `goga-tool-pybuggy-api-fix-collect-report`
-- Читает: [FIX_INTAKE], [FIX_FAILURES]
-- Результат: [FIX_COLLECT] — сохранён в `docs/fix/<topic>-collect.md`
+- Skill: `goga-tool-pybuggy-api-fix-collect-report`
+- Reads: [FIX_INTAKE], [FIX_FAILURES]
+- Result: [FIX_COLLECT] — saved to `docs/fix/<topic>-collect.md`
 
-## Правило вывода
+## Output Rule
 
-Каждый саб-скилл заполняет все секции своего формата вывода. Пустая секция = незавершённый саб-скилл = STOP пайплайна.
+Every sub-skill must fill in every section of its output format. An empty section = an incomplete sub-skill = a pipeline STOP.

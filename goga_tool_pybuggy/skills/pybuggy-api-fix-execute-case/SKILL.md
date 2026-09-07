@@ -1,49 +1,52 @@
 ---
 name: goga-tool-pybuggy-api-fix-execute-case
-description: Исполнение задачи класса case-defect — исправление аннотации Routine и теста
+description: Execution of a case-defect class task — fixing the Routine annotation and the test
 ---
 # Pybuggy API Fix Execute — Case
 
-## Идентичность
+## Identity
 
-Ты исполняешь одну задачу класса `case-defect`: исправляешь аннотацию Routine (эталон) и тест по правкам, конкретизированным в задаче плана.
+You execute a single task of class `case-defect`: fix the Routine annotation (the reference) and the test
+according to the changes specified in the plan task.
 
-## Алгоритм
+## Algorithm
 
-1. Возьми задачу `FIX-<N>` (класс `case-defect`) из плана: клетка, противоречие аннотации и правки уже прописаны в задаче.
-   Оркестратор передаёт номер попытки; для повтора — причину провала предыдущей и что уже сделано.
-2. Выполни шаги задачи по порядку:
-   1. Routine: перепиши затронутые секции аннотации под текущий контракт;
-   2. тесты: правь `test_<name>.py` по исправленной аннотации.
-3. Прогони проверки задачи: `goga lint` клетки; `pytest tests/<spec>/<id>/ -q [--base-url <url>]` —
-   зелёный (`--base-url <url>` — из версии топика `docs/fix/<topic>-collect.md` при нестандартном
-   окружении; стандартное — без флага).
-4. Один вызов = одна попытка: проверки выполнены один раз, без перезапусков и повторных правок внутри вызова —
-   проверка не пройдена, верни `failed` с причиной.
-5. `done` — только если пройдены обе проверки.
-6. Сформируй [FIX_TASK_RESULT].
+1. Take the `FIX-<N>` task (class `case-defect`) from the plan: the cell, the annotation contradiction, and the
+   changes are already specified in the task.
+   The orchestrator passes the attempt number; on a retry — the previous attempt's failure reason and what
+   has already been done.
+2. Execute the task steps in order:
+   1. Routine: rewrite the affected sections of the annotation to match the current contract;
+   2. tests: fix `test_<name>.py` according to the corrected annotation.
+3. Run the task checks: `goga lint` of the cell; `pytest tests/<spec>/<id>/ -q [--base-url <url>]` —
+   green (`--base-url <url>` comes from the topic version in `docs/fix/<topic>-collect.md` when the
+   environment is non-standard; the standard environment runs without the flag).
+4. One invocation = one attempt: the checks are executed once, with no reruns and no repeated fixes within
+   the invocation — if a check has not passed, return `failed` with the reason.
+5. `done` — only if both checks have passed.
+6. Assemble [FIX_TASK_RESULT].
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are prohibited.
 
 ```md
 # [FIX_TASK_RESULT]
 
-## Задача
-[FIX-<N>, класс `case-defect`, клетка | попытка N/3]
+## Task
+[FIX-<N>, class `case-defect`, cell | attempt N/3]
 
-## Статус
-[done — обе проверки пройдены / failed — какая проверка и почему. После 3-й попытки — окончательный]
+## Status
+[done — both checks passed / failed — which check and why. After the 3rd attempt — final]
 
-## Результат проверки
-[lint-итог + команда pytest (с `--base-url <url>` при нестандартном окружении топика) и итог]
+## Check result
+[lint result + the pytest command (with `--base-url <url>` for the topic's non-standard environment) and its result]
 
-## Изменённые файлы
-[CODEMANIFEST, test_*.py — по факту правок]
+## Changed files
+[CODEMANIFEST, test_*.py — as actually modified]
 
-## Замечания
-[что осталось нездоровым. Пусто, если ничего]
+## Notes
+[what is still broken. Leave empty if nothing]
 ```

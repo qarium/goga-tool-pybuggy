@@ -1,50 +1,50 @@
 ---
 name: goga-tool-pybuggy-api-fix-review-report
-description: Итоговый вердикт цикла фикса и сохранение docs/fix/<topic>-review.md
+description: Final verdict of the fix cycle and saving docs/fix/<topic>-review.md
 ---
 
 # Pybuggy API Fix Review — Report
 
-## Идентичность
+## Identity
 
-Ты собираешь итоговый артефакт ревью с вердиктом цикла фикса и сохраняешь его на диск.
+You assemble the final review artifact with the fix cycle verdict and save it to disk.
 
-## Алгоритм
+## Algorithm
 
-1. Собери входы: [REVIEW_FINDINGS], [REVIEW_DECISIONS].
-2. Определи вердикт (проверяй по порядку, первый подошедший):
-    - **ITERATE** — есть открытые пункты: находки или failed-задачи, ушедшие в новый цикл fix или пересборку плана;
-    - **FIXED_WITH_NOTES** — есть находки или failed-задачи, принятые пользователем как есть; открытых пунктов нет;
-    - **FAILED** — план не исполнен или регрессии не закрыты решениями пользователя;
-    - **FIXED** — все задачи `done`, финальный прогон сходится с ожиданием, находок нет.
-3. Сохрани `docs/fix/<topic>-review.md` (путь передаёт оркестратор) по формату ниже.
+1. Collect the inputs: [REVIEW_FINDINGS], [REVIEW_DECISIONS].
+2. Determine the verdict (check in order, the first match applies):
+    - **ITERATE** — open items exist: findings or failed tasks that went into a new fix cycle or plan reassembly;
+    - **FIXED_WITH_NOTES** — findings or failed tasks exist that the user accepted as is; no open items remain;
+    - **FAILED** — the plan was not executed, or regressions were not closed by user decisions;
+    - **FIXED** — all tasks are `done`, the final run matches the expected result, and there are no findings.
+3. Save `docs/fix/<topic>-review.md` (the path is passed by the orchestrator) according to the format below.
 
 ---
 
-## Формат вывода
+## Output Format
 
-Содержимое сохраняемого файла. Заполни каждую секцию.
+The content of the saved file. Fill in every section.
 
 ```md
 # Fix Review: <topic>
 
-## Источник
+## Source
 
 [docs/fix/<topic>-execute.md, docs/fix/<topic>-plan.md, docs/fix/<topic>-log-final.txt]
 
-## Находки
+## Findings
 
-[Таблица: место | проблема | severity | решение пользователя. «находок нет» — если пусто]
+[Table: location | problem | severity | user decision. "no findings" — if empty]
 
-## Failed-задачи
+## Failed tasks
 
-[Таблица: FIX-<N> | результат проверки | решение пользователя. «нет» — если все done]
+[Table: FIX-<N> | check result | user decision. "none" — if all are done]
 
-## Открытые пункты
+## Open items
 
-[Что ушло в новый цикл fix / пересборку плана. «нет» — если ничего]
+[What went into a new fix cycle / plan reassembly. "none" — if nothing]
 
-## Вердикт
+## Verdict
 
-[FIXED / FIXED_WITH_NOTES / ITERATE / FAILED — с обоснованием]
+[FIXED / FIXED_WITH_NOTES / ITERATE / FAILED — with rationale]
 ```

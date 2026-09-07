@@ -1,96 +1,92 @@
 ---
 name: goga-tool-pybuggy-api-fix-collect-intake
-description: Определение источника данных о падениях и локальный запуск тестов с сохранением вывода в docs/fix/<topic>-log.txt
+description: Determine the failure-data source and run tests locally, saving the output to docs/fix/<topic>-log.txt
 ---
 # Pybuggy API Fix Collect — Intake
 
-## Идентичность
+## Identity
 
-Ты определяешь источник данных о падениях: описание проблемы от пользователя или локальный прогон тестов. При выборе прогона ты выполняешь его сам.
+You determine the source of failure data: either a problem description supplied by the user, or a local test run. If the local test run is the chosen source, you execute that run yourself.
 
-## Алгоритм
+## Algorithm
 
-### Шаг 1. Прочитай описание проблемы
+### Step 1. Read the problem description
 
-1. `$ARGUMENTS` содержит описание — зафиксируй его дословно (оно попадает в репорт как есть).
-2. Описания нет — спроси пользователя (AskUserQuestion, 2 варианта):
-   - предоставить описание проблемы;
-   - запустить тесты локально.
+1. `$ARGUMENTS` contains the description — record it verbatim (it goes into the report exactly as given).
+2. No description — ask the user (AskUserQuestion, 2 options):
+   - provide a problem description;
+   - run the tests locally.
 
-### Шаг 2. Оцени достаточность данных
+### Step 2. Assess data sufficiency
 
-1. В описании есть данные о падениях (вывод pytest, лог CI, traceback) — источник: описание.
-2. Описание есть, данных о падениях нет — спроси: дополнить описание выводом или запустить тесты локально.
+1. The description contains failure data (pytest output, CI log, traceback) — source: description.
+2. A description exists but contains no failure data — ask: supplement the description with the output, or run the tests locally.
 
-### Шаг 3. Определи версию топика — WAIT
+### Step 3. Determine the topic version — WAIT
 
-Ветвь спеки (ref) и окружение прогона (base URL) — обязательный контекст цикла fix: от них зависят
-команда прогона, анализ дрейфа и проверки задач. Порядок резолюции: `$ARGUMENTS` называет ветку и/или
-окружение → используй их без вопроса; иначе спроси пользователя:
+The spec branch (ref) and the run environment (base URL) are mandatory context for the entire fix cycle: the run command, drift analysis, and task verification all depend on them. Resolution order: `$ARGUMENTS` names the branch and/or the environment → use those values without asking; otherwise ask the user:
 
-1. **Ветвь спеки (ref)**:
-   - «Дефолтная ветка» — pull без `--ref`;
-   - «Фича-ветка» — ввести ref (pull с `--ref <ref>`; несколько спек — `--ref <spec>:<ref>`);
-   - «Локальная спека, без pull».
-2. **Окружение прогона (base URL)** — какая версия сервиса тестируется:
-   - «Стандартное (.env / BASE_URL)»;
-   - «Указать URL» — окружение, куда задеплоена тестируемая версия.
-   Фича-ветка + стандартное окружение — переспроси с предупреждением (контракт ветки против дефолтного
-   SUT); подтверждённое решение зафиксируй.
+1. **Spec branch (ref)**:
+   - "Default branch" — pull without `--ref`;
+   - "Feature branch" — enter a ref (pull with `--ref <ref>`; multiple specs — `--ref <spec>:<ref>`);
+   - "Local spec, no pull".
+2. **Run environment (base URL)** — the service version under test:
+   - "Standard (.env / BASE_URL)";
+   - "Specify URL" — the environment where the version under test is deployed.
+   Feature branch + standard environment — re-ask with a warning (the branch contract vs the default SUT); record the confirmed decision.
 
-Подсказки из данных о падениях (хост в трейсбеках connection-ошибок, ветка CI-джобы в шапке лога)
-предлагай готовой опцией вопроса («<url> (найдено в логе)») — подсказка, а не решение: версия топика
-выбирается для цикла, а не из прошлого прогона. Следы указывают на другое окружение/ветку, чем выбранная
-версия, — зафиксируй расхождение в «Версии топика».
+Offer hints extracted from the failure data (the host in connection-error tracebacks; the CI job branch in the log header) as a ready-made question option ("<url> (found in the log)") — a hint, not a decision: the topic version is selected for the current cycle, not taken from the previous run. If the traces point to a different environment/branch than the selected version — record that discrepancy in the "Topic version" section.
 
-Зафиксированная версия действует весь цикл: пиши её в [FIX_INTAKE] и collect-артефакт (секция «Версия
-топика»).
+The recorded topic version applies to the whole cycle: write it into [FIX_INTAKE] and into the collect artifact (the "Topic version" section).
 
-### Шаг 4. Выполни локальный прогон
+### Step 4. Execute the local test run
 
-Выполняется, когда выбран прогон (Шаг 1 или Шаг 2); источник «описание» — шаг пропускается.
+This step runs when a local run was selected (Step 1 or Step 2); with the "description" source, skip this step.
 
-1. Корень запуска — директория с `conftest.py` (pytest запускается из неё).
-2. Скоуп — из описания: конкретные тесты/директории, названные в нём; не определён — все тесты.
-3. Целевое окружение — из версии топика (Шаг 3): нестандартный base URL — добавь в команду
-   `--base-url <url>` (тестируемая версия сервиса живёт там; стандартный `.env`/`BASE_URL`
-   отправит запросы не туда). Стандартное — без флага.
-4. Выполни: `pytest <пути> -q [--base-url <url>] 2>&1 | tee docs/fix/<topic>-log.txt` (создай `docs/fix/`, если её нет; `<topic>` — из `$ARGUMENTS`, не определён — спроси пользователя; повторный прогон — перезапись).
-5. Зафиксируй: команду (с окружением), путь к логу, код выхода, итоговую строку (passed/failed/errors/skipped).
+1. Run root — the directory containing `conftest.py` (pytest runs from it).
+2. Scope — from the description: the specific tests/directories it names; if undefined — all tests.
+3. Target environment — from the topic version (Step 3): non-standard base URL — add `--base-url <url>` to the command (the service version under test lives there; the standard `.env`/`BASE_URL` would send the requests to the wrong target). Standard — no flag.
+4. Execute: `pytest <paths> -q [--base-url <url>] 2>&1 | tee docs/fix/<topic>-log.txt` (create `docs/fix/` if it does not exist; `<topic>` — from `$ARGUMENTS`; if undefined — ask the user; a re-run overwrites the log).
+5. Record: the command (with the environment), the log path, the exit code, the summary line (passed/failed/errors/skipped).
 
-### Шаг 5. Сформируй [FIX_INTAKE]
+### Step 5. Produce [FIX_INTAKE]
 
 STOP:
 
-- пользователь не дал описание и отказался от локального прогона;
-- pytest или плагин не стартует, SUT не отвечает — спроси пользователя: восстановить окружение и продолжить / завершить сбор.
+- the user provided no description and declined the local run;
+- pytest or the plugin does not start, or the SUT does not respond — ask the user: restore the environment and continue / finish the collection.
 
 ---
 
-## Формат вывода
+## Output format
 
-Заполни каждую секцию. Пустые секции запрещены.
+Fill in every section. Empty sections are forbidden.
 
 ```md
 # [FIX_INTAKE]
 
-## Источник данных
-[описание / локальный прогон]
+## Data source
 
-## Описание проблемы (дословно)
-[$ARGUMENTS; «не предоставлено» — если пусто]
+[description / local run]
 
-## Данные о падениях в описании
-[вывод/логи/traceback, если есть; «нет» — если отсутствуют]
+## Problem description (verbatim)
 
-## Версия топика
-[Ветвь спеки: default / <ref> (per-spec при различии) / local | Окружение: standard / <url> |
-источник: $ARGUMENTS / ответ пользователя (опция-подсказка из лога) | Расхождение с логом: нет / <что найдено>]
+[$ARGUMENTS; "not provided" — if empty]
 
-## Прогон
-[Команда: ... (с `--base-url <url>` — если окружение топика нестандартное) | Лог: docs/fix/<topic>-log.txt | Код выхода: ... | Итог: passed/failed/errors/skipped.
-«прогон не выполнялся» — если источником было только описание]
+## Failure data in the description
 
-## Открытые вопросы
-[чего не хватает для сбора. Пусто, если ничего]
+[output/logs/traceback, if any; "none" — if absent]
+
+## Topic version
+
+[Spec branch: default / <ref> (per-spec if different) / local | Environment: standard / <url> | source: $ARGUMENTS / user answer (hint option from the log) | Discrepancy with the log: none / <what was found>]
+
+## Run
+
+[Command: ... (with
+`--base-url <url>` — if the topic environment is non-standard) | Log: docs/fix/<topic>-log.txt | Exit code: ... | Summary: passed/failed/errors/skipped. "run not performed" — if the source was description only]
+
+## Open questions
+
+[what is missing for the collection. Empty if nothing]
 ```

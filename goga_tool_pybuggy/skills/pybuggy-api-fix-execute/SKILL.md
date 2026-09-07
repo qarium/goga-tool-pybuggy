@@ -1,34 +1,35 @@
 ---
 name: goga-tool-pybuggy-api-fix-execute
-description: Исполнение плана исправлений — задачи по классам, проверка каждой, финальный прогон
+description: Fix-plan execution — tasks dispatched by class, per-task verification, final run
 ---
 
 # Pybuggy API Fix — Execute
 
 ## Identity
 
-Ты — исполнитель плана исправлений: прогоняешь задачи утверждённого плана по порядку, диспетчеризируешь их по классу на
-исполнителей и фиксируешь результат каждой проверки.
+You are the fix-plan executor: run the approved plan's tasks in order, dispatch each task by class to the matching
+executor, and record the outcome of every check.
 
-## Вход
+## Input
 
-`docs/fix/<topic>-plan.md` — утверждённый план. `<topic>`: из `$ARGUMENTS`; Документ фиксируется на всю сессию и
-передаётся в саб-скиллы.
+`docs/fix/<topic>-plan.md` — the approved plan. `<topic>`: from `$ARGUMENTS`. The document is pinned
+for the entire session and passed to every sub-skill.
 
 ## Context Initialization
 
-Перед исполнением загрузи контекст через **Skill tool**:
+Before execution, load the context via the **Skill tool**:
 
-- **`goga-cell`** — спецификация DSL CODEMANIFEST.
-- **`goga-tool-pybuggy-api-cookbook`** — принципы тест-клеток.
-- **`goga-cell-python`** — языковые правила (naming, location).
-- **`goga-tool-pybuggy-api-usage`** — рантайм pybuggy (api, asserts).
+- **`goga-cell`** — the CODEMANIFEST DSL specification.
+- **`goga-tool-pybuggy-api-cookbook`** — test-cell principles.
+- **`goga-cell-python`** — language rules (naming, location).
+- **`goga-tool-pybuggy-api-usage`** — the pybuggy runtime (api, asserts).
 
 ## Pipeline
 
-Исполняй задачи строго в порядке секции «Порядок исполнения» плана. Для каждой задачи вызови исполнителя по классу:
+Execute tasks strictly in the order defined by the plan's "Execution Order" section. For each task, invoke the
+class-specific executor:
 
-| Класс задачи  | Скилл                                     |
+| Task class    | Skill                                     |
 |---------------|-------------------------------------------|
 | `environment` | `goga-tool-pybuggy-api-fix-execute-env`   |
 | `spec-drift`  | `goga-tool-pybuggy-api-fix-execute-drift` |
@@ -36,34 +37,36 @@ description: Исполнение плана исправлений — зада
 | `test-defect` | `goga-tool-pybuggy-api-fix-execute-test`  |
 | `service-bug` | `goga-tool-pybuggy-api-fix-execute-bug`   |
 
-Правила цикла:
+Loop rules:
 
-- каждая задача завершается своей проверкой из плана; исполнитель возвращает статус `done` (проверка пройдена) или
+- every task ends with its check from the plan; the executor returns status `done` (check passed) or
   `failed`;
-- бюджет попыток — 3 на задачу, для любого класса. Попытка = один вызов исполнителя (действия + проверка); исполнитель
-  делает ровно одну попытку за вызов и не повторяет действия или проверку внутри себя;
-- `failed` и попытка не последняя — вызови исполнителя той же задачи повторно, передав номер попытки, причину провала
-  предыдущей и что уже сделано: следующая попытка корректирует действия, а не повторяет их вслепую;
-- `failed` после 3-й попытки — задача закрыта как `failed` окончательно: повторные вызовы этой задачи запрещены;
-  зафиксируй исчерпание попыток и продолжай остальные задачи;
-- после последней задачи вызови `goga-tool-pybuggy-api-fix-execute-final` — финальный прогон и отчёт
+- the attempt budget is 3 per task, for every class. One attempt = one executor call (actions + check); the executor
+  performs exactly one attempt per call and never repeats actions or the check internally;
+- on `failed` with attempts remaining, re-invoke the same task's executor, passing the attempt number, the previous
+  failure reason, and the work already done: the next attempt must correct the actions, not repeat them blindly;
+- on `failed` after the 3rd attempt, close the task as permanently `failed`: further calls of this task are
+  forbidden; record the attempt exhaustion and continue with the remaining tasks;
+- after the last task, invoke `goga-tool-pybuggy-api-fix-execute-final` — the final run and the report
   `docs/fix/<topic>-execute.md`;
-- STOP: pytest/SUT не стартует вовсе и задача `environment` исчерпала 3 попытки — проверки остальных задач недостоверны,
-  зафиксируй остановку для review-стадии.
+- STOP: pytest/SUT fails to start at all and the `environment` task has exhausted its 3 attempts — the checks of the
+  remaining tasks are unreliable; record the stop for the review stage.
 
-## Правило вывода
+## Output Rule
 
-Каждый саб-скилл заполняет все секции своего формата вывода. Пустая секция = незавершённый саб-скилл = STOP пайплайна.
+Every sub-skill must fill in every section of its output format. An empty section = an incomplete sub-skill = a pipeline
+STOP.
 
-## Инварианты правок
+## Edit Invariants
 
 ### ALWAYS
 
-- исполняй только действия из задач утверждённого плана
-- версия топика (ветвь спеки ref + окружение base URL) — из `docs/fix/<topic>-collect.md`; pull с
-  `--ref <ref>` при фича-ref, проверки pytest с `--base-url <url>` при нестандартном окружении
-- максимум 3 попытки на задачу: после третьей неудачной задача закрыта как `failed`, повторы запрещены
-- валидное тело запроса — модель `Request(...)`; raw `dict` — только негатив
-- тело теста линейно; без `pytest.skip`/skip-маркеров/`xfail`
-- регенерация артефактов не трогает CODEMANIFEST; правка CODEMANIFEST не удаляет существующие Routine
-- фиксируй изменённые файлы по каждой задаче
+- execute only the actions defined by the approved plan's tasks
+- take the topic version (spec branch ref + environment base URL) from `docs/fix/<topic>-collect.md`; pull with
+  `--ref <ref>` for a feature ref; run pytest checks with `--base-url <url>` for a non-standard environment
+- allow at most 3 attempts per task: after the third failed attempt the task is closed as `failed` and repeats are
+  forbidden
+- build valid request bodies with the `Request(...)` model; use a raw `dict` for negative cases only
+- keep the test body linear; no `pytest.skip`/skip markers/`xfail`
+- artifact regeneration must not touch the CODEMANIFEST; a CODEMANIFEST edit must not delete existing Routines
+- record the changed files for every task
