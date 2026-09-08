@@ -19,7 +19,7 @@ You own the final acceptance report: you synthesize the results of all pipeline 
 ### Step 2. Determine the verdict
 
 - **ACCEPTED** — all tests pass (passed/fixed); consistency findings are absent, or all of them are resolved.
-- **ACCEPTED_WITH_NOTES** — bug records exist in `docs/bugs/<topic>.md` (the tests are correct; the defects sit on the service side) and/or the user accepted Medium findings as is.
+- **ACCEPTED_WITH_NOTES** — bug records exist in `goga history path -f bugs.md` (the tests are correct; the defects sit on the service side) and/or the user accepted Medium findings as is.
 - **PARTIAL** — unresolved tests or Critical findings remain as is: part of the scope is confirmed, and the rest must return to the pipelines (cells/apply/testcases).
 - **REJECTED** — the tests did not run (environment failure), or case-to-test traceability is structurally broken (test files are not materialized).
 
@@ -55,7 +55,7 @@ Fill in every section. Empty sections are forbidden.
 [Table: Item | Handed to (testcases/cells/apply/service owner) | Reason. Empty if none]
 
 ## Applied Changes
-[Full list of files changed during acceptance: test_*.py, docs/bugs/<topic>.md]
+[Full list of files changed during acceptance: test_*.py, `goga history path -f bugs.md`]
 
 ## Risks
 [Table: Risk | Severity | Mitigation. Empty if none]

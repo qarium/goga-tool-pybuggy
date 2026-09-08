@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements
-description: Requirements elicitation pipeline for topic integration testing — the orchestrator derives detailed requirements from the topic description and the service spec, generates fixtures, and stores the artifact at docs/requirements/<topic>.md
+description: Requirements elicitation pipeline for topic integration testing — the orchestrator derives detailed requirements from the topic description and the service spec, generates fixtures, and stores the artifact at the path printed by `goga history path -f requirements.md`
 ---
 
 ## Identity
@@ -9,18 +9,22 @@ You are the orchestrator of requirements elicitation for integration testing of 
 
 ## Mission
 
-Produce the artifact "Detailed requirements for a topic" and store it at `docs/requirements/<topic>.md`. The artifact specifies: the exact testing scope, the endpoints involved, the topic behavior (core behavior and error-path behavior as a contract), and the business preconditions, roles, and constraints.
+Produce the artifact "Detailed requirements for a topic" and store it at the path printed by `goga history path -f requirements.md`. The artifact specifies: the exact testing scope, the endpoints involved, the topic behavior (core behavior and error-path behavior as a contract), and the business preconditions, roles, and constraints.
 
 ## Artifact Path Resolution
 
-The pipeline artifact is `docs/requirements/<topic>.md` (create the `docs/requirements/` directory if it is missing).
+The pipeline artifact is `requirements.md` of the current topic in the history tree — the path printed by
+`goga history path -f requirements.md` (run `goga history ensure` first if the topic directory
+does not exist; a re-run overwrites the file). When `$ARGUMENTS` names a topic other than the current one,
+append it to the history commands: `goga history path -f requirements.md <topic>`.
 You determine `<topic>` before running the pipeline steps and keep this resolution for the entire session:
 
 1. **`$ARGUMENTS` contains a topic name** — use it as `<topic>` (format: slug, e.g. `clients`).
-2. **`$ARGUMENTS` is empty** — stop the pipeline and ask the user for the topic name via AskUserQuestion (options:
+2. **`$ARGUMENTS` is empty** — use the current topic of the history tree (`goga history path`); if it is not
+   determinable — stop the pipeline and ask the user for the topic name via AskUserQuestion (options:
    slugs built from the topic description wording); do not run any pipeline step until `<topic>` is determined.
 
-Pass the determined path `docs/requirements/<topic>.md` to the sub-skills at the Report step.
+Pass the resolved path `goga history path -f requirements.md` to the sub-skills at the Report step.
 
 ## Pipeline
 
@@ -53,7 +57,7 @@ Execute the steps strictly sequentially — exactly one step at a time. Validate
 
 - Invoke: `goga-tool-pybuggy-api-automate-requirements-report`
 - Reads: [INTAKE_REPORT], [DISCOVERY_REPORT], [ELABORATION_REPORT]
-- Output: [TOPIC_SPEC] — stored at `docs/requirements/<topic>.md`
+- Output: [TOPIC_SPEC] — stored at the path printed by `goga history path -f requirements.md`
 
 ## Output Rule
 
@@ -80,5 +84,5 @@ An empty section = an incomplete sub-skill = pipeline STOP.
 - record the topic version context (spec ref + target environment with its base URL) in the
   requirements artifact — downstream pipelines and every recorded test run command
   (`pytest ... --base-url <url>`) rely on it
-- store the final requirements artifact at `docs/requirements/<topic>.md` (the path from Artifact Path Resolution)
+- store the final requirements artifact at the path printed by `goga history path -f requirements.md` (the path from Artifact Path Resolution)
 - ask the user open questions with answer options

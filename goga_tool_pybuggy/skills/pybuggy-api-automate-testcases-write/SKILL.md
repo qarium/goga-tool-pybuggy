@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-write
-description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to docs/testcases/<topic>.md
+description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to the path printed by `goga history path -f testcases.md`
 ---
 
 ## Identity
@@ -89,9 +89,9 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
    [TESTCASES_INTAKE]; the cases column lists every case that names this REQ, with its type; status
    "covered" / "not covered" / "excluded (by user decision)" (decisions — from "Requirements coverage
    decisions" in [TESTCASES_PLAN]).
-4. Save the result to `docs/testcases/<topic>.md` (the pipeline orchestrator passes the path via
-   Artifact Path Resolution; create the `docs/testcases/` directory if absent). After any edit to the
-   cases, recompute the matrix and the counter.
+4. Save the result to the path printed by `goga history path -f testcases.md` (the pipeline orchestrator passes the path via
+   Artifact Path Resolution; run `goga history ensure` first if the topic directory does not exist).
+   After any edit to the cases, recompute the matrix and the counter.
 
 ### Step 5. Produce [TOPIC_TESTCASES]
 
@@ -111,7 +111,7 @@ Fill in every section. Empty sections are forbidden.
 
 ## File path
 
-[docs/testcases/<topic>.md — confirmation of saving]
+[`goga history path -f testcases.md` — confirmation of saving]
 
 ## Summary
 

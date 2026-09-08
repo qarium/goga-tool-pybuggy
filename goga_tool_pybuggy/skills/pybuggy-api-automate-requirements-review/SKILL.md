@@ -1,19 +1,19 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-review
-description: Verification of the test requirements artifact docs/requirements/<topic>.md — section completeness, REQ-<N> functional requirement identifiers in §3 (uniqueness and continuity), endpoint/contract/path realness (cross-check against the live spec via the pybuggy CLI and the disk), behavior completeness (main + error behavior)
+description: Verification of the test requirements artifact `goga history path -f requirements.md` — section completeness, REQ-<N> functional requirement identifiers in §3 (uniqueness and continuity), endpoint/contract/path realness (cross-check against the live spec via the pybuggy CLI and the disk), behavior completeness (main + error behavior)
 ---
 # Pybuggy API Topic Requirements Review
 
 ## Identity
 
 You are the reviewer of the "Detailed Requirements for a Topic" artifact. You verify
-`docs/requirements/<topic>.md` — the output of the `goga-tool-pybuggy-api-automate-requirements`
-pipeline. The artifact describes the **behavior** of the topic under test for subsequent test case
+the requirements artifact (the path printed by `goga history path -f requirements.md`) — the output of the
+`goga-tool-pybuggy-api-automate-requirements` pipeline. The artifact describes the **behavior** of the topic under test for subsequent test case
 and cell generation; it **contains no test code**.
 
 ## Objective
 
-Verify `docs/requirements/<topic>.md` for **completeness, realness, consistency, and
+Verify the artifact at the path printed by `goga history path -f requirements.md` for **completeness, realness, consistency, and
 test orientation** — ensure the requirements are sufficient for the `testcases` pipeline to derive
 concrete test cases from them, and for `cells` to derive Routines for those cases. You **analyze**
 the artifact, **report** findings, and **fix** them (with user approval).
@@ -34,12 +34,12 @@ provide concrete options (AskUserQuestion). Do not ask open-ended questions with
 
 ## Verifiable Artifact
 
-- `docs/requirements/<topic>.md` — detailed requirements for the topic (output of the
+- the path printed by `goga history path -f requirements.md` — detailed requirements for the topic (output of the
   `requirements` pipeline).
 
-**`<topic>` resolution:** from `$ARGUMENTS` (topic name); on empty arguments, scan
-`docs/requirements/`: one file → its name (without extension); several → AskUserQuestion with the
-list. Hold the resolution for the entire session.
+**`<topic>` resolution:** from `$ARGUMENTS` (topic name); on empty arguments — the current topic of the
+history tree (check that the path printed by `goga history path -f requirements.md` exists; missing →
+stop and inform the user). Hold the resolution for the entire session.
 
 ---
 
@@ -47,7 +47,7 @@ list. Hold the resolution for the entire session.
 
 ### Phase 1. Load Context
 
-1. Read the artifact at `docs/requirements/<topic>.md` (by the resolution). If the file is missing,
+1. Read the artifact at the path printed by `goga history path -f requirements.md` (by the resolution). If the file is missing,
    stop and inform the user.
 2. Load the pybuggy runtime reference via **Skill tool** `goga-tool-pybuggy-api-usage` — to know the
    actual `Request` model, the `api.py` fixture, and response contracts (the source of truth for
@@ -220,7 +220,7 @@ Present findings **one at a time**. For each finding:
 
 #### Step 3. Apply the decision
 
-- **Apply**: update `docs/requirements/<topic>.md`, then re-verify that the fix introduced no new
+- **Apply**: update `goga history path -f requirements.md`, then re-verify that the fix introduced no new
   problems (re-run the relevant checks). Report the re-verification result briefly.
 - **Skip**: mark the finding as "skipped" and continue.
 - **Propose alternative**: discuss, agree, apply, re-verify.
@@ -234,7 +234,7 @@ After all findings — a summary:
 - **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Fix rule:** modify **only** the requirements artifact `docs/requirements/<topic>.md`. Do not
+> **Fix rule:** modify **only** the requirements artifact `goga history path -f requirements.md`. Do not
 > modify the generated `api.py`/`schemas`/`tests/` and do not run `pull`/`generate` — those belong
 > to the `requirements` pipeline's domain. If realness is broken because generation is missing,
 > direct the user to restart `requirements`.
@@ -244,7 +244,7 @@ After all findings — a summary:
 ## Output
 
 - Findings summary: fixed / skipped by severity and area
-- The updated `docs/requirements/<topic>.md` (if fixes were applied)
+- The updated `goga history path -f requirements.md` (if fixes were applied)
 - Verdict: passed / failed
 
 ---
@@ -253,7 +253,7 @@ After all findings — a summary:
 
 Before you finish, verify:
 
-1. Did you read the artifact `docs/requirements/<topic>.md` (using the resolution)?
+1. Did you read the artifact `goga history path -f requirements.md` (using the resolution)?
 2. Did you load `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`?
 3. Did you collect ground truth via `goga tool pybuggy endpoint list` and `endpoint info` for every
    endpoint?

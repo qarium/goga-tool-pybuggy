@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-accept-run
-description: Run the topic's test suite and triage each failure jointly with the user — apply an on-the-spot test fix or file a bug record in docs/bugs/<topic>.md with a detailed description and the test case
+description: Run the topic's test suite and triage each failure jointly with the user — apply an on-the-spot test fix or file a bug record in `goga history path -f bugs.md` with a detailed description and the test case
 ---
 # Pybuggy API Topic Accept — Run
 
@@ -14,7 +14,7 @@ the test case in front of you are arguments; the decision belongs to the human.
 ## Core Principle
 
 **Run** the tests with the command from [ACCEPT_SCOPE], **triage** every failure with the user, and
-**record** the result: a test fix (upon approval) or a bug record in `docs/bugs/<topic>.md`. Keep failures
+**record** the result: a test fix (upon approval) or a bug record in `goga history path -f bugs.md`. Keep failures
 visible — never apply skips or `xfail`, regardless of the triage outcome.
 
 ## Algorithm
@@ -23,7 +23,7 @@ visible — never apply skips or `xfail`, regardless of the triage outcome.
 
 1. [ACCEPT_SCOPE] — run command, run directory, TC → Routine → test trace.
 2. [ACCEPT_CONSISTENCY] — applied fixes and outstanding findings.
-3. `docs/testcases/<topic>.md` — test cases for matching failures.
+3. the path printed by `goga history path -f testcases.md` — test cases for matching failures.
 
 ### Step 2. Run
 
@@ -43,8 +43,8 @@ Assign each test an outcome:
 
 ### Step 4. Failure triage (WAIT — every failed test)
 
-Process every FAILED/ERROR test, one test per message. Assemble a dossier: the test, the test case (from `docs/testcases`),
-the actual result (assert/traceback), the test case's expectation, the Routine annotation.
+Process every FAILED/ERROR test, one test per message. Assemble a dossier: the test, the test case (from the
+topic's `testcases.md`), the actual result (assert/traceback), the test case's expectation, the Routine annotation.
 
 Dossier analysis (arguments for the user, not a decision on their behalf):
 
@@ -62,7 +62,7 @@ AskUserQuestion (2–4 options):
 - **header**: "Failure triage"
 - **options**:
   - **label**: "Test fix", **description**: "Defect in the test — fix test_*.py here and rerun"
-  - **label**: "Service bug", **description**: "The test is correct — file a record in docs/bugs/<topic>.md"
+  - **label**: "Service bug", **description**: "The test is correct — file a record in `goga history path -f bugs.md`"
   - **label**: "Return to the test cases", **description**: "The test case is ambiguous — re-clarify it via the testcases pipeline"
 
 ### Step 5. Execute the triage decision
@@ -74,7 +74,7 @@ AskUserQuestion (2–4 options):
 3. Cap fix iterations at two per test; beyond that, mark the test unresolved (into the report; the verdict drops).
 
 **Service bug** — after all failures are triaged, group the service-bug ones by cause and file them in
-`docs/bugs/<topic>.md` (create the directory/file if missing; keep existing entries, append new ones).
+`goga history path -f bugs.md` (create the directory/file if missing; keep existing entries, append new ones).
 **One record addresses one problem, not one test**: all tests failed due to the same cause land in one
 record's failing-tests table; different causes — different records. A record for the same cause already
 in the file (from an earlier run) gets the new tests appended to its table instead of a duplicate.

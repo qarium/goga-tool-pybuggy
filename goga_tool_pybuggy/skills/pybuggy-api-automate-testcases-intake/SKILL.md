@@ -19,7 +19,7 @@ preconditions, and roles. Route every gap to "To clarify".
 
 ### Step 1. Preliminary check (PRELIMINARY CHECK)
 
-1. Read the file `docs/requirements/<topic>.md` (the path is passed by the pipeline orchestrator via
+1. Read the file `goga history path -f requirements.md` (the path is passed by the pipeline orchestrator via
    Artifact Path Resolution).
 2. If the file is missing or empty — report that the `pybuggy-api-automate-requirements` pipeline must
    run first, and **STOP**.
@@ -28,7 +28,7 @@ preconditions, and roles. Route every gap to "To clarify".
 
 ### Step 2. Parse the requirements (TOPIC_SPEC)
 
-Parse the sections of the requirements artifact `docs/requirements/<topic>.md` (the `TOPIC_SPEC`
+Parse the sections of the requirements artifact `goga history path -f requirements.md` (the `TOPIC_SPEC`
 format from the requirements pipeline) and extract:
 
 1. **Topic endpoints** — for each one: `endpoint-id`, `spec`, `method`, `path`, role in the topic.
@@ -63,7 +63,7 @@ described, etc.) into a list for clarification at the discovery stage.
 
 STOP if:
 
-- `docs/requirements/<topic>.md` is missing or empty;
+- the path printed by `goga history path -f requirements.md` is missing or empty;
 - the requirements contain no topic endpoint and no information to determine one.
 
 ---
@@ -77,7 +77,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Requirements source
 
-[Topic name `<topic>` + the path to the file `docs/requirements/<topic>.md` + confirmation that the requirements are loaded]
+[Topic name `<topic>` + the path to the file `goga history path -f requirements.md` + confirmation that the requirements are loaded]
 
 ## Declared topic endpoints
 

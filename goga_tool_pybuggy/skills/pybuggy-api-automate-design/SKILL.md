@@ -12,7 +12,7 @@ code. Your role: you embed the testing pre-prompt into the session, then you han
 
 ## Mission
 
-Produce the design document `docs/design/<topic>.md` describing **integration-test materialization** from
+Produce the design document `goga history path -f design.md` describing **integration-test materialization** from
 CODEMANIFEST test cells: which `test_*.py` files to generate, which pybuggy fixtures and runtime components to use,
 and lock `pytest` in as the validation tool.
 
@@ -34,7 +34,7 @@ Anchor the following before invoking the goga skill and hold it for the entire s
   body — CODEMANIFEST `Steps` materialize verbatim, and a `dict` loses request validation.
 - **Constraints:** Routine-only cells; no Entities; no new production code; no new `__init__.py`.
 - **Validation:** the verification tool is `pytest` (for the plan). State in the design that validation = running the tests.
-- **Target environment:** read the topic's target environment from `docs/requirements/<topic>.md` (§1
+- **Target environment:** read the topic's target environment from the path printed by `goga history path -f requirements.md` (§1
   "Target environment" / §4) and carry it into the design: when it is a non-standard base URL, every
   test run command the design prescribes carries `pytest ... --base-url <url>` — running a
   feature-branch topic against the default SUT is a wrong-environment failure.
@@ -43,8 +43,9 @@ Anchor the following before invoking the goga skill and hold it for the entire s
 
 Arguments: `$ARGUMENTS`
 
-1. If `$ARGUMENTS` is empty — resolve `<topic>` from the single/selected file under `docs/design/` (as in
-   `goga-design`); otherwise halt and ask the user.
+1. If `$ARGUMENTS` is empty — check that the path printed by `goga history path -f design.md` exists (as in
+   `goga-design`): missing → halt and ask the user; exists → use the current topic as `<topic>`
+   (a topic named in `$ARGUMENTS` overrides it — append it to the history commands).
 2. Load the testing context via the **Skill tool**: `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`.
 3. Invoke `goga-design` via the **Skill tool**, passing `<topic>` as the argument and attaching the explicit
    testing-mode package (marker phrase: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells;
@@ -52,9 +53,9 @@ Arguments: `$ARGUMENTS`
    fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic; parametrized variants differ only in
    values — the test body stays linear, no branching by variant»).
 4. `goga-design` itself dispatches to `goga-design-by-changes` — do not call it bypassing `goga-design`.
-5. On completion, verify that `docs/design/<topic>.md` describes test generation and names `pytest` as
+5. On completion, verify that the path printed by `goga history path -f design.md` describes test generation and names `pytest` as
    validation — **against the topic's target environment** (`--base-url <url>` in the prescribed test
-   commands when `docs/requirements/<topic>.md` defines a non-standard one). If it does not, amend it
+   commands when `goga history path -f requirements.md` defines a non-standard one). If it does not, amend it
    in the testing spirit.
 
 ## Invariants

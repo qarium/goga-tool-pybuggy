@@ -14,26 +14,26 @@ You are the scope executor. You define the acceptance scope of the topic: you en
 
 For `<topic>` (resolved by the orchestrator), verify existence and load:
 
-1. `docs/testcases/<topic>.md` — test cases (TC-<N>) and the REQ→TC coverage matrix.
-2. `docs/arch/<topic>.md` — the cells plan (context: expected cells/Routines composition).
+1. the path printed by `goga history path -f testcases.md` — test cases (TC-<N>) and the REQ→TC coverage matrix.
+2. the path printed by `goga history path -f arch.md` — the cells plan (context: expected cells/Routines composition).
 3. `tests/<spec>/<id>/CODEMANIFEST` — all topic cells. Source of truth for the cells composition: the CODEMANIFEST on disk (actual state); the arch plan serves as the expectation for the cross-check.
 4. Generated `test_<name>.py` files — by each Routine's `location`.
 5. `conftest.py` in the root — verify presence (`.env` loading + pybuggy plugin).
 6. Usage files: base `.goga/usages/cooks/pybuggy/` + cell-specific `.goga/usages/cooks/<key>.md` (keys from each cell's Header Usages).
-7. `docs/bugs/<topic>.md` — check for an existing bugs file (target for appending records).
+7. the path printed by `goga history path -f bugs.md` — check for an existing bugs file (target for appending records).
 
 ### Step 2. Extract Routines and build the trace
 
 From each cell's CODEMANIFEST:
 
 1. Routine names `test_<name>` and their `location: test_<name>.py`.
-2. Map them to the test cases in `docs/testcases/<topic>.md`: a case is covered either directly by a Routine or by a parameterization variant of a Routine (variants derive from the `Data:`/`Steps:` annotations). A single Routine may cover multiple cases (parameterization).
+2. Map them to the test cases in `goga history path -f testcases.md`: a case is covered either directly by a Routine or by a parameterization variant of a Routine (variants derive from the `Data:`/`Steps:` annotations). A single Routine may cover multiple cases (parameterization).
 3. Mark merged-cells Routines: these are Routines added to an existing cell on top of previous topics (distinguish them by the arch plan/date when possible) — the acceptance scope of this topic includes only the Routines from the current arch plan.
 
 ### Step 3. Determine the run command
 
 1. Base command: `pytest <paths> -q`, where `<paths>` are the topic's cell directories (`tests/<spec>/` or `tests/<spec>/<id>/` per cell).
-2. Target environment: read it from `docs/requirements/<topic>.md` (§1 "Target environment" / §4). When a
+2. Target environment: read it from the path printed by `goga history path -f requirements.md` (§1 "Target environment" / §4). When a
    non-standard base URL is recorded — append `--base-url <url>` to the command (the topic's SUT is that
    environment; the standard `.env`/`BASE_URL` value would target the wrong service). Standard
    environment — no flag. Record the resolved environment in the report.
@@ -69,12 +69,12 @@ Fill in every section. Empty sections are prohibited.
 [Table: TC-<N> | Routine test_<name> | tests/<spec>/<id>/test_<name>.py | Status (materialized / not)]
 
 ## Uncovered testcases
-[Cases without a Routine — from the docs/testcases coverage matrix. Empty if none]
+[Cases without a Routine — from the `testcases.md` coverage matrix. Empty if none]
 
 ## Run command
 [The pytest command (with `--base-url <url>` when the requirements define a non-standard target
 environment) and the run directory (the root containing conftest.py)]
 
 ## Environment notes
-[conftest.py found/missing; existing docs/bugs/<topic>.md; other observations]
+[conftest.py found/missing; existing `goga history path -f bugs.md`; other observations]
 ```

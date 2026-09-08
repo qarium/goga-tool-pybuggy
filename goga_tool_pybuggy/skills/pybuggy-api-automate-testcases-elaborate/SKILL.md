@@ -101,7 +101,7 @@ effects with no observable check in the response. Empty if none.]
 
 ## Topic traces
 
-[Approved traces — copied verbatim into `docs/testcases/<topic>.md`:]
+[Approved traces — copied verbatim into the path printed by `goga history path -f testcases.md`:]
 
 ### TRACE-<N>: <title>
 

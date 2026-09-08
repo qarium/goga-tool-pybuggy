@@ -1,20 +1,20 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-review
-description: Verification of test cases in docs/testcases/<topic>.md — traceability to requirements (the requirements field, the REQ coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
+description: Verification of test cases in `goga history path -f testcases.md` — traceability to requirements (the requirements field, the REQ coverage matrix), data realness (the Request model, schemas), Flow/Positive/Negative coverage, case quality (severity, concrete data, thorough checks, no code)
 ---
 # Pybuggy API Topic Testcases Review
 
 ## Identity
 
 You are the reviewer. Your review target is the artifact "Detailed test cases for a topic":
-`docs/testcases/<topic>.md`, produced by the pipeline
+the path printed by `goga history path -f testcases.md`, produced by the pipeline
 `goga-tool-pybuggy-api-automate-testcases`. The artifact contains concrete, automation-ready
 integration cases of three types — Flow, Positive, Negative — **without test code**: only
 behavior descriptions and expected outcomes.
 
 ## Objective
 
-You verify `docs/testcases/<topic>.md` for five properties: **completeness, traceability,
+You verify the artifact at the path printed by `goga history path -f testcases.md` for five properties: **completeness, traceability,
 realness, coverage, and case quality**. Your success criterion: there are enough cases, and each
 case is specific enough, for the `cells` pipeline to build a separate `Routine` from it. You
 perform three actions in sequence: you **analyze** the artifact, you **report** findings, and you
@@ -25,7 +25,7 @@ perform three actions in sequence: you **analyze** the artifact, you **report** 
 **A case describes what is checked, not how.** Every case must be unambiguously automatable:
 data comes from the real `Request` model, expectations come from real `schemas`, checks are
 thorough (not a single status code). Everything traces back to the requirements
-(`docs/requirements/<topic>.md` — the declared behavior, error contracts, business
+(`goga history path -f requirements.md` — the declared behavior, error contracts, business
 preconditions) and to real requirements artifacts — no guesswork. Any case that cannot be turned
 into a `Routine` without guesswork is a finding.
 
@@ -39,13 +39,13 @@ choices.
 
 ## Verifiable Artifact
 
-- `docs/testcases/<topic>.md` — detailed test cases (the output of the `testcases` pipeline).
-- **Upstream artifact** for traceability: `docs/requirements/<topic>.md` (the same topic).
+- the path printed by `goga history path -f testcases.md` — detailed test cases (the output of the `testcases` pipeline).
+- **Upstream artifact** for traceability: `goga history path -f requirements.md` (the same topic).
 
-**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty —
-scan `docs/testcases/`: one file → its name (without extension); several → AskUserQuestion with
-the list. Use a single `<topic>` name for both the artifact under review and the upstream
-requirements. Hold the resolution for the entire session.
+**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty — the current
+topic of the history tree (check that the path printed by `goga history path -f testcases.md` exists;
+missing → stop and inform the user). Use a single `<topic>` name for both the artifact under review and
+the upstream requirements. Hold the resolution for the entire session.
 
 ---
 
@@ -53,9 +53,9 @@ requirements. Hold the resolution for the entire session.
 
 ### Phase 1. Load Context
 
-1. Read `docs/testcases/<topic>.md` (by the resolution). If the file is missing — stop and
+1. Read the artifact from the path printed by `goga history path -f testcases.md` (by the resolution). If the file is missing — stop and
    report to the user.
-2. Read the upstream artifact `docs/requirements/<topic>.md` — the source of truth for
+2. Read the upstream artifact at the path printed by `goga history path -f requirements.md` — the source of truth for
    traceability (endpoints, scenarios, contracts, acceptance criteria). If it is
    missing — record a **Critical** finding (the testcases were built without a valid input).
    From §3 of the upstream, parse the `REQ-<N>` registry (identifier + wording + subsection).
@@ -120,7 +120,7 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
    taken into account (either not tested as functionality, or covered by negative cases at the
    boundaries). A contradiction — **Medium**.
 5. **Tools (usage keys)** — every usage key mentioned in the case Preconditions exists: either
-   in §8 of `docs/requirements/<topic>.md` (the registry of available usages), or as a
+   in §8 of `goga history path -f requirements.md` (the registry of available usages), or as a
    created file `.goga/usages/cooks/<key>.md` (the `tools` step of the pipeline). A key with no
    file on disk and no §8 entry — **High** (a dangling reference: `cells-contracts` will wire
    it into the Header, and the backtick will not resolve). The reverse — a case with data setup
@@ -263,7 +263,7 @@ Present the findings **one at a time**. For each:
 
 #### Step 3. Apply the decision
 
-- **Apply**: update `docs/testcases/<topic>.md`, then re-verify that the fix introduced no
+- **Apply**: update `goga history path -f testcases.md`, then re-verify that the fix introduced no
   new problems (re-run the relevant checks, including recalculating `Total number` and the
   coverage matrix). Briefly report the result.
 - **Skip**: mark as "skipped" and continue.
@@ -278,8 +278,8 @@ After all findings — the summary:
 - **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Fix scope rule:** fix **only** `docs/testcases/<topic>.md`. Do not edit
-> `docs/requirements/<topic>.md` (it is upstream — `requirements-review` checks it), do not
+> **Fix scope rule:** fix **only** `goga history path -f testcases.md`. Do not edit
+> `goga history path -f requirements.md` (it is upstream — `requirements-review` checks it), do not
 > touch `api.py`/`schemas`/`tests/`, and do not run `pull`/`generate`. If the realness is
 > broken because model data is missing — direct the user to rerun `testcases`. If an uncovered
 > REQ stems from a gap in the requirements — direct the user to `requirements` (the matrix
@@ -290,7 +290,7 @@ After all findings — the summary:
 ## Output
 
 - Findings summary: fixed / skipped by severity and area
-- The updated `docs/testcases/<topic>.md` (if fixes were applied)
+- The updated `goga history path -f testcases.md` (if fixes were applied)
 - Verdict: passed / failed
 
 ---
@@ -299,8 +299,8 @@ After all findings — the summary:
 
 Before finishing, verify:
 
-1. Have you read `docs/testcases/<topic>.md` (by the resolution) and the upstream
-   `docs/requirements/<topic>.md`?
+1. Have you read the artifact at the path printed by `goga history path -f testcases.md` (by the resolution) and the upstream
+   `goga history path -f requirements.md`?
 2. Have `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook` been loaded?
 3. Have the contracts been obtained from `api.py` (the `Request` model) and
    `schemas/<status>.json`?

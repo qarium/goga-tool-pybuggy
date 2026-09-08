@@ -39,6 +39,3 @@ description: "Pybuggy API-test fix lifecycle"
   communication: true
   prompt: |
     Commit all added and modified files.
-
-    Constraints:
-    - Except changes in `docs/<defines|proposals|tasks|arch|design|plans>`.

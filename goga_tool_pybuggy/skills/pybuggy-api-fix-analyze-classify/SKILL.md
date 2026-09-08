@@ -15,7 +15,7 @@ For every failed test, you determine the root cause of the failure and assign it
 | Class         | Symptom                                                                                        | Plan direction                                               |
 |---------------|------------------------------------------------------------------------------------------------|--------------------------------------------------------------|
 | `spec-drift`  | the spec has changed: `endpoint diff` is non-empty                                             | regenerate the artifacts + update the Routine and the tests   |
-| `service-bug` | diff is empty; the Routine and the test comply with the contract; the service deviates from the spec | file a bug record in `docs/bugs/<topic>.md`                |
+| `service-bug` | diff is empty; the Routine and the test comply with the contract; the service deviates from the spec | file a bug record in `goga history path -f bugs.md`                |
 | `test-defect` | the test distorts the Routine: data, assert, import, materialization                           | fix `test_*.py`                                              |
 | `case-defect` | the Routine (annotation) contradicts the spec/schemas                                          | update the Routine in the CODEMANIFEST                       |
 | `environment` | SUT/env/network/tools                                                                          | restore the environment/dependencies                         |

@@ -6,7 +6,7 @@ site_description: >-
 site_url: https://qarium.github.io/goga-tool-pybuggy/
 repo_url: https://github.com/qarium/goga-tool-pybuggy
 repo_name: qarium/goga-tool-pybuggy
-edit_uri: edit/1.0.x/docs/
+edit_uri: edit/1.1.x/docs/
 
 theme:
   name: material
@@ -48,18 +48,6 @@ markdown_extensions:
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.mark
-
-# Goga workflow artifacts that live under docs/ but are not user documentation.
-exclude_docs: |
-  requirements/*
-  testcases/*
-  arch/*
-  design/*
-  plans/*
-  tasks/*
-  bugs/*
-  fix/*
-  overrides/*
 
 strict: true
 

@@ -38,7 +38,7 @@ For every Routine of every cell:
 
 ### Step 3. Request body — Request model
 
-For every test according to its case (Flow/Positive/Negative from `docs/testcases/<topic>.md`):
+For every test according to its case (Flow/Positive/Negative from the path printed by `goga history path -f testcases.md`):
 
 1. A valid body (positive/flow) is materialized through the importable `Request` model from
    `api/<spec>/<id>/api.py` (`json=Request(...)`).
@@ -56,7 +56,7 @@ For every test according to its case (Flow/Positive/Negative from `docs/testcase
 3. The steps of the Routine's `Steps:` annotation are reflected in the test body (calls, checks); a skipped
    case step is a finding (Severity by impact: a lost contract check — High).
 4. The case checks (status, fields, structure, invariants) are present in the asserts — compare against
-   the expectations section of the case in `docs/testcases/<topic>.md`.
+   the expectations section of the case in `goga history path -f testcases.md`.
 
 ### Step 5. Usage references
 

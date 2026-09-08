@@ -16,7 +16,7 @@ evidence.
 ### Step 1. Read the collect report
 
 From the collect report, extract: the list of failed tests and skipped (SKIPPED) tests, the technical category of each,
-and the log path `docs/fix/<topic>-log.txt`. The full tracebacks are stored in that log file.
+and the log path `goga history path -f fix-log.txt`. The full tracebacks are stored in that log file.
 
 ### Step 2. Build a dossier for each failure
 
@@ -32,7 +32,7 @@ For each failed test, collect three dossier items:
 For each failed test, gather five evidence items in this order:
 
 1. **Drift evidence**: first align the local spec with the topic version. Source of the ref:
-   `docs/fix/<topic>-collect.md`, section "Topic version". Alignment rule: a feature ref is recorded → run
+   `goga history path -f fix-collect.md`, section "Topic version". Alignment rule: a feature ref is recorded → run
    `goga tool pybuggy endpoint pull --ref <ref>` (or `--ref <spec>:<ref>` for a per-spec ref); default branch → run
    `pull` without `--ref`; local spec → no pull. Then run `goga tool pybuggy endpoint diff <endpoint-id>` for every
    endpoint of the cell. Interpretation: an empty diff means the spec is in sync **within the topic's ref**.
@@ -67,7 +67,7 @@ Fill in every section. Empty sections are forbidden.
 
 ## Source
 
-[path to the collect report and the log `docs/fix/<topic>-log.txt`]
+[path to the collect report and the log `goga history path -f fix-log.txt`]
 
 ## Dossier and evidence
 

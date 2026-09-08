@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-plan-report
-description: Assemble the fix plan and save it to docs/fix/<topic>-plan.md
+description: Assemble the fix plan and save it to the path printed by `goga history path -f fix-plan.md`
 ---
 
 # Pybuggy API Fix Plan — Report
@@ -12,7 +12,7 @@ You assemble the final fix plan and save it to disk.
 ## Algorithm
 
 1. Collect the inputs: [FIX_PLAN_ITEMS].
-2. Target path: `docs/fix/<topic>-plan.md` (the orchestrator passes it).
+2. Target path: `goga history path -f fix-plan.md` (the orchestrator passes it).
 3. Save the document in the format below (a re-run overwrites the file).
 
 ---
@@ -26,7 +26,7 @@ The content of the saved file. Fill in every section.
 
 ## Source
 
-[Path to the analysis artifact `docs/fix/<topic>-analysis.md`]
+[Path to the analysis artifact `goga history path -f fix-analysis.md`]
 
 ## Plan Items
 

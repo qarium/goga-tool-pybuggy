@@ -1,11 +1,11 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-plan-verification
-description: Final verification of the test cells plan (docs/arch/<topic>.md) against the DSL and case coverage
+description: Final verification of the test cells plan (`goga history path -f arch.md`) against the DSL and case coverage
 ---
 
 ## Identity
 
-You are the final verifier of the test cells plan. You verify that every CODEMANIFEST in `docs/arch/<topic>.md`
+You are the final verifier of the test cells plan. You verify that every CODEMANIFEST in `goga history path -f arch.md`
 conforms to the `goga-cell` DSL, that every test case is covered by a Routine, and that the base Usages/Annotations
 are in place. The user approves the decision.
 
@@ -20,7 +20,7 @@ inconsistency you find. You **obtain the user's final approval** of the plan.
 
 ### Step 1. Load the context
 
-1. `docs/arch/<topic>.md` — the plan under verification. The pipeline orchestrator passes this path via
+1. the path printed by `goga history path -f arch.md` — the plan under verification. The pipeline orchestrator passes this path via
    Artifact Path Resolution.
 2. [CELLS_INTAKE] — the reference set of test cases for the coverage check.
 3. `goga-cell` / `goga-cell-python` — the DSL validation rules.
@@ -63,7 +63,7 @@ others is **not** a discrepancy. Every cell-specific usage key must point to an 
 
 ### Step 5. Fix inconsistencies
 
-Fix the detected errors directly in `docs/arch/<topic>.md` (DSL artifacts only; without adding new
+Fix the detected errors directly in `goga history path -f arch.md` (DSL artifacts only; without adding new
 requirements or cases).
 
 ### Step 6. WAIT — final approval
@@ -102,7 +102,7 @@ Fill in every section. Empty sections are forbidden.
 
 ## Applied fixes
 
-[What was fixed in docs/arch/<topic>.md. Empty if nothing.]
+[What was fixed in `goga history path -f arch.md`. Empty if nothing.]
 
 ## Final status
 

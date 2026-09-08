@@ -17,7 +17,7 @@ user.
 
 Input: the "Dossier and evidence" table (expected vs actual, diff, rerun) and the "Classification" table: test |
 class | rationale | user decision | plan direction. Dependency: the topic version (spec branch ref + environment
-base URL) — take it from `docs/fix/<topic>-collect.md` (the "Topic version" section); every task check is built
+base URL) — take it from the path printed by `goga history path -f fix-collect.md` (the "Topic version" section); every task check is built
 from it: `--ref <ref>` for pull, `--base-url <url>` for pytest when the environment is non-standard.
 
 ### Step 2. Group the failures into tasks
@@ -69,7 +69,7 @@ Output: the artifact [FIX_PLAN_ITEMS] (see "Output format").
 Steps within the task, in order:
 
 1. Artifacts: run `goga tool pybuggy endpoint pull` with the ref from the topic version
-   (`docs/fix/<topic>-collect.md`: feature ref → `--ref <ref>` / `--ref <spec>:<ref>`; default branch →
+   (`goga history path -f fix-collect.md`: feature ref → `--ref <ref>` / `--ref <spec>:<ref>`; default branch →
    no `--ref`; local → no pull);
    then `goga tool pybuggy endpoint generate <endpoint-id> [...] -f` to
    overwrite `api.py`, `schemas/*.json`, and the `tests/<spec>/<id>/` directories; existing CODEMANIFESTs are not
@@ -104,10 +104,10 @@ the topic version).
 
 ### `service-bug` — record a service bug
 
-- Actions: append a `BUG-<topic>-<N>` record (sequential numbering) to `docs/bugs/<topic>.md` using the template
+- Actions: append a `BUG-<topic>-<N>` record (sequential numbering) to the path printed by `goga history path -f bugs.md` using the template
   of the `goga-tool-pybuggy-api-fix-execute-bug` executor. The record addresses **the problem, not each test**:
   state concretely what the contract-vs-fact discrepancy is (one cause — one record) and list every test that
-  failed because of it; do not duplicate full tracebacks — they live in `docs/fix/<topic>-log.txt`.
+  failed because of it; do not duplicate full tracebacks — they live in `goga history path -f fix-log.txt`.
 - Check: the record is created (the problem stated + the list of failed tests); the tests stay red — an honest
   outcome.
 

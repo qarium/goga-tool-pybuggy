@@ -1,12 +1,12 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-review
-description: Verification of the test cells architecture plan docs/arch/<topic>.md — CODEMANIFESTs against the goga-cell DSL, Routines for cases (cell boundaries are a design decision; 1 case = 1 Routine is not required), no Entities, base Usages/Annotations, cell-specific tool usages, strict annotation structure, coverage (case TC-<N> covered directly or by a Routine variant), semantic sufficiency of annotations for test generation
+description: Verification of the test cells architecture plan `goga history path -f arch.md` — CODEMANIFESTs against the goga-cell DSL, Routines for cases (cell boundaries are a design decision; 1 case = 1 Routine is not required), no Entities, base Usages/Annotations, cell-specific tool usages, strict annotation structure, coverage (case TC-<N> covered directly or by a Routine variant), semantic sufficiency of annotations for test generation
 ---
 # Pybuggy API Topic Cells Review
 
 ## Identity
 
-You are the reviewer of the test cells architecture plan. You verify `docs/arch/<topic>.md` —
+You are the reviewer of the test cells architecture plan. You verify the artifact at the path printed by `goga history path -f arch.md` —
 the output of the `goga-tool-pybuggy-api-automate-cells` pipeline. The plan contains CODEMANIFEST DSL artifacts
 only: for each test cell — Header (base `Usages`/`Annotations`) + Body (`Routine` for
 test cases — one Routine may cover several cases) + Footer. Test cells are Routine-only leaves, so the
@@ -30,13 +30,13 @@ Find discrepancies, report them, fix them (with user approval).
 
 ## Verifiable Artifact
 
-- `docs/arch/<topic>.md` — the test cells architecture plan.
-- **Upstream** (for coverage and context): `docs/testcases/<topic>.md` (the reference set of
-  cases), `docs/requirements/<topic>.md` (topic context) — the same topic.
+- the path printed by `goga history path -f arch.md` — the test cells architecture plan.
+- **Upstream** (for coverage and context): `goga history path -f testcases.md` (the reference set of
+  cases), `goga history path -f requirements.md` (topic context) — the same topic.
 
-**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty — scan `docs/arch/`:
-one file → its name (without extension); several → AskUserQuestion with the list. One `<topic>` name for
-the plan and the upstream artifacts. Keep the resolution for the entire session.
+**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty — the current topic
+of the history tree (check that the path printed by `goga history path -f arch.md` exists; missing → stop and
+inform the user). One `<topic>` name for the plan and the upstream artifacts. Keep the resolution for the entire session.
 
 ---
 
@@ -44,9 +44,9 @@ the plan and the upstream artifacts. Keep the resolution for the entire session.
 
 ### Phase 1. Load Context
 
-1. Read `docs/arch/<topic>.md` (per the resolution). If it is missing — stop and report to the user.
-2. Read the upstream `docs/testcases/<topic>.md` (the reference case set for coverage) and
-   `docs/requirements/<topic>.md` (context). If `docs/testcases/<topic>.md` is missing — a **Critical**
+1. Read the artifact from the path printed by `goga history path -f arch.md` (per the resolution). If it is missing — stop and report to the user.
+2. Read the upstream `goga history path -f testcases.md` (the reference case set for coverage) and
+   `goga history path -f requirements.md` (context). If `goga history path -f testcases.md` is missing — a **Critical**
    finding (coverage has nothing to be checked against).
 3. Load the DSL specification and principles via the **Skill tool**:
    - `goga-cell` — CODEMANIFEST rules (structure, signatures, Usages/Annotations, types, constraints);
@@ -55,7 +55,7 @@ the plan and the upstream artifacts. Keep the resolution for the entire session.
    - `goga-cell-python` — language rules (`snake_case` naming, `location: test_<name>.py`);
    - `goga-codemanifest-base` — base `Usages`/`Annotations` from `.goga/config.yml` (the Header reference);
    - `goga-tool-pybuggy-api-usage` — the pybuggy reference (`Endpoint`, the `<method>_<id>` fixture).
-4. Build the reference case set from `docs/testcases/<topic>.md`: `TC-<N> | type | endpoint-id` — for
+4. Build the reference case set from the path printed by `goga history path -f testcases.md`: `TC-<N> | type | endpoint-id` — for
    coverage in Phase 5.
 
 > Validate the DSL manually per `goga-cell`. Use `goga lint`/`goga schema` only as an
@@ -136,7 +136,7 @@ For **every** Routine (per `goga-tool-pybuggy-api-cookbook`):
 
 ### Phase 5. Coverage and Traceability
 
-**Goal:** every case from `docs/testcases/<topic>.md` is reflected in the plan — covered directly or as a Routine
+**Goal:** every case from the path printed by `goga history path -f testcases.md` is reflected in the plan — covered directly or as a Routine
 variant/parameter; no lost cases and no dangling Routines.
 
 1. **The case is covered** — every case of the reference set (by `TC-<N>`) is reflected in the plan: directly
@@ -156,7 +156,7 @@ variant/parameter; no lost cases and no dangling Routines.
    points to an existing file `.goga/usages/cooks/<key>.md` (created at the `testcases` stage, the
    `tools` step; or present in the §8 registry). A key without a file on disk — **High** (the backtick will not
    resolve, `apply` will skip the cell). Conversely — every usage key mentioned in the cases' Preconditions
-   (`docs/testcases/<topic>.md`) is connected in at least one cell of that case. An unconnected key —
+   (`goga history path -f testcases.md`) is connected in at least one cell of that case. An unconnected key —
    **High** (the need was agreed on but lost during design). A key without a Precondition in the cases
    (a phantom) — **Medium**. If no tools were used — the plan must contain no cell-specific usages
    (their presence — **High**).
@@ -175,7 +175,7 @@ explicitly, not as omissions):
 2. **Signature accuracy** — the name `test_<name>` is meaningful and reflects the check; `<fixture>` matches
    the endpoint's generated fixture. A vague name / a fixture mismatch — **Medium**/**High**.
 3. **Traceability to requirements** — the Routine's checks are consistent with the case expectations and the
-   response contracts from `docs/testcases/<topic>.md`/`docs/requirements/<topic>.md`. A contract
+   response contracts from the path printed by `goga history path -f testcases.md`/`goga history path -f requirements.md`. A contract
    contradiction — **High**.
 4. **Edge cases** — for a negative Routine, the correct failure model is described (the expected
    4xx/5xx error from schemas). A wrong failure path — **High**.
@@ -211,7 +211,7 @@ Present findings **one at a time**. For each:
 
 #### Step 3. Apply the decision
 
-- **Apply**: update `docs/arch/<topic>.md`, then re-verify that the fix introduced no new problems (re-run
+- **Apply**: update `goga history path -f arch.md`, then re-verify that the fix introduced no new problems (re-run
   the relevant checks, including coverage and base block identity). Report the result briefly.
 - **Skip**: mark it as "skipped" and continue.
 - **Propose alternative**: discuss, agree, apply, re-verify.
@@ -225,8 +225,8 @@ After all findings — a summary:
 - **Skipped**: N (by severity and area)
 - **Artifact status**: updated / unchanged
 
-> **Editing rules:** edit only the CODEMANIFEST DSL artifacts in `docs/arch/<topic>.md`. Do not add new
-> cases/requirements, do not edit the upstream `docs/testcases/<topic>.md`/`docs/requirements/<topic>.md`, do not
+> **Editing rules:** edit only the CODEMANIFEST DSL artifacts in `goga history path -f arch.md`. Do not add new
+> cases/requirements, do not edit the upstream `goga history path -f testcases.md`/`goga history path -f requirements.md`, do not
 > touch `api.py`/`schemas`/`tests/`. If a case is lost — it is either a plan error (add a Routine) or
 > a signal to restart the `cells` pipeline.
 
@@ -260,8 +260,8 @@ After all findings — a summary:
 
 Before completing, verify:
 
-1. Have `docs/arch/<topic>.md` (per the resolution) and the upstream `docs/testcases/<topic>.md`
-   (+ `docs/requirements/<topic>.md`) been read?
+1. Have `goga history path -f arch.md` (per the resolution) and the upstream `goga history path -f testcases.md`
+   (+ `goga history path -f requirements.md`) been read?
 2. Have `goga-cell`, `goga-tool-pybuggy-api-cookbook`, `goga-cell-python`,
    `goga-codemanifest-base`, `goga-tool-pybuggy-api-usage` been loaded?
 3. Has the plan structure been checked (all sections, no code)?

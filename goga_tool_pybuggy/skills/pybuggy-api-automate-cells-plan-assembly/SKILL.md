@@ -1,18 +1,18 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells-plan-assembly
-description: Assembles and saves the test cells architecture plan to docs/arch/<topic>.md
+description: Assembles and saves the test cells architecture plan to the path printed by `goga history path -f arch.md`
 ---
 
 ## Identity
 
 You are responsible for assembling the test cells architecture plan from the approved CODEMANIFESTs and saving it to
-`docs/arch/<topic>.md`. The plan contains DSL artifacts only (CODEMANIFESTs) — no implementation code.
+`goga history path -f arch.md`. The plan contains DSL artifacts only (CODEMANIFESTs) — no implementation code.
 
 ## Core Principle
 
 You **synthesize** [CONTRACTS_REPORT], [CELL_MAP_REPORT], and [CELLS_INTAKE] into a single plan: the cell creation
 order, the complete CODEMANIFEST of each cell, the case coverage map, and the verification checklist. You **save**
-the result to `docs/arch/<topic>.md`.
+the result to the path printed by `goga history path -f arch.md`.
 
 ---
 
@@ -49,8 +49,9 @@ of base Usages/Annotations, coverage).
 
 ### Step 6. Save the plan
 
-Assemble the document per the Output Format and save it to `docs/arch/<topic>.md` (the pipeline orchestrator
-passes the path via Artifact Path Resolution; create `docs/arch/` if it does not exist).
+Assemble the document per the Output Format and save it to the path printed by `goga history path -f arch.md` (the pipeline orchestrator
+passes the path via Artifact Path Resolution; run `goga history ensure` first if the topic directory
+does not exist).
 
 ### Step 7. Produce [CELLS_PLAN]
 
@@ -70,15 +71,15 @@ Populate every section. Empty sections are forbidden.
 
 ## File path
 
-[docs/arch/<topic>.md — save confirmation]
+[`goga history path -f arch.md` — save confirmation]
 
 ## Topic
 
-[Topic and the docs/arch/<topic>.md path]
+[Topic and the `goga history path -f arch.md` path]
 
 ## Context
 
-[Inputs: docs/testcases/<topic>.md, docs/requirements/<topic>.md; base Usages/Annotations from the config]
+[Inputs: `goga history path -f testcases.md`, `goga history path -f requirements.md`; base Usages/Annotations from the config]
 
 ## Implementation Order
 

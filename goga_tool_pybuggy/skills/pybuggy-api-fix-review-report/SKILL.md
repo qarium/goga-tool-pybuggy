@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-review-report
-description: Final verdict of the fix cycle and saving docs/fix/<topic>-review.md
+description: Final verdict of the fix cycle and saving `goga history path -f fix-review.md`
 ---
 
 # Pybuggy API Fix Review — Report
@@ -18,7 +18,7 @@ You assemble the final review artifact with the fix cycle verdict and save it to
     - **FAILED** — the plan was not executed, or regressions were not closed by user decisions;
     - **FIXED** — all tasks are `done`, the final run matches the expected result, and every finding is resolved:
       absent, or fixed on the spot with its check passed.
-3. Save `docs/fix/<topic>-review.md` (the path is passed by the orchestrator) according to the format below.
+3. Save `goga history path -f fix-review.md` (the path is passed by the orchestrator) according to the format below.
 
 ---
 
@@ -31,7 +31,7 @@ The content of the saved file. Fill in every section.
 
 ## Source
 
-[docs/fix/<topic>-execute.md, docs/fix/<topic>-plan.md, docs/fix/<topic>-log-final.txt]
+[`goga history path -f fix-execute.md`, `goga history path -f fix-plan.md`, `goga history path -f fix-log-final.txt`]
 
 ## Findings
 

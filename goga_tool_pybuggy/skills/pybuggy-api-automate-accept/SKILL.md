@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-automate-accept
-description: Final acceptance pipeline for a topic's tests — cross-checks artifacts (testcases → Routine → test_*.py), runs pytest, triages each failure with the user (test fix or service bug), and records service bugs in docs/bugs/<topic>.md
+description: Final acceptance pipeline for a topic's tests — cross-checks artifacts (testcases → Routine → test_*.py), runs pytest, triages each failure with the user (test fix or service bug), and records service bugs
 ---
 # Pybuggy API Topic Accept
 
@@ -9,25 +9,23 @@ description: Final acceptance pipeline for a topic's tests — cross-checks arti
 You are the orchestrator of the final acceptance of a topic's tests. The loop `requirements → testcases → cells → apply → design →
 plan → goga build` has completed; your job now is to **run the tests** and verify the result against the
 test cases → Routine → `test_*.py` trace. A failed test is a signal, not a rejection: either the test artifact itself
-is defective (you fix it here), or the service under test violates its contract (you record the bug in `docs/bugs/<topic>.md`).
+is defective (you fix it here), or the service under test violates its contract (you record the bug in `goga history path -f bugs.md`).
 
 ## Mission
 
 Run the acceptance: inventory the topic's artifacts, verify the consistency of the
 TC → Routine → `test_*.py` chain, run the tests and triage each failure (test fix / service bug),
-record service bugs in `docs/bugs/<topic>.md` — one record per problem, listing every test failed due
+record service bugs in `goga history path -f bugs.md` — one record per problem, listing every test failed due
 to it — and deliver the final report with a verdict.
 
 ## Artifact Path Resolution
 
-The pipeline key is `<topic>`. Resolve it before starting the steps and keep the resolution for the whole session:
+The pipeline key is `<topic>` — the current topic of the history tree (the path printed by `goga history path`);
+when `$ARGUMENTS` names a topic, append it to the history commands. Keep the resolution for the whole session.
 
-1. **`$ARGUMENTS` contains a topic name** — use that name as `<topic>`.
-2. **`$ARGUMENTS` is empty** — scan `docs/testcases/`:
-   - the directory exists and contains exactly one file → use that file's name (without extension);
-     several files → AskUserQuestion listing the files;
-   - the directory is missing or empty → STOP: the
-     `goga-tool-pybuggy-api-automate-requirements` pipeline must run first.
+Pre-flight: check that the path printed by `goga history path -f testcases.md` exists.
+- **Missing** — STOP: the `goga-tool-pybuggy-api-automate-requirements` pipeline must run first.
+- **Exists** — proceed.
 
 ## Context Initialization
 
@@ -68,7 +66,7 @@ Execute the steps strictly in sequence — one step at a time. Validate each ste
 - Reads: [ACCEPT_SCOPE], [ACCEPT_CONSISTENCY]
 - Output: [ACCEPT_RUN] — run results, failure triage, created bug records
 - WAIT: triage of each failure — together with the user (fix the test here / service bug in
-  `docs/bugs/<topic>.md` / return to the test cases)
+  `goga history path -f bugs.md` / return to the test cases)
 - STOP if: the execution environment is unavailable (pytest or the plugin fails to start, the SUT does not respond)
   and cannot be recovered per an explicit user instruction
 
@@ -90,7 +88,7 @@ Triage each failed test along these categories (details in the `accept-run` sub-
 | Failure category | Meaning | Action |
 |---|---|---|
 | **Test defect** | the test artifact is wrong: broken materialization, incorrect assert, broken import, wrong data | fixed here, in `test_*.py`, with user approval |
-| **Service bug** | the test is correct; the SUT violates its contract | bug record in `docs/bugs/<topic>.md` — one record per problem, with the failing tests listed |
+| **Service bug** | the test is correct; the SUT violates its contract | bug record in `goga history path -f bugs.md` — one record per problem, with the failing tests listed |
 | **Ambiguous** | insufficient data to decide | joint analysis with the user (WAIT) |
 
 A valid test failure (a failure that exposed a service bug) **blocks the ACCEPTED_WITH_NOTES verdict** but does not
@@ -115,7 +113,8 @@ stop the pipeline: the remaining tests still run, and the bug is recorded in the
 - build the TC → Routine → `test_*.py` trace from the topic's artifacts
 - run the tests with the command from [ACCEPT_SCOPE] and record the actual result of each test
 - triage every failure together with the user (AskUserQuestion, 2–4 options)
-- record service bugs in `docs/bugs/<topic>.md` (create the directory if missing): one record per
+- record service bugs in `goga history path -f bugs.md` (run `goga history ensure` first if the
+  topic directory does not exist): one record per
   problem with a concrete statement and the list of tests failed due to it; same cause found again —
   extend the existing record's failing-tests table
 - fix test defects in `test_*.py` only with user approval and re-run the test after the fix

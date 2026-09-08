@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-collect-report
-description: Assemble the collect report and save it to docs/fix/<topic>-collect.md
+description: Assemble the collect report and save it to the path printed by `goga history path -f fix-collect.md`
 ---
 # Pybuggy API Fix Collect — Report
 
@@ -11,10 +11,11 @@ You assemble the final collect report from the step results and save it to disk.
 ## Algorithm
 
 1. Collect the inputs: [FIX_INTAKE], [FIX_FAILURES].
-2. Target path: `docs/fix/<topic>-collect.md` (the orchestrator passes it).
-3. Save the document in the format below (create `docs/fix/` if it does not exist; a re-run overwrites the file).
+2. Target path: `goga history path -f fix-collect.md` (the orchestrator passes it).
+3. Save the document in the format below (run `goga history ensure` first if the topic directory
+   does not exist; a re-run overwrites the file).
 4. Transfer the topic version from [FIX_INTAKE] to the artifact (the "Topic Version" section).
-5. Keep full tracebacks in the log `docs/fix/<topic>-log.txt` — the report needs only the path to the log.
+5. Keep full tracebacks in the log `goga history path -f fix-log.txt` — the report needs only the path to the log.
 
 ---
 
@@ -35,13 +36,13 @@ The content of the saved file. Fill in every section.
 [from [FIX_INTAKE]; "not provided" if missing]
 
 ## Run
-[Command: ... | Log: docs/fix/<topic>-log.txt | Exit code: ... | Totals: passed X, failed Y, errors Z, skipped W. "no run was performed" if the source was description-only]
+[Command: ... | Log: the path printed by `goga history path -f fix-log.txt` | Exit code: ... | Totals: passed X, failed Y, errors Z, skipped W. "no run was performed" if the source was description-only]
 
 ## Failed Tests
 [Table: test | cell (tests/<spec>/<id>/) | file | outcome (FAILED/ERROR/SKIPPED) | category | summary. "no failures" if empty]
 
 ## Full Tracebacks
-[the log `docs/fix/<topic>-log.txt` or "in the description data, see above"]
+[the log `goga history path -f fix-log.txt` or "in the description data, see above"]
 
 ## Totals
 [N failed/masked tests, distribution by category | "no failures"]

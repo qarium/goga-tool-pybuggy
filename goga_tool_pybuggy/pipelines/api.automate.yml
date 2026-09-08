@@ -76,9 +76,6 @@ description: "Pybuggy API-test automate lifecycle"
   prompt: |
     Commit all added and modified files.
 
-    Constraints:
-    - Except changes in `docs/<defines|proposals|tasks|arch|design|plans>`.
-
 - name: accept-result
   title: "Accept test results"
   communication: true

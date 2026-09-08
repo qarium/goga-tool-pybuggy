@@ -11,7 +11,7 @@ cannot be built without a valid input.
 
 ## Core Principle
 
-You **verify** the presence of `docs/testcases/<topic>.md` (+ `docs/requirements/<topic>.md` as
+You **verify** the presence of `goga history path -f testcases.md` (+ `goga history path -f requirements.md` as
 context) and **extract** from the test cases only what is recorded: endpoints, cases (type, title,
 severity, steps, preconditions, expectations). You do not infer anything — gaps go to
 "To clarify".
@@ -22,15 +22,15 @@ severity, steps, preconditions, expectations). You do not infer anything — gap
 
 ### Step 1. Preliminary check
 
-1. Read `docs/testcases/<topic>.md` (the path is passed by the pipeline orchestrator via Artifact
+1. Read the artifact from the path printed by `goga history path -f testcases.md` (the path is passed by the pipeline orchestrator via Artifact
    Path Resolution). If it is missing or empty — STOP: report that the
    `pybuggy-api-automate-testcases` pipeline must run first.
-2. Read `docs/requirements/<topic>.md` (topic context, the same `<topic>`). If it is missing —
+2. Read the artifact from the path printed by `goga history path -f requirements.md` (topic context, the same `<topic>`). If it is missing —
    mark it as a gap and proceed with the test cases.
 
 ### Step 2. Parse the test cases
 
-From `docs/testcases/<topic>.md`, extract for each case:
+From `goga history path -f testcases.md`, extract for each case:
 
 1. The case identifier `TC-<N>` and `title` — a stable reference to the case across all cells
    artifacts (Coverage Map, plan, review).
@@ -54,7 +54,7 @@ context/cell-map stages.
 
 STOP if:
 
-- `docs/testcases/<topic>.md` is missing or empty;
+- the path printed by `goga history path -f testcases.md` is missing or empty;
 - the test cases contain no endpoints.
 
 ---
@@ -68,8 +68,8 @@ Fill in every section. Empty sections are prohibited.
 
 ## Source
 
-[Topic name `<topic>` + confirmation that `docs/testcases/<topic>.md`
-(+ `docs/requirements/<topic>.md`) are loaded]
+[Topic name `<topic>` + confirmation that the path printed by `goga history path -f testcases.md`
+(+ `goga history path -f requirements.md`) are loaded]
 
 ## Endpoints and their cases
 

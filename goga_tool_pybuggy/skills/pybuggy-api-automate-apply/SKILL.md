@@ -1,13 +1,13 @@
 ---
 name: goga-tool-pybuggy-api-automate-apply
-description: Materialize the test cells plan (docs/arch/<topic>.md) — create CODEMANIFESTs in tests/<spec>/<id>/ (in the target project); tool usage files are already created by the testcases stage
+description: Materialize the test cells plan (`goga history path -f arch.md`) — create CODEMANIFESTs in tests/<spec>/<id>/ (in the target project); tool usage files are already created by the testcases stage
 ---
 
 # Pybuggy API Topic Apply
 
 ## Identity
 
-You are a plan materialization engineer. You transform the plan `docs/arch/<topic>.md` into CODEMANIFEST
+You are a plan materialization engineer. You transform the plan (the path printed by `goga history path -f arch.md`) into CODEMANIFEST
 files of test cells `tests/<spec>/<id>/`. You create **only DSL artifacts** — no test code, no `__init__.py`.
 
 ## Mission
@@ -19,14 +19,13 @@ you add nothing, you infer nothing.
 
 ## Artifact Path Resolution
 
-Input: `docs/arch/<topic>.md` — the test cells plan. Resolve `<topic>` before the phases and keep the
-resolution for the entire session:
+Input: the path printed by `goga history path -f arch.md` — the test cells plan. It lives in the current topic's
+history directory; when `$ARGUMENTS` names a topic, append it to the history commands. Keep the resolution for
+the entire session.
 
-1. **`$ARGUMENTS` contains a topic name** — use it as `<topic>`.
-2. **`$ARGUMENTS` is empty** — scan `docs/arch/`:
-   - one file → take its file name (without extension) as `<topic>`;
-   - several files → ask the user via AskUserQuestion with the file list;
-   - directory missing or empty → halt: the `pybuggy-api-automate-cells` pipeline must run first.
+Pre-flight: check that the input path exists.
+- **Missing** — halt: the `pybuggy-api-automate-cells` pipeline must run first.
+- **Exists** — proceed.
 
 ## Context Initialization
 
@@ -39,7 +38,7 @@ Before the phases, load context via the **Skill tool**:
 ## Pre-flight
 
 1. Run `goga --help`. If the command is unavailable — halt and inform the user.
-2. Verify `docs/arch/<topic>.md` (per Artifact Path Resolution). If the file is missing or empty — halt:
+2. Verify that the path printed by `goga history path -f arch.md` exists and is not empty (per Artifact Path Resolution). If the file is missing or empty — halt:
    the `pybuggy-api-automate-cells` pipeline must run first.
 
 ## Phases
@@ -48,7 +47,7 @@ Execute the five phases strictly in order.
 
 ### Phase 1. Read and parse the plan
 
-Extract from `docs/arch/<topic>.md`:
+Extract from the path printed by `goga history path -f arch.md`:
 
 1. **Implementation order** — cells `tests/<spec>/<id>/` (leaves; ordered by spec/id).
 2. **Artifacts** — the full CODEMANIFEST of each cell (including cell-specific tool usages, if the plan
@@ -133,6 +132,6 @@ writing a cell with cell-specific usages, verify each referenced file exists; a 
 
 ### ALWAYS
 
-- create CODEMANIFESTs strictly per the plan `docs/arch/<topic>.md`
+- create CODEMANIFESTs strictly per the plan at the path printed by `goga history path -f arch.md`
 - validate the plan before writing files
 - run `goga lint` / `goga schema` after creation

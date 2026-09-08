@@ -13,12 +13,12 @@ tests** — otherwise `goga build` generates `test_*.py` files but never execute
 
 ## Mission
 
-Compile the ralphex plan `docs/plans/<topic>.md` from two inputs — the design document and the CODEMANIFEST
+Compile the ralphex plan `goga history path -f plan.md` from two inputs — the design document and the CODEMANIFEST
 test-cells — so that all five conditions hold:
 
 1. each Routine of a test cell maps to a Task that generates the corresponding `test_*.py`;
 2. `## Validation Commands` includes `pytest` for the affected tests — **with the topic's target
-   environment**: `pytest tests/<spec>/ -q --base-url <url>` when `docs/requirements/<topic>.md` (§1/§4)
+   environment**: `pytest tests/<spec>/ -q --base-url <url>` when `goga history path -f requirements.md` (§1/§4)
    defines a non-standard base URL (standard environment — no flag);
 3. the test run is an **executable** Task checkbox (not "manual/skipped"), so ralphex executes it;
 4. the test-run checkbox carries the same `--base-url <url>` as the Validation Commands — otherwise
@@ -62,9 +62,11 @@ tests into the plan → the tests get written but never run. This dispatch skill
 
 Arguments: `$ARGUMENTS`
 
-1. Determine `<topic>` (from `$ARGUMENTS`, or by scanning `docs/design/`/`docs/plans/`, as in `goga-plan`).
+1. Determine `<topic>` (from `$ARGUMENTS`, or the current topic of the history tree — check that the path
+   printed by `goga history path -f design.md` exists, as in `goga-plan`; missing → stop and ask the user
+   to run the design stage first).
 2. Load context via the **Skill tool**: `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`, `goga-cell`,
-   `goga-cell-python`. Read the topic's target environment from `docs/requirements/<topic>.md` (§1/§4) —
+   `goga-cell-python`. Read the topic's target environment from the path printed by `goga history path -f requirements.md` (§1/§4) —
    it defines the `--base-url <url>` part of every test-run command (absent for the standard environment).
 3. Invoke `goga-plan` via the **Skill tool**, passing `<topic>` and the testing-mode payload (marker phrase:
    "Pybuggy testing mode: compile a plan to GENERATE and RUN integration tests from CODEMANIFEST test-cells;
@@ -78,7 +80,7 @@ Arguments: `$ARGUMENTS`
 
 ## Post-Dispatch Gate (critical — enforcing test execution)
 
-After `docs/plans/<topic>.md` is generated, verify the conditions below and amend the plan when needed:
+After `goga history path -f plan.md` is generated, verify the conditions below and amend the plan when needed:
 
 1. **`## Validation Commands`** contains a test-run command such as
    `pytest tests/<spec>/ -q` (or `pytest tests/<spec>/<id>/ -q` for a specific cell) — **with
