@@ -28,6 +28,15 @@ pipeline:
     <<: *claude-env
     ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3[1m]"
 
+
+
+usages:
+  cooks:
+    goga:
+      git: https://github.com/qarium/goga.git
+      ref: 1.3.x
+      root: goga
+
 codemanifest:
   usages:
     conventions: .goga/usages/conventions.md
