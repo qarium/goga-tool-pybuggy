@@ -738,7 +738,7 @@ def run_goga_init() -> int:
     enters the answers from this flow and goga performs no convention download — initialization is
     fully offline. The consumer's ``conventions`` slot belongs to :func:`write_test_convention`
     (delivered by :func:`run_onboarding`); the residual case of a user manually typing
-    ``conventions`` into the usages questionnaire is documented in the ``goga`` usage.
+    ``conventions`` into the usages questionnaire is documented in the ``goga-onboarding`` usage.
 
     Interactive (TTY prompts via click); callers and tests stub this routine via monkeypatch.
 
@@ -755,7 +755,7 @@ def run_goga_init() -> int:
 
         # ask_base_convention is NOT called — the `conventions` slot in the consumer belongs to
         # write_test_convention, so the base convention download is not part of this flow and
-        # initialization stays offline (the residual manual `conventions` entry is documented in `goga`).
+        # initialization stays offline (the residual manual `conventions` entry is documented in `goga-onboarding`).
         codemanifest_usages = questionnaire.ask_codemanifest_usages()
         codemanifest_annotations = questionnaire.ask_codemanifest_annotations()
         agent = questionnaire.ask_agent()

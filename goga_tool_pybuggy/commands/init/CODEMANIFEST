@@ -13,7 +13,8 @@ Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
   ruamel-yaml: .goga/usages/cooks/ruamel-yaml.md
-  goga: .goga/usages/cooks/goga.md
+  goga-onboarding: .goga/usages/cooks/goga/onboarding/onboarding-usage.md
+  goga-scaffold: .goga/usages/cooks/goga/scaffold/scaffold-usage.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
@@ -22,8 +23,9 @@ Annotations: |
   Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing, ensure the
   build.review_executor.skip flag) AND for emitting .goga/tools/pybuggy/config.yml with active values plus commented
   records (skipped optional fields and headers/loader examples).
-  Use `goga` for the in-process initialization of the goga-project via goga.onboarding (per-field Questionnaire
-  methods + FileGenerator) and for template scaffolding via goga.scaffold (Scaffold.generate / Scaffold.upgrade).
+  Use `goga-onboarding` for the in-process initialization of the goga-project via goga.onboarding (per-field
+  Questionnaire methods + FileGenerator).
+  Use `goga-scaffold` for template scaffolding via goga.scaffold (Scaffold.generate / Scaffold.upgrade).
 
   Top-level bootstrap command pybuggy init — operates in three modes resolved from the flags. Bare onboarding (no
   arguments) runs only in a not-yet-initialized directory: an existing .goga directory is refused up front exactly
@@ -92,11 +94,11 @@ Annotations: |
     - Do not run onboarding in upgrade mode — no prompts, no file augmentation.
     - Do not guard template or upgrade mode — the guard is bare-only.
     - Do not delete, move, or modify .goga on refusal — refuse and exit.
-    - Do not inject answers into the template beyond project_name — the engine resolves it (see `goga`).
-    - Do not import copier directly — the engine is reached through `goga` only.
+    - Do not inject answers into the template beyond project_name — the engine resolves it (see `goga-scaffold`).
+    - Do not import copier directly — the engine is reached through `goga-scaffold` only.
 
-    Use `resolve_init_mode`, `run_onboarding`. Use `goga` for the Scaffold.generate/upgrade contract. Use `click` for
-    the ClickException propagation and the stderr echo. Use `conventions` for logging/testing.
+    Use `resolve_init_mode`, `run_onboarding`. Use `goga-scaffold` for the Scaffold.generate/upgrade contract.
+    Use `click` for the ClickException propagation and the stderr echo. Use `conventions` for logging/testing.
 
 "resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> mode:str":
   location: init.py
@@ -357,7 +359,7 @@ Annotations: |
     (dockerfile_base_image field). goga's pre-built-pull ask_image (the no-Dockerfile case) is NOT used. The base
     convention download is NOT part of the flow: ask_base_convention is not called and the answers carry no prefill,
     so the key conventions never enters GogaConfigAnswers from this flow — goga's download trigger stays dormant
-    unless the integrator manually types the name in the usages survey (residual case, documented in `goga`); the
+    unless the integrator manually types the name in the usages survey (residual case, documented in `goga-onboarding`); the
     `conventions` slot of the consumer is owned by `write_test_convention`. It assembles a GogaConfigAnswers and
     delegates file generation to FileGenerator().generate(InitAnswers(...)). InitLogic is NOT used. The Dockerfile is
     mandatory: dockerfile_path is hardcoded to ".goga/Dockerfile" (goga's optional ask_dockerfile_path is NOT called),
@@ -421,7 +423,7 @@ Annotations: |
     - Do NOT modify goga FileGenerator — the pybuggy install line is appended post-generation by `install_pybuggy`.
     - Do NOT propagate an exception on cancellation/failure — return a code (run_onboarding relies on this).
 
-    Use `goga` for the per-field Questionnaire methods + FileGenerator.generate contract.
+    Use `goga-onboarding` for the per-field Questionnaire methods + FileGenerator.generate contract.
     Use `click` for click.Abort handling.
     Use `conventions` for type hints and structured logging on failure.
 
