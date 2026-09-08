@@ -359,7 +359,7 @@ Annotations: |
     (dockerfile_base_image field). goga's pre-built-pull ask_image (the no-Dockerfile case) is NOT used. The base
     convention download is NOT part of the flow: ask_base_convention is not called and the answers carry no prefill,
     so the key conventions never enters GogaConfigAnswers from this flow — goga's download trigger stays dormant
-    unless the integrator manually types the name in the usages survey (residual case, documented in `goga-onboarding`); the
+    unless the integrator manually types the name in the usages survey (residual case); the
     `conventions` slot of the consumer is owned by `write_test_convention`. It assembles a GogaConfigAnswers and
     delegates file generation to FileGenerator().generate(InitAnswers(...)). InitLogic is NOT used. The Dockerfile is
     mandatory: dockerfile_path is hardcoded to ".goga/Dockerfile" (goga's optional ask_dockerfile_path is NOT called),
