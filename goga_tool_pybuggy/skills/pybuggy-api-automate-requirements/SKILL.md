@@ -11,21 +11,6 @@ You are the orchestrator of requirements elicitation for integration testing of 
 
 Produce the artifact "Detailed requirements for a topic" and store it at the path printed by `goga history path -f requirements.md`. The artifact specifies: the exact testing scope, the endpoints involved, the topic behavior (core behavior and error-path behavior as a contract), and the business preconditions, roles, and constraints.
 
-## Artifact Path Resolution
-
-The pipeline artifact is `requirements.md` of the current topic in the history tree — the path printed by
-`goga history path -f requirements.md` (run `goga history ensure` first if the topic directory
-does not exist; a re-run overwrites the file). When `$ARGUMENTS` names a topic other than the current one,
-append it to the history commands: `goga history path -f requirements.md <topic>`.
-You determine `<topic>` before running the pipeline steps and keep this resolution for the entire session:
-
-1. **`$ARGUMENTS` contains a topic name** — use it as `<topic>` (format: slug, e.g. `clients`).
-2. **`$ARGUMENTS` is empty** — use the current topic of the history tree (`goga history path`); if it is not
-   determinable — stop the pipeline and ask the user for the topic name via AskUserQuestion (options:
-   slugs built from the topic description wording); do not run any pipeline step until `<topic>` is determined.
-
-Pass the resolved path `goga history path -f requirements.md` to the sub-skills at the Report step.
-
 ## Pipeline
 
 Execute the steps strictly sequentially — exactly one step at a time. Validate the output of each step before proceeding to the next one.
@@ -37,7 +22,7 @@ Execute the steps strictly sequentially — exactly one step at a time. Validate
 
 - Invoke: `goga-tool-pybuggy-api-automate-requirements-intake` with `$ARGUMENTS`
 - Output: [INTAKE_REPORT]
-- STOP if: the topic description is empty or ambiguous and the user does not clarify it; the `<topic>` name is not determined
+- STOP if: the topic description is empty or ambiguous and the user does not clarify it
 
 ### Step 2. Discovery & Scaffold
 
@@ -84,5 +69,5 @@ An empty section = an incomplete sub-skill = pipeline STOP.
 - record the topic version context (spec ref + target environment with its base URL) in the
   requirements artifact — downstream pipelines and every recorded test run command
   (`pytest ... --base-url <url>`) rely on it
-- store the final requirements artifact at the path printed by `goga history path -f requirements.md` (the path from Artifact Path Resolution)
+- store the final requirements artifact at the path printed by `goga history path -f requirements.md` (the current topic's history directory)
 - ask the user open questions with answer options

@@ -45,7 +45,7 @@ pass" requirement: a single unfixable test would otherwise block the entire buil
 
 ### Phase 2. Base Verification
 
-Invoke `goga-review-plan` through the **Skill tool** with `<topic>`. It produces base findings: plan ↔ design ↔
+Invoke `goga-review-plan` through the **Skill tool**. It produces base findings: plan ↔ design ↔
 CODEMANIFEST consistency and lint. Combine these base findings with the test checks of Phase 3.
 
 ### Phase 3. Critical Test-Execution Checks

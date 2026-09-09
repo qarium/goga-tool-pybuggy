@@ -74,7 +74,7 @@ AskUserQuestion (2–4 options):
 3. Cap fix iterations at two per test; beyond that, mark the test unresolved (into the report; the verdict drops).
 
 **Service bug** — after all failures are triaged, group the service-bug ones by cause and file them in
-`goga history path -f bugs.md` (create the directory/file if missing; keep existing entries, append new ones).
+`goga history path -f bugs.md` (create the file if missing; keep existing entries, append new ones).
 **One record addresses one problem, not one test**: all tests failed due to the same cause land in one
 record's failing-tests table; different causes — different records. A record for the same cause already
 in the file (from an earlier run) gets the new tests appended to its table instead of a duplicate.

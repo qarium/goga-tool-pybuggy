@@ -34,17 +34,13 @@ Find discrepancies, report them, fix them (with user approval).
 - **Upstream** (for coverage and context): `goga history path -f testcases.md` (the reference set of
   cases), `goga history path -f requirements.md` (topic context) — the same topic.
 
-**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty — the current topic
-of the history tree (check that the path printed by `goga history path -f arch.md` exists; missing → stop and
-inform the user). One `<topic>` name for the plan and the upstream artifacts. Keep the resolution for the entire session.
-
 ---
 
 ## Phases
 
 ### Phase 1. Load Context
 
-1. Read the artifact from the path printed by `goga history path -f arch.md` (per the resolution). If it is missing — stop and report to the user.
+1. Read the artifact from the path printed by `goga history path -f arch.md`. If it is missing — stop and report to the user.
 2. Read the upstream `goga history path -f testcases.md` (the reference case set for coverage) and
    `goga history path -f requirements.md` (context). If `goga history path -f testcases.md` is missing — a **Critical**
    finding (coverage has nothing to be checked against).
@@ -260,7 +256,7 @@ After all findings — a summary:
 
 Before completing, verify:
 
-1. Have `goga history path -f arch.md` (per the resolution) and the upstream `goga history path -f testcases.md`
+1. Have `goga history path -f arch.md` and the upstream `goga history path -f testcases.md`
    (+ `goga history path -f requirements.md`) been read?
 2. Have `goga-cell`, `goga-tool-pybuggy-api-cookbook`, `goga-cell-python`,
    `goga-codemanifest-base`, `goga-tool-pybuggy-api-usage` been loaded?

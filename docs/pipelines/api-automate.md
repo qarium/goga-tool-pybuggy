@@ -25,6 +25,10 @@ Need to adjust the pipeline for your project without forking it? See
 | 12 | `commit-changes`      | Commit the work; ask the user whether the tests are ready for acceptance                                             |
 | 13 | `accept-result`       | Accept the test results: consistency check, `pytest` run, triage of failures with the user, bug records in `bugs.md` |
 
+The `create-requirements` stage opens the topic: once the testing subject is clarified, its intake runs
+one idempotent `goga history ensure` — the topic is the current git branch. Every later stage addresses
+artifacts with `goga history path -f <artifact>`.
+
 > **Building the tests:** the design stages produce documents only. After `plan-review`
 > approves `plan.md`, the test code is built with
 > `goga build <path-to-plan>` — [goga](https://github.com/qarium/goga) executes the
@@ -37,7 +41,8 @@ Need to adjust the pipeline for your project without forking it? See
 
 The pipeline accumulates one artifact per design stage in the topic's history directory —
 the path printed by `goga history path -f <artifact>`
-(`.goga/history/<year>/<topic>/`, the topic being the current git branch by default; not committed with the project):
+(`.goga/history/<year>/<topic>/`; the topic is the current git branch, created by the requirements
+stage via `goga history ensure`):
 
 ```
 requirements.md   # detailed requirements (REQ-<N>)

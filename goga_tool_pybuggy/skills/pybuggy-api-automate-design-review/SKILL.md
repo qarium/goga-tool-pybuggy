@@ -29,8 +29,8 @@ of `test_*.py` with pytest validation. Find discrepancies, report them, and fix 
 
 ### Phase 2. Base Verification
 
-Invoke `goga-review-design` via the **Skill tool** with `<topic>` — this yields base findings (design ↔
-CODEMANIFEST consistency). Merge these findings with the test checks below.
+Invoke `goga-review-design` via the **Skill tool**. This yields base findings (design ↔ CODEMANIFEST
+consistency). Merge these findings with the test checks below.
 
 ### Phase 3. Test-Specific Checks
 

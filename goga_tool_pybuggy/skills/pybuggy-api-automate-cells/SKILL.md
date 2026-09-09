@@ -17,18 +17,14 @@ Create the "Test cells architecture plan" artifact: for each cell — a complete
 or several cells per endpoint) are a design decision made in the Cell Map phase. Save the plan to
 `goga history path -f arch.md` (without writing the cells themselves).
 
-## Artifact Path Resolution
+## Paths
 
 Pipeline input: the path printed by `goga history path -f testcases.md` (+ `goga history path -f requirements.md` as context).
-Output: the path printed by `goga history path -f arch.md` (run `goga history ensure` first if the topic directory does not exist).
-All live in the current topic's history directory; when `$ARGUMENTS` names a topic, append it to the history
-commands. One topic — one `<topic>` name for input and output.
+Output: the path printed by `goga history path -f arch.md`.
 
 Pre-flight: check that the input path exists.
 - **Missing** — STOP: the `goga-tool-pybuggy-api-automate-testcases` pipeline must run first.
 - **Exists** — proceed.
-
-Pass the resolved paths to the sub-skills.
 
 ## Context Initialization
 
@@ -121,4 +117,4 @@ An empty section = an incomplete sub-skill = pipeline STOP.
 - rely on the `goga-cell` DSL and `goga-cell-python` when building/validating CODEMANIFESTs
 - obtain user approval at every WAIT-gate (one question, 2–4 options)
 - include the base `Usages`/`Annotations` from the config in every CODEMANIFEST
-- save the final plan to the path printed by `goga history path -f arch.md` (path from Artifact Path Resolution) and record the path
+- save the final plan to the path printed by `goga history path -f arch.md` and record the path

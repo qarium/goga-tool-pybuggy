@@ -42,18 +42,13 @@ choices.
 - the path printed by `goga history path -f testcases.md` — detailed test cases (the output of the `testcases` pipeline).
 - **Upstream artifact** for traceability: `goga history path -f requirements.md` (the same topic).
 
-**`<topic>` resolution:** from `$ARGUMENTS` (the topic name); if the arguments are empty — the current
-topic of the history tree (check that the path printed by `goga history path -f testcases.md` exists;
-missing → stop and inform the user). Use a single `<topic>` name for both the artifact under review and
-the upstream requirements. Hold the resolution for the entire session.
-
 ---
 
 ## Phases
 
 ### Phase 1. Load Context
 
-1. Read the artifact from the path printed by `goga history path -f testcases.md` (by the resolution). If the file is missing — stop and
+1. Read the artifact from the path printed by `goga history path -f testcases.md`. If the file is missing — stop and
    report to the user.
 2. Read the upstream artifact at the path printed by `goga history path -f requirements.md` — the source of truth for
    traceability (endpoints, scenarios, contracts, acceptance criteria). If it is
@@ -299,7 +294,7 @@ After all findings — the summary:
 
 Before finishing, verify:
 
-1. Have you read the artifact at the path printed by `goga history path -f testcases.md` (by the resolution) and the upstream
+1. Have you read the artifact at the path printed by `goga history path -f testcases.md` and the upstream
    `goga history path -f requirements.md`?
 2. Have `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook` been loaded?
 3. Have the contracts been obtained from `api.py` (the `Request` model) and

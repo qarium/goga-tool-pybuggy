@@ -18,13 +18,10 @@ TC → Routine → `test_*.py` chain, run the tests and triage each failure (tes
 record service bugs in `goga history path -f bugs.md` — one record per problem, listing every test failed due
 to it — and deliver the final report with a verdict.
 
-## Artifact Path Resolution
-
-The pipeline key is `<topic>` — the current topic of the history tree (the path printed by `goga history path`);
-when `$ARGUMENTS` names a topic, append it to the history commands. Keep the resolution for the whole session.
+## Paths
 
 Pre-flight: check that the path printed by `goga history path -f testcases.md` exists.
-- **Missing** — STOP: the `goga-tool-pybuggy-api-automate-requirements` pipeline must run first.
+- **Missing** — STOP: the `goga-tool-pybuggy-api-automate-testcases` pipeline must run first.
 - **Exists** — proceed.
 
 ## Context Initialization
@@ -113,8 +110,7 @@ stop the pipeline: the remaining tests still run, and the bug is recorded in the
 - build the TC → Routine → `test_*.py` trace from the topic's artifacts
 - run the tests with the command from [ACCEPT_SCOPE] and record the actual result of each test
 - triage every failure together with the user (AskUserQuestion, 2–4 options)
-- record service bugs in `goga history path -f bugs.md` (run `goga history ensure` first if the
-  topic directory does not exist): one record per
+- record service bugs in `goga history path -f bugs.md`: one record per
   problem with a concrete statement and the list of tests failed due to it; same cause found again —
   extend the existing record's failing-tests table
 - fix test defects in `test_*.py` only with user approval and re-run the test after the fix

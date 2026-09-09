@@ -23,14 +23,14 @@ omitted here — the pipelines themselves manage them via the Skill tool.
 
 The pipelines form a chain: each pipeline reads the output artifact of the previous one. Artifacts live in the
 topic's history directory — `.goga/history/<year>/<topic>/` — addressed by the path printed by
-`goga history path -f <artifact>` (run `goga history ensure` first if the topic directory does not exist).
-The topic defaults to the current git branch; a topic named in the pipeline argument overrides it for the session
-(`goga history path -f <artifact> <topic>`).
+`goga history path -f <artifact>`. The requirements intake creates the topic with a single
+`goga history ensure` once the testing subject is clear (the topic is the current git branch);
+the later stages never create or resolve topics.
 Launch a pipeline via the **Skill tool** by its main skill; the pipeline itself runs its internal steps.
 
 | Skill                                         | Purpose                                                                                                                                                                                              | Input                          | Output artifact                  |
 |-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|----------------------------------|
-| `goga-tool-pybuggy-api-automate-requirements` | Collects detailed requirements for the topic from its description and the service spec; generates fixtures (`goga tool pybuggy endpoint generate`)                                                   | topic description + `<topic>`  | `requirements.md`   |
+| `goga-tool-pybuggy-api-automate-requirements` | Collects detailed requirements for the topic from its description and the service spec; generates fixtures (`goga tool pybuggy endpoint generate`)                                                   | topic description  | `requirements.md`   |
 | `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (REQ→TC)                                                                                | `requirements.md` | `testcases.md`      |
 | `goga-tool-pybuggy-api-automate-cells`        | Designs the architecture plan for the test cells (CODEMANIFEST; cell boundaries are a design decision, Routines cover cases — 1 case = 1 Routine is not required); interactive, driven by WAIT-gates | `testcases.md`    | `arch.md`           |
 | `goga-tool-pybuggy-api-automate-apply`        | Materializes the plan: creates CODEMANIFEST in `tests/<spec>/<id>/` (DSL only, no test code); validation via `goga lint`/`schema`                                                                    | `arch.md`         | `tests/<spec>/<id>/CODEMANIFEST` |

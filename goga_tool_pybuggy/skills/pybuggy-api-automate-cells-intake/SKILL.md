@@ -22,10 +22,9 @@ severity, steps, preconditions, expectations). You do not infer anything — gap
 
 ### Step 1. Preliminary check
 
-1. Read the artifact from the path printed by `goga history path -f testcases.md` (the path is passed by the pipeline orchestrator via Artifact
-   Path Resolution). If it is missing or empty — STOP: report that the
+1. Read the artifact from the path printed by `goga history path -f testcases.md`. If it is missing or empty — STOP: report that the
    `pybuggy-api-automate-testcases` pipeline must run first.
-2. Read the artifact from the path printed by `goga history path -f requirements.md` (topic context, the same `<topic>`). If it is missing —
+2. Read the artifact from the path printed by `goga history path -f requirements.md` (topic context, the same topic). If it is missing —
    mark it as a gap and proceed with the test cases.
 
 ### Step 2. Parse the test cases
@@ -68,7 +67,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Source
 
-[Topic name `<topic>` + confirmation that the path printed by `goga history path -f testcases.md`
+[The current topic + confirmation that the path printed by `goga history path -f testcases.md`
 (+ `goga history path -f requirements.md`) are loaded]
 
 ## Endpoints and their cases

@@ -19,12 +19,10 @@ preconditions, and roles. Route every gap to "To clarify".
 
 ### Step 1. Preliminary check (PRELIMINARY CHECK)
 
-1. Read the file `goga history path -f requirements.md` (the path is passed by the pipeline orchestrator via
-   Artifact Path Resolution).
+1. Read the file `goga history path -f requirements.md`.
 2. If the file is missing or empty — report that the `pybuggy-api-automate-requirements` pipeline must
    run first, and **STOP**.
-3. If the file exists — record the path, the topic name `<topic>`, and the source as the artifact
-   input.
+3. If the file exists — record the path, the current topic, and the source as the artifact input.
 
 ### Step 2. Parse the requirements (TOPIC_SPEC)
 
@@ -77,7 +75,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Requirements source
 
-[Topic name `<topic>` + the path to the file `goga history path -f requirements.md` + confirmation that the requirements are loaded]
+[The current topic + the path to the file `goga history path -f requirements.md` + confirmation that the requirements are loaded]
 
 ## Declared topic endpoints
 

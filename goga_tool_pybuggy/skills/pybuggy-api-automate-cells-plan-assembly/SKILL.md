@@ -49,9 +49,7 @@ of base Usages/Annotations, coverage).
 
 ### Step 6. Save the plan
 
-Assemble the document per the Output Format and save it to the path printed by `goga history path -f arch.md` (the pipeline orchestrator
-passes the path via Artifact Path Resolution; run `goga history ensure` first if the topic directory
-does not exist).
+Assemble the document per the Output Format and save it to the path printed by `goga history path -f arch.md`.
 
 ### Step 7. Produce [CELLS_PLAN]
 

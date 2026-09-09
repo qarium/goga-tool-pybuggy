@@ -12,7 +12,7 @@ You are the scope executor. You define the acceptance scope of the topic: you en
 
 ### Step 1. Collect the artifact inventory
 
-For `<topic>` (resolved by the orchestrator), verify existence and load:
+For the current topic, verify existence and load:
 
 1. the path printed by `goga history path -f testcases.md` — test cases (TC-<N>) and the REQ→TC coverage matrix.
 2. the path printed by `goga history path -f arch.md` — the cells plan (context: expected cells/Routines composition).
@@ -60,7 +60,7 @@ Fill in every section. Empty sections are prohibited.
 # [ACCEPT_SCOPE]
 
 ## Data source
-[How the topic was resolved and from which artifacts the scope was assembled]
+[The current topic and the artifacts the scope was assembled from]
 
 ## Cells in scope
 [Table: Cell (tests/<spec>/<id>/) | Routine count | test files found (N/M) | Usage keys]

@@ -17,11 +17,9 @@ Tool usage files (`.goga/usages/cooks/<key>.md`) already exist — the `testcase
 references those usage keys in the cell Header and never creates them. The plan is the single source of truth:
 you add nothing, you infer nothing.
 
-## Artifact Path Resolution
+## Paths
 
-Input: the path printed by `goga history path -f arch.md` — the test cells plan. It lives in the current topic's
-history directory; when `$ARGUMENTS` names a topic, append it to the history commands. Keep the resolution for
-the entire session.
+Input: the path printed by `goga history path -f arch.md` — the test cells plan.
 
 Pre-flight: check that the input path exists.
 - **Missing** — halt: the `pybuggy-api-automate-cells` pipeline must run first.
@@ -38,7 +36,7 @@ Before the phases, load context via the **Skill tool**:
 ## Pre-flight
 
 1. Run `goga --help`. If the command is unavailable — halt and inform the user.
-2. Verify that the path printed by `goga history path -f arch.md` exists and is not empty (per Artifact Path Resolution). If the file is missing or empty — halt:
+2. Verify that the path printed by `goga history path -f arch.md` exists and is not empty. If the file is missing or empty — halt:
    the `pybuggy-api-automate-cells` pipeline must run first.
 
 ## Phases

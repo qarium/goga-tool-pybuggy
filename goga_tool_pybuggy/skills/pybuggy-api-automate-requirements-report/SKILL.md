@@ -35,15 +35,14 @@ You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding
    action in the drift status from the "Contract drift (diff)" section of [DISCOVERY_REPORT]:
    an in-sync covered endpoint is reused, a drifted one carries the recorded user decision.
 9. Verify completeness: every section is filled in.
-10. Save [TOPIC_SPEC] to the path printed by `goga history path -f requirements.md` (run `goga history ensure` first
-   if the topic directory does not exist; overwrite the file on repeated runs). The pipeline orchestrator
-   supplies the target path (Artifact Path Resolution).
+10. Save [TOPIC_SPEC] to the path printed by `goga history path -f requirements.md` (overwrite the file on
+    repeated runs).
 
 ---
 
 ## Output Format
 
-Save the result to the path printed by `goga history path -f requirements.md` (the path comes from the orchestrator). The file
+Save the result to the path printed by `goga history path -f requirements.md`. The file
 content follows the format below. Fill in every section. Empty sections are forbidden.
 
 ```md

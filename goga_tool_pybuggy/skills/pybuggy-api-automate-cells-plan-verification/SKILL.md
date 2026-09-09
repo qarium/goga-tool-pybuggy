@@ -20,8 +20,7 @@ inconsistency you find. You **obtain the user's final approval** of the plan.
 
 ### Step 1. Load the context
 
-1. the path printed by `goga history path -f arch.md` — the plan under verification. The pipeline orchestrator passes this path via
-   Artifact Path Resolution.
+1. the path printed by `goga history path -f arch.md` — the plan under verification.
 2. [CELLS_INTAKE] — the reference set of test cases for the coverage check.
 3. `goga-cell` / `goga-cell-python` — the DSL validation rules.
 

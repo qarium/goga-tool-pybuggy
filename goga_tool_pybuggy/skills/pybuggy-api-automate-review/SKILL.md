@@ -28,9 +28,6 @@ Arguments: `$ARGUMENTS`
    - the path ends with `design.md` → **design**
    - the path ends with `plan.md` → **plan**
 
-   Extract `<target>` (the topic name) from the path:
-   For `.goga/history/<year>/<topic>/<artifact>.md` → `<target>` = `<topic>`
-
 2. **The arguments are empty** — ask the user via AskUserQuestion:
    - **question**: "What to review?"
    - **header**: "Review type"
@@ -47,27 +44,27 @@ Arguments: `$ARGUMENTS`
 #### requirements
 Verify that the path printed by `goga history path -f requirements.md` exists.
 1. **Missing** — stop and notify the user (the `requirements` pipeline must run first).
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-requirements-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-requirements-review` via the **Skill tool**.
 
 #### testcases
 Verify that the path printed by `goga history path -f testcases.md` exists.
 1. **Missing** — stop and notify the user (the `testcases` pipeline must run first).
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-testcases-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-testcases-review` via the **Skill tool**.
 
 #### cells
 Verify that the path printed by `goga history path -f arch.md` exists.
 1. **Missing** — stop and notify the user (the `cells` pipeline must run first).
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-cells-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-cells-review` via the **Skill tool**.
 
 #### design
 Verify that the path printed by `goga history path -f design.md` exists.
 1. **Missing** — stop and notify the user.
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-design-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-design-review` via the **Skill tool**.
 
 #### plan
 Verify that the path printed by `goga history path -f plan.md` exists.
 1. **Missing** — stop and notify the user.
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-plan-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-plan-review` via the **Skill tool**.
 
 ## Invariants
 

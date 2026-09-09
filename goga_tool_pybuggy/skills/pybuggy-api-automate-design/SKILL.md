@@ -44,10 +44,9 @@ Anchor the following before invoking the goga skill and hold it for the entire s
 Arguments: `$ARGUMENTS`
 
 1. If `$ARGUMENTS` is empty — check that the path printed by `goga history path -f design.md` exists (as in
-   `goga-design`): missing → halt and ask the user; exists → use the current topic as `<topic>`
-   (a topic named in `$ARGUMENTS` overrides it — append it to the history commands).
+   `goga-design`): missing → halt and ask the user.
 2. Load the testing context via the **Skill tool**: `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`.
-3. Invoke `goga-design` via the **Skill tool**, passing `<topic>` as the argument and attaching the explicit
+3. Invoke `goga-design` via the **Skill tool**, attaching the explicit
    testing-mode package (marker phrase: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells;
    deliverable is `test_*.py`, never production code; valid request body MUST use the `Request` model imported from the
    fixture's `api.py` — raw `dict` only for negative cases bypassing pydantic; parametrized variants differ only in

@@ -37,17 +37,13 @@ provide concrete options (AskUserQuestion). Do not ask open-ended questions with
 - the path printed by `goga history path -f requirements.md` — detailed requirements for the topic (output of the
   `requirements` pipeline).
 
-**`<topic>` resolution:** from `$ARGUMENTS` (topic name); on empty arguments — the current topic of the
-history tree (check that the path printed by `goga history path -f requirements.md` exists; missing →
-stop and inform the user). Hold the resolution for the entire session.
-
 ---
 
 ## Phases
 
 ### Phase 1. Load Context
 
-1. Read the artifact at the path printed by `goga history path -f requirements.md` (by the resolution). If the file is missing,
+1. Read the artifact at the path printed by `goga history path -f requirements.md`. If the file is missing,
    stop and inform the user.
 2. Load the pybuggy runtime reference via **Skill tool** `goga-tool-pybuggy-api-usage` — to know the
    actual `Request` model, the `api.py` fixture, and response contracts (the source of truth for
@@ -253,7 +249,7 @@ After all findings — a summary:
 
 Before you finish, verify:
 
-1. Did you read the artifact `goga history path -f requirements.md` (using the resolution)?
+1. Did you read the artifact `goga history path -f requirements.md`?
 2. Did you load `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`?
 3. Did you collect ground truth via `goga tool pybuggy endpoint list` and `endpoint info` for every
    endpoint?

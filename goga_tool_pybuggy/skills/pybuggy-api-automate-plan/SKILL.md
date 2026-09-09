@@ -62,13 +62,12 @@ tests into the plan → the tests get written but never run. This dispatch skill
 
 Arguments: `$ARGUMENTS`
 
-1. Determine `<topic>` (from `$ARGUMENTS`, or the current topic of the history tree — check that the path
-   printed by `goga history path -f design.md` exists, as in `goga-plan`; missing → stop and ask the user
-   to run the design stage first).
+1. Check that the path printed by `goga history path -f design.md` exists, as in `goga-plan`; missing → stop
+   and ask the user to run the design stage first.
 2. Load context via the **Skill tool**: `goga-tool-pybuggy-api-usage`, `goga-tool-pybuggy-api-cookbook`, `goga-cell`,
    `goga-cell-python`. Read the topic's target environment from the path printed by `goga history path -f requirements.md` (§1/§4) —
    it defines the `--base-url <url>` part of every test-run command (absent for the standard environment).
-3. Invoke `goga-plan` via the **Skill tool**, passing `<topic>` and the testing-mode payload (marker phrase:
+3. Invoke `goga-plan` via the **Skill tool**, passing the testing-mode payload (marker phrase:
    "Pybuggy testing mode: compile a plan to GENERATE and RUN integration tests from CODEMANIFEST test-cells;
    deliverable is `test_*.py`; `pytest` MUST be in Validation Commands and as executable Task checkboxes,
    carrying `--base-url <url>` when the topic's requirements define a non-standard target environment;

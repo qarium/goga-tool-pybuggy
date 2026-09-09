@@ -11,18 +11,14 @@ You are the orchestrator of integration test case generation for a topic. You ta
 
 Produce the artifact "Detailed test cases for a topic" and store it at the path printed by `goga history path -f testcases.md`. The artifact contains: topic traces (Call → Effect → Verification) and the concrete scenarios derived from them (Flow/Positive/Negative), with real request data and thorough checks of the response contracts (status, fields, structure, invariants).
 
-## Artifact Path Resolution
+## Paths
 
-Pipeline input: the path printed by `goga history path -f requirements.md`. Pipeline output: the path printed by
-`goga history path -f testcases.md` (run `goga history ensure` first if the topic directory does not exist).
-Both live in the current topic's history directory; when `$ARGUMENTS` names a topic, append it to the history
-commands. One topic — one `<topic>` name shared by input and output.
+Pipeline input: the path printed by `goga history path -f requirements.md`.
+Pipeline output: the path printed by `goga history path -f testcases.md`.
 
 Pre-flight: check that the input path exists.
 - **Missing** — STOP: run the `goga-tool-pybuggy-api-automate-requirements` pipeline first.
 - **Exists** — proceed.
-
-Pass the resolved paths to the sub-skills.
 
 ## Pipeline
 
@@ -96,5 +92,5 @@ An empty section = an incomplete sub-skill = pipeline STOP.
 - link each case to the §3 functional requirements (`REQ-<N>` in the `requirements` field) and build the requirements coverage matrix — the source of truth for the matrix is the `requirements` fields of the cases
 - confirm case coverage and ambiguous decisions with the user (via AskUserQuestion with options)
 - assign severity according to the scale from discovery
-- store the final result at the path printed by `goga history path -f testcases.md` (the path from Artifact Path Resolution) and record the path
+- store the final result at the path printed by `goga history path -f testcases.md` and record the path
 - ask open questions with answer options
