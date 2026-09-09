@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-cells
 description: Test cell design pipeline — builds a CODEMANIFEST architecture plan from test cases (cell boundaries are a design decision; Routines cover cases, 1 case = 1 Routine is not required) and saves the plan to the path printed by `goga history path -f arch.md`
 ---
 
+# Pybuggy API Topic Cells
+
 ## Identity
 
 You are the test cell design orchestrator. You take the topic's test cases and elaborate them into an architecture

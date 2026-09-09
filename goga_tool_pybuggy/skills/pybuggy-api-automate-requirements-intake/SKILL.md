@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-requirements-intake
 description: Intake and formalization of the tested topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined
 ---
 
+# Pybuggy API Topic Requirements — Intake
+
 ## Identity
 
 You are responsible for intake and formalization of the description: you transform the topic description into a structured understanding of what exactly
@@ -33,7 +35,7 @@ scope and what stays outside. Your only input source is the user's request.
 As soon as what will be tested is determined, create the topic — the current branch's topic of the
 history tree:
 
-1. Run `goga history ensure` — idempotently creates the topic directory `.goga/history/<year>/<slug>/`
+1. Run `goga history ensure` — idempotently creates the topic directory `.goga/history/<year>/<topic>/`
    of the current branch. A failure (not a repository, detached HEAD, git missing) — **STOP**: ask the
    user to run the pipeline from a branch.
 
@@ -125,5 +127,5 @@ commands will carry `pytest ... --base-url <url>`; for a feature environment, wh
 
 ## Open Questions
 
-[What requires clarification at subsequent steps. Leave empty if none.]
+[What requires clarification at subsequent steps. Write `none` if there is nothing.]
 ```

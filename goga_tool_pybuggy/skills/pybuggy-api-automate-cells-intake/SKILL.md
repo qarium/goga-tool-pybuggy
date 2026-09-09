@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-cells-intake
 description: Input validation and test case (TC-<N>) parsing before test cell design
 ---
 
+# Pybuggy API Topic Cells — Intake
+
 ## Identity
 
 You are the input intake stage of the cells pipeline: you verify that the topic's test cases and
@@ -23,7 +25,7 @@ severity, steps, preconditions, expectations). You do not infer anything — gap
 ### Step 1. Preliminary check
 
 1. Read the artifact from the path printed by `goga history path -f testcases.md`. If it is missing or empty — STOP: report that the
-   `pybuggy-api-automate-testcases` pipeline must run first.
+   `goga-tool-pybuggy-api-automate-testcases` pipeline must run first.
 2. Read the artifact from the path printed by `goga history path -f requirements.md` (topic context, the same topic). If it is missing —
    mark it as a gap and proceed with the test cases.
 

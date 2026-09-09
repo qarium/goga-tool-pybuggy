@@ -27,7 +27,7 @@ You determine the source of failure data: either a problem description supplied 
 As soon as the failure-data source is determined, create the topic — the current branch's topic of
 the history tree:
 
-1. Run `goga history ensure` — idempotently creates the topic directory `.goga/history/<year>/<slug>/`
+1. Run `goga history ensure` — idempotently creates the topic directory `.goga/history/<year>/<topic>/`
    of the current branch. A failure (not a repository, detached HEAD, git missing) — **STOP**: ask the
    user to run the cycle from a branch.
 

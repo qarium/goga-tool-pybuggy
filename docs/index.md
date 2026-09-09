@@ -21,17 +21,17 @@ suite. The package contains a pytest plugin and a CLI.
 - **API-test lifecycle** — staged goga pipelines that automate the suite end to end:
   `api.automate` (requirements → testcases → test cells → design → plan → acceptance)
   creates the tests, `api.fix` repairs them when they break.
-- **Topic statuses** — every pipeline artifact marks a `pybuggy.*` status on the goga
-  topic status scale: `goga history status` shows the latest reached stage of the
-  automate line and the fix line — one status per line.
+- **Topic statuses** — every design artifact of the automate and fix chains marks a
+  `pybuggy.*` status on the goga topic status scale: `goga history status` shows the
+  latest reached stage of the automate line and the fix line — one status per line.
 
 ## Quickstart
 
 Three commands in the target project root:
 
 ```bash
-goga install pybuggy              # 1. install pybuggy into the goga environment
-goga tool pybuggy init            # 2. bootstrap: goga project + tool config + conftest.py
+goga install pybuggy                 # 1. install pybuggy into the goga environment
+goga tool pybuggy init               # 2. bootstrap: goga project + tool config + conftest.py
 goga pipeline pybuggy:api.automate   # 3. run the automated API-test lifecycle
 ```
 

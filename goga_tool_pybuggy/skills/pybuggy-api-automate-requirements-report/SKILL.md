@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-requirements-report
 description: Assemble the final "Detailed topic requirements" artifact and save it to the path printed by `goga history path -f requirements.md`
 ---
 
+# Pybuggy API Topic Requirements — Report
+
 ## Identity
 
 You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding steps and save it to a file.
@@ -19,8 +21,8 @@ You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding
     - introduce identifiers in §3 only — §4 (preconditions) and §5 (roles) remain textual.
 4. Include verified facts only — facts from the service spec and facts confirmed by the user.
    Do not guess.
-5. Copy the topic version context from [INTAKE_REPORT] into the artifact: the spec ref (§1
-   "Spec version") and the target environment (§4 "Target environment") — verbatim, with the
+5. Copy the topic version context from [INTAKE_REPORT] into the artifact: the spec ref into §1
+   ("Spec version") and the target environment into §1 ("Target environment") and §4 — verbatim, with the
    user's confirmed decision. Downstream pipelines (testcases → cells → apply → design → plan →
    accept → fix) read the version from here; every recorded test run command for a non-standard
    environment carries `pytest ... --base-url <url>`.

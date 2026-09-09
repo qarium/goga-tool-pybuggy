@@ -16,7 +16,7 @@ You assemble the final analysis artifact and save it to disk.
 
 ---
 
-## Output Format
+## Output format
 
 The content of the saved file. Fill in every section — empty sections are forbidden.
 
@@ -27,7 +27,7 @@ The content of the saved file. Fill in every section — empty sections are forb
 [Path to the collect report `goga history path -f fix-collect.md` and the run log `goga history path -f fix-log.txt`]
 
 ## Dossier and Evidence
-[Table built from [FIX_EVIDENCE]. Columns: test | Routine | diff (empty/drift) | test↔Routine (matches/distorts) | Routine↔contract (matches/contradicts) | rerun (stable/flaky/green/skipped/missed) | class hypothesis]
+[Table built from [FIX_EVIDENCE]. Columns: test | Routine | diff (empty/drift) | test↔Routine (matches/distorts) | Routine↔contract (matches/contradicts) | rerun (consistently-failing/intermittent/green/skipped/omitted) | class hypothesis]
 
 ## Classification
 [Table built from [FIX_CLASSIFICATION]. Columns: test | class | rationale | user decision | plan direction]

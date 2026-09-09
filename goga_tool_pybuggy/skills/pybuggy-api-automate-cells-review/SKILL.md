@@ -63,8 +63,9 @@ Find discrepancies, report them, fix them (with user approval).
 ### Phase 2. Plan Structure and No-Code
 
 1. **Mandatory plan sections** are present and populated (no TBD/TODO/"…" placeholders):
-   `Topic`, `Context`, `Implementation Order`, `Artifacts`, `Coverage Map`,
-   `Verification Checklist`. A missing section — **Critical**; empty/placeholder — **High**.
+   `File path`, `Topic`, `Context`, `Implementation Order`, `Artifacts`,
+   `Cell-specific usages (tools)`, `Coverage Map`, `Verification Checklist`.
+   A missing section — **Critical**; empty/placeholder — **High**.
 2. **DSL only, no code** — the plan contains CODEMANIFEST artifacts only; any implementation code
    (python/import/`def`/`class`) — **Critical**.
 3. **Implementation Order** lists all cells `tests/<spec>/<id>/` — with rationale (which endpoints/cases

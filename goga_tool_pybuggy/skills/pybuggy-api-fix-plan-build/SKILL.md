@@ -15,9 +15,9 @@ user.
 
 ### Step 1. Read the analysis artifact
 
-Input: the "Dossier and evidence" table (expected vs actual, diff, rerun) and the "Classification" table: test |
+Input: the "Dossier and Evidence" table (expected vs actual, diff, rerun) and the "Classification" table: test |
 class | rationale | user decision | plan direction. Dependency: the topic version (spec branch ref + environment
-base URL) — take it from the path printed by `goga history path -f fix-collect.md` (the "Topic version" section); every task check is built
+base URL) — take it from the path printed by `goga history path -f fix-collect.md` (the "Topic Version" section); every task check is built
 from it: `--ref <ref>` for pull, `--base-url <url>` for pytest when the environment is non-standard.
 
 ### Step 2. Group the failures into tasks
@@ -77,7 +77,7 @@ Steps within the task, in order:
 2. Routine: rewrite the affected annotation sections of the cell's CODEMANIFEST to match the new contract
    (`Precondition:` — fixtures,
    `Data:`, `Steps:`). A valid body uses the `Request(...)` model from `api.py`; a raw `dict` is allowed only for
-   negative cases, marked "bypassing the pydantic model"; keep the section order Purpose → `Precondition:` →
+   negative cases, marked "bypassing the pydantic model"; keep the section order `Purpose` → `Precondition:` →
    `Data:` → `Steps:` → `Use …` with a blank line between them; do not duplicate base usages inside the Routine.
 3. Tests: update `test_<name>.py` to the new annotations: data, asserts, imports. Keep the body linear; no
    `pytest.skip` /skip markers/`xfail`.

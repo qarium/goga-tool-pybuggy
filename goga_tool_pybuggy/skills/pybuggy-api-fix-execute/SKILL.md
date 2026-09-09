@@ -43,7 +43,8 @@ Loop rules:
   `failed`;
 - the attempt budget is 3 per task, for every class. One attempt = one executor call (actions + check); the executor
   performs exactly one attempt per call and never repeats actions or the check internally;
-- on `failed` with attempts remaining, re-invoke the same task's executor, passing the attempt number, the previous
+- each executor call receives the task and the attempt number (1 on the first call); on `failed` with
+  attempts remaining, re-invoke the same task's executor, passing the attempt number, the previous
   failure reason, and the work already done: the next attempt must correct the actions, not repeat them blindly;
 - on `failed` after the 3rd attempt, close the task as permanently `failed`: further calls of this task are
   forbidden; record the attempt exhaustion and continue with the remaining tasks;

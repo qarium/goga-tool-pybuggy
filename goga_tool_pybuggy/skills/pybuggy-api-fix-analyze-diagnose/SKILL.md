@@ -54,7 +54,7 @@ For each failed test, gather five evidence items in this order:
 STOP conditions:
 
 - The collect report or the log is unavailable → stop.
-- The SUT is unavailable for a rerun → mark "rerun skipped" in the evidence and continue.
+- The SUT is unavailable for a rerun → mark the rerun column `omitted` in the evidence and continue.
 
 ---
 

@@ -30,7 +30,7 @@ visible — never apply skips or `xfail`, regardless of the triage outcome.
 1. Execute the command from [ACCEPT_SCOPE] (from the directory containing `conftest.py`).
 2. Capture the complete result: passed / failed / errors per test.
 3. Environment unavailable (pytest/plugin fail to start, SUT does not respond) — STOP, but only after an
-   explicit question to the user: restore the environment and continue / finish the acceptance with the verdict "run not possible".
+   explicit question to the user: restore the environment and continue / finish the acceptance with the REJECTED verdict (run not possible).
 
 ### Step 3. Classify outcomes
 
@@ -104,7 +104,7 @@ Full tracebacks are not duplicated — the record stays readable.>
 Numbering `BUG-<topic>-<N>` — continuous across the file; take the next free number.
 
 **Return to the test cases** — log it in the report (the test stays failing, the test case goes to the
-`pybuggy-api-automate-testcases` pipeline); continue triaging the remaining failures.
+`goga-tool-pybuggy-api-automate-testcases` pipeline); continue triaging the remaining failures.
 
 ### Step 6. Run summary
 

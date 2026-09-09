@@ -88,7 +88,7 @@ Triage each failed test along these categories (details in the `accept-run` sub-
 | **Service bug** | the test is correct; the SUT violates its contract | bug record in `goga history path -f bugs.md` — one record per problem, with the failing tests listed |
 | **Ambiguous** | insufficient data to decide | joint analysis with the user (WAIT) |
 
-A valid test failure (a failure that exposed a service bug) **blocks the ACCEPTED_WITH_NOTES verdict** but does not
+A valid test failure (a failure that exposed a service bug) **blocks the ACCEPTED verdict** but does not
 stop the pipeline: the remaining tests still run, and the bug is recorded in the artifact.
 
 ## Invariants

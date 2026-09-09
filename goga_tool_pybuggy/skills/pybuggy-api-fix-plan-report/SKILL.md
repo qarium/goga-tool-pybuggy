@@ -17,7 +17,7 @@ You assemble the final fix plan and save it to disk.
 
 ---
 
-## Output Format
+## Output format
 
 The content of the saved file. Fill in every section.
 

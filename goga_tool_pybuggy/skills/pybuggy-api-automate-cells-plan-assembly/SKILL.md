@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-cells-plan-assembly
 description: Assembles and saves the test cells architecture plan to the path printed by `goga history path -f arch.md`
 ---
 
+# Pybuggy API Topic Cells Plan — Assembly
+
 ## Identity
 
 You are responsible for assembling the test cells architecture plan from the approved CODEMANIFESTs and saving it to

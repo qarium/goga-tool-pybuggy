@@ -51,7 +51,7 @@ consistency). Merge these findings with the test checks below.
 
 ### Phase 4. Report & Fix
 
-For every finding, report: location, severity (critical/major/minor), problem, impact, fix. Apply doc fixes only
+For every finding, report: location, severity (Critical / High), problem, impact, fix. Apply doc fixes only
 with user approval, keeping the test focus.
 
 ## Invariants

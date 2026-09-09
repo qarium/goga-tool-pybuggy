@@ -18,7 +18,7 @@ You assemble the final collect report from the step results and save it to disk.
 
 ---
 
-## Output Format
+## Output format
 
 The content of the saved file. Fill in every section.
 

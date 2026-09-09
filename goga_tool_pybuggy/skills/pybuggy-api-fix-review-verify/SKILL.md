@@ -51,7 +51,7 @@ run mismatch), `Medium` (incomplete records, deviations from the template).
 
 ---
 
-## Output Format
+## Output format
 
 Fill in every section. Empty sections are prohibited ("no findings" / "none" — an explicit mark).
 

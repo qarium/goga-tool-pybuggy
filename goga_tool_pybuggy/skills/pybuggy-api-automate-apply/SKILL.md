@@ -22,7 +22,7 @@ you add nothing, you infer nothing.
 Input: the path printed by `goga history path -f arch.md` — the test cells plan.
 
 Pre-flight: check that the input path exists.
-- **Missing** — halt: the `pybuggy-api-automate-cells` pipeline must run first.
+- **Missing** — halt: the `goga-tool-pybuggy-api-automate-cells` pipeline must run first.
 - **Exists** — proceed.
 
 ## Context Initialization
@@ -37,7 +37,7 @@ Before the phases, load context via the **Skill tool**:
 
 1. Run `goga --help`. If the command is unavailable — halt and inform the user.
 2. Verify that the path printed by `goga history path -f arch.md` exists and is not empty. If the file is missing or empty — halt:
-   the `pybuggy-api-automate-cells` pipeline must run first.
+   the `goga-tool-pybuggy-api-automate-cells` pipeline must run first.
 
 ## Phases
 
@@ -70,11 +70,11 @@ Validate each CODEMANIFEST against `goga-cell` / `goga-tool-pybuggy-api-cookbook
    the backtick form `` `<key>` `` resolves).
 3. Body: Routine without `methods`/`properties`; signature `test_<name>(<fixture>: Endpoint, ...)` without
    output (one fixture parameter per invoked endpoint), `location: test_<name>.py`; annotation — strict
-   structure Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …` with **an empty line between
-   sections**.
+   structure Purpose → `Precondition:` → (`Data:`) → `Steps:` → (`Use …`) — `Data:` and `Use …` may be
+   omitted when empty, per the cookbook — with **an empty line between sections**.
 4. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
-On errors — output the list (cell + violation), recommend returning to `pybuggy-api-automate-cells` to fix
+On errors — output the list (cell + violation), recommend returning to `goga-tool-pybuggy-api-automate-cells` to fix
 the plan, and **halt** (create no files).
 
 ### Phase 3. Create the CODEMANIFESTs

@@ -11,7 +11,7 @@ Need to adjust the pipeline for your project without forking it? See
 
 | #  | Stage                 | Purpose                                                                                                              |
 |----|-----------------------|----------------------------------------------------------------------------------------------------------------------|
-| 1  | `create-requirements` | Collect detailed requirements for the topic under test → `requirements.md`                                           |
+| 1  | `create-requirements` | Collect detailed requirements for the testing subject → `requirements.md`                                           |
 | 2  | `requirements-audit`  | Review the requirements artifact                                                                                     |
 | 3  | `test-design`         | Design integration test cases (TC-`<N>`, REQ→TC traceability) → `testcases.md`                                       |
 | 4  | `test-audit`          | Review the test cases                                                                                                |

@@ -78,7 +78,7 @@ Check **the document structure and the structure of every case**.
 The document must contain the sections:
 
 1. `# Description of the topic under test`.
-2. `# Topic integration points` — the table `Endpoint | Data change/retrieval | Criticality`.
+2. `# Topic integration points` — the table `Endpoint | Data mutation/Read | Criticality`.
 3. `# Integration testing goals` — a numbered list with verbs (Verify/Make sure/Confirm).
 4. `# Topic traces` — traces `## TRACE-<N>: <title>` with numbered steps **Call** → **Effect** →
    **Verification** (approved at the elaborate stage).
@@ -244,7 +244,7 @@ Present the findings **one at a time**. For each:
 
 - **Severity** (Critical / High / Medium)
 - **Area** (Structure / Traceability / Realness / Coverage / Quality / Consistency)
-- **Location** — an exact reference (case `#### N`, step, field, endpoint)
+- **Location** — an exact reference (case `TC-<N>`, step, field, endpoint)
 - **Issue** — a clear description of the problem
 - **Evidence** — what confirms the finding (the `Request` model/`api.py`, `schemas`, the
   requirements, the counter)
@@ -301,7 +301,7 @@ Before finishing, verify:
    `schemas/<status>.json`?
 4. Have you checked the structural completeness of the document and of every case (all
    fields/subsections, the "Topic traces" section with Call/Effect/Verification)?
-5. Have you checked the traceability to the requirements (version, endpoints, scenarios,
+5. Have you checked the traceability to the requirements (endpoints, scenarios,
    acceptance criteria, traces rest on §1/§2/§3) and the existence of the Preconditions usage
    keys (§8 / `.goga/usages/cooks/`)?
 6. Have you checked the coverage matrix (rows = the §3 registry, the `requirements` values of

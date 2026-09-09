@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-testcases-write
 description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to the path printed by `goga history path -f testcases.md`
 ---
 
+# Pybuggy API Topic Testcases — Write
+
 ## Identity
 
 You assemble detailed test cases from the outputs of the preceding pipeline steps and save them to a file.
@@ -30,8 +32,8 @@ You load five context inputs:
 
 ### Step 2. Build the document header and description
 
-1. Sections from the plan: Topic Under Test Description, Topic Integration Points, Integration Testing
-   Goals.
+1. Sections from the plan: Description of the topic under test, Topic integration points, Integration
+   testing goals.
 2. "Topic traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
    trace `## TRACE-<N>: <name>` with endpoints and numbered steps **Call** → **Effect** →
    **Verification**.
@@ -121,13 +123,13 @@ not covered Z, excluded by decision W]
 
 [Verbatim format of the saved file:]
 
-# Topic Under Test Description
+# Description of the topic under test
 ...
 
-# Topic Integration Points
+# Topic integration points
 ...
 
-# Integration Testing Goals
+# Integration testing goals
 ...
 
 # Topic traces

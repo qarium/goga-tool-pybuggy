@@ -24,7 +24,7 @@ Run the steps strictly sequentially, one at a time. Validate each step's output 
 - Reads: the path printed by `goga history path -f fix-analysis.md`
 - Result: [FIX_PLAN_ITEMS] — plan items grouped by cell, approved by the user
 - WAIT: plan approval — iterate until the user confirms
-- STOP: the analysis artifact is missing — return to the analyze stage; the user rejected the plan after an iteration
+- STOP: the analysis artifact is missing — return to the analyze stage; the user aborted plan approval (refused to continue after an iteration)
 
 ### Step 2. Report
 

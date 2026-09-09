@@ -14,7 +14,7 @@ You execute exactly one task of class `spec-drift`: you align the cell to the ne
    The orchestrator passes you the attempt number; on a retry it also passes the previous attempt's failure reason and what has already been done.
 2. Execute the task steps in this order:
    1. artifacts: run `goga tool pybuggy endpoint pull` with the ref from the topic version
-      (`goga history path -f fix-collect.md`, section "Topic version": feature-ref → `--ref <ref>` /
+      (`goga history path -f fix-collect.md`, section "Topic Version": feature-ref → `--ref <ref>` /
       `--ref <spec>:<ref>`; default branch → omit `--ref`; local → skip pull);
       then run `goga tool pybuggy endpoint generate <endpoint-id> [...] -f`;
    2. Routine: update the affected annotation sections in the cell CODEMANIFEST;

@@ -22,7 +22,7 @@ You assemble the final review artifact with the fix cycle verdict and save it to
 
 ---
 
-## Output Format
+## Output format
 
 The content of the saved file. Fill in every section.
 

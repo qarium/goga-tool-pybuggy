@@ -8,7 +8,7 @@ description: Verification of the test requirements artifact `goga history path -
 
 You are the reviewer of the "Detailed Requirements for a Topic" artifact. You verify
 the requirements artifact (the path printed by `goga history path -f requirements.md`) — the output of the
-`goga-tool-pybuggy-api-automate-requirements` pipeline. The artifact describes the **behavior** of the topic under test for subsequent test case
+`goga-tool-pybuggy-api-automate-requirements` pipeline. The artifact describes the **behavior** of the testing subject for subsequent test case
 and cell generation; it **contains no test code**.
 
 ## Objective
@@ -85,7 +85,7 @@ Verify that the artifact contains **all mandatory sections**:
    without an identifier is **High** (invisible to case traceability in `testcases`).
 4. **Business preconditions and environment** — business preconditions (entities/roles/states as a
    need), the environment.
-5. **Roles and access** — who may and may not call the endpoints.
+5. **Roles and permissions** — who may and may not call the endpoints.
 6. **Integration aspects** — interaction with components, mocks, external dependencies.
 7. **Links and resources** — specs (location), design, API docs, etc.
 8. **Available project usages** — a table of `key | path | role | purpose` — the `.goga/usages/` scan
@@ -119,9 +119,9 @@ Verify that the artifact contains **all mandatory sections**:
 4. **Artifact path realness** — the `api.py`, `schemas/<status>.json`, `tests/<spec>/<id>/` paths
    from section 2 **exist on disk**. A non-existent path is **Critical** (generation was not run, or
    the path was recorded incorrectly).
-5. **Response schema completeness** — every status code from section 6 has a corresponding
+5. **Response schema completeness** — every status code from section 3 has a corresponding
    `schemas/<status>.json`. A missing schema for a declared contract is **High**.
-6. **Request without code** — the "Endpoints" section contains **only** descriptions and paths; any
+6. **Request without code** — the "Topic endpoints" section contains **only** descriptions and paths; any
    implementation code (`def test_`, `assert`, `@pytest`, pytest fixtures) is **Critical**.
 7. **Existing coverage realness (§9)** — cross-check via `goga schema tests/`: every endpoint
    declared in §9 as partially/fully covered has the listed `test_*` Routines in the output (a cell
@@ -132,7 +132,7 @@ Verify that the artifact contains **all mandatory sections**:
 8. **Artifact freshness (drift)** — for the endpoints of section 2, run `goga tool pybuggy endpoint
    diff <endpoint-id> [<endpoint-id> ...]` (read-only, so allowed here — unlike `pull`/`generate`).
    A non-empty diff on a generated endpoint means the on-disk artifacts (`meta.json`/`schemas`)
-   lag the live spec: the requirements' contracts (§2/§6 error behavior) were read from stale files —
+   lag the live spec: the requirements' contracts (§2/§3 error behavior) were read from stale files —
    **High**; the suggested fix is to restart the `requirements` pipeline (its discovery/generate
    refreshes the artifacts), not an inline edit. An empty diff on every endpoint is the pass.
 
@@ -178,7 +178,7 @@ Verify that the artifact contains **all mandatory sections**:
    `requirements` pipeline invariant).
 2. **Behavior completeness** — the artifact describes **both** main behavior **and** error behavior.
    The absence of either kind is **High**.
-3. **Roles and access** — for endpoints with `auth`, the artifact states who may call them and who
+3. **Roles and permissions** — for endpoints with `auth`, the artifact states who may call them and who
    may not (a foreign session, missing auth). An omission is **Medium** (or **High** if auth is a
    key part of the topic).
 4. **Business preconditions** — the preconditions (entities/roles/states) are concrete, not "prepare

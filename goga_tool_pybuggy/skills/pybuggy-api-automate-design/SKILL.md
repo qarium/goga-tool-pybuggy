@@ -43,8 +43,8 @@ Anchor the following before invoking the goga skill and hold it for the entire s
 
 Arguments: `$ARGUMENTS`
 
-1. If `$ARGUMENTS` is empty — check that the path printed by `goga history path -f design.md` exists (as in
-   `goga-design`): missing → halt and ask the user.
+1. If `$ARGUMENTS` is empty — check that the test-cell CODEMANIFESTs exist under `tests/<spec>/<id>/`
+   (the `cells`/`apply` stages must have run): missing → halt and ask the user to run them first.
 2. Load the testing context via the **Skill tool**: `goga-tool-pybuggy-api-usage` and `goga-tool-pybuggy-api-cookbook`.
 3. Invoke `goga-design` via the **Skill tool**, attaching the explicit
    testing-mode package (marker phrase: «Pybuggy testing mode: generate integration tests from CODEMANIFEST test-cells;
