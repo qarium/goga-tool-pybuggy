@@ -101,8 +101,11 @@ with `goga hooks`). A plain `import goga_tool_pybuggy` never triggers it; the pl
 
 | Hook name | Callable | Registers |
 |-----------|----------|-----------|
-| `automate` | `register_automate_statuses` | the five PybuggyApiAutomate pipeline stages |
-| `fix` | `register_fix_statuses` | the five PybuggyApiFix pipeline stages |
+| `automate` | `register_automate_statuses` | the six automate-line statuses (including the completed-accept `automate.done`) |
+| `fix` | `register_fix_statuses` | the five fix-line statuses |
+
+Both hook callables live in `goga_tool_pybuggy/statuses.py` and are NOT re-exported on the package
+facade — only `register_hooks` is; the platform reaches them through its subscription.
 
 The tool identity (`pybuggy`) is assigned by the platform from the package name — the package never names
 itself. Every registered status is stored and shown qualified: `pybuggy.<name>`.
@@ -111,20 +114,23 @@ The registered topic statuses (artifact paths relative to the topic directory):
 
 | Qualified status | Artifact | Anchors |
 |------------------|----------|---------|
-| `pybuggy.automate.requirements-created` | `requirements.md` | after `defined`, before `discovered` |
-| `pybuggy.automate.testcases-designed` | `testcases.md` | after `backlog`, before `designed` |
-| `pybuggy.automate.cells-prepared` | `arch.md` | after `designed`, before `specified` |
-| `pybuggy.automate.code-designed` | `design.md` | after `specified`, before `planned` |
-| `pybuggy.automate.coding-planned` | `plan.md` | after `planned`, before `done` |
-| `pybuggy.fix.collected` | `fix-collect.md` | after `done` |
+| `pybuggy.automate.done` | `completed/plan.md` | after `done` |
+| `pybuggy.automate.coding-planned` | `plan.md` | after `planned`, before `pybuggy.automate.done` |
+| `pybuggy.automate.code-designed` | `design.md` | after `specified`, before `pybuggy.automate.coding-planned` |
+| `pybuggy.automate.arch-prepared` | `arch.md` | after `designed`, before `pybuggy.automate.code-designed` |
+| `pybuggy.automate.testcases-designed` | `testcases.md` | after `backlog`, before `pybuggy.automate.arch-prepared` |
+| `pybuggy.automate.requirements-created` | `requirements.md` | after `defined`, before `pybuggy.automate.testcases-designed` |
+| `pybuggy.fix.collected` | `fix-collect.md` | after `empty` |
 | `pybuggy.fix.analyzed` | `fix-analysis.md` | after `pybuggy.fix.collected` |
 | `pybuggy.fix.planned` | `fix-plan.md` | after `pybuggy.fix.analyzed` |
 | `pybuggy.fix.executed` | `fix-execute.md` | after `pybuggy.fix.planned` |
 | `pybuggy.fix.reviewed` | `fix-review.md` | after `pybuggy.fix.executed` |
 
-The automate stages land between their built-in neighbors on the status scale; the arch/design/plan artifacts
-are the same files as their built-in twins. The fix chain rides above the built-in top (`done`) in pipeline
-order. Registration is add-only and never cached — package edits apply from the next run, without reinstall.
+The automate statuses register in reverse pipeline order: `automate.done` lands above the built-in `done`,
+and each middle status anchors above its built-in twin and below the previously registered automate status
+(the arch/design/plan artifacts are the same files as their built-in twins). The fix chain starts above the
+built-in `empty` and stacks in pipeline order, every status anchored to its predecessor. Registration is
+add-only and never cached — package edits apply from the next run, without reinstall.
 
 ## Preconditions and side effects
 

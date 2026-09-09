@@ -23,8 +23,7 @@ suite. The package contains a pytest plugin and a CLI.
   creates the tests, `api.fix` repairs them when they break.
 - **Topic statuses** — every pipeline artifact marks a `pybuggy.*` status on the goga
   topic status scale: `goga history status` shows the latest reached stage of the
-  automate line, the fix line, and the shared `pybuggy.bugs` marker — one status per
-  line.
+  automate line and the fix line — one status per line.
 
 ## Quickstart
 

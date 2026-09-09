@@ -89,17 +89,17 @@ Every artifact of the cycle marks a status on the **fix line** of the goga topic
 scale — an independent chain anchored at the bottom of the scale, so it never reorders
 the automate line:
 
-| Artifact         | Status                    |
-|------------------|---------------------------|
-| `fix-collect.md` | `pybuggy.fix.collect`     |
-| `fix-analysis.md`| `pybuggy.fix.analysis`    |
-| `fix-plan.md`    | `pybuggy.fix.plan`        |
-| `fix-execute.md` | `pybuggy.fix.execute`     |
-| `fix-review.md`  | `pybuggy.fix.review`      |
+| Artifact         | Status                      |
+|------------------|-----------------------------|
+| `fix-collect.md` | `pybuggy.fix.collected`     |
+| `fix-analysis.md`| `pybuggy.fix.analyzed`      |
+| `fix-plan.md`    | `pybuggy.fix.planned`       |
+| `fix-execute.md` | `pybuggy.fix.executed`      |
+| `fix-review.md`  | `pybuggy.fix.reviewed`      |
 
 A topic mid-repair therefore shows one maximal status per line — e.g.
-`[pybuggy.fix.analysis] [pybuggy.automate.done]`. Service bugs recorded in `bugs.md`
-mark the shared `pybuggy.bugs` marker (see
+`[pybuggy.fix.analyzed] [pybuggy.automate.done]`. The fix chain is an independent line
+anchored at the built-in `empty` (see
 [api.automate — Topic status](api-automate.md#topic-status)).
 
 ## How it relates to the rest

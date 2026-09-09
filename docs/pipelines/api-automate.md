@@ -60,20 +60,19 @@ Every artifact of the chain marks a status on the goga topic status scale — th
 registers one `pybuggy.*` status per artifact, so a pybuggy topic reports its latest
 reached stage under its own name instead of the built-in axis:
 
-| Artifact            | Status                            |
-|---------------------|-----------------------------------|
-| `requirements.md`   | `pybuggy.automate.requirements`   |
-| `testcases.md`      | `pybuggy.automate.testcases`      |
-| `arch.md`           | `pybuggy.automate.arch`           |
-| `design.md`         | `pybuggy.automate.design`         |
-| `plan.md`           | `pybuggy.automate.plan`           |
-| `completed/plan.md` | `pybuggy.automate.done`           |
-| `bugs.md`           | `pybuggy.bugs`                    |
+| Artifact            | Status                                 |
+|---------------------|----------------------------------------|
+| `requirements.md`   | `pybuggy.automate.requirements-created`|
+| `testcases.md`      | `pybuggy.automate.testcases-designed`  |
+| `arch.md`           | `pybuggy.automate.arch-prepared`       |
+| `design.md`         | `pybuggy.automate.code-designed`       |
+| `plan.md`           | `pybuggy.automate.coding-planned`      |
+| `completed/plan.md` | `pybuggy.automate.done`                |
 
-`pybuggy.bugs` is the shared service-bug marker (written by both pipelines) and sits
-above `pybuggy.automate.done`, so a completed topic with recorded service bugs shows
-only `[pybuggy.bugs]`. Read the scale with `goga history status`; filter topics by any
-registered name with `goga history status -s <name>`.
+Each automate status anchors above its built-in twin (`automate.done` above the built-in `done`), and
+`goga history status` shows the latest reached stage of the topic. Read the scale with
+`goga history status`; filter topics by any registered name with `goga history status -s <name>`.
+Service bugs recorded in `bugs.md` are history records — they mark no status on the scale.
 
 ## How it relates to the rest
 

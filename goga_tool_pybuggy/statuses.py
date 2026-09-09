@@ -1,9 +1,9 @@
 """pybuggy topic statuses on the goga status scale.
 
-Registers the automate status line with the shared bugs marker and the
-independent fix status line on the goga topic status scale. The two platform
-surfaces arrive as arguments — ``hooks`` (subscription) and ``context``
-(status registration) — so the module needs no imports.
+Registers the automate status line and the independent fix status line on the
+goga topic status scale. The two platform surfaces arrive as arguments —
+``hooks`` (subscription) and ``context`` (status registration) — so the module
+needs no imports.
 """
 
 
@@ -11,9 +11,9 @@ def register_hooks(hooks: object) -> None:
     """Subscribe the pybuggy topic-status hooks to the statuses registration action.
 
     Makes exactly two subscriptions on the statuses domain registration
-    action: the automate line under the hook name ``automate_statuses`` and
-    the fix line under the hook name ``fix_statuses``. The platform imports
-    this callback from the package root.
+    action: the automate line under the hook name ``automate`` and the fix
+    line under the hook name ``fix``. The platform imports this callback from
+    the package root.
 
     Args:
         hooks: The subscription surface delivered by the platform.
@@ -23,15 +23,14 @@ def register_hooks(hooks: object) -> None:
 
 
 def register_automate_statuses(context: object) -> None:
-    """Register the automate status line and the shared bugs marker.
+    """Register the automate status line.
 
-    Performs 7 literal registration calls in the normative table order: the
-    completed-accept status anchored above the built-in ``done``, the middle
-    automate statuses in reverse pipeline order (plan, design, arch,
+    Performs 6 literal registration calls in the normative table order: the
+    completed-accept status anchored above the built-in ``done``, then the
+    middle automate statuses in reverse pipeline order (plan, design, arch,
     testcases, requirements) each anchored above its built-in twin and below
-    the previously registered automate status, then the shared bugs marker
-    above the completed-accept status. Registered names carry no tool prefix
-    — the platform assigns the tool identity.
+    the previously registered automate status. Registered names carry no tool
+    prefix — the platform assigns the tool identity.
 
     Args:
         context: The registration surface scoped to the tool.
@@ -44,11 +43,16 @@ def register_automate_statuses(context: object) -> None:
 
     context.register("automate.arch-prepared", "arch.md", after="designed", before="pybuggy.automate.code-designed")
 
-    context.register("automate.testcases-designed", "testcases.md", after="backlog",
-                     before="pybuggy.automate.arch-prepared")
+    context.register(
+        "automate.testcases-designed", "testcases.md", after="backlog", before="pybuggy.automate.arch-prepared"
+    )
 
-    context.register("automate.requirements-created", "requirements.md", after="defined",
-                     before="pybuggy.automate.testcases-designed")
+    context.register(
+        "automate.requirements-created",
+        "requirements.md",
+        after="defined",
+        before="pybuggy.automate.testcases-designed",
+    )
 
 
 def register_fix_statuses(context: object) -> None:
