@@ -25,11 +25,14 @@ Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
   python-dotenv: .goga/usages/cooks/python-dotenv.md
+  goga-hooks: .goga/usages/cooks/goga/hooks/registering-hooks.md
+  goga-statuses: .goga/usages/cooks/goga/history/registering-statuses.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the root group, the endpoint subgroup, command registration, the top-level init command, and the global --env-file option with its eager-callback.
   Use `python-dotenv` for loading the .env file into os.environ with override=False.
+  Use `goga-hooks` for the facade callback `register_hooks` the goga hooks platform invokes, and `goga-statuses` for the topic-status registrations its hooks deliver.
   Connected practices describe how consumers use the composed commands and the plugin: `pull`, `list`, `info`, `generate`, `diff`, `init`, `config-build`, `enable`, `configuration`.
 
   This cell is the package composition root: it owns the root group `main`, loads the .env environment before any subcommand runs, and assembles the full CLI.
@@ -134,6 +137,64 @@ Annotations: |
 
     Use `conventions` for code writing rules and testing.
 
+"register_hooks(hooks: object)":
+  location: __init__.py
+  annotations: |
+    Subscribe the pybuggy status hooks to the goga hooks platform — the facade callback the platform imports and calls when a command first reaches a hook checkpoint of the run (or when the registry is inspected with the goga hooks command). Commands that use no hooks never call it.
+
+    `hooks`: the registration surface delivered by the platform; the tool identity (pybuggy) is assigned by the platform from the package name, so every registered status is shown qualified as pybuggy.<name>.
+
+    Algorithm:
+    1. Subscribe `register_automate_statuses` to the address domain statuses / action register_statuses under the hook name automate.
+    2. Subscribe `register_fix_statuses` to the same address under the hook name fix.
+
+    Requirements:
+    - Both subscriptions target exactly one address: domain statuses, action register_statuses.
+    - Hook names are unique per tool per address: automate and fix.
+
+    Use `goga-hooks` for the callback contract and the failure behavior of a subscription.
+    Use `goga-statuses` for the registration contract the subscribed hooks implement.
+
+"register_automate_statuses(context: object)":
+  location: __init__.py
+  annotations: |
+    Register the PybuggyApiAutomate pipeline stages as goga topic statuses — the hook behind the automate name of `register_hooks`.
+
+    `context`: the registration surface delivered by the statuses action of the platform, scoped to the pybuggy tool.
+
+    Algorithm:
+    1. Register automate.requirements-created (artifact requirements.md) between the built-in anchors defined and discovered.
+    2. Register automate.testcases-designed (artifact testcases.md) between the built-in anchors backlog and designed.
+    3. Register automate.cells-prepared (artifact arch.md) between the built-in anchors designed and specified.
+    4. Register automate.code-designed (artifact design.md) between the built-in anchors specified and planned.
+    5. Register automate.coding-planned (artifact plan.md) between the built-in anchors planned and done.
+
+    Requirements:
+    - Every stage name is the completed form of its pipeline stage and lands next to the topic artifacts it neighbors in the lifecycle.
+    - The arch/design/plan artifacts are the same files as their built-in twins (arch.md, design.md, plan.md).
+
+    Use `goga-statuses` for the register contract (name qualification, anchors, failure behavior).
+
+"register_fix_statuses(context: object)":
+  location: __init__.py
+  annotations: |
+    Register the PybuggyApiFix pipeline stages as goga topic statuses — the hook behind the fix name of `register_hooks`.
+
+    `context`: the registration surface delivered by the statuses action of the platform, scoped to the pybuggy tool.
+
+    Algorithm:
+    1. Register fix.collected (artifact fix-collect.md) after the built-in top done.
+    2. Register fix.analyzed (artifact fix-analysis.md) after pybuggy.fix.collected.
+    3. Register fix.planned (artifact fix-plan.md) after pybuggy.fix.analyzed.
+    4. Register fix.executed (artifact fix-execute.md) after pybuggy.fix.planned.
+    5. Register fix.reviewed (artifact fix-review.md) after pybuggy.fix.executed.
+
+    Requirements:
+    - Stage names are the completed forms of the pipeline stages and carry the pipeline prefix (fix.collected, fix.analyzed, ...).
+    - The chain rides above the built-in top (done) in pipeline order — every stage anchored to the previous one.
+
+    Use `goga-statuses` for the register contract (name qualification, anchors, failure behavior).
+
 ->install: {}
 
 ---
@@ -142,4 +203,6 @@ Author: Goga
 CreatedAt: 08/07/26
 Description: |
   Package composition root — owns the root CLI group main, assembles the endpoint subgroup
-  (pull/list/info/generate/diff), registers the top-level `init` command, and loads the .env environment before any command runs.
+  (pull/list/info/generate/diff), registers the top-level `init` command, loads the .env environment
+  before any command runs, and exposes the goga hooks-platform facade callback that registers
+  the pybuggy topic statuses.

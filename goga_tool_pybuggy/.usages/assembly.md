@@ -3,9 +3,10 @@
 ## Domain
 
 Consumption patterns of the root cell `goga_tool_pybuggy/`: a package facade that defines the root Click group
-`main`, loads `.env` into `os.environ` before any command executes, and assembles the full CLI. The audience:
-integrators who launch `pybuggy` (console command or `python -m goga_tool_pybuggy`) and external importers of
-the facade (`from goga_tool_pybuggy import main`).
+`main`, loads `.env` into `os.environ` before any command executes, assembles the full CLI, and exposes the
+`register_hooks` callback of the goga hooks platform. The audience: integrators who launch `pybuggy`
+(console command or `python -m goga_tool_pybuggy`), external importers of the facade
+(`from goga_tool_pybuggy import main`), and the goga hooks platform (which imports and calls `register_hooks`).
 
 ## Entry point
 
@@ -89,6 +90,41 @@ Registered under `endpoint`: `pull`, `list`, `info`, `generate`, `diff`.
 The config path is fixed (`.goga/tools/pybuggy/config.yml`, see `goga_tool_pybuggy.config.CONFIG_PATH`).
 There is no `--config` option — commands load the config themselves via `load_config()` (no argument). The
 pass-object `ctx.obj` exists but carries only the env context (`EnvContext`), not the config.
+
+## goga hooks platform integration
+
+The facade exposes one more entry point beside the CLI: `register_hooks` — the callback the goga hooks
+platform imports and calls when a command first reaches a hook checkpoint of the run (inspect the registry
+with `goga hooks`). A plain `import goga_tool_pybuggy` never triggers it; the platform owns the call.
+
+`register_hooks` subscribes two status hooks to the single address statuses / register_statuses:
+
+| Hook name | Callable | Registers |
+|-----------|----------|-----------|
+| `automate` | `register_automate_statuses` | the five PybuggyApiAutomate pipeline stages |
+| `fix` | `register_fix_statuses` | the five PybuggyApiFix pipeline stages |
+
+The tool identity (`pybuggy`) is assigned by the platform from the package name — the package never names
+itself. Every registered status is stored and shown qualified: `pybuggy.<name>`.
+
+The registered topic statuses (artifact paths relative to the topic directory):
+
+| Qualified status | Artifact | Anchors |
+|------------------|----------|---------|
+| `pybuggy.automate.requirements-created` | `requirements.md` | after `defined`, before `discovered` |
+| `pybuggy.automate.testcases-designed` | `testcases.md` | after `backlog`, before `designed` |
+| `pybuggy.automate.cells-prepared` | `arch.md` | after `designed`, before `specified` |
+| `pybuggy.automate.code-designed` | `design.md` | after `specified`, before `planned` |
+| `pybuggy.automate.coding-planned` | `plan.md` | after `planned`, before `done` |
+| `pybuggy.fix.collected` | `fix-collect.md` | after `done` |
+| `pybuggy.fix.analyzed` | `fix-analysis.md` | after `pybuggy.fix.collected` |
+| `pybuggy.fix.planned` | `fix-plan.md` | after `pybuggy.fix.analyzed` |
+| `pybuggy.fix.executed` | `fix-execute.md` | after `pybuggy.fix.planned` |
+| `pybuggy.fix.reviewed` | `fix-review.md` | after `pybuggy.fix.executed` |
+
+The automate stages land between their built-in neighbors on the status scale; the arch/design/plan artifacts
+are the same files as their built-in twins. The fix chain rides above the built-in top (`done`) in pipeline
+order. Registration is add-only and never cached — package edits apply from the next run, without reinstall.
 
 ## Preconditions and side effects
 
