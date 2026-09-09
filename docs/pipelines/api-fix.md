@@ -49,7 +49,7 @@ and holds for the entire cycle. Non-standard base URLs are passed to every run a
 | 3 | `create-fix-plan`  | Group the classified failures into an executable plan of tasks and approve it → `fix-plan.md`                                  |
 | 4 | `execute-fix-plan` | Run the plan tasks in order, each with its own verification; final full run → `fix-execute.md`                                 |
 | 5 | `review-fixes`     | Verify the executed plan and the final run, triage findings with you, deliver the cycle verdict → `fix-review.md`              |
-| 6 | `commit-changes`   | Commit all added and modified files (except `docs/<defines                                                                     |
+| 6 | `commit-changes`   | Commit all added and modified files                                                                                            |
 
 ## Task classes
 
@@ -82,6 +82,25 @@ fix-log-final.txt   # final full-suite run output
 fix-review.md       # review findings, decisions, cycle verdict
 bugs.md             # service bugs recorded along the way
 ```
+
+## Topic status
+
+Every artifact of the cycle marks a status on the **fix line** of the goga topic status
+scale — an independent chain anchored at the bottom of the scale, so it never reorders
+the automate line:
+
+| Artifact         | Status                    |
+|------------------|---------------------------|
+| `fix-collect.md` | `pybuggy.fix.collect`     |
+| `fix-analysis.md`| `pybuggy.fix.analysis`    |
+| `fix-plan.md`    | `pybuggy.fix.plan`        |
+| `fix-execute.md` | `pybuggy.fix.execute`     |
+| `fix-review.md`  | `pybuggy.fix.review`      |
+
+A topic mid-repair therefore shows one maximal status per line — e.g.
+`[pybuggy.fix.analysis] [pybuggy.automate.done]`. Service bugs recorded in `bugs.md`
+mark the shared `pybuggy.bugs` marker (see
+[api.automate — Topic status](api-automate.md#topic-status)).
 
 ## How it relates to the rest
 

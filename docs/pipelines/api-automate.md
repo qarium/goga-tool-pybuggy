@@ -54,6 +54,27 @@ bugs.md           # triaged service bugs found at acceptance
 tests/<spec>/<id>/  # the materialized test code (in the project tree)
 ```
 
+## Topic status
+
+Every artifact of the chain marks a status on the goga topic status scale — the package
+registers one `pybuggy.*` status per artifact, so a pybuggy topic reports its latest
+reached stage under its own name instead of the built-in axis:
+
+| Artifact            | Status                            |
+|---------------------|-----------------------------------|
+| `requirements.md`   | `pybuggy.automate.requirements`   |
+| `testcases.md`      | `pybuggy.automate.testcases`      |
+| `arch.md`           | `pybuggy.automate.arch`           |
+| `design.md`         | `pybuggy.automate.design`         |
+| `plan.md`           | `pybuggy.automate.plan`           |
+| `completed/plan.md` | `pybuggy.automate.done`           |
+| `bugs.md`           | `pybuggy.bugs`                    |
+
+`pybuggy.bugs` is the shared service-bug marker (written by both pipelines) and sits
+above `pybuggy.automate.done`, so a completed topic with recorded service bugs shows
+only `[pybuggy.bugs]`. Read the scale with `goga history status`; filter topics by any
+registered name with `goga history status -s <name>`.
+
 ## How it relates to the rest
 
 - When accepted suites break — now or later — the [`api.fix` lifecycle](api-fix.md)

@@ -15,8 +15,9 @@ goga pipeline pybuggy:api.fix        # repair them when they break
 
 Prerequisites: pybuggy installed (`goga install pybuggy`) and the environment
 initialized (`goga tool pybuggy init` — see [Getting Started](../getting-started.md)).
-Each pipeline asks for the topic under test and drives the chain; `<topic>` names
-every artifact it produces.
+Each pipeline works on the current git branch as its topic and drives the chain; every
+artifact it produces lives in the topic's history directory
+(`.goga/history/<year>/<topic>/`), addressed by `goga history path -f <artifact>`.
 
 ## In this section
 
