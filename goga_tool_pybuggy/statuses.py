@@ -18,9 +18,8 @@ def register_hooks(hooks: object) -> None:
     Args:
         hooks: The subscription surface delivered by the platform.
     """
-    hooks.subscribe("statuses", "register_statuses", "automate_statuses", register_automate_statuses)
-
-    hooks.subscribe("statuses", "register_statuses", "fix_statuses", register_fix_statuses)
+    hooks.subscribe("statuses", "register_statuses", "automate", register_automate_statuses)
+    hooks.subscribe("statuses", "register_statuses", "fix", register_fix_statuses)
 
 
 def register_automate_statuses(context: object) -> None:
@@ -39,19 +38,17 @@ def register_automate_statuses(context: object) -> None:
     """
     context.register("automate.done", "completed/plan.md", after="done")
 
-    context.register("automate.plan", "plan.md", after="planned", before="pybuggy.automate.done")
+    context.register("automate.coding-planned", "plan.md", after="planned", before="pybuggy.automate.done")
 
-    context.register("automate.design", "design.md", after="specified", before="pybuggy.automate.plan")
+    context.register("automate.code-designed", "design.md", after="specified", before="pybuggy.automate.coding-planned")
 
-    context.register("automate.arch", "arch.md", after="designed", before="pybuggy.automate.design")
+    context.register("automate.arch-prepared", "arch.md", after="designed", before="pybuggy.automate.code-designed")
 
-    context.register("automate.testcases", "testcases.md", after="backlog", before="pybuggy.automate.arch")
+    context.register("automate.testcases-designed", "testcases.md", after="backlog",
+                     before="pybuggy.automate.arch-prepared")
 
-    context.register(
-        "automate.requirements", "requirements.md", after="defined", before="pybuggy.automate.testcases"
-    )
-
-    context.register("bugs", "bugs.md", after="pybuggy.automate.done")
+    context.register("automate.requirements-created", "requirements.md", after="defined",
+                     before="pybuggy.automate.testcases-designed")
 
 
 def register_fix_statuses(context: object) -> None:
@@ -66,12 +63,12 @@ def register_fix_statuses(context: object) -> None:
     Args:
         context: The registration surface scoped to the tool.
     """
-    context.register("fix.collect", "fix-collect.md", after="empty")
+    context.register("fix.collected", "fix-collect.md", after="empty")
 
-    context.register("fix.analysis", "fix-analysis.md", after="pybuggy.fix.collect")
+    context.register("fix.analyzed", "fix-analysis.md", after="pybuggy.fix.collected")
 
-    context.register("fix.plan", "fix-plan.md", after="pybuggy.fix.analysis")
+    context.register("fix.planned", "fix-plan.md", after="pybuggy.fix.analyzed")
 
-    context.register("fix.execute", "fix-execute.md", after="pybuggy.fix.plan")
+    context.register("fix.executed", "fix-execute.md", after="pybuggy.fix.planned")
 
-    context.register("fix.review", "fix-review.md", after="pybuggy.fix.execute")
+    context.register("fix.reviewed", "fix-review.md", after="pybuggy.fix.executed")
