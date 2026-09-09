@@ -17,7 +17,7 @@ You perform the final run of all the topic's tests after executing the plan and 
    when the environment is non-standard). The cell pool is the union of the cells from the path printed by `goga history path -f fix-plan.md` and
    `goga history path -f fix-collect.md`; record the totals (passed/failed/errors/skipped).
 2. Collect the results of all tasks: the `done` / `failed` statuses from the executors' [FIX_TASK_RESULT].
-3. Save `goga history path -f fix-execute.md` (the path is passed by the orchestrator) according to the format below.
+3. Save `goga history path -f fix-execute.md` according to the format below.
 
 ---
 

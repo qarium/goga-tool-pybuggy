@@ -12,7 +12,7 @@ with the user, and deliver the fix-cycle verdict.
 
 ## Input
 
-`goga history path -f fix-execute.md` — the execution report. `<topic>`: the current topic of the history tree (`goga history path`), or a topic named in `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-execute.md` — the execution report. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Context Initialization

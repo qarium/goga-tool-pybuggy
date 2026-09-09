@@ -11,7 +11,7 @@ You are the orchestrator of failure root-cause analysis.
 
 ## Input
 
-`goga history path -f fix-collect.md` — the collect report. `<topic>` is the current topic of the history tree (`goga history path`), or a topic named in `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-collect.md` — the collect report. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Pipeline

@@ -11,7 +11,7 @@ You assemble the final analysis artifact and save it to disk.
 ## Algorithm
 
 1. Collect the pipeline inputs: [FIX_EVIDENCE] and [FIX_CLASSIFICATION].
-2. Target path: `goga history path -f fix-analysis.md` (the orchestrator passes it).
+2. Target path: `goga history path -f fix-analysis.md`.
 3. Save the document in the format below (a re-run overwrites the file).
 
 ---

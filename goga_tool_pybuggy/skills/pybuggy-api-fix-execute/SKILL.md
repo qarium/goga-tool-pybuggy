@@ -12,7 +12,7 @@ executor, and record the outcome of every check.
 
 ## Input
 
-`goga history path -f fix-plan.md` — the approved plan. `<topic>`: the current topic of the history tree (`goga history path`), or a topic named in `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-plan.md` — the approved plan. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Context Initialization

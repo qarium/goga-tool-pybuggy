@@ -11,9 +11,8 @@ You assemble the final collect report from the step results and save it to disk.
 ## Algorithm
 
 1. Collect the inputs: [FIX_INTAKE], [FIX_FAILURES].
-2. Target path: `goga history path -f fix-collect.md` (the orchestrator passes it).
-3. Save the document in the format below (run `goga history ensure` first if the topic directory
-   does not exist; a re-run overwrites the file).
+2. Target path: `goga history path -f fix-collect.md`.
+3. Save the document in the format below (a re-run overwrites the file).
 4. Transfer the topic version from [FIX_INTAKE] to the artifact (the "Topic Version" section).
 5. Keep full tracebacks in the log `goga history path -f fix-log.txt` — the report needs only the path to the log.
 

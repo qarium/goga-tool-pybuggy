@@ -11,7 +11,7 @@ You are the orchestrator of fix-plan construction.
 
 ## Input
 
-`goga history path -f fix-analysis.md` — the analysis artifact. `<topic>`: the current topic of the history tree (`goga history path`), or a topic named in `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-analysis.md` — the analysis artifact. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Pipeline

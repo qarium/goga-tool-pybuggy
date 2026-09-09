@@ -69,8 +69,8 @@ verification); a task that still fails after its budget surfaces in the review s
 ## Artifacts
 
 The cycle accumulates its chain in the topic's history directory — the path printed by
-`goga history path -f <artifact>` (`.goga/history/<year>/<topic>/`, the topic being the
-current git branch by default; not committed with the project):
+`goga history path -f <artifact>` (`.goga/history/<year>/<topic>/`; the topic is the current git
+branch, ensured by the collect stage's intake via `goga history ensure`):
 
 ```
 fix-log.txt         # captured failure output (collect, local run)

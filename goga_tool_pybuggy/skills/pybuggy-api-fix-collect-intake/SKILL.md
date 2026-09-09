@@ -22,6 +22,17 @@ You determine the source of failure data: either a problem description supplied 
 1. The description contains failure data (pytest output, CI log, traceback) — source: description.
 2. A description exists but contains no failure data — ask: supplement the description with the output, or run the tests locally.
 
+### Step 2.1. Create the topic
+
+As soon as the failure-data source is determined, create the topic — the current branch's topic of
+the history tree:
+
+1. Run `goga history ensure` — idempotently creates the topic directory `.goga/history/<year>/<slug>/`
+   of the current branch. A failure (not a repository, detached HEAD, git missing) — **STOP**: ask the
+   user to run the cycle from a branch.
+
+Every artifact of the topic is addressed as `goga history path -f <artifact>`.
+
 ### Step 3. Determine the topic version — WAIT
 
 The spec branch (ref) and the run environment (base URL) are mandatory context for the entire fix cycle: the run command, drift analysis, and task verification all depend on them. Resolution order: `$ARGUMENTS` names the branch and/or the environment → use those values without asking; otherwise ask the user:
@@ -46,8 +57,8 @@ This step runs when a local run was selected (Step 1 or Step 2); with the "descr
 1. Run root — the directory containing `conftest.py` (pytest runs from it).
 2. Scope — from the description: the specific tests/directories it names; if undefined — all tests.
 3. Target environment — from the topic version (Step 3): non-standard base URL — add `--base-url <url>` to the command (the service version under test lives there; the standard `.env`/`BASE_URL` would send the requests to the wrong target). Standard — no flag.
-4. Execute: `pytest <paths> -q [--base-url <url>] 2>&1 | tee "$(goga history path -f fix-log.txt)"` (run
-   `goga history ensure` first if the topic directory does not exist; a re-run overwrites the log).
+4. Execute: `pytest <paths> -q [--base-url <url>] 2>&1 | tee "$(goga history path -f fix-log.txt)"` (a
+   re-run overwrites the log).
 5. Record: the command (with the environment), the log path, the exit code, the summary line (passed/failed/errors/skipped).
 
 ### Step 5. Produce [FIX_INTAKE]

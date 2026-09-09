@@ -18,7 +18,7 @@ You assemble the final review artifact with the fix cycle verdict and save it to
     - **FAILED** — the plan was not executed, or regressions were not closed by user decisions;
     - **FIXED** — all tasks are `done`, the final run matches the expected result, and every finding is resolved:
       absent, or fixed on the spot with its check passed.
-3. Save `goga history path -f fix-review.md` (the path is passed by the orchestrator) according to the format below.
+3. Save `goga history path -f fix-review.md` according to the format below.
 
 ---
 

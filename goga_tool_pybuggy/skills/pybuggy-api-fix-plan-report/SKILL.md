@@ -12,7 +12,7 @@ You assemble the final fix plan and save it to disk.
 ## Algorithm
 
 1. Collect the inputs: [FIX_PLAN_ITEMS].
-2. Target path: `goga history path -f fix-plan.md` (the orchestrator passes it).
+2. Target path: `goga history path -f fix-plan.md`.
 3. Save the document in the format below (a re-run overwrites the file).
 
 ---
