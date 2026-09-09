@@ -19,6 +19,7 @@ def register_hooks(hooks: object) -> None:
         hooks: The subscription surface delivered by the platform.
     """
     hooks.subscribe("statuses", "register_statuses", "automate", register_automate_statuses)
+
     hooks.subscribe("statuses", "register_statuses", "fix", register_fix_statuses)
 
 
