@@ -44,42 +44,63 @@ and holds for the entire cycle. Non-standard base URLs are passed to every run a
 
 | # | Stage              | Purpose                                                                                                                        |
 |---|--------------------|--------------------------------------------------------------------------------------------------------------------------------|
-| 1 | `collect-failures` | Fix the topic version; capture the failure data (argument, or a local `pytest` run) → `docs/fix/<topic>-collect.md`            |
-| 2 | `analyze-failures` | Build a per-failure dossier with evidence, then classify the cause *with you* → `docs/fix/<topic>-analysis.md`                 |
-| 3 | `create-fix-plan`  | Group the classified failures into an executable plan of tasks and approve it → `docs/fix/<topic>-plan.md`                     |
-| 4 | `execute-fix-plan` | Run the plan tasks in order, each with its own verification; final full run → `docs/fix/<topic>-execute.md`                    |
-| 5 | `review-fixes`     | Verify the executed plan and the final run, triage findings with you, deliver the cycle verdict → `docs/fix/<topic>-review.md` |
-| 6 | `commit-changes`   | Commit all added and modified files (except `docs/<defines                                                                     |proposals|tasks|arch|design|plans>`) |
+| 1 | `collect-failures` | Fix the topic version; capture the failure data (argument, or a local `pytest` run) → `fix-collect.md`                         |
+| 2 | `analyze-failures` | Build a per-failure dossier with evidence, then classify the cause *with you* → `fix-analysis.md`                              |
+| 3 | `create-fix-plan`  | Group the classified failures into an executable plan of tasks and approve it → `fix-plan.md`                                  |
+| 4 | `execute-fix-plan` | Run the plan tasks in order, each with its own verification; final full run → `fix-execute.md`                                 |
+| 5 | `review-fixes`     | Verify the executed plan and the final run, triage findings with you, deliver the cycle verdict → `fix-review.md`              |
+| 6 | `commit-changes`   | Commit all added and modified files                                                                                            |
 
 ## Task classes
 
 The plan tasks are dispatched by cause class, each to a dedicated executor skill:
 
-| Class         | Means                                                                                |
-|---------------|--------------------------------------------------------------------------------------|
-| `environment` | the run environment is broken — restore it                                           |
-| `spec-drift`  | the spec changed — bring the cell in line with the new contract                      |
-| `case-defect` | the test case itself is wrong — fix the Routine annotation and the test              |
-| `test-defect` | the test code is wrong — fix the test per the Routine annotation                     |
-| `service-bug` | the service is at fault — record a `BUG-<topic>-<N>` entry in `docs/bugs/<topic>.md` |
+| Class         | Means                                                                               |
+|---------------|-------------------------------------------------------------------------------------|
+| `environment` | the run environment is broken — restore it                                          |
+| `spec-drift`  | the spec changed — bring the cell in line with the new contract                     |
+| `case-defect` | the test case itself is wrong — fix the Routine annotation and the test             |
+| `test-defect` | the test code is wrong — fix the test per the Routine annotation                    |
+| `service-bug` | the service is at fault — record a `BUG-<topic>-<N>` entry in the topic's `bugs.md` |
 
 Every task gets up to **3 attempts** (one executor call = one attempt = actions plus
 verification); a task that still fails after its budget surfaces in the review stage.
 
 ## Artifacts
 
-The cycle accumulates its chain under `docs/fix/`:
+The cycle accumulates its chain in the topic's history directory — the path printed by
+`goga history path -f <artifact>` (`.goga/history/<year>/<topic>/`; the topic is the current git
+branch, ensured by the collect stage's intake via `goga history ensure`):
 
 ```
-docs/fix/<topic>-log.txt         # captured failure output (collect, local run)
-docs/fix/<topic>-collect.md      # failure report + topic version
-docs/fix/<topic>-analysis.md     # per-failure evidence and classification
-docs/fix/<topic>-plan.md         # approved fix plan (tasks, order, checks)
-docs/fix/<topic>-execute.md      # execution report per task
-docs/fix/<topic>-log-final.txt   # final full-suite run output
-docs/fix/<topic>-review.md       # review findings, decisions, cycle verdict
-docs/bugs/<topic>.md             # service bugs recorded along the way
+fix-log.txt         # captured failure output (collect, local run)
+fix-collect.md      # failure report + topic version
+fix-analysis.md     # per-failure evidence and classification
+fix-plan.md         # approved fix plan (tasks, order, checks)
+fix-execute.md      # execution report per task
+fix-log-final.txt   # final full-suite run output
+fix-review.md       # review findings, decisions, cycle verdict
+bugs.md             # service bugs recorded along the way
 ```
+
+## Topic status
+
+Every artifact of the cycle marks a status on the **fix line** of the goga topic status
+scale — an independent chain anchored at the bottom of the scale, so it never reorders
+the automate line:
+
+| Artifact         | Status                      |
+|------------------|-----------------------------|
+| `fix-collect.md` | `pybuggy.fix.collected`     |
+| `fix-analysis.md`| `pybuggy.fix.analyzed`      |
+| `fix-plan.md`    | `pybuggy.fix.planned`       |
+| `fix-execute.md` | `pybuggy.fix.executed`      |
+| `fix-review.md`  | `pybuggy.fix.reviewed`      |
+
+A topic mid-repair therefore shows one maximal status per line — e.g.
+`[pybuggy.fix.analyzed] [pybuggy.automate.done]`. The fix chain is an independent line
+anchored at the built-in `empty` (see
+[api.automate — Topic status](api-automate.md#topic-status)).
 
 ## How it relates to the rest
 

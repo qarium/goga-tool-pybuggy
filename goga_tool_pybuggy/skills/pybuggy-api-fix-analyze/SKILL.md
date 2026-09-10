@@ -11,7 +11,7 @@ You are the orchestrator of failure root-cause analysis.
 
 ## Input
 
-`docs/fix/<topic>-collect.md` — the collect report. `<topic>` comes from `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-collect.md` — the collect report. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Pipeline
@@ -21,7 +21,7 @@ The steps run strictly in sequence, one step at a time. The pipeline validates e
 ### Step 1. Diagnose
 
 - Skill: `goga-tool-pybuggy-api-fix-analyze-diagnose`
-- Reads: `docs/fix/<topic>-collect.md`
+- Reads: the path printed by `goga history path -f fix-collect.md`
 - Result: [FIX_EVIDENCE] — per failure: dossier, evidence, class hypothesis
 - STOP: the collect report or the log is unavailable; 0 failures in the report — output "no failures" and terminate the pipeline
 
@@ -37,7 +37,7 @@ The steps run strictly in sequence, one step at a time. The pipeline validates e
 
 - Skill: `goga-tool-pybuggy-api-fix-analyze-report`
 - Reads: [FIX_EVIDENCE], [FIX_CLASSIFICATION]
-- Result: [FIX_ANALYSIS] — saved to `docs/fix/<topic>-analysis.md`
+- Result: [FIX_ANALYSIS] — saved to the path printed by `goga history path -f fix-analysis.md`
 
 ## Output Rule
 

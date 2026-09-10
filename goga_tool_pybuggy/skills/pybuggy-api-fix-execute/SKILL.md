@@ -12,7 +12,7 @@ executor, and record the outcome of every check.
 
 ## Input
 
-`docs/fix/<topic>-plan.md` — the approved plan. `<topic>`: from `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-plan.md` — the approved plan. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Context Initialization
@@ -43,12 +43,13 @@ Loop rules:
   `failed`;
 - the attempt budget is 3 per task, for every class. One attempt = one executor call (actions + check); the executor
   performs exactly one attempt per call and never repeats actions or the check internally;
-- on `failed` with attempts remaining, re-invoke the same task's executor, passing the attempt number, the previous
+- each executor call receives the task and the attempt number (1 on the first call); on `failed` with
+  attempts remaining, re-invoke the same task's executor, passing the attempt number, the previous
   failure reason, and the work already done: the next attempt must correct the actions, not repeat them blindly;
 - on `failed` after the 3rd attempt, close the task as permanently `failed`: further calls of this task are
   forbidden; record the attempt exhaustion and continue with the remaining tasks;
 - after the last task, invoke `goga-tool-pybuggy-api-fix-execute-final` — the final run and the report
-  `docs/fix/<topic>-execute.md`;
+  `goga history path -f fix-execute.md`;
 - STOP: pytest/SUT fails to start at all and the `environment` task has exhausted its 3 attempts — the checks of the
   remaining tasks are unreliable; record the stop for the review stage.
 
@@ -62,7 +63,7 @@ STOP.
 ### ALWAYS
 
 - execute only the actions defined by the approved plan's tasks
-- take the topic version (spec branch ref + environment base URL) from `docs/fix/<topic>-collect.md`; pull with
+- take the topic version (spec branch ref + environment base URL) from the path printed by `goga history path -f fix-collect.md`; pull with
   `--ref <ref>` for a feature ref; run pytest checks with `--base-url <url>` for a non-standard environment
 - allow at most 3 attempts per task: after the third failed attempt the task is closed as `failed` and repeats are
   forbidden

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-collect-intake
-description: Determine the failure-data source and run tests locally, saving the output to docs/fix/<topic>-log.txt
+description: Determine the failure-data source and run tests locally, saving the output to the path printed by `goga history path -f fix-log.txt`
 ---
 # Pybuggy API Fix Collect — Intake
 
@@ -21,6 +21,17 @@ You determine the source of failure data: either a problem description supplied 
 
 1. The description contains failure data (pytest output, CI log, traceback) — source: description.
 2. A description exists but contains no failure data — ask: supplement the description with the output, or run the tests locally.
+
+### Step 2.1. Create the topic
+
+As soon as the failure-data source is determined, create the topic — the current branch's topic of
+the history tree:
+
+1. Run `goga history ensure` — idempotently creates the topic directory `.goga/history/<year>/<topic>/`
+   of the current branch. A failure (not a repository, detached HEAD, git missing) — **STOP**: ask the
+   user to run the cycle from a branch.
+
+Every artifact of the topic is addressed as `goga history path -f <artifact>`.
 
 ### Step 3. Determine the topic version — WAIT
 
@@ -46,7 +57,8 @@ This step runs when a local run was selected (Step 1 or Step 2); with the "descr
 1. Run root — the directory containing `conftest.py` (pytest runs from it).
 2. Scope — from the description: the specific tests/directories it names; if undefined — all tests.
 3. Target environment — from the topic version (Step 3): non-standard base URL — add `--base-url <url>` to the command (the service version under test lives there; the standard `.env`/`BASE_URL` would send the requests to the wrong target). Standard — no flag.
-4. Execute: `pytest <paths> -q [--base-url <url>] 2>&1 | tee docs/fix/<topic>-log.txt` (create `docs/fix/` if it does not exist; `<topic>` — from `$ARGUMENTS`; if undefined — ask the user; a re-run overwrites the log).
+4. Execute: `pytest <paths> -q [--base-url <url>] 2>&1 | tee "$(goga history path -f fix-log.txt)"` (a
+   re-run overwrites the log).
 5. Record: the command (with the environment), the log path, the exit code, the summary line (passed/failed/errors/skipped).
 
 ### Step 5. Produce [FIX_INTAKE]
@@ -84,7 +96,7 @@ Fill in every section. Empty sections are forbidden.
 ## Run
 
 [Command: ... (with
-`--base-url <url>` — if the topic environment is non-standard) | Log: docs/fix/<topic>-log.txt | Exit code: ... | Summary: passed/failed/errors/skipped. "run not performed" — if the source was description only]
+`--base-url <url>` — if the topic environment is non-standard) | Log: the path printed by `goga history path -f fix-log.txt` | Exit code: ... | Summary: passed/failed/errors/skipped. "run not performed" — if the source was description only]
 
 ## Open questions
 

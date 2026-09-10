@@ -155,5 +155,5 @@ exist yet — state "no artifacts: every endpoint ADD".]
 
 ## Notes
 
-[Local specs without git, warnings about existing artifacts, etc. Empty if none.]
+[Local specs without git, warnings about existing artifacts, etc. Write `none` if there is nothing.]
 ```

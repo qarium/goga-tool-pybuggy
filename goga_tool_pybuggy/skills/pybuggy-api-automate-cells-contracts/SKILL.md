@@ -133,5 +133,5 @@ Populate every section. Empty sections are forbidden.
 
 ## Notes
 
-[Fixture type nuance, assumptions, etc. Empty if none.]
+[Fixture type nuance, assumptions, etc. Write `none` if there is nothing.]
 ```

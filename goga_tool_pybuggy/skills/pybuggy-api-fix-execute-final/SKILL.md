@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-execute-final
-description: Final run of all the topic's tests and the execution report docs/fix/<topic>-execute.md
+description: Final run of all the topic's tests and the execution report `goga history path -f fix-execute.md`
 ---
 
 # Pybuggy API Fix Execute — Final
@@ -12,12 +12,12 @@ You perform the final run of all the topic's tests after executing the plan and 
 ## Algorithm
 
 1. Run all the topic's tests:
-   `pytest <paths of all the topic's cells> -q [--base-url <url>] 2>&1 | tee docs/fix/<topic>-log-final.txt`
-   (a repeated run overwrites the log; `--base-url <url>` comes from the topic version in `docs/fix/<topic>-collect.md`
-   when the environment is non-standard). The cell pool is the union of the cells from `docs/fix/<topic>-plan.md` and
-   `docs/fix/<topic>-collect.md`; record the totals (passed/failed/errors/skipped).
+   `pytest <paths of all the topic's cells> -q [--base-url <url>] 2>&1 | tee "$(goga history path -f fix-log-final.txt)"`
+   (a repeated run overwrites the log; `--base-url <url>` comes from the topic version in `goga history path -f fix-collect.md`
+   when the environment is non-standard). The cell pool is the union of the cells from the path printed by `goga history path -f fix-plan.md` and
+   `goga history path -f fix-collect.md`; record the totals (passed/failed/errors/skipped).
 2. Collect the results of all tasks: the `done` / `failed` statuses from the executors' [FIX_TASK_RESULT].
-3. Save `docs/fix/<topic>-execute.md` (the path is passed by the orchestrator) according to the format below.
+3. Save `goga history path -f fix-execute.md` according to the format below.
 
 ---
 
@@ -30,7 +30,7 @@ The content of the saved file. Fill in every section.
 
 ## Source
 
-[docs/fix/<topic>-plan.md]
+[`goga history path -f fix-plan.md`]
 
 ## Tasks
 
@@ -38,11 +38,11 @@ The content of the saved file. Fill in every section.
 
 ## Final run
 
-[command | log docs/fix/<topic>-log-final.txt | totals passed/failed/errors/skipped]
+[command | log `goga history path -f fix-log-final.txt` | totals passed/failed/errors/skipped]
 
 ## Changed files
 
-[full list: test_*.py, CODEMANIFEST, api/, docs/bugs/]
+[full list: test_*.py, CODEMANIFEST, api/, the history `bugs.md`]
 
 ## Summary
 

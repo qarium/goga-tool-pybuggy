@@ -19,7 +19,7 @@ according to the changes specified in the plan task.
    1. Routine: rewrite the affected sections of the annotation to match the current contract;
    2. tests: fix `test_<name>.py` according to the corrected annotation.
 3. Run the task checks: `goga lint` of the cell; `pytest tests/<spec>/<id>/ -q [--base-url <url>]` —
-   green (`--base-url <url>` comes from the topic version in `docs/fix/<topic>-collect.md` when the
+   green (`--base-url <url>` comes from the topic version in `goga history path -f fix-collect.md` when the
    environment is non-standard; the standard environment runs without the flag).
 4. One invocation = one attempt: the checks are executed once, with no reruns and no repeated fixes within
    the invocation — if a check has not passed, return `failed` with the reason.

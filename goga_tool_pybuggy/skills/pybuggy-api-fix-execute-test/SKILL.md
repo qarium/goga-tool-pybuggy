@@ -16,7 +16,7 @@ and the changes specified in the plan task.
    has already been done.
 2. Apply the changes to `test_<name>.py` as defined by the task (the reference is the Routine annotation).
 3. Run the task check once: `pytest tests/<spec>/<id>/ -q [--base-url <url>]` — green
-   (`--base-url <url>` comes from the topic version in `docs/fix/<topic>-collect.md` when the environment is
+   (`--base-url <url>` comes from the topic version in `goga history path -f fix-collect.md` when the environment is
    non-standard; the standard environment runs without the flag). One invocation = one attempt: do not re-edit the
    test and do not rerun pytest within the invocation to force a green result — if the check has not passed, return
    `failed` with the reason.

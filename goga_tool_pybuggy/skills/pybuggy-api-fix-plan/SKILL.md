@@ -11,7 +11,7 @@ You are the orchestrator of fix-plan construction.
 
 ## Input
 
-`docs/fix/<topic>-analysis.md` — the analysis artifact. `<topic>`: from `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-analysis.md` — the analysis artifact. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Pipeline
@@ -21,16 +21,16 @@ Run the steps strictly sequentially, one at a time. Validate each step's output 
 ### Step 1. Build — WAIT
 
 - Skill: `goga-tool-pybuggy-api-fix-plan-build`
-- Reads: `docs/fix/<topic>-analysis.md`
+- Reads: the path printed by `goga history path -f fix-analysis.md`
 - Result: [FIX_PLAN_ITEMS] — plan items grouped by cell, approved by the user
 - WAIT: plan approval — iterate until the user confirms
-- STOP: the analysis artifact is missing — return to the analyze stage; the user rejected the plan after an iteration
+- STOP: the analysis artifact is missing — return to the analyze stage; the user aborted plan approval (refused to continue after an iteration)
 
 ### Step 2. Report
 
 - Skill: `goga-tool-pybuggy-api-fix-plan-report`
 - Reads: [FIX_PLAN_ITEMS]
-- Result: [FIX_PLAN] — saved to `docs/fix/<topic>-plan.md`
+- Result: [FIX_PLAN] — saved to the path printed by `goga history path -f fix-plan.md`
 
 ## Output Rule
 

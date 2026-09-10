@@ -21,16 +21,19 @@ omitted here — the pipelines themselves manage them via the Skill tool.
 
 ### Automate flow (pipelines)
 
-The pipelines form a chain: each pipeline reads the output artifact of the previous one. Artifacts are named by topic — `<topic>` is set
-by the pipeline argument (or resolved by scanning the pipeline's directory). Launch a pipeline via the **Skill tool** by its
-main skill; the pipeline itself runs its internal steps.
+The pipelines form a chain: each pipeline reads the output artifact of the previous one. Artifacts live in the
+topic's history directory — `.goga/history/<year>/<topic>/` — addressed by the path printed by
+`goga history path -f <artifact>`. The requirements intake creates the topic with a single
+`goga history ensure` once the testing subject is clear (the topic is the current git branch);
+the later stages never create or resolve topics.
+Launch a pipeline via the **Skill tool** by its main skill; the pipeline itself runs its internal steps.
 
 | Skill                                         | Purpose                                                                                                                                                                                              | Input                          | Output artifact                  |
 |-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|----------------------------------|
-| `goga-tool-pybuggy-api-automate-requirements` | Collects detailed requirements for the topic from its description and the service spec; generates fixtures (`goga tool pybuggy endpoint generate`)                                                   | topic description + `<topic>`  | `docs/requirements/<topic>.md`   |
-| `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (REQ→TC)                                                                                | `docs/requirements/<topic>.md` | `docs/testcases/<topic>.md`      |
-| `goga-tool-pybuggy-api-automate-cells`        | Designs the architecture plan for the test cells (CODEMANIFEST; cell boundaries are a design decision, Routines cover cases — 1 case = 1 Routine is not required); interactive, driven by WAIT-gates | `docs/testcases/<topic>.md`    | `docs/arch/<topic>.md`           |
-| `goga-tool-pybuggy-api-automate-apply`        | Materializes the plan: creates CODEMANIFEST in `tests/<spec>/<id>/` (DSL only, no test code); validation via `goga lint`/`schema`                                                                    | `docs/arch/<topic>.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
+| `goga-tool-pybuggy-api-automate-requirements` | Collects detailed requirements for the topic from its description and the service spec; generates fixtures (`goga tool pybuggy endpoint generate`)                                                   | topic description  | `requirements.md`   |
+| `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (REQ→TC)                                                                                | `requirements.md` | `testcases.md`      |
+| `goga-tool-pybuggy-api-automate-cells`        | Designs the architecture plan for the test cells (CODEMANIFEST; cell boundaries are a design decision, Routines cover cases — 1 case = 1 Routine is not required); interactive, driven by WAIT-gates | `testcases.md`    | `arch.md`           |
+| `goga-tool-pybuggy-api-automate-apply`        | Materializes the plan: creates CODEMANIFEST in `tests/<spec>/<id>/` (DSL only, no test code); validation via `goga lint`/`schema`                                                                    | `arch.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
 
 Full flow: **requirements → testcases → cells → apply → design → plan → goga build → accept**.
 
@@ -61,24 +64,24 @@ The final loop of the flow: runs the generated tests and triages the failures. I
 
 | Skill                                   | Purpose                                                                                                                                  | Input                               | Output artifact                          |
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|------------------------------------------|
-| `goga-tool-pybuggy-api-automate-accept` | Acceptance: cross-checks test case → Routine → `test_*.py`, runs pytest, triages failures with the user; service bugs go to `docs/bugs/` | `docs/testcases/<topic>.md` + tests | [ACCEPT_REPORT] + `docs/bugs/<topic>.md` |
+| `goga-tool-pybuggy-api-automate-accept` | Acceptance: cross-checks test case → Routine → `test_*.py`, runs pytest, triages failures with the user; service bugs go to the topic's `bugs.md` | `testcases.md` + tests | [ACCEPT_REPORT] + `bugs.md` |
 
 ### Fix flow (pipelines)
 
 The loop for resolving failing tests after `goga build`/acceptance. The pipelines form a chain: each reads the
-output artifact of the previous one (artifacts in `docs/fix/`); the `ITERATE` verdict of the review restarts the
-loop from `collect`.
+output artifact of the previous one (fix artifacts `fix-*.md` / `fix-log*.txt` in the topic's history directory);
+the `ITERATE` verdict of the review restarts the loop from `collect`.
 
 | Skill                               | Purpose                                                                                                                                                                             | Input                          | Output artifact                                                    |
 |-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|--------------------------------------------------------------------|
-| `goga-tool-pybuggy-api-fix-collect` | Collects failure data: a local pytest run or the user's description; extracts failed tests with a technical categorization                                                          | problem description / test run | `docs/fix/<topic>-log.txt` + `docs/fix/<topic>-collect.md`         |
-| `goga-tool-pybuggy-api-fix-analyze` | Root-cause analysis per failure: an evidence dossier and classification into one of 5 classes (`spec-drift`/`service-bug`/`test-defect`/`case-defect`/`environment`), interactively | `docs/fix/<topic>-collect.md`  | `docs/fix/<topic>-analysis.md`                                     |
-| `goga-tool-pybuggy-api-fix-plan`    | Builds the fix plan: tasks `FIX-<N>` grouped by class, execution order, user approval                                                                                               | `docs/fix/<topic>-analysis.md` | `docs/fix/<topic>-plan.md`                                         |
-| `goga-tool-pybuggy-api-fix-execute` | Executes the plan: class-based executors, 3 attempts per task, final full run                                                                                                       | `docs/fix/<topic>-plan.md`     | `docs/fix/<topic>-execute.md` (+ `docs/fix/<topic>-log-final.txt`) |
-| `goga-tool-pybuggy-api-fix-review`  | Post-fix review: cross-checks the plan execution, fix quality, regressions; triage with the user; cycle verdict                                                                     | `docs/fix/<topic>-execute.md`  | `docs/fix/<topic>-review.md`                                       |
+| `goga-tool-pybuggy-api-fix-collect` | Collects failure data: a local pytest run or the user's description; extracts failed tests with a technical categorization                                                          | problem description / test run | `fix-log.txt` + `fix-collect.md`         |
+| `goga-tool-pybuggy-api-fix-analyze` | Root-cause analysis per failure: an evidence dossier and classification into one of 5 classes (`spec-drift`/`service-bug`/`test-defect`/`case-defect`/`environment`), interactively | `fix-collect.md`  | `fix-analysis.md`                                     |
+| `goga-tool-pybuggy-api-fix-plan`    | Builds the fix plan: tasks `FIX-<N>` grouped by class, execution order, user approval                                                                                               | `fix-analysis.md` | `fix-plan.md`                                         |
+| `goga-tool-pybuggy-api-fix-execute` | Executes the plan: class-based executors, 3 attempts per task, final full run                                                                                                       | `fix-plan.md`     | `fix-execute.md` (+ `fix-log-final.txt`) |
+| `goga-tool-pybuggy-api-fix-review`  | Post-fix review: cross-checks the plan execution, fix quality, regressions; triage with the user; cycle verdict                                                                     | `fix-execute.md`  | `fix-review.md`                                       |
 
 Full cycle: **collect → analyze → plan → execute → review**; the `ITERATE` verdict feeds a new `collect` round.
-Service bugs are recorded in the shared `docs/bugs/<topic>.md`.
+Service bugs are recorded in the shared `bugs.md` of the topic's history directory.
 
 ### Review skills
 
@@ -86,10 +89,10 @@ They verify the test artifacts of all phases: requirements → testcases → cel
 
 | Skill                                                | What it verifies                                                                                                                                                                                    |
 |------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `goga-tool-pybuggy-api-automate-review`              | Dispatcher: routes by the target file path (`docs/requirements\|testcases\|arch\|design\|plans`) to the matching review skill                                                                       |
-| `goga-tool-pybuggy-api-automate-requirements-review` | Requirements `docs/requirements/<topic>.md`: 9 sections, realistic endpoints/contracts/paths, positive/negative coverage, no code                                                                   |
-| `goga-tool-pybuggy-api-automate-testcases-review`    | Test cases `docs/testcases/<topic>.md`: traceability to the requirements, data↔Request consistency, Flow/Positive/Negative coverage, no code                                                        |
-| `goga-tool-pybuggy-api-automate-cells-review`        | Cells plan `docs/arch/<topic>.md`: CODEMANIFEST follows the DSL (1 case = 1 Routine is not required), cell-specific tool usages, coverage (each test case covered directly or by a Routine variant) |
+| `goga-tool-pybuggy-api-automate-review`              | Dispatcher: routes by the target file path (artifact names `requirements.md\|testcases.md\|arch.md\|design.md\|plan.md`) to the matching review skill                                                                       |
+| `goga-tool-pybuggy-api-automate-requirements-review` | Requirements `requirements.md`: 9 sections, realistic endpoints/contracts/paths, positive/negative coverage, no code                                                                   |
+| `goga-tool-pybuggy-api-automate-testcases-review`    | Test cases `testcases.md`: traceability to the requirements, data↔Request consistency, Flow/Positive/Negative coverage, no code                                                        |
+| `goga-tool-pybuggy-api-automate-cells-review`        | Cells plan `arch.md`: CODEMANIFEST follows the DSL (1 case = 1 Routine is not required), cell-specific tool usages, coverage (each test case covered directly or by a Routine variant) |
 | `goga-tool-pybuggy-api-automate-design-review`       | Test design document (Routine↔`test_*.py`, pytest validation)                                                                                                                                       |
 | `goga-tool-pybuggy-api-automate-plan-review`         | ralphex plan: the critical check — `pytest` is present and executable                                                                                                                               |
 

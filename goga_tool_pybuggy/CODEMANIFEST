@@ -25,22 +25,29 @@ Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
   python-dotenv: .goga/usages/cooks/python-dotenv.md
+  goga-hooks: .goga/usages/cooks/goga/hooks/registering-hooks.md
+  goga-statuses: .goga/usages/cooks/goga/history/registering-statuses.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the root group, the endpoint subgroup, command registration, the top-level init command, and the global --env-file option with its eager-callback.
   Use `python-dotenv` for loading the .env file into os.environ with override=False.
+  Use `goga-hooks` for the facade callback contract, the hook signatures, and the failure behavior of registrations.
+  Use `goga-statuses` for the registration surface: register parameters, artifact path semantics, anchors, and skip-with-warning.
   Connected practices describe how consumers use the composed commands and the plugin: `pull`, `list`, `info`, `generate`, `diff`, `init`, `config-build`, `enable`, `configuration`.
 
   This cell is the package composition root: it owns the root group `main`, loads the .env environment before any subcommand runs, and assembles the full CLI.
+  Topic statuses: the facade callback subscribes one hook per pipeline line to the statuses registration action; each hook applies its line through direct registration calls in the normative order.
   Use relative imports inside the cell.
 
 ---
 
-"main()":
+"main(env_file: str | None)":
   location: cli.py
   annotations: |
     Root Click group of the pybuggy CLI; exposes the global --env-file option, the endpoint subgroup with the pull/list/info/generate/diff commands, and the top-level init command.
+
+    `env_file`: value of the global --env-file option injected by click (None when the flag is absent).
 
     Algorithm:
     1. Define the `main` root group via `click`.
@@ -134,6 +141,72 @@ Annotations: |
 
     Use `conventions` for code writing rules and testing.
 
+"register_hooks(hooks: object)":
+  location: statuses.py
+  annotations: |
+    Subscribe the pybuggy topic-status hooks to the statuses registration action of the goga hooks platform.
+
+    `hooks`: the subscription surface delivered by the platform.
+
+    Algorithm:
+    1. Subscribe `register_automate_statuses` to the statuses registration action under the hook name automate.
+    2. Subscribe `register_fix_statuses` to the same action under the hook name fix.
+
+    Requirements:
+    - The subscription address is the statuses domain registration action.
+    - Hook names are stable and unique within the tool.
+    - Only the two topic-status hooks are subscribed.
+    - Exposed on the ROOT facade via __all__ — the platform imports it from the package root.
+
+"register_automate_statuses(context: object)":
+  location: statuses.py
+  annotations: |
+    Register the automate status line on the topic status scale.
+
+    `context`: the registration surface scoped to the tool.
+
+    Algorithm:
+    1. Register the completed-accept status for the completed plan artifact, anchored above the built-in done status.
+    2. Register the middle automate statuses in reverse pipeline order — plan, design, arch, testcases, requirements — each anchored above its built-in twin and below the previously registered automate status.
+
+    Requirements:
+    - Registration order equals the normative table order; every before anchor names an automate-line entry registered earlier in this run.
+    - Artifact paths are relative to the topic directory; nested paths keep their directory part.
+    - Registered names carry no tool prefix — the platform assigns the tool identity; anchor values follow the table exactly: built-in anchors are bare, own-status anchors carry the tool prefix.
+    - Not part of the package facade — reachable only through the automate hook subscribed by `register_hooks`.
+
+    Normative table (registration order):
+    1. automate.done → completed/plan.md — after done
+    2. automate.coding-planned → plan.md — after planned, before pybuggy.automate.done
+    3. automate.code-designed → design.md — after specified, before pybuggy.automate.coding-planned
+    4. automate.arch-prepared → arch.md — after designed, before pybuggy.automate.code-designed
+    5. automate.testcases-designed → testcases.md — after backlog, before pybuggy.automate.arch-prepared
+    6. automate.requirements-created → requirements.md — after defined, before pybuggy.automate.testcases-designed
+
+"register_fix_statuses(context: object)":
+  location: statuses.py
+  annotations: |
+    Register the fix status line on the topic status scale — an independent chain anchored at the built-in empty status.
+
+    `context`: the registration surface scoped to the tool.
+
+    Algorithm:
+    1. Register the fix collect status for the collect artifact, anchored above the built-in empty status.
+    2. Register the remaining fix statuses in pipeline order — analyzed, planned, executed, reviewed — each anchored above the previously registered fix status.
+
+    Requirements:
+    - Registration order equals the normative table order; every after anchor names an entry registered earlier in this run or a built-in status.
+    - Artifact paths are relative to the topic directory.
+    - Registered names carry no tool prefix — the platform assigns the tool identity.
+    - Not part of the package facade — reachable only through the fix hook subscribed by `register_hooks`.
+
+    Normative table (registration order):
+    1. fix.collected → fix-collect.md — after empty
+    2. fix.analyzed → fix-analysis.md — after pybuggy.fix.collected
+    3. fix.planned → fix-plan.md — after pybuggy.fix.analyzed
+    4. fix.executed → fix-execute.md — after pybuggy.fix.planned
+    5. fix.reviewed → fix-review.md — after pybuggy.fix.executed
+
 ->install: {}
 
 ---
@@ -142,4 +215,5 @@ Author: Goga
 CreatedAt: 08/07/26
 Description: |
   Package composition root — owns the root CLI group main, assembles the endpoint subgroup
-  (pull/list/info/generate/diff), registers the top-level `init` command, and loads the .env environment before any command runs.
+  (pull/list/info/generate/diff), registers the top-level `init` command, loads the .env environment
+  before any command runs, and registers the pybuggy topic statuses on the goga status scale.

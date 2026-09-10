@@ -1,7 +1,9 @@
 ---
 name: goga-tool-pybuggy-api-automate-cells
-description: Test cell design pipeline — builds a CODEMANIFEST architecture plan from test cases (cell boundaries are a design decision; Routines cover cases, 1 case = 1 Routine is not required) and saves the plan to docs/arch/<topic>.md
+description: Test cell design pipeline — builds a CODEMANIFEST architecture plan from test cases (cell boundaries are a design decision; Routines cover cases, 1 case = 1 Routine is not required) and saves the plan to the path printed by `goga history path -f arch.md`
 ---
+
+# Pybuggy API Topic Cells
 
 ## Identity
 
@@ -15,24 +17,16 @@ Create the "Test cells architecture plan" artifact: for each cell — a complete
 (base Usages/Annotations from the config + Routines covering the test cases — granularity is arbitrary,
 1 case = 1 Routine is not required + Footer). Cell boundaries (one cell per endpoint, merged endpoints,
 or several cells per endpoint) are a design decision made in the Cell Map phase. Save the plan to
-`docs/arch/<topic>.md` (without writing the cells themselves).
+`goga history path -f arch.md` (without writing the cells themselves).
 
-## Artifact Path Resolution
+## Paths
 
-Pipeline input: `docs/testcases/<topic>.md` (+ `docs/requirements/<topic>.md` as context).
-Output: `docs/arch/<topic>.md` (create the `docs/arch/` directory if it does not exist).
-One topic — one `<topic>` name for both input and output.
+Pipeline input: the path printed by `goga history path -f testcases.md` (+ `goga history path -f requirements.md` as context).
+Output: the path printed by `goga history path -f arch.md`.
 
-Resolve `<topic>` before the phases start and keep the resolution for the entire session:
-
-1. **`$ARGUMENTS` contains a topic name** — use it as `<topic>`.
-2. **`$ARGUMENTS` is empty** — scan `docs/testcases/`:
-   - the directory exists and contains ≥1 file → one file: take its name (without extension);
-     several files: run AskUserQuestion with the list of files;
-   - the directory is missing or empty → STOP: the `goga-tool-pybuggy-api-automate-testcases` pipeline
-     must run first.
-
-Pass the resolved paths to the sub-skills.
+Pre-flight: check that the input path exists.
+- **Missing** — STOP: the `goga-tool-pybuggy-api-automate-testcases` pipeline must run first.
+- **Exists** — proceed.
 
 ## Context Initialization
 
@@ -61,7 +55,7 @@ The cells pipeline does not create usage files — it only connects the keys int
 ### Phase 1. Intake
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-intake`
-- Reads: `docs/testcases/<topic>.md`, `docs/requirements/<topic>.md`
+- Reads: the path printed by `goga history path -f testcases.md`, `goga history path -f requirements.md`
 - Output: [CELLS_INTAKE]
 - STOP if: files are missing or empty; the cases contain no endpoints
 
@@ -92,14 +86,14 @@ The cells pipeline does not create usage files — it only connects the keys int
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-assembly`
 - Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT], [CELLS_INTAKE]
-- Output: [CELLS_PLAN] — saved to `docs/arch/<topic>.md` (test cells, including
+- Output: [CELLS_PLAN] — saved to the path printed by `goga history path -f arch.md` (test cells, including
   cell-specific usages connected in `contracts`)
 - STOP if: the plan is incomplete; a case stays uncovered
 
 ### Phase 6. Plan Verification (final WAIT)
 
 - Invoke: `goga-tool-pybuggy-api-automate-cells-plan-verification`
-- Reads: `docs/arch/<topic>.md`, [CELLS_INTAKE]
+- Reads: the path printed by `goga history path -f arch.md`, [CELLS_INTAKE]
 - Output: [VERIFICATION_REPORT]
 - WAIT: the user gives the final approval of the plan
 - STOP if: DSL errors stay unresolved; coverage fails (cases lost / dangling Routines); the user denies approval
@@ -125,4 +119,4 @@ An empty section = an incomplete sub-skill = pipeline STOP.
 - rely on the `goga-cell` DSL and `goga-cell-python` when building/validating CODEMANIFESTs
 - obtain user approval at every WAIT-gate (one question, 2–4 options)
 - include the base `Usages`/`Annotations` from the config in every CODEMANIFEST
-- save the final plan to `docs/arch/<topic>.md` (path from Artifact Path Resolution) and record the path
+- save the final plan to the path printed by `goga history path -f arch.md` and record the path

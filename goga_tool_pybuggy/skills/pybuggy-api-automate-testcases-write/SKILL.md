@@ -1,7 +1,9 @@
 ---
 name: goga-tool-pybuggy-api-automate-testcases-write
-description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to docs/testcases/<topic>.md
+description: Assembles detailed test cases (TC-<N>, requirements field) and the requirements coverage matrix; saves them to the path printed by `goga history path -f testcases.md`
 ---
+
+# Pybuggy API Topic Testcases — Write
 
 ## Identity
 
@@ -30,8 +32,8 @@ You load five context inputs:
 
 ### Step 2. Build the document header and description
 
-1. Sections from the plan: Topic Under Test Description, Topic Integration Points, Integration Testing
-   Goals.
+1. Sections from the plan: Description of the topic under test, Topic integration points, Integration
+   testing goals.
 2. "Topic traces" section — transfer the approved traces from [TESTCASES_ELABORATION] verbatim: for each
    trace `## TRACE-<N>: <name>` with endpoints and numbered steps **Call** → **Effect** →
    **Verification**.
@@ -89,9 +91,8 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
    [TESTCASES_INTAKE]; the cases column lists every case that names this REQ, with its type; status
    "covered" / "not covered" / "excluded (by user decision)" (decisions — from "Requirements coverage
    decisions" in [TESTCASES_PLAN]).
-4. Save the result to `docs/testcases/<topic>.md` (the pipeline orchestrator passes the path via
-   Artifact Path Resolution; create the `docs/testcases/` directory if absent). After any edit to the
-   cases, recompute the matrix and the counter.
+4. Save the result to the path printed by `goga history path -f testcases.md`.
+   After any edit to the cases, recompute the matrix and the counter.
 
 ### Step 5. Produce [TOPIC_TESTCASES]
 
@@ -111,7 +112,7 @@ Fill in every section. Empty sections are forbidden.
 
 ## File path
 
-[docs/testcases/<topic>.md — confirmation of saving]
+[`goga history path -f testcases.md` — confirmation of saving]
 
 ## Summary
 
@@ -122,13 +123,13 @@ not covered Z, excluded by decision W]
 
 [Verbatim format of the saved file:]
 
-# Topic Under Test Description
+# Description of the topic under test
 ...
 
-# Topic Integration Points
+# Topic integration points
 ...
 
-# Integration Testing Goals
+# Integration testing goals
 ...
 
 # Topic traces

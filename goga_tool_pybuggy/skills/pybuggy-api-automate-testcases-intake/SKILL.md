@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-testcases-intake
 description: Input validation and parsing of topic requirements before test case generation
 ---
 
+# Pybuggy API Topic Testcases — Intake
+
 ## Identity
 
 You are the intake stage of the test cases pipeline: you receive the topic requirements and prepare
@@ -19,16 +21,14 @@ preconditions, and roles. Route every gap to "To clarify".
 
 ### Step 1. Preliminary check (PRELIMINARY CHECK)
 
-1. Read the file `docs/requirements/<topic>.md` (the path is passed by the pipeline orchestrator via
-   Artifact Path Resolution).
-2. If the file is missing or empty — report that the `pybuggy-api-automate-requirements` pipeline must
+1. Read the file `goga history path -f requirements.md`.
+2. If the file is missing or empty — report that the `goga-tool-pybuggy-api-automate-requirements` pipeline must
    run first, and **STOP**.
-3. If the file exists — record the path, the topic name `<topic>`, and the source as the artifact
-   input.
+3. If the file exists — record the path, the current topic, and the source as the artifact input.
 
 ### Step 2. Parse the requirements (TOPIC_SPEC)
 
-Parse the sections of the requirements artifact `docs/requirements/<topic>.md` (the `TOPIC_SPEC`
+Parse the sections of the requirements artifact `goga history path -f requirements.md` (the `TOPIC_SPEC`
 format from the requirements pipeline) and extract:
 
 1. **Topic endpoints** — for each one: `endpoint-id`, `spec`, `method`, `path`, role in the topic.
@@ -50,7 +50,7 @@ format from the requirements pipeline) and extract:
    "To clarify".
 5. **Business preconditions and environment** — entities/roles/states (captured as needs),
    `env`/`version`.
-6. **Roles and access** — who may and may not call the endpoints.
+6. **Roles and permissions** — who may and may not call the endpoints.
 7. **Project usages available (§8)** — the `key | path | role | purpose` registry from
    `.goga/usages/`. Reference material for the `tools` step.
 
@@ -63,7 +63,7 @@ described, etc.) into a list for clarification at the discovery stage.
 
 STOP if:
 
-- `docs/requirements/<topic>.md` is missing or empty;
+- the path printed by `goga history path -f requirements.md` is missing or empty;
 - the requirements contain no topic endpoint and no information to determine one.
 
 ---
@@ -77,7 +77,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Requirements source
 
-[Topic name `<topic>` + the path to the file `docs/requirements/<topic>.md` + confirmation that the requirements are loaded]
+[The current topic + the path to the file `goga history path -f requirements.md` + confirmation that the requirements are loaded]
 
 ## Declared topic endpoints
 
@@ -98,10 +98,10 @@ Fill in every section. Empty sections are prohibited.
 
 - Business preconditions (entities/roles/states): [...]
 - Environment (env/version): [...]
-- Roles and access: [...]
+- Roles and permissions: [...]
 - Project usages available (key | role | purpose): [...] (from §8; otherwise "no usages")
 
 ## To clarify
 
-[Requirement gaps for the discovery stage. Empty if none.]
+[Requirement gaps for the discovery stage. Write `none` if there is nothing.]
 ```

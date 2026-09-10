@@ -12,7 +12,7 @@ with the user, and deliver the fix-cycle verdict.
 
 ## Input
 
-`docs/fix/<topic>-execute.md` — the execution report. `<topic>`: from `$ARGUMENTS`. The document is pinned
+`goga history path -f fix-execute.md` — the execution report. The document is pinned
 for the entire session and passed to every sub-skill.
 
 ## Context Initialization
@@ -31,8 +31,8 @@ Run the steps strictly in order, one at a time. Validate each step's output befo
 ### Step 1. Verify
 
 - Skill: `goga-tool-pybuggy-api-fix-review-verify`
-- Reads: `docs/fix/<topic>-execute.md`, `docs/fix/<topic>-plan.md`, `docs/fix/<topic>-log-final.txt`,
-  `docs/fix/<topic>-collect.md`, the changed files on disk
+- Reads: the path printed by `goga history path -f fix-execute.md`, `goga history path -f fix-plan.md`, `goga history path -f fix-log-final.txt`,
+  `goga history path -f fix-collect.md`, the changed files on disk
 - Result: [REVIEW_FINDINGS] — findings and failed tasks
 - STOP: the execute report is missing
 
@@ -48,7 +48,7 @@ Run the steps strictly in order, one at a time. Validate each step's output befo
 
 - Skill: `goga-tool-pybuggy-api-fix-review-report`
 - Reads: [REVIEW_FINDINGS], [REVIEW_DECISIONS]
-- Result: [FIX_REVIEW] — saved to `docs/fix/<topic>-review.md`
+- Result: [FIX_REVIEW] — saved to the path printed by `goga history path -f fix-review.md`
 
 ## Output Rule
 

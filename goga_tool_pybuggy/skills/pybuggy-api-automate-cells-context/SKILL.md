@@ -80,5 +80,5 @@ Fill in every section. Empty sections are prohibited.
 
 ## Notes
 
-[Missing config options and the like. Empty if none.]
+[Missing config options and the like. Write `none` if there is nothing.]
 ```

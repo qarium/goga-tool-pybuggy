@@ -18,7 +18,7 @@ in the plan task.
    inside the invocation: if the actions did not eliminate the symptoms, return `failed` with the reason.
 3. Run the task verification once: rerun the affected tests **with the topic's environment**
    (`pytest <paths> -q --base-url <url>` when the environment is non-standard, per the topic version in
-   `docs/fix/<topic>-collect.md`; the standard environment runs without the flag) — the environment-class symptoms
+   `goga history path -f fix-collect.md`; the standard environment runs without the flag) — the environment-class symptoms
    are gone (connection/env/network).
    Record a test that stays red for a new reason in the notes: material for a new fix cycle.
 4. Assemble [FIX_TASK_RESULT].

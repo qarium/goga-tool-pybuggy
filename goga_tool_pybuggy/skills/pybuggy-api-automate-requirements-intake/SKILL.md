@@ -1,7 +1,9 @@
 ---
 name: goga-tool-pybuggy-api-automate-requirements-intake
-description: Intake and formalization of the tested topic's description
+description: Intake and formalization of the tested topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined
 ---
+
+# Pybuggy API Topic Requirements — Intake
 
 ## Identity
 
@@ -28,7 +30,18 @@ scope and what stays outside. Your only input source is the user's request.
 2. Determine what belongs to the testing scope and what does not.
 3. If the goal is ambiguous — ask clarifying questions (as choice options), without diving into the project code.
 
-### Step 2.1. Resolve the topic version context
+### Step 2.1. Create the topic
+
+As soon as what will be tested is determined, create the topic — the current branch's topic of the
+history tree:
+
+1. Run `goga history ensure` — idempotently creates the topic directory `.goga/history/<year>/<topic>/`
+   of the current branch. A failure (not a repository, detached HEAD, git missing) — **STOP**: ask the
+   user to run the pipeline from a branch.
+
+Every artifact of the topic is addressed as `goga history path -f <artifact>`.
+
+### Step 2.2. Resolve the topic version context
 
 This is the **only** place the version is asked; every later stage reads it from the requirements
 artifact. Ask via AskUserQuestion (one question per message, 2–4 options):
@@ -114,5 +127,5 @@ commands will carry `pytest ... --base-url <url>`; for a feature environment, wh
 
 ## Open Questions
 
-[What requires clarification at subsequent steps. Leave empty if none.]
+[What requires clarification at subsequent steps. Write `none` if there is nothing.]
 ```

@@ -1,24 +1,24 @@
 ---
 name: goga-tool-pybuggy-api-automate-plan-review
-description: Verification of the test ralphex plan docs/plans/<topic>.md
+description: Verification of the test ralphex plan `goga history path -f plan.md`
 ---
 # Pybuggy API Topic Plan Review
 
 ## Identity
 
-You are the reviewer of a test ralphex plan. You verify `docs/plans/<topic>.md` for **completeness and correctness** in
+You are the reviewer of a test ralphex plan. You verify the artifact at the path printed by `goga history path -f plan.md` for **completeness and correctness** in
 test mode. Your primary objective: guarantee that the plan **prescribes running the tests** — otherwise `goga build`
 generates `test_*.py` files but never executes them.
 
 ## Mission
 
-Verify the plan against two artifacts: the design doc (`docs/design/<topic>.md`) and the CODEMANIFESTs of the test
+Verify the plan against two artifacts: the design doc (`goga history path -f design.md`) and the CODEMANIFESTs of the test
 cells. Check two things: full Routine → `test_*.py` coverage, and the **critical property** — the plan contains
 `pytest` in `## Validation Commands` and an **executable** Task checkbox for running tests (not manual/skipped).
 
 ## Verifiable Artifact
 
-- `docs/plans/<topic>.md` — the ralphex plan. Check it against `docs/design/<topic>.md` and the CODEMANIFESTs of the
+- the path printed by `goga history path -f plan.md` — the ralphex plan. Check it against `goga history path -f design.md` and the CODEMANIFESTs of the
   test cells.
 
 ## Why the pytest check is critical
@@ -40,12 +40,12 @@ pass" requirement: a single unfixable test would otherwise block the entire buil
 2. `goga-cell`, `goga-tool-pybuggy-api-cookbook` — the test-cells DSL.
 3. `goga-tool-pybuggy-api-usage` — pybuggy runtime.
 4. Read three artifacts: the plan, the design doc, and every CODEMANIFEST of the test cells. Read
-   the topic's target environment from `docs/requirements/<topic>.md` (§1/§4) when present — it
+   the topic's target environment from the path printed by `goga history path -f requirements.md` (§1/§4) when present — it
    defines whether test-run commands must carry `--base-url <url>`.
 
 ### Phase 2. Base Verification
 
-Invoke `goga-review-plan` through the **Skill tool** with `<topic>`. It produces base findings: plan ↔ design ↔
+Invoke `goga-review-plan` through the **Skill tool**. It produces base findings: plan ↔ design ↔
 CODEMANIFEST consistency and lint. Combine these base findings with the test checks of Phase 3.
 
 ### Phase 3. Critical Test-Execution Checks

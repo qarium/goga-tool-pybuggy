@@ -95,5 +95,5 @@ Fill in every section. Empty sections are forbidden.
 
 ## Notes
 
-[Missing artifacts, WARNINGS, etc. Empty if none.]
+[Missing artifacts, WARNINGS, etc. Write `none` if there is nothing.]
 ```

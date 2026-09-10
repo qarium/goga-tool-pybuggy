@@ -1,5 +1,5 @@
 language: python
-image: qarium/goga-python-3.13:1.2
+image: qarium/goga-python-3.13:1.3
 
 lint:
   ignore:
@@ -17,6 +17,7 @@ build:
       ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.1"
   review_executor:
     agent: claude
+    base_ref: 1.1.x
     env:
       <<: *claude-env
       ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3[1m]"
@@ -26,6 +27,15 @@ pipeline:
   env:
     <<: *claude-env
     ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3[1m]"
+
+
+
+usages:
+  cooks:
+    goga:
+      git: https://github.com/qarium/goga.git
+      ref: 1.3.x
+      root: goga
 
 codemanifest:
   usages:

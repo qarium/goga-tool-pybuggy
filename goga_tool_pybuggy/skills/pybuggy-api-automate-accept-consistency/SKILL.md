@@ -15,7 +15,7 @@ side or by returning to the cells/apply pipelines.
 
 You **verify** `test_*.py` against the Routines of their cells and **record** findings. CODEMANIFEST stays untouched:
 on desync, either the test file is fixed (with user approval) or a return to
-`pybuggy-api-automate-cells` / `pybuggy-api-automate-apply` is recorded.
+`goga-tool-pybuggy-api-automate-cells` / `goga-tool-pybuggy-api-automate-apply` is recorded.
 
 ## Algorithm
 
@@ -38,7 +38,7 @@ For every Routine of every cell:
 
 ### Step 3. Request body — Request model
 
-For every test according to its case (Flow/Positive/Negative from `docs/testcases/<topic>.md`):
+For every test according to its case (Flow/Positive/Negative from the path printed by `goga history path -f testcases.md`):
 
 1. A valid body (positive/flow) is materialized through the importable `Request` model from
    `api/<spec>/<id>/api.py` (`json=Request(...)`).
@@ -56,11 +56,11 @@ For every test according to its case (Flow/Positive/Negative from `docs/testcase
 3. The steps of the Routine's `Steps:` annotation are reflected in the test body (calls, checks); a skipped
    case step is a finding (Severity by impact: a lost contract check — High).
 4. The case checks (status, fields, structure, invariants) are present in the asserts — compare against
-   the expectations section of the case in `docs/testcases/<topic>.md`.
+   the expectations section of the case in `goga history path -f testcases.md`.
 
 ### Step 5. Usage references
 
-1. Cell-specific usage keys of the Header cell: the files `.goga/usages/cooks/<key>.md` exist.
+1. Cell-specific usage keys from the cell Header (Usages): the files `.goga/usages/cooks/<key>.md` exist.
 2. The fixtures and tools used in `test_*.py` match the connected keys.
 
 ### Step 6. Findings and decisions
@@ -76,7 +76,7 @@ Every finding gets a severity and an action:
 Actions per finding (via AskUserQuestion, one question per message, 2–4 options):
 
 1. **Fix `test_*.py` here** — edit the test file in the test key (following the Routine's DSL reference).
-2. **Return to `pybuggy-api-automate-cells` / `-apply`** — on structural discrepancies (Routines missing
+2. **Return to `goga-tool-pybuggy-api-automate-cells` / `goga-tool-pybuggy-api-automate-apply`** — on structural discrepancies (Routines missing
    for cases, cells do not match the plan).
 3. **Accept as is** — with an explicit risk record in the report.
 
@@ -101,7 +101,7 @@ Fill in every section. Empty sections are forbidden.
 [Table: Test | Case (Flow/Positive/Negative) | Body via Request/dict | Policy compliance]
 
 ## Skip masking
-[List of pytest.skip/skip-markers/xfail occurrences with file and line. Empty if none]
+[List of pytest.skip/skip-markers/xfail occurrences with file and line. Write `none` if there is nothing]
 
 ## Steps & assertions coverage
 [Table: Test | Case steps reflected | Contract checks present | Gaps]
@@ -113,7 +113,7 @@ Fill in every section. Empty sections are forbidden.
 [Table: File | Finding | Severity (Critical/High/Medium) | Action (fix here / return to cells/apply / accept)]
 
 ## Applied fixes
-[Edits to test_*.py made with user approval: file | what changed | reason. Empty if none]
+[Edits to test_*.py made with user approval: file | what changed | reason. Write `none` if there is nothing]
 
 ## Overall
 [CONSISTENT / CONSISTENT_WITH_FIXES / INCONSISTENT — with justification]

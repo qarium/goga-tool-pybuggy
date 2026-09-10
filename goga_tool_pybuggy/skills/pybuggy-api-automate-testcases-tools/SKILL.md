@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-testcases-tools
 description: Identifying the tool needs of test cases (data/mocks/utilities), agreeing on the tools, and creating usage files .goga/usages/cooks/<key>.md
 ---
 
+# Pybuggy API Topic Testcases — Tools
+
 ## Identity
 
 You identify the test cases' needs in data, mocks, and utilities, map them onto the usages, agree on the tools, and create usage files for the new tools.
@@ -18,8 +20,7 @@ You **analyze** [TESTCASES_PLAN], map the needs onto §8, and agree on the decis
 ### Step 1. Load context
 
 1. [TESTCASES_PLAN] — the case matrix (types, endpoints, data setup, expectations).
-2. `docs/requirements/<topic>.md` §8 "Available project usages" — the registry of the existing usages (the pipeline
-   orchestrator passes the path via Artifact Path Resolution)
+2. the path printed by `goga history path -f requirements.md` §8 "Available project usages" — the registry of the existing usages
    (key | path | role | purpose).
 3. If §8 says "usages are missing" — scan `.goga/usages/` yourself (as in `requirements-discovery`, Step 2) and use
    the scan result.
@@ -95,9 +96,9 @@ If there are no new ones — "none".
 
 ## Deferred needs
 
-[Needs without a tool (the case rewritten or the tool deferred) + the reason. Empty if none.]
+[Needs without a tool (the case rewritten or the tool deferred) + the reason. Write `none` if there is nothing.]
 
 ## Notes
 
-[API "requires clarification", versions, etc. Empty if none.]
+[API "requires clarification", versions, etc. Write `none` if there is nothing.]
 ```

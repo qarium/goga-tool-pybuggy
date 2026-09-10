@@ -20,58 +20,51 @@ Arguments: `$ARGUMENTS`
 
 ### Review Type Detection
 
-1. **The arguments contain a path** — detect the review type by the path segments (evaluate top to bottom, the
-   first match wins):
-   - the path contains `docs/requirements/` → **requirements**
-   - the path contains `docs/testcases/` → **testcases**
-   - the path contains `docs/arch/` → **cells**
-   - the path contains `docs/design/` → **design**
-   - the path contains `docs/plans/` → **plan**
-
-   For each review type, extract `<target>` (the topic name) from the path:
-   - `docs/requirements/clients.md` → `<target>` = `clients`
-   - `docs/testcases/clients.md` → `<target>` = `clients`
-   - `docs/arch/clients.md` → `<target>` = `clients`
-   - `docs/design/clients.md` → `<target>` = `clients`
-   - `docs/plans/clients.md` → `<target>` = `clients`
+1. **The arguments contain a path** — detect the review type by the artifact file name (evaluate top to bottom,
+   the first match wins):
+   - the path ends with `requirements.md` → **requirements**
+   - the path ends with `testcases.md` → **testcases**
+   - the path ends with `arch.md` → **cells**
+   - the path ends with `design.md` → **design**
+   - the path ends with `plan.md` → **plan**
 
 2. **The arguments are empty** — ask the user via AskUserQuestion:
    - **question**: "What to review?"
    - **header**: "Review type"
    - **multiSelect**: false
    - **options**:
-     - **label**: "requirements", **description**: "Review the requirements from docs/requirements/<topic>.md"
-     - **label**: "testcases", **description**: "Review the test cases from docs/testcases/<topic>.md"
-     - **label**: "cells", **description**: "Review the test cells plan from docs/arch/<topic>.md"
-     - **label**: "design", **description**: "Review the test design doc from docs/design/"
-     - **label**: "plan", **description**: "Review the test ralphex plan from docs/plans/ (including the pytest run)"
+     - **label**: "requirements", **description**: "Review the requirements from the path printed by `goga history path -f requirements.md`"
+     - **label**: "testcases", **description**: "Review the test cases from the path printed by `goga history path -f testcases.md`"
+     - **label**: "cells", **description**: "Review the test cells plan from the path printed by `goga history path -f arch.md`"
+     - **label**: "design", **description**: "Review the test design doc from the path printed by `goga history path -f design.md`"
+     - **label**: "plan", **description**: "Review the test ralphex plan from the path printed by `goga history path -f plan.md` (including the pytest run)"
 
 ### Type-Based Routing
 
 #### requirements
-Verify that `docs/requirements/<target>.md` exists.
+Verify that the path printed by `goga history path -f requirements.md` exists.
 1. **Missing** — stop and notify the user (the `requirements` pipeline must run first).
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-requirements-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-requirements-review` via the **Skill tool**.
 
 #### testcases
-Verify that `docs/testcases/<target>.md` exists.
+Verify that the path printed by `goga history path -f testcases.md` exists.
 1. **Missing** — stop and notify the user (the `testcases` pipeline must run first).
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-testcases-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-testcases-review` via the **Skill tool**.
 
 #### cells
-Verify that `docs/arch/<target>.md` exists.
+Verify that the path printed by `goga history path -f arch.md` exists.
 1. **Missing** — stop and notify the user (the `cells` pipeline must run first).
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-cells-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-cells-review` via the **Skill tool**.
 
 #### design
-Verify that `docs/design/<target>.md` exists.
+Verify that the path printed by `goga history path -f design.md` exists.
 1. **Missing** — stop and notify the user.
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-design-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-design-review` via the **Skill tool**.
 
 #### plan
-Verify that `docs/plans/<target>.md` exists.
+Verify that the path printed by `goga history path -f plan.md` exists.
 1. **Missing** — stop and notify the user.
-2. **Exists** — invoke `goga-tool-pybuggy-api-automate-plan-review` via the **Skill tool**, passing `<target>`.
+2. **Exists** — invoke `goga-tool-pybuggy-api-automate-plan-review` via the **Skill tool**.
 
 ## Invariants
 
@@ -84,6 +77,6 @@ Verify that `docs/plans/<target>.md` exists.
 
 ### ALWAYS
 
-- detect the review type by the target-file path (top-to-bottom check, the first match wins)
+- detect the review type by the target-file path (the artifact file name, top-to-bottom check, the first match wins)
 - verify that the target exists before dispatching
 - dispatch to a pybuggy test-review skill via the Skill tool

@@ -3,6 +3,8 @@ name: goga-tool-pybuggy-api-automate-testcases-elaborate
 description: Requirements elaboration — match the user's topic description against API contracts (gap analysis, binding every statement to REQ-<N>), ask the user about discrepancies, and build traces from the entry point to each endpoint of the coverage (Call → Effect → Verification)
 ---
 
+# Pybuggy API Topic Testcases — Elaborate
+
 ## Identity
 
 You match the user's topic description against the API contracts, build `Call → Effect → Verification`
@@ -93,15 +95,15 @@ Fill in every section. Empty sections are forbidden.
 ## Reverse gap
 
 [API capabilities from the coverage not mentioned in the description (candidates for tests) + description
-effects with no observable check in the response. Empty if none.]
+effects with no observable check in the response. Write `none` if there are none.]
 
 ## Questions and decisions
 
-[Each question: discrepancy → options → the user's decision. Empty if there are no discrepancies.]
+[Each question: discrepancy → options → the user's decision. Write `none` if there are no discrepancies.]
 
 ## Topic traces
 
-[Approved traces — copied verbatim into `docs/testcases/<topic>.md`:]
+[Approved traces — copied verbatim into the path printed by `goga history path -f testcases.md`:]
 
 ### TRACE-<N>: <title>
 
@@ -115,5 +117,5 @@ effects with no observable check in the response. Empty if none.]
 
 ## Open risks
 
-[Whatever remains ambiguous or requires manual verification. Empty if none.]
+[Whatever remains ambiguous or requires manual verification. Write `none` if there is nothing.]
 ```

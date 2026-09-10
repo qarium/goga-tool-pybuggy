@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-fix-execute-bug
-description: Execute a service-bug class task — write a bug record to docs/bugs/<topic>.md
+description: Execute a service-bug class task — write a bug record to the path printed by `goga history path -f bugs.md`
 ---
 # Pybuggy API Fix Execute — Bug
 
@@ -13,9 +13,9 @@ specified in the plan task.
 
 1. Take the `FIX-<N>` task (class `service-bug`) from the plan: the problem, the failed tests, and the dossier are
    already written in the task. The orchestrator passes the attempt number.
-2. Append the record `BUG-<topic>-<N>` to `docs/bugs/<topic>.md` (sequential numbering; keep the existing records
+2. Append the record `BUG-<topic>-<N>` to the path printed by `goga history path -f bugs.md` (sequential numbering; keep the existing records
    intact, append the new one to the end of the file) using the template below. One record covers one problem and
-   all tests that failed because of it; keep the full traceback in `docs/fix/<topic>-log.txt`. The file is created
+   all tests that failed because of it; keep the full traceback in `goga history path -f fix-log.txt`. The file is created
    with the header `# Bugs — <topic>` and a brief description (1–2 lines); records are appended under it.
 3. Task verification: the record is created. Red tests are the expected outcome, not a failure. One call = one
    attempt: if the record is not created, return `failed` with the reason — do not re-read and re-write the file
@@ -40,7 +40,7 @@ status, body, behavior). The established cause — in one phrase.>
 
 ### Evidence
 <One factual piece of evidence: the actual service response (status + body) or the assert output of one of the
-tests. <Traceback/assert output in full from `docs/fix/<topic>-log.txt`.>
+tests. <Traceback/assert output in full from the path printed by `goga history path -f fix-log.txt`.>
 
 ### Notes
 <Hypotheses, control experiments, observations. Omit if empty.>
@@ -65,7 +65,7 @@ Fill in every section. Empty sections are forbidden.
 [record number BUG-<topic>-<N> + file path; tests red — expected]
 
 ## Changed files
-[docs/bugs/<topic>.md]
+[`goga history path -f bugs.md`]
 
 ## Remarks
 [what remains unhealthy. Empty if nothing]

@@ -15,15 +15,15 @@ them at triage.
 
 ### Step 1. Completeness of execution
 
-Verify that every `FIX-<N>` task from `docs/fix/<topic>-plan.md` has a status (`done`/`failed`) recorded in
-`docs/fix/<topic>-execute.md`; any missing task is an omission.
+Verify that every `FIX-<N>` task from the path printed by `goga history path -f fix-plan.md` has a status (`done`/`failed`) recorded in
+`goga history path -f fix-execute.md`; any missing task is an omission.
 
 ### Step 2. Plan readiness criteria
 
 1. The task checks from the plan have passed (per the execute report).
-2. `service-bug` — records are created in `docs/bugs/<topic>.md` according to the
+2. `service-bug` — records are created in `goga history path -f bugs.md` according to the
    `goga-tool-pybuggy-api-fix-execute-bug` template, and the tests are genuinely red.
-3. The final run (`docs/fix/<topic>-log-final.txt`) matches the expected result: all tests are green except the
+3. The final run (`goga history path -f fix-log-final.txt`) matches the expected result: all tests are green except the
    `service-bug` tests that have bug records.
 
 ### Step 3. Quality of the changes, per changed file
@@ -35,14 +35,14 @@ From the "Changed files" section of the execute report, check each file:
 2. CODEMANIFEST — DSL validity (section structure, order, blank lines between sections); existing Routines are not
    removed.
 3. `api/` artifacts — `goga tool pybuggy endpoint diff <endpoint-id>` is empty for the affected endpoints (when the
-   topic has a ref from `docs/fix/<topic>-collect.md`: the spec on disk must be at the topic's ref, otherwise the diff
+   topic has a ref from the path printed by `goga history path -f fix-collect.md`: the spec on disk must be at the topic's ref, otherwise the diff
    is unreliable).
-4. `docs/bugs/<topic>.md` — records according to the `goga-tool-pybuggy-api-fix-execute-bug` template, with sequential
+4. the path printed by `goga history path -f bugs.md` — records according to the `goga-tool-pybuggy-api-fix-execute-bug` template, with sequential
    numbering.
 
 ### Step 4. Regressions
 
-New red tests in the final run compared to the original `docs/fix/<topic>-collect.md` — every regression is a finding.
+New red tests in the final run compared to the original `goga history path -f fix-collect.md` — every regression is a finding.
 
 ### Step 5. Assemble [REVIEW_FINDINGS]
 
@@ -51,7 +51,7 @@ run mismatch), `Medium` (incomplete records, deviations from the template).
 
 ---
 
-## Output Format
+## Output format
 
 Fill in every section. Empty sections are prohibited ("no findings" / "none" — an explicit mark).
 

@@ -30,7 +30,7 @@ The steps run strictly in sequence, one step at a time. The pipeline validates e
 
 - Skill: `goga-tool-pybuggy-api-fix-collect-report`
 - Reads: [FIX_INTAKE], [FIX_FAILURES]
-- Result: [FIX_COLLECT] — saved to `docs/fix/<topic>-collect.md`
+- Result: [FIX_COLLECT] — saved to the path printed by `goga history path -f fix-collect.md`
 
 ## Output Rule
 

@@ -3,9 +3,10 @@
 ## Domain
 
 Consumption patterns of the root cell `goga_tool_pybuggy/`: a package facade that defines the root Click group
-`main`, loads `.env` into `os.environ` before any command executes, and assembles the full CLI. The audience:
-integrators who launch `pybuggy` (console command or `python -m goga_tool_pybuggy`) and external importers of
-the facade (`from goga_tool_pybuggy import main`).
+`main`, loads `.env` into `os.environ` before any command executes, assembles the full CLI, and exposes the
+`register_hooks` callback of the goga hooks platform. The audience: integrators who launch `pybuggy`
+(console command or `python -m goga_tool_pybuggy`), external importers of the facade
+(`from goga_tool_pybuggy import main`), and the goga hooks platform (which imports and calls `register_hooks`).
 
 ## Entry point
 
@@ -89,6 +90,47 @@ Registered under `endpoint`: `pull`, `list`, `info`, `generate`, `diff`.
 The config path is fixed (`.goga/tools/pybuggy/config.yml`, see `goga_tool_pybuggy.config.CONFIG_PATH`).
 There is no `--config` option — commands load the config themselves via `load_config()` (no argument). The
 pass-object `ctx.obj` exists but carries only the env context (`EnvContext`), not the config.
+
+## goga hooks platform integration
+
+The facade exposes one more entry point beside the CLI: `register_hooks` — the callback the goga hooks
+platform imports and calls when a command first reaches a hook checkpoint of the run (inspect the registry
+with `goga hooks`). A plain `import goga_tool_pybuggy` never triggers it; the platform owns the call.
+
+`register_hooks` subscribes two status hooks to the single address statuses / register_statuses:
+
+| Hook name | Callable | Registers |
+|-----------|----------|-----------|
+| `automate` | `register_automate_statuses` | the six automate-line statuses (including the completed-accept `automate.done`) |
+| `fix` | `register_fix_statuses` | the five fix-line statuses |
+
+Both hook callables live in `goga_tool_pybuggy/statuses.py` and are NOT re-exported on the package
+facade — only `register_hooks` is; the platform reaches them through its subscription.
+
+The tool identity (`pybuggy`) is assigned by the platform from the package name — the package never names
+itself. Every registered status is stored and shown qualified: `pybuggy.<name>`.
+
+The registered topic statuses (artifact paths relative to the topic directory):
+
+| Qualified status | Artifact | Anchors |
+|------------------|----------|---------|
+| `pybuggy.automate.done` | `completed/plan.md` | after `done` |
+| `pybuggy.automate.coding-planned` | `plan.md` | after `planned`, before `pybuggy.automate.done` |
+| `pybuggy.automate.code-designed` | `design.md` | after `specified`, before `pybuggy.automate.coding-planned` |
+| `pybuggy.automate.arch-prepared` | `arch.md` | after `designed`, before `pybuggy.automate.code-designed` |
+| `pybuggy.automate.testcases-designed` | `testcases.md` | after `backlog`, before `pybuggy.automate.arch-prepared` |
+| `pybuggy.automate.requirements-created` | `requirements.md` | after `defined`, before `pybuggy.automate.testcases-designed` |
+| `pybuggy.fix.collected` | `fix-collect.md` | after `empty` |
+| `pybuggy.fix.analyzed` | `fix-analysis.md` | after `pybuggy.fix.collected` |
+| `pybuggy.fix.planned` | `fix-plan.md` | after `pybuggy.fix.analyzed` |
+| `pybuggy.fix.executed` | `fix-execute.md` | after `pybuggy.fix.planned` |
+| `pybuggy.fix.reviewed` | `fix-review.md` | after `pybuggy.fix.executed` |
+
+The automate statuses register in reverse pipeline order: `automate.done` lands above the built-in `done`,
+and each middle status anchors above its built-in twin and below the previously registered automate status
+(the arch/design/plan artifacts are the same files as their built-in twins). The fix chain starts above the
+built-in `empty` and stacks in pipeline order, every status anchored to its predecessor. Registration is
+add-only and never cached — package edits apply from the next run, without reinstall.
 
 ## Preconditions and side effects
 
