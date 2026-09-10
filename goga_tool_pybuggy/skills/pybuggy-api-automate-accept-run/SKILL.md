@@ -138,13 +138,13 @@ Fill in every section. Empty sections are forbidden.
 [Table: Test | Classification (Test defect / Service bug / Ambiguous→testcases) | User decision | Action]
 
 ## Fixed tests
-[Table: File | What was fixed | Rerun result. Empty if none]
+[Table: File | What was fixed | Rerun result. Write `none` if there is nothing]
 
 ## Bug records
-[List of created/updated records BUG-<topic>-<N> with paths. Empty if none]
+[List of created/updated records BUG-<topic>-<N> with paths. Write `none` if there is nothing]
 
 ## Unresolved
-[Tests not closed by triage (fix iterations exhausted / handed to testcases). Empty if none]
+[Tests not closed by triage (fix iterations exhausted / handed to testcases). Write `none` if there is nothing]
 
 ## Rerun command
 [Command to repeat the run after the service bugs are fixed]

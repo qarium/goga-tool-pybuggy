@@ -69,7 +69,7 @@ Fill in every section. Empty sections are prohibited.
 [Table: TC-<N> | Routine test_<name> | tests/<spec>/<id>/test_<name>.py | Status (materialized / not)]
 
 ## Uncovered testcases
-[Cases without a Routine — from the `testcases.md` coverage matrix. Empty if none]
+[Cases without a Routine — from the `testcases.md` coverage matrix. Write `none` if there is nothing]
 
 ## Run command
 [The pytest command (with `--base-url <url>` when the requirements define a non-standard target

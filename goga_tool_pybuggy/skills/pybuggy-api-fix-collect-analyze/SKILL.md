@@ -77,5 +77,5 @@ Write "no failures" if the list is empty]
 
 ## Remarks
 
-[ambiguous output lines that require attention. Empty if none]
+[ambiguous output lines that require attention. Write `none` if there is nothing]
 ```

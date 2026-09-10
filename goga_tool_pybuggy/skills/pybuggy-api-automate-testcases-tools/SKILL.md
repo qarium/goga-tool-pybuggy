@@ -96,9 +96,9 @@ If there are no new ones — "none".
 
 ## Deferred needs
 
-[Needs without a tool (the case rewritten or the tool deferred) + the reason. Empty if none.]
+[Needs without a tool (the case rewritten or the tool deferred) + the reason. Write `none` if there is nothing.]
 
 ## Notes
 
-[API "requires clarification", versions, etc. Empty if none.]
+[API "requires clarification", versions, etc. Write `none` if there is nothing.]
 ```

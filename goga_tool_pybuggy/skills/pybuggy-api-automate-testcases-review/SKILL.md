@@ -89,9 +89,9 @@ The document must contain the sections:
 
 Every case (`#### TC-<N>: <title>`) must contain the fields:
 - **title**, **severity**, **topic**, **requirements** (`REQ-<N>` — one or more, or "—");
-- **description** with the subsections **Preconditions**, **Execution Steps** (each step:
+- **description** with the subsections **Preconditions**, **Execution steps** (each step:
   **Action**, **Data**, **Expectation**);
-- **Expected Result**.
+- **Expected result**.
 
 - A missing section/field — **Critical** (for **requirements** — **High**).
 - An empty section/field or a placeholder (TBD, TODO, "…", "etc") — **High**.
@@ -149,7 +149,7 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
    substituted "speculative" value not tied to the contract — **Medium**.
 2. **Parameters** — the path/query parameters in the data match the endpoint's `Path`/
    `QueryParams`. A required parameter missing from a call — **High**.
-3. **Status codes ↔ schemas** — the expected status codes in **Expectation**/Expected Result
+3. **Status codes ↔ schemas** — the expected status codes in **Expectation**/Expected result
    exist in `schemas`/`Response`. A nonexistent status — **High**.
 4. **Response fields ↔ schema** — the key fields declared in the checks are present in the
    schema of the corresponding status. A check of a nonexistent field — **High**.
@@ -177,7 +177,7 @@ From the requirements/discovery, determine the set of endpoints and chains (flow
 4. **Balance** — there are no "dead" cases: cases unrelated to any coverage endpoint/chain, or
    duplicating the same check without new value. A redundant duplicate — **Medium**.
 5. **Trace Verifications are covered by cases** — every **Verification** of every trace is
-   reflected in the "Expectation" of the steps or in the "Expected Result" of at least one case
+   reflected in the "Expectation" of the steps or in the "Expected result" of at least one case
    (including additional checks via adjacent endpoints and invariants). A lost verification —
    **High**. Flow cases follow the end-to-end traces (the case steps follow the trace steps). A
    case referencing a nonexistent `TRACE-<N>` — **High**; a trace without a single case —
@@ -202,7 +202,7 @@ From the requirements/discovery, determine the set of endpoints and chains (flow
    check).
 4. **Concrete preconditions** — the system state and the data setup (entities/roles/factories/
    state transitions) are described, not "prepare the data". Vague preconditions — **Medium**.
-5. **The Expected Result is measurable** — the case outcome is unambiguously checkable (a
+5. **The Expected result is measurable** — the case outcome is unambiguously checkable (a
    status code, structure, invariants/side effects "what must not change"). An unmeasurable
    outcome — **High**.
 6. **No code** — the cases contain no test code or framework names: `pytest`, `assert`,

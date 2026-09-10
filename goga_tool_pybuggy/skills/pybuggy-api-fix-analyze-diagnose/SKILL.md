@@ -75,5 +75,5 @@ Fill in every section. Empty sections are forbidden.
 
 ## Notes
 
-[nuances, missing data. Empty if none]
+[nuances, missing data. Write `none` if there is nothing]
 ```

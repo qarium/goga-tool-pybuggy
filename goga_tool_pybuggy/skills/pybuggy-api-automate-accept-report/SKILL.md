@@ -49,16 +49,16 @@ Fill in every section. Empty sections are forbidden.
 [From ACCEPT_RUN: passed / fixed / bugs / unresolved — test run and triage results]
 
 ## Bug Records
-[Table: BUG-ID | Endpoint | Summary | Severity | Record path. Empty if none]
+[Table: BUG-ID | Endpoint | Summary | Severity | Record path. Write `none` if there is nothing]
 
 ## Open Items
-[Table: Item | Handed to (testcases/cells/apply/service owner) | Reason. Empty if none]
+[Table: Item | Handed to (testcases/cells/apply/service owner) | Reason. Write `none` if there is nothing]
 
 ## Applied Changes
 [Full list of files changed during acceptance: test_*.py, `goga history path -f bugs.md`]
 
 ## Risks
-[Table: Risk | Severity | Mitigation. Empty if none]
+[Table: Risk | Severity | Mitigation. Write `none` if there is nothing]
 
 ## Verdict
 [ACCEPTED / ACCEPTED_WITH_NOTES / PARTIAL / REJECTED — with justification]

@@ -101,7 +101,7 @@ Fill in every section. Empty sections are forbidden.
 [Table: Test | Case (Flow/Positive/Negative) | Body via Request/dict | Policy compliance]
 
 ## Skip masking
-[List of pytest.skip/skip-markers/xfail occurrences with file and line. Empty if none]
+[List of pytest.skip/skip-markers/xfail occurrences with file and line. Write `none` if there is nothing]
 
 ## Steps & assertions coverage
 [Table: Test | Case steps reflected | Contract checks present | Gaps]
@@ -113,7 +113,7 @@ Fill in every section. Empty sections are forbidden.
 [Table: File | Finding | Severity (Critical/High/Medium) | Action (fix here / return to cells/apply / accept)]
 
 ## Applied fixes
-[Edits to test_*.py made with user approval: file | what changed | reason. Empty if none]
+[Edits to test_*.py made with user approval: file | what changed | reason. Write `none` if there is nothing]
 
 ## Overall
 [CONSISTENT / CONSISTENT_WITH_FIXES / INCONSISTENT — with justification]

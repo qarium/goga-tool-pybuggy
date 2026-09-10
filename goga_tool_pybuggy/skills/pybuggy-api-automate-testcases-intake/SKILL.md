@@ -103,5 +103,5 @@ Fill in every section. Empty sections are prohibited.
 
 ## To clarify
 
-[Requirement gaps for the discovery stage. Empty if none.]
+[Requirement gaps for the discovery stage. Write `none` if there is nothing.]
 ```

@@ -82,5 +82,5 @@ Fill in every section. Empty sections are prohibited.
 
 ## To clarify
 
-[Gaps for the context/cell-map stages. Empty if none.]
+[Gaps for the context/cell-map stages. Write `none` if there is nothing.]
 ```
