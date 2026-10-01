@@ -9,10 +9,14 @@ Six pure writers with round-trip guarantees: the test-convention slot
 :func:`goga_tool_pybuggy.commands.init.run_bootstrap`.
 """
 
+import importlib.metadata
+import importlib.resources
 import logging
 from pathlib import Path
 
+from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
+from ruamel.yaml.scalarstring import LiteralScalarString
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +96,13 @@ def write_test_convention(path: Path) -> None:
         OSError: Forwarded unchanged on a read/write failure (including
             ``FileNotFoundError`` from a broken installation without the packaged asset).
     """
-    raise NotImplementedError
+    asset_text = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(
+        encoding="utf-8"
+    )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(asset_text, encoding="utf-8")
 
 
 def ensure_review_skip(config_path: Path) -> bool:
@@ -117,7 +127,29 @@ def ensure_review_skip(config_path: Path) -> bool:
         ValueError: If ``build`` or ``build.review`` exists but is not a mapping.
         YAMLError: If an existing file contains invalid YAML.
     """
-    raise NotImplementedError
+    yaml = YAML()
+    yaml.preserve_quotes = True
+
+    if config_path.exists():
+        data = yaml.load(config_path)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    build = _ensure_map(data, "build")
+    review = _ensure_map(build, "review")
+
+    if review.get("skip") is True:
+        return False
+
+    review["skip"] = True
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    yaml.dump(data, config_path)
+    logger.info("review executor skip enabled", extra={"path": str(config_path)})
+
+    return True
 
 
 def install_pybuggy(dockerfile_path: Path) -> str | None:
@@ -140,7 +172,24 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
         The appended ``RUN`` line text, or ``None`` when nothing was appended (file
         absent or line already present).
     """
-    raise NotImplementedError
+    if not dockerfile_path.exists():
+        return None
+
+    version = importlib.metadata.version("goga-tool-pybuggy")
+    minor = ".".join(version.split(".")[:2])
+    line = f"RUN goga install pybuggy -v {minor}.x"
+
+    content = dockerfile_path.read_text(encoding="utf-8")
+    if line in content:
+        return None
+
+    if content and not content.endswith("\n"):
+        content += "\n"
+
+    dockerfile_path.write_text(content + line + "\n", encoding="utf-8")
+    logger.info("pybuggy install line added to Dockerfile", extra={"line": line, "path": str(dockerfile_path)})
+
+    return line
 
 
 def register_usages(config_path: Path, usage_keys: dict[str, str]) -> list[str]:
@@ -166,7 +215,31 @@ def register_usages(config_path: Path, usage_keys: dict[str, str]) -> list[str]:
         ValueError: If ``codemanifest`` or ``usages`` exists but is not a mapping.
         YAMLError: If an existing file contains invalid YAML.
     """
-    raise NotImplementedError
+    yaml = YAML()
+    yaml.preserve_quotes = True
+
+    if config_path.exists():
+        data = yaml.load(config_path)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    codemanifest = _ensure_map(data, "codemanifest")
+    usages = _ensure_map(codemanifest, "usages")
+
+    added_keys: list[str] = []
+    for key, value in usage_keys.items():
+        if key in usages:
+            continue
+
+        usages[key] = value
+        added_keys.append(key)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    yaml.dump(data, config_path)
+
+    return added_keys
 
 
 def register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> list[str]:
@@ -191,7 +264,46 @@ def register_annotations(config_path: Path, annotation_lines: dict[str, str]) ->
             not a scalar.
         YAMLError: If an existing file contains invalid YAML.
     """
-    raise NotImplementedError
+    yaml = YAML()
+    yaml.preserve_quotes = True
+
+    if config_path.exists():
+        data = yaml.load(config_path)
+        if data is None:
+            data = CommentedMap()
+    else:
+        data = CommentedMap()
+
+    codemanifest = _ensure_map(data, "codemanifest")
+    text = _ensure_scalar(codemanifest, "annotations")
+
+    lines = text.split("\n")
+    changed_keys: list[str] = []
+    for key, line in annotation_lines.items():
+        needle = f"`{key}`"
+        idx = next((i for i, existing in enumerate(lines) if needle in existing), None)
+
+        if idx is None:
+            if lines[-1] == "":
+                lines.insert(len(lines) - 1, line)  # text with a trailing newline
+            else:
+                lines.extend([line, ""])  # scalar without one — add the separator
+            changed_keys.append(key)
+        elif lines[idx] == line:
+            continue  # identical line — no-op
+        else:
+            lines[idx] = line  # replace exactly the first line carrying the reference
+            changed_keys.append(key)
+
+        text = "\n".join(lines)  # the trailing "" element keeps the final newline
+
+    if changed_keys:
+        codemanifest["annotations"] = LiteralScalarString(text)
+
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    yaml.dump(data, config_path)
+
+    return changed_keys
 
 
 def write_pybuggy_conftest(path: Path) -> None:
@@ -209,4 +321,6 @@ def write_pybuggy_conftest(path: Path) -> None:
     Raises:
         OSError: Forwarded unchanged to the caller on a write failure.
     """
-    raise NotImplementedError
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(_CONFTEST_TEMPLATE, encoding="utf-8")

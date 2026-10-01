@@ -609,29 +609,29 @@ Python 3.10 compatibility).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_bootstrap.py`, expected to fail against the stubs):
+- [x] **Contract tests** (in `tests/commands/init/test_bootstrap.py`, expected to fail against the stubs):
       facade import of the six names from `goga_tool_pybuggy.commands.init`; signatures —
       `ensure_review_skip(config_path: Path) -> bool`, `install_pybuggy(dockerfile_path: Path) -> str | None`,
       `register_usages(config_path: Path, usage_keys: dict[str, str]) -> list[str]`,
       `register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> list[str]`,
       `write_pybuggy_conftest(path: Path) -> None`, `write_test_convention(path: Path) -> None`
       (inspect via `typing.inspect`/`__annotations__`)
-- [ ] **REPL cycle** (M-R4.1/M-R4.2): in the venv REPL against a `tmp` sample config with comments and a
+- [x] **REPL cycle** (M-R4.1/M-R4.2): in the venv REPL against a `tmp` sample config with comments and a
       `build.task_executor` sibling — round-trip `ensure_review_skip` twice, verify the comment survives,
       the sibling is intact, and the second call does not rewrite (mtime unchanged); derive the install line
       interactively for versions `"2.0.3"` and `"1.1.1.dev4+gabc"`; then migrate the verified code into
       `bootstrap.py` and re-verify via a fresh import (M-R4.3)
-- [ ] **Code**: implement `ensure_review_skip` (rename + key path `build.review.skip`; round-trip,
+- [x] **Code**: implement `ensure_review_skip` (rename + key path `build.review.skip`; round-trip,
       `_ensure_map` levels, idempotent no-write, INFO `"review executor skip enabled"`-style stable event —
       keep the existing event name for the renamed key)
-- [ ] **Code**: implement `install_pybuggy` (dynamic minor x-range line; no-op when absent; idempotent;
+- [x] **Code**: implement `install_pybuggy` (dynamic minor x-range line; no-op when absent; idempotent;
       only the install line appended)
-- [ ] **Code**: land the four carried-over writers in `bootstrap.py` verbatim
+- [x] **Code**: land the four carried-over writers in `bootstrap.py` verbatim
       (`write_test_convention`, `register_usages`, `register_annotations`, `write_pybuggy_conftest`) with
       typed return labels; delete their stubs
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_bootstrap.py -v` —
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_bootstrap.py -v` —
       contract tests pass
-- [ ] **Logic tests** (design scenarios, Setup/Assertions transferred):
+- [x] **Logic tests** (design scenarios, Setup/Assertions transferred):
       - `test_ensure_review_skip_enforces_key_and_preserves_config` — Setup: `tmp_path/config.yml` with
         comments and siblings (`build: {task_executor: {...}}`, `# keep me`); Assertions: returns `True`;
         re-loaded YAML has `build.review.skip is True`; `build.task_executor` intact; the `# keep me` comment
@@ -653,11 +653,11 @@ Python 3.10 compatibility).
       - `test_write_pybuggy_conftest_and_test_convention_emit_fixed_assets` — conftest content equals the
         pinned template string exactly; convention content equals the packaged asset (anchored by its
         `# Testing Convention: pytest...` first line); both overwrite on the second call
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
       (do NOT fix test code)
-- [ ] **Contract re-verification**: facade, API shape, and behavior of the six writers match the
+- [x] **Contract re-verification**: facade, API shape, and behavior of the six writers match the
       CODEMANIFEST annotations (round-trip preservation, idempotency, never-overwrite, no file creation)
-- [ ] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
+- [x] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
       `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/bootstrap.py tests/commands/init/test_bootstrap.py`
       — clean (commit gate M-R3.4)
 
