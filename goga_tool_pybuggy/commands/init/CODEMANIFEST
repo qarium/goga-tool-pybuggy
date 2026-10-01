@@ -13,92 +13,93 @@ Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
   ruamel-yaml: .goga/usages/cooks/ruamel-yaml.md
-  goga-onboarding: .goga/usages/cooks/goga/onboarding/onboarding-usage.md
   goga-scaffold: .goga/usages/cooks/goga/scaffold/scaffold-usage.md
+  goga-onboarding: .goga/usages/cooks/goga/onboarding/onboarding-usage.md
+  goga-onboarding-hooks: .goga/usages/cooks/goga/onboarding/registering-hooks.md
+  goga-onboarding-questions: .goga/usages/cooks/goga/onboarding/questions/question-records.md
+  goga-onboarding-generator: .goga/usages/cooks/goga/onboarding/generator/artifact-generation.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the command wrapper, flag validation, interactive prompts (plugin scalar keys + specs survey),
-  overwrite gates (default no), and mapping domain errors to click.ClickException.
-  Use `ruamel-yaml` for round-trip editing of the consumer .goga/config.yml (merge with skip-existing, ensure the
-  build.review_executor.skip flag) AND for emitting .goga/tools/pybuggy/config.yml with active values plus commented
-  records (skipped optional fields and headers/loader examples).
-  Use `goga-onboarding` for the in-process initialization of the goga-project via goga.onboarding (per-field
-  Questionnaire methods + FileGenerator).
-  Use `goga-scaffold` for template scaffolding via goga.scaffold (Scaffold.generate / Scaffold.upgrade).
+  Use `click` for the command wrapper, flag validation, and mapping domain errors to click.ClickException.
+  Use `ruamel-yaml` for round-trip edits of the consumer .goga/config.yml (comments, quotes, and key order preserved).
+  Use `goga-scaffold` for template generation and migration.
+  Use `goga-onboarding` for the session run: the invited participation, the survey, the artifact generation, and the existing-config session semantics.
+  Use `goga-onboarding-hooks` for the two participation moments and the hook context members.
+  Use `goga-onboarding-questions` for the question records of the pybuggy block.
+  Use `goga-onboarding-generator` for the buffered tool config serialization and the created-file report.
 
-  Top-level bootstrap command pybuggy init — operates in three modes resolved from the flags. Bare onboarding (no
-  arguments) runs only in a not-yet-initialized directory: an existing .goga directory is refused up front exactly
-  like the goga init command refuses it — the message "Project already initialized" on stderr, exit code 1, no
-  prompts and no file modifications, so a repeated invocation never updates files. When .goga is absent the pipeline
-  initializes the
-  goga-project, delivers the `conventions` slot of the consumer with the pybuggy test convention when absent, ships
-  the packaged consumer usages, interactively builds .goga/tools/pybuggy/config.yml, always enforces
-  build.review_executor.skip: true, and generates the root conftest.py (written when absent; a pre-existing root
-  conftest.py without .goga is overwritten only on confirmation). Template onboarding (<tpl> with optional --ref):
-  scaffold the template project first — a failed scaffold stops the command without onboarding side effects; after
-  a successful scaffold the onboarding pipeline runs with silent-skip gates: a file that already exists is left
-  untouched (INFO log, no confirmation), a missing file is created through the normal flow. Upgrade (--upgrade with
-  optional --ref): template migration only, no onboarding.
+  Top-level bootstrap command pybuggy init — three modes resolved from the flags. Bare (no arguments) runs only in a
+  not-yet-initialized directory: an existing .goga directory is refused up front ("Project already initialized" on
+  stderr, exit code 1, no prompts, no file modifications). Template (<tpl> with optional --ref) scaffolds the template
+  project first; a failed scaffold stops the command without onboarding side effects; after a successful scaffold the
+  onboarding session runs and the pybuggy bootstrap applies with skip-if-exists gates. Upgrade (--upgrade with
+  optional --ref) runs the template migration only — no onboarding.
 
-  The handler `run_init` is the testable entry point: it resolves the mode, drives the scaffold engine, and delegates
-  the onboarding pipeline to `run_onboarding`. The click wrapper `init_cmd` binds the CLI surface and delegates to
-  `run_init`. The goga-project initialization is delegated to `run_goga_init`; the mode resolution to the pure
-  `resolve_init_mode`; the test-convention slot delivery to `write_test_convention`; the review-executor skip
-  enforcement to the pure `ensure_review_executor_skip`; the interactive config build to `build_pybuggy_config`
-  (testable seam for the TTY survey), which delegates file emission to the pure `write_pybuggy_config`; the conftest
-  emission to the pure `write_pybuggy_conftest`. The recreate/overwrite/skip decisions live in `run_onboarding`; the
-  writers themselves always (over)write. Usages are discovered from the installed package. Use
-  relative imports inside the cell.
+  Order of actions: resolve the mode, apply the bare guard, run the scaffold engine in template and upgrade modes,
+  run the onboarding session, close with the pybuggy bootstrap. The session is engine-owned: the core questions and
+  the pybuggy block are surveyed by the engine, and the tool config file and the config amendments are committed
+  through the participation mechanism; an existing .goga/config.yml ends the session immediately and is never
+  rewritten. The bootstrap owns the pybuggy files the session does not carry: the packaged usages copy, the
+  `conventions` slot, the build.review.skip enforcement, the Dockerfile install line, the usage and annotation
+  registrations, and the root conftest. Use relative imports inside the cell.
 
 ---
+
+"init_cmd(ctx: click.Context, tpl: str | None, ref: str | None, upgrade: bool)":
+  location: init.py
+  annotations: |
+    Click command wrapper for the top-level init command; binds the CLI surface — the optional positional <tpl>, the
+    option --ref <git-ref>, and the flag --upgrade — delegates to `run_init`, and propagates the returned exit code
+    via ctx.exit.
+
+    `ctx`: Click execution context used to control the process exit code.
+    `tpl`: template source — local path or git URL, optionally carrying a #ref fragment; absent in bare/upgrade modes.
+    `ref`: git ref override; None keeps the template's own ref resolution.
+    `upgrade`: migrate a previously scaffolded project instead of onboarding.
+
+    Use `click` for the command wrapper.
 
 "run_init(tpl: str | None, ref: str | None, upgrade: bool) -> exit_code:int":
   location: init.py
   annotations: |
     Handler for the init command — the testable entry point: resolves the operation mode, applies the
-    already-initialized guard in bare mode, drives the template scaffold engine in template and upgrade modes, and
-    delegates the onboarding pipeline to `run_onboarding`.
+    already-initialized guard in bare mode, drives the template scaffold engine in template and upgrade modes, runs
+    the onboarding session, and closes with the pybuggy bootstrap.
 
-    `tpl`: template source (local path or git URL, optionally with a #ref fragment); None in bare and upgrade modes.
+    `tpl`: template source; None in bare and upgrade modes.
     `ref`: git ref override; overrides the URL fragment in template mode and the migration target in upgrade mode.
     `upgrade`: run template migration only.
-    `exit_code`: 0 on success; 1 for an already-initialized refusal (bare mode over an existing .goga directory) or
-    a failed/cancelled onboarding step; a non-zero scaffold exit code propagated as-is.
+    `exit_code`: 0 on success; 1 for an invalid flag combination, the already-initialized refusal, or a failed
+    bootstrap step; a non-zero scaffold or session exit code propagated as-is.
 
     Algorithm:
-    1. Resolve the mode via `resolve_init_mode` — an invalid flag combination raises click.ClickException (message,
-       exit 1).
-    2. Already-initialized guard (bare mode only, goga init parity): when the current working directory holds a .goga
-       directory, echo "Project already initialized" to stderr and return 1 — before the scaffold engine is built and
-       before any onboarding step runs. Template and upgrade modes are never guarded (a template may legitimately
-       bring its own .goga; migration is the point of --upgrade).
-    3. Upgrade mode: run the template migration via Scaffold.upgrade with `ref` and return its exit code — no
-       onboarding runs.
-    4. Template mode: scaffold the template into the current working directory via Scaffold.generate with `tpl` and
-       `ref`; a non-zero code stops the command with that code — no onboarding side effects are applied.
-    5. Return the result of `run_onboarding` with template_mode set according to the resolved mode.
+    1. Resolve the mode via `resolve_init_mode` — an invalid flag combination raises click.ClickException (exit 1).
+    2. Bare mode only: when the current working directory holds a .goga directory, echo "Project already initialized"
+       to stderr and return 1 — before any engine runs and before any file is touched. Template and upgrade modes are
+       never guarded.
+    3. Upgrade mode: run the template migration via the scaffold engine with `ref` and return its exit code — no
+       session, no bootstrap.
+    4. Template mode: scaffold the template into the current working directory with `tpl` and `ref`; a non-zero code
+       stops the command with that code — no onboarding side effect is applied.
+    5. Run the onboarding session via `run_session`; propagate a non-zero code.
+    6. Return the result of `run_bootstrap` with template_mode set according to the resolved mode.
 
     Requirements:
-    - The guard checks directory existence only (is_dir on .goga, exactly like goga init); a .goga regular file does
-      not trip it.
-    - A guard refusal performs zero prompts and zero file writes — no file is read, updated, or refreshed.
+    - The guard checks directory existence only; a .goga regular file does not trip it.
+    - A guard refusal performs zero prompts and zero file writes.
     - The scaffold engine owns its error handling: the routine receives only the exit code and never wraps engine
       exceptions or diagnostics.
-    - In template mode no onboarding side effect (usages copies, conventions slot, config augmentations, conftest) is
-      applied when the scaffold failed.
-    - Exit codes: 0 success; the engine's non-zero code propagated unchanged; flag-validation failures and the
-      already-initialized refusal exit 1.
+    - In template mode no bootstrap side effect is applied when the scaffold failed.
 
     Constraints:
-    - Do not run onboarding in upgrade mode — no prompts, no file augmentation.
+    - Do not run the session or the bootstrap in upgrade mode — no prompts, no file augmentation.
     - Do not guard template or upgrade mode — the guard is bare-only.
     - Do not delete, move, or modify .goga on refusal — refuse and exit.
-    - Do not inject answers into the template beyond project_name — the engine resolves it (see `goga-scaffold`).
-    - Do not import copier directly — the engine is reached through `goga-scaffold` only.
+    - Do not inject answers into the template beyond project_name — the engine resolves it.
 
-    Use `resolve_init_mode`, `run_onboarding`. Use `goga-scaffold` for the Scaffold.generate/upgrade contract.
-    Use `click` for the ClickException propagation and the stderr echo. Use `conventions` for logging/testing.
+    Use `resolve_init_mode`, `run_session`, `run_bootstrap`. Use `goga-scaffold` for the engine contract.
+    Use `click` for the ClickException propagation and the stderr echo. Use `conventions` for logging and testing.
 
 "resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> mode:str":
   location: init.py
@@ -112,483 +113,393 @@ Annotations: |
     `mode`: the resolved mode — bare, template, or upgrade.
 
     Algorithm:
-    1. Reject <tpl> combined with --upgrade — raise click.ClickException with a clear message (mutually exclusive,
-       exit 1).
-    2. Reject --ref without <tpl> and without --upgrade — raise click.ClickException with a clear message (exit 1).
+    1. Reject <tpl> combined with --upgrade — raise click.ClickException (mutually exclusive, exit 1).
+    2. Reject --ref without <tpl> and without --upgrade — raise click.ClickException (exit 1).
     3. Return upgrade when --upgrade is set; template when <tpl> is given; bare otherwise.
 
     Requirements:
     - Flag rules mirror the goga init command: <tpl>/--upgrade mutual exclusion, --ref placement validation.
-    - Invalid combinations surface as click.ClickException (message + exit 1); valid input never raises.
+    - Invalid combinations surface as click.ClickException; valid input never raises.
     - Pure — no TTY, no I/O, no side effects.
 
-    Use `click` for the ClickException mapping. Use `conventions` for type hints/testing.
+    Use `click` for the ClickException mapping. Use `conventions` for type hints and testing.
 
-"run_onboarding(template_mode: bool) -> exit_code:int":
+"run_bootstrap(template_mode: bool) -> exit_code:int":
   location: init.py
   annotations: |
-    Onboarding pipeline of the init command: ensure the goga-project is initialized, build the pybuggy tool config,
-    deliver the `conventions` slot when absent, bootstrap the packaged consumer usages, enforce the
-    build.review_executor.skip flag, and generate the root conftest.py. The gate style depends on `template_mode`:
-    bare gates ask via click.confirm (default no) before touching an existing file; template gates silently skip an
-    existing file with an INFO log. This routine is the public programmatic seam and its gate contract holds for
-    direct callers; through `run_init` the bare existing-file branches for the goga config, the tool config, and the
-    copied usages are unreachable (the bare already-initialized guard guarantees an absent .goga), so the only
-    bare-mode confirmation reachable through the CLI is the root-conftest gate.
+    pybuggy-owned bootstrap after the onboarding session: deliver the files the session does not carry. The gate style
+    depends on `template_mode`: template gates silently skip an existing file with an INFO log; bare gates ask via
+    click.confirm (default no) before touching one.
 
-    `template_mode`: True — a scaffolded template occupies the target directory; existing files are left untouched
-    without confirmation. False — the interactive bare flow with confirmation gates.
-    `exit_code`: 0 on success; a non-zero goga-init/config-build exit code propagated on failure/cancel.
+    `template_mode`: True — a scaffolded template occupies the target directory; existing files are left untouched.
+    `exit_code`: 0 on success; non-zero on a failed step.
 
     Algorithm:
     1. Resolve the output root as the current working directory.
-    2. Goga-project config <cwd>/.goga/config.yml: when absent, call `run_goga_init` and propagate a non-zero code;
-       when present — template mode: log INFO (file untouched) and continue; bare mode: ask via click.confirm (default
-       no) whether to re-run goga init and only re-run on yes (a non-zero code propagates).
-    3. Pybuggy tool config <cwd>/.goga/tools/pybuggy/config.yml: when absent, call `build_pybuggy_config`; when
-       present — template mode: log INFO and skip; bare mode: ask via click.confirm (default no) whether to rebuild
-       and only rebuild on yes. A non-zero (cancel/error) propagates; a declined rebuild continues.
-    4. Discover every .usages/*.md under the api cell (incl. asserts) from the installed goga_tool_pybuggy.api package.
-    5. For each discovered file: when <cwd>/.goga/usages/cooks/pybuggy/<stem>.md does NOT exist, write its content
-       there; when it exists — template mode: log INFO (file untouched) and skip; bare mode: overwrite with the
-       package version.
-    6. Deliver the `conventions` slot: when <cwd>/.goga/usages/conventions.md does NOT exist, call
-       `write_test_convention`; when it exists, log INFO and leave the file untouched. The key registration and the
-       annotation line always run (idempotent).
-    7. Ensure build.review_executor.skip: true in <cwd>/.goga/config.yml via `ensure_review_executor_skip` — an
-       idempotent round-trip edit; runs on every pass, including a skipped or declined goga-config recreate.
-    8. Augment the Dockerfile: call `install_pybuggy` with <cwd>/.goga/Dockerfile — idempotent; a no-op when the
-       Dockerfile is absent.
-    9. Register usage keys via `register_usages` and annotation lines via `register_annotations` with
-       <cwd>/.goga/config.yml (idempotent; the conventions key and line included).
-    10. Log INFO for added/changed, WARNING for skipped.
-    11. Root conftest <cwd>/conftest.py: when absent, call `write_pybuggy_conftest`; when present — template mode: log
-        INFO and skip; bare mode: ask via click.confirm (default no) whether to overwrite — yes calls the writer, no
-        logs INFO (file untouched) and continues.
-    12. Return 0.
+    2. Discover every .usages/*.md under the api cell of the installed package; copy each into
+       .goga/usages/cooks/pybuggy/<stem>.md — template mode: an existing target is skipped with an INFO log; bare
+       mode: an existing target is overwritten.
+    3. Deliver the `conventions` slot: when .goga/usages/conventions.md does not exist, call `write_test_convention`;
+       when it exists, log INFO and leave the file untouched.
+    4. Enforce build.review.skip: true via `ensure_review_skip` — idempotent; runs on every pass, including when the
+       session ended immediately on an existing config.
+    5. Augment the Dockerfile via `install_pybuggy` — idempotent; a no-op when the file is absent.
+    6. Register the usage keys via `register_usages` and the annotation lines via `register_annotations` — idempotent.
+    7. Deliver the root conftest: when conftest.py does not exist, call `write_pybuggy_conftest`; when it exists —
+       template mode: log INFO and skip; bare mode: ask via click.confirm (default no) and overwrite only on yes.
+    8. Verify the Dockerfile exists; when it does not, log ERROR and return non-zero.
+    9. Return 0.
 
     Requirements:
-    - Existing-file gates: bare — explicit click.confirm (default no) for the goga config, the tool config, and the
-      conftest, while the copied usages are always overwritten; template — silent skip with an INFO log, no
-      interactive confirmation — for the goga config, the tool config, the conftest, and the copied usages alike.
-    - The `conventions` slot is delivered skip-if-exists in both gate styles: an existing file (brought by a template
-      or created by any earlier run) is never overwritten; an absent one is created from the package asset. The key
-      registration and the annotation line always run idempotently.
-    - After every successful run the consumer .goga/config.yml carries build.review_executor.skip: true; the
-      .goga/Dockerfile carries the pybuggy install line whenever the Dockerfile exists; the pybuggy usage keys and
-      annotation lines are registered — regardless of which files the target directory already contained.
-    - The pure writers (`write_pybuggy_conftest`, `write_test_convention`, and `build_pybuggy_config` via its builder
-      contract) always (over)write when called — every existence check and confirmation lives here in the orchestrator.
-    - The usages/annotations bootstrap is idempotent.
-    - A conftest write failure is logged (ERROR) and fails the command with a non-zero exit.
-    - A Dockerfile-augmentation failure in step 8 (an I/O error raised by `install_pybuggy`) is logged (ERROR) and
-      fails the command with a non-zero exit — uniform with the conftest failure handling.
+    - After every successful run the consumer config carries build.review.skip: true; the pybuggy usage keys and
+      annotation lines are registered; the packaged usages are copied; the `conventions` slot is occupied when it was
+      absent; the root conftest exists.
+    - The pure writers always (over)write when called — every existence check and confirmation lives here.
+    - Every step is idempotent; a repeat run changes nothing.
+    - A write failure in any step is logged (ERROR) and fails the command with a non-zero exit.
 
     Constraints:
-    - Do not register pybuggy usages/annotations and do not deliver the `conventions` slot when goga init failed/was
-      cancelled — propagate its exit code.
     - Do not copy usages of internal development cells (config, spec, output, matchcrest, plugin, commands).
-    - Do not generate the conftest when an earlier step failed or was cancelled with a non-zero exit.
     - Do not merge into an existing conftest — either a confirmed overwrite (bare) or a skip.
     - Do not prompt about existing files in template mode — the template expresses the user's intent.
+    - Do not create the Dockerfile when the engine did not write it — report and fail.
 
-    Use `run_goga_init`, `build_pybuggy_config`, `write_test_convention`, `ensure_review_executor_skip`,
-    `install_pybuggy`, `register_usages`, `register_annotations`, `write_pybuggy_conftest`. Use `click` for the
-    bare-mode gates and error mapping. Use `conventions` for logging/testing.
+    Use `write_test_convention`, `ensure_review_skip`, `install_pybuggy`, `register_usages`, `register_annotations`,
+    `write_pybuggy_conftest`. Use `click` for the bare-mode gates. Use `conventions` for logging and testing.
 
-"build_pybuggy_config() -> exit_code:int":
-  location: init.py
+"run_session() -> exit_code:int":
+  location: session.py
   annotations: |
-    Interactive testable-seam that builds <cwd>/.goga/tools/pybuggy/config.yml on every call — the contract test seam
-    (public, in __all__). Isolates all TTY prompts; callers/tests stub this routine via monkeypatch (like run_goga_init).
+    Run one goga onboarding session in-process with pybuggy invited — the contract test seam. The engine surveys the
+    core questions and the pybuggy block, commits the tool contributions, and generates the project artifacts.
 
-    `exit_code`: 0 on success (file written/overwritten); non-zero on cancel/error.
+    `exit_code`: the engine session exit code (0 success, non-zero a session error), propagated unchanged.
 
     Algorithm:
-    1. Resolve the config path as <cwd>/.goga/tools/pybuggy/config.yml.
-    2. Survey the scalar plugin keys from `PluginConfigKeys` (every member except HEADERS and LOADER): each prompt carries a
-       descriptive text stating what the field is for. BASE_URL is required (empty re-prompts — cannot be skipped); the
-       remaining scalars are optional (empty -> None/skipped).
-    3. Survey specs interactively via `click`: for each spec prompt name, type (swagger|openapi), location (required), and
-       optional git block (url, location, ref); construct a `SpecEntry` (with `GitEntry` when git given) keyed by name;
-       repeat until the user stops, but require AT LEAST ONE spec — the loop re-prompts for the first spec name until one
-       is entered (mirrors BASE_URL: a config without specs is invalid per `configuration`). Structure per
-       `configuration`.
-    4. Delegate emission to `write_pybuggy_config` with the config path, the scalar answers (member value -> value|None),
-       and the specs mapping. The destination is always (over)written — no existence check, no overwrite confirmation.
-    5. Return 0. On click.Abort return non-zero; on other Exception log + echo + return non-zero (never raises).
+    1. Build the session logic with the engine questionnaire, the engine file generator, and the participation
+       mediator holding pybuggy as the invited tool.
+    2. Run the session and return its exit code.
 
     Requirements:
-    - Interactive (TTY via click); tests stub this routine, never the real prompts.
-    - Every interactive prompt states what the field is for (description mirrors the ApiPlugin option semantics).
-    - BASE_URL mandatory and a Jinja2 template; write_pybuggy_config always emits it as a literal block scalar with a
-      'required, Jinja2 template' comment.
-    - At least one spec is required — the survey cannot complete with zero specs (a config without specs is invalid).
-    - Returns a code and never raises on cancellation/failure.
+    - The session is engine-owned: questions are asked by the engine, never by this cell.
+    - An existing .goga/config.yml ends the session immediately — no questions, no tool events, no artifacts; the
+      exit code stays 0.
+    - A failing tool contribution is discarded by the engine with a warning; the session continues and returns 0.
+    - The consumer artifacts after a successful session: .goga/config.yml, the Dockerfile, and the buffered pybuggy
+      tool config file.
 
     Constraints:
-    - Always (over)write the tool config — no existence check and no overwrite confirmation; the file is regenerated on every call.
-    - Do not survey HEADERS or LOADER — emitted as commented examples by write_pybuggy_config.
+    - Do not orchestrate the engine internals — the session logic object is the single entry point.
+    - Do not catch or wrap engine errors — propagate the exit code.
+
+    Use `goga-onboarding` for the session facade and semantics. Use `conventions` for logging and testing.
+
+"declare_pybuggy_session(context: object)":
+  location: session.py
+  annotations: |
+    Declaration moment of the participation contract: declare the pybuggy question block on the session context so the
+    engine surveys it after the core questions, under a heading with the tool identity.
+
+    `context`: the declaration surface delivered by the platform.
+
+    Algorithm:
+    1. Return immediately when the session did not invite this tool.
+    2. Declare every item of `pybuggy_questions` on the context.
+
+    Requirements:
+    - The no-invitation branch calls nothing — the contract rule of the moment.
+    - Local question names are unique among siblings; the engine qualifies them with the tool identity.
+
+    Constraints:
+    - Do not survey, prompt, or read answers — the engine asks the declared records itself.
+
+    Use `pybuggy_questions`. Use `goga-onboarding-hooks` for the member contract of the moment.
+    Use `goga-onboarding-questions` for the record shapes.
+
+"amend_pybuggy_config(context: object)":
+  location: session.py
+  annotations: |
+    Amendment moment of the participation contract: read the isolated answer view and buffer the pybuggy contribution —
+    the config amendments and the tool config file.
+
+    `context`: the amendment surface delivered by the platform.
+
+    Algorithm:
+    1. Return immediately when the session did not invite this tool.
+    2. Read the answer view from the context.
+    3. Buffer every entry of `build_config_amendments` as a config amendment.
+    4. Buffer the tool config file with `build_config_data`.
+
+    Requirements:
+    - The answer view carries the core answers plus this tool's own answers under local names.
+    - An exception raised here drops the whole contribution with a warning naming the tool — the session continues.
+
+    Constraints:
+    - Do not write files directly — the engine serializes and writes the buffered config.
+    - Do not read another tool's answers — they are never visible.
+
+    Use `build_config_amendments`, `build_config_data`. Use `goga-onboarding-hooks` for the member contract and the
+    failure behavior. Use `goga-onboarding-generator` for the buffered file serialization.
+
+"pybuggy_questions() -> items:list[Question]":
+  location: session.py
+  annotations: |
+    Build the declarative pybuggy question block — the survey of the tool configuration, asked by the engine.
+
+    `items`: the question records of the block, in survey order.
+
+    Algorithm:
+    1. Declare base_url as a required input — a Jinja2 template string.
+    2. Declare every scalar member of `PluginConfigKeys` except HEADERS and LOADER as an optional input, each prompt
+       stating what the field is for.
+    3. Declare the first-spec group: name (input), type (choice swagger|openapi), location (input), and the optional
+       git fields (input; an empty git url means no git source).
+    4. Declare extra_specs as one optional input carrying the additional specs, one per line, in the compact form
+       name|type|location|git_url|git_location|git_ref.
+
+    Requirements:
+    - The block holds exactly one nesting level — groups carry simple children only.
+    - base_url is required and its answer is a Jinja2 template; the remaining scalars are optional.
+    - The first-spec group makes at least one spec structurally unavoidable: its answer is always recorded.
+
+    Constraints:
+    - Do not survey HEADERS or LOADER — they stay documented as hand-added examples in the cell usage file.
     - Do not duplicate plugin key names — iterate `PluginConfigKeys`.
 
-    Use `click` for prompts. Use `PluginConfigKeys` for the scalar key set. Use `SpecEntry` and `GitEntry` for specs.
-    Use `write_pybuggy_config` for emission. Use `conventions` for logging/type hints/testing.
+    Use `goga-onboarding-questions` for the record kinds and the nesting rule. Use `PluginConfigKeys` for the scalar
+    key set. Use `conventions` for type hints and testing.
 
-"write_pybuggy_config(path: Path, scalar_values: dict[str, str | None], specs: dict[str, SpecEntry])":
-  location: init.py
+"build_config_data(answers: dict[str, object]) -> data:dict[str, object]":
+  location: session.py
   annotations: |
-    Pure round-trip emitter of .goga/tools/pybuggy/config.yml from collected answers — active values plus commented
-    records for skipped optional scalars and the complex headers/loader sections, and the active specs mapping. No TTY.
+    Pure mapping of the tool answer view into the tool config file payload: the specs mapping and the answered scalar
+    keys.
 
-    `path`: target file path (<cwd>/.goga/tools/pybuggy/config.yml).
-    `scalar_values`: mapping of `PluginConfigKeys` scalar member value -> answered value (str) or None (skipped).
-    `specs`: mapping of spec name -> `SpecEntry`.
+    `answers`: the tool answer view — the block answers under local names.
+    `data`: the serializable payload of .goga/tools/pybuggy/config.yml.
 
     Algorithm:
-    1. Configure ruamel YAML for round-trip (preserve quotes, key order, comments) and raise its best_width
-       (yaml.width) so long plain scalars — e.g. the git url — are not line-folded onto a continuation line;
-       build a fresh CommentedMap.
-    2. Iterate scalar members of `PluginConfigKeys` (all except HEADERS, LOADER) in canonical order; for each: value
-       present -> active key:value — numeric members (timeout/assert_delay -> float, retries/assert_timeout -> int) are
-       coerced to their ApiPlugin option type so the scalar is a number, not a quoted string (BASE_URL -> literal block
-       scalar | always, never a plain scalar); None -> commented "# key:" line with a one-line explanation.
-    3. Emit HEADERS as a commented multi-line example (a "# headers:" block, sample entry, dict note).
-    4. Emit LOADER as a commented multi-line example (a "# loader:" block, packages/modules structure, note).
-    5. Emit specs mapping as active YAML: name: { type, location, git: { url, location, ref } when present } per
-       `SpecEntry`/`GitEntry` shape (see `configuration`). When GitEntry.ref is None, ref is documented as a standalone
-       # ref: line on its own indented line after location (the post-value comment slot items['location'][2] —
-       the slot ruamel's own loader uses for trailing comments; the eol/after slots are dropped on the last key of a
-       block mapping) instead of an empty active key.
-    6. Ensure parent dir of `path` exists; dump the document.
+    1. Build the specs mapping via `parse_specs` from the first-spec group answer and the extra_specs answer.
+    2. Collect the answered scalar keys from the `PluginConfigKeys` members, dropping unanswered ones.
+    3. Return the payload: the specs mapping plus the active scalar keys.
 
     Requirements:
-    - The emitted document is valid for the config schema (see `configuration`): a specs mapping where each entry carries
-      required type/location; scalar plugin keys ignored by Config (extra=ignore), so active/commented presence does not
-      break the config cell loader.
-    - The specs mapping is always non-empty (`build_pybuggy_config` enforces ≥1 spec) — never emit an empty or absent
-      specs section (a config without specs is invalid).
-    - Commented records use a leading "#" and a one-line explanation.
-    - BASE_URL is always a literal block scalar and carries a 'required, Jinja2 template' marker on its own line above
-      the key.
-    - Output deterministic for the same inputs.
+    - The payload satisfies the config schema (see `configuration`): a specs mapping whose entries carry the required
+      fields; the scalar plugin keys are ignored on loading.
+    - The payload is plain serializable data — the engine writes the YAML.
 
     Constraints:
-    - Do not survey/prompt — pure (TTY-free); interactivity lives in build_pybuggy_config.
-    - Do not read/merge an existing file — build from scratch and overwrite `path` on every call (build_pybuggy_config neither checks for nor confirms an existing file).
-    - Do not use pyyaml — ruamel.yaml round-trip only.
+    - Do not prompt or touch the filesystem — pure.
+    - Do not emit commented records — the engine serializes plain data; the documented examples live in the cell usage
+      file.
 
-    Use `ruamel-yaml` for CommentedMap, commented-record emission, dump. Use `PluginConfigKeys` for canonical scalar key
-    set/order. Use `SpecEntry`/`GitEntry` for specs shape. Use `configuration` for schema compatibility.
-    Use `conventions` for type hints/relative imports.
+    Use `parse_specs`. Use `PluginConfigKeys` for the scalar key set. Use `configuration` for schema compatibility.
+    Use `conventions` for type hints and testing.
 
-"write_pybuggy_conftest(path: Path)":
-  location: init.py
+"build_config_amendments() -> amendments:dict[str, object]":
+  location: session.py
   annotations: |
-    Pure emitter of the target project's root conftest.py from a fixed hardcoded template — the file that wires the
-    pybuggy plugin into the consumer's pytest run. No TTY, no existence check: always (over)writes `path`.
+    Pure mapping into the buffered config amendments of the consumer .goga/config.yml.
 
-    `path`: target file path (<cwd>/conftest.py).
-
-    The template content is fixed verbatim (a module-level constant, like the Dockerfile install line):
-
-      from dotenv import load_dotenv
-
-      load_dotenv()
-
-      from goga_tool_pybuggy import plugin
-
-      plugin.install()
+    `amendments`: the amendment paths and values.
 
     Algorithm:
-    1. Ensure the parent directory of `path` exists.
-    2. Write the fixed template to `path`, overwriting unconditionally.
+    1. Amend build.review.skip to true — the review pass is skipped in pybuggy-initialized projects.
 
     Requirements:
-    - The written content equals the template above verbatim — operator order: load_dotenv before the plugin import
-      and install (plugin options resolve from os.environ); the argumentless load_dotenv() keeps override=False so
-      CI/operator-exported variables win.
-    - Output deterministic — no parameterization, no placeholders, no version resolution.
+    - The amendments are path→value pairs the platform merges into the answer space before generation.
+    - The build.review.skip amendment is the tool's declared intent in the session answer space: the engine
+      config mapper emits only agent/env for the build block, so the flag reaches the consumer config through
+      `ensure_review_skip` of the bootstrap — the single enforcement point.
 
     Constraints:
-    - Do not survey/prompt — pure (TTY-free); the overwrite gate lives in `run_onboarding`.
-    - Do not check for an existing file, merge into it, or confirm — always overwrite `path` on every call.
-    - Do not verify the consumer environment (goga_tool_pybuggy / python-dotenv importability) — absence surfaces
-      when the consumer runs pytest.
+    - Do not amend keys outside the named path.
+    - Do not write the config file — amendments are buffered on the context.
 
-    Use `conventions` for type hints, structured logging, and testing.
+    Use `goga-onboarding-hooks` for the amendment semantics. Use `conventions` for type hints and testing.
+
+"parse_specs(spec_answers: dict[str, object], extra_specs: str | None) -> specs:dict[str, SpecEntry]":
+  location: session.py
+  annotations: |
+    Pure, lenient assembly of the specs mapping: the first-spec group answer plus the extra_specs compact lines.
+
+    `spec_answers`: the first-spec group answer under local names.
+    `extra_specs`: the optional compact input; None or empty when unanswered.
+    `specs`: the specs mapping keyed by spec name.
+
+    Algorithm:
+    1. Validate the first spec strictly — a non-empty name, a type of swagger or openapi, a non-empty location — and
+       build its `SpecEntry`, attaching a `GitEntry` when the git url and location are present.
+    2. For every non-empty line of `extra_specs`: split it on the field separator; a malformed line is skipped with a
+       WARNING; a well-formed line becomes its `SpecEntry` under its name.
+    3. Return the mapping.
+
+    Requirements:
+    - The mapping always holds at least the first spec.
+    - A spec name collision between the first spec and an extra line keeps the first spec and warns.
+    - An absent git url yields no git block.
+
+    Constraints:
+    - Do not fail the whole contribution on a malformed extra line — skip it and warn.
+    - Do not prompt — pure.
+
+    Use `SpecEntry` and `GitEntry` for the entry shapes. Use `configuration` for the schema. Use `conventions` for
+    logging and testing.
 
 "write_test_convention(path: Path)":
-  location: init.py
+  location: bootstrap.py
   annotations: |
     Pure writer of the consumer's test convention file — occupies the `conventions` slot with the pybuggy test
-    convention shipped inside the installed package. No TTY, no existence check, no network: always (over)writes
-    `path`.
+    convention shipped inside the installed package. No TTY, no existence check: always (over)writes `path`.
 
     `path`: target file path (<cwd>/.goga/usages/conventions.md).
 
     Algorithm:
-    1. Read the packaged asset conventions.md (package path assets/conventions.md) from the installed
-       goga_tool_pybuggy package (not the cwd checkout).
+    1. Read the packaged asset conventions.md from the installed goga_tool_pybuggy package — never the cwd checkout,
+       never the network.
     2. Ensure the parent directory of `path` exists.
     3. Write the asset text to `path`, overwriting unconditionally.
 
     Requirements:
-    - The written content equals the packaged asset text verbatim.
-    - The source asset is fixed — the packaged goga_tool_pybuggy/assets/conventions.md, never parameterized,
-      never resolved from the network or cwd.
-    - The asset is read from the installed package via the stdlib importlib.resources facility.
-    - Output deterministic for the same installed package.
+    - The written content equals the packaged asset text verbatim; output deterministic.
 
     Constraints:
-    - Do not survey/prompt — pure (TTY-free); the delivery gate lives in `run_onboarding`.
-    - Do not check for an existing file, merge into it, diff it, or confirm — always overwrite `path` on every call;
-      the skip-if-exists delivery gate lives in `run_onboarding`.
-    - Do not read the asset from the cwd checkout or the network.
+    - Do not survey or prompt — pure; the delivery gate lives in the bootstrap orchestrator.
+    - Do not check for, merge into, or diff an existing file.
 
     Use `conventions` for type hints, structured logging, and testing.
 
-"run_goga_init() -> exit_code:int":
-  location: init.py
+"ensure_review_skip(config_path: Path) -> changed:bool":
+  location: bootstrap.py
   annotations: |
-    In-process initialization of the goga-project, Python-tailored — the contract test seam (public, in __all__).
+    Round-trip edit of the consumer .goga/config.yml enforcing build.review.skip: true — the flag telling the engine to
+    skip the review pass. Pure (no TTY); the bootstrap calls it unconditionally on every pass.
 
-    Unlike goga's universal InitLogic flow (which prompts for the language via ask_language), this routine drives the
-    per-field Questionnaire methods individually, hardcodes language="python" (pybuggy is a Python project), and splits
-    the image because the Dockerfile is mandatory: ask_image_name("python") captures the name of the image built from
-    the Dockerfile (top-level image field), and ask_base_image("python") captures the FROM baseline
-    (dockerfile_base_image field). goga's pre-built-pull ask_image (the no-Dockerfile case) is NOT used. The base
-    convention download is NOT part of the flow: ask_base_convention is not called and the answers carry no prefill,
-    so the key conventions never enters GogaConfigAnswers from this flow — goga's download trigger stays dormant
-    unless the integrator manually types the name in the usages survey (residual case); the
-    `conventions` slot of the consumer is owned by `write_test_convention`. It assembles a GogaConfigAnswers and
-    delegates file generation to FileGenerator().generate(InitAnswers(...)). InitLogic is NOT used. The Dockerfile is
-    mandatory: dockerfile_path is hardcoded to ".goga/Dockerfile" (goga's optional ask_dockerfile_path is NOT called),
-    so FileGenerator always creates the Dockerfile (`FROM {dockerfile_base_image}`) and always emits the top-level
-    dockerfile field into .goga/config.yml. After generation, `install_pybuggy` appends a RUN goga install pybuggy
-    -v 1.0.x line to the Dockerfile, installing pybuggy via the goga installer pinned to the hardcoded 1.0.x version
-    line.
-
-    `exit_code`: 0 on success; 1 on user cancellation (click.Abort) or generation failure (the routine returns a code
-    and never raises, so run_onboarding — which calls it outside its own try/except — relies on this).
+    `config_path`: path to the consumer .goga/config.yml.
+    `changed`: true when the flag was added or corrected (file written); false when it already held true.
 
     Algorithm:
-    1. Instantiate Questionnaire() and FileGenerator() from goga.onboarding (NO InitLogic — manual per-field orchestration).
-    2. language = "python"  (hardcoded; ask_language is NOT called — pybuggy is a Python project).
-    3. Collect the remaining config fields by calling the per-field Questionnaire methods individually:
-       - codemanifest_usages       = questionnaire.ask_codemanifest_usages()
-       - codemanifest_annotations  = questionnaire.ask_codemanifest_annotations()
-       - agent           = questionnaire.ask_agent()
-       - image           = questionnaire.ask_image_name(language)   # name of the image BUILT from the Dockerfile
-                                                                         # (top-level image field); ask_image (pre-built
-                                                                         # pull, no-Dockerfile case) is NOT used
-       - dockerfile_base_image = questionnaire.ask_base_image(language)  # FROM baseline for the Dockerfile
-       - dockerfile_path = ".goga/Dockerfile"                       # hardcoded mandatory path; ask_dockerfile_path
-                                                                         # is NOT called — the Dockerfile cannot be skipped
-       - env             = questionnaire.ask_env(agent)
-       - pipeline_agent  = questionnaire.ask_pipeline_agent()       # no args; optional (confirm gate, defaults None)
-       - pipeline_env    = questionnaire.ask_pipeline_env(pipeline_agent)
-    4. Assemble GogaConfigAnswers(language="python", agent=..., image=..., dockerfile_base_image=...,
-       pipeline_agent=..., pipeline_env=..., env=..., dockerfile_path=..., codemanifest_usages=...,
-       codemanifest_annotations=...).
-    5. generator.generate(InitAnswers(goga_config=config)) — goga writes .goga/config.yml and the Dockerfile
-       (`FROM {dockerfile_base_image}` with a trailing newline); the top-level image is the built-image name.
-    6. Call install_pybuggy(Path(_DOCKERFILE_PATH)) to append RUN goga install pybuggy -v 1.0.x to the Dockerfile
-       goga just wrote; return 0 on success.
-    7. On click.Abort (user cancel) return 1; on other Exception (incl. an I/O failure raised by `install_pybuggy`)
-       log + echo + return 1 (replicates InitLogic.run()'s handling).
+    1. Load the config round-trip when it exists; otherwise start an empty document.
+    2. Navigate to build.review, creating each missing mapping level.
+    3. When skip already holds true, return false without writing.
+    4. Set skip to true, write the document back, log INFO; return true.
 
     Requirements:
-    - Interactive (TTY prompts via click) — callers and tests stub this routine via monkeypatch to avoid prompts.
-    - Returns a code and never raises on cancellation/failure so the caller can propagate it cleanly.
-    - The Dockerfile is mandatory: dockerfile_path is hardcoded to ".goga/Dockerfile" (never None), so FileGenerator
-      always creates the Dockerfile and always emits the top-level dockerfile field into .goga/config.yml.
-    - After generation the Dockerfile also carries RUN goga install pybuggy -v 1.0.x appended by `install_pybuggy`.
-    - The flow injects no conventions key into the answers (no prefill, no base-convention question) — goga performs
-      no convention download and .goga/config.yml is created offline.
+    - The enforced value is exactly true — a present false (or non-boolean) value is corrected.
+    - The rest of the config — comments, key order, quotes — is preserved verbatim.
+    - Idempotent: when the flag already holds true the file is not written at all.
 
     Constraints:
-    - Do NOT call ask_base_convention — the integrator is never asked about downloading a base convention; the
-      `conventions` slot of the consumer is owned by `write_test_convention`, not by a goga download.
-    - Do NOT call ask_language — language is hardcoded to "python" (pybuggy is a Python project).
-    - Do NOT call ask_dockerfile_path — the Dockerfile is mandatory; dockerfile_path is hardcoded to ".goga/Dockerfile"
-      (ask_dockerfile_path can return None and skip creation).
-    - Do NOT use InitLogic / ask / ask_goga_config — orchestrate the per-field methods manually to fix the language and
-      split the image into a built-image name (ask_image_name) and a FROM baseline (ask_base_image).
-    - Do NOT call ask_image — the Dockerfile is mandatory, so the pre-built-pull image (the no-Dockerfile case) does
-      not apply; use ask_image_name (built name, top-level image) + ask_base_image (FROM baseline) instead.
-    - Do NOT pass an agent to ask_pipeline_agent — it takes no args in this goga version (the pipeline agent does NOT
-      inherit the build agent; it is an optional confirm-gated choice).
-    - Do NOT duplicate goga's prompt/generation logic — only orchestrate the existing ask_* methods (except
-      ask_dockerfile_path, hardcoded) and FileGenerator.generate.
-    - Do NOT modify goga FileGenerator — the pybuggy install line is appended post-generation by `install_pybuggy`.
-    - Do NOT propagate an exception on cancellation/failure — return a code (run_onboarding relies on this).
+    - Do not touch keys outside build.review.skip.
+    - Do not prompt — pure; the run gate lives in the bootstrap orchestrator.
 
-    Use `goga-onboarding` for the per-field Questionnaire methods + FileGenerator.generate contract.
-    Use `click` for click.Abort handling.
-    Use `conventions` for type hints and structured logging on failure.
+    Use `ruamel-yaml` for the round-trip load/modify/dump. Use `conventions` for logging and testing.
 
 "install_pybuggy(dockerfile_path: Path) -> line:str | None":
-  location: init.py
+  location: bootstrap.py
   annotations: |
-    Append the pybuggy-install RUN line to the goga-generated Dockerfile, installing pybuggy via the goga installer
-    pinned to the hardcoded 1.0.x version line so the consumer's test image carries pybuggy. Pure file augmentation
-    of the Dockerfile written by goga FileGenerator (`FROM {dockerfile_base_image}`); no goga code is modified.
+    Append the pybuggy-install RUN line to the consumer Dockerfile, pinning the version to the installed package's own
+    version line so the consumer's test image carries pybuggy.
 
-    `dockerfile_path`: path to the Dockerfile created by goga FileGenerator (cwd-relative, matching _DOCKERFILE_PATH).
-    `line`: the appended RUN goga install pybuggy -v 1.0.x text; None when nothing was appended.
+    `dockerfile_path`: path to the consumer Dockerfile.
+    `line`: the appended install line; None when nothing was appended.
 
     Algorithm:
-    1. No-op (return None) when `dockerfile_path` does not exist — goga may not have written it (e.g. FileGenerator
-       mocked in tests); never create the file here.
-    2. When _INSTALL_LINE (RUN goga install pybuggy -v 1.0.x) is already in the file content, return None (idempotent).
-    3. Ensure the existing content ends with a newline, append _INSTALL_LINE, write the file back; log INFO; return the line.
+    1. No-op (return None) when the Dockerfile does not exist — never create the file here.
+    2. Derive the install line from the installed package version.
+    3. When the line is already present, return None (idempotent).
+    4. Ensure the content ends with a newline, append the line, write the file back; log INFO; return the line.
 
     Requirements:
-    - The install line is hardcoded RUN goga install pybuggy -v 1.0.x (goga installer, not pip); the version 1.0.x
-      is pinned and never resolved dynamically.
-    - The goga-written `FROM {dockerfile_base_image}` line is preserved; only the install line is appended.
-    - Idempotent within a single Dockerfile: a repeated call (no regeneration in between) appends nothing.
+    - The line installs pybuggy through the goga installer, pinned to the running package version.
+    - The existing Dockerfile content is preserved; only the install line is appended.
+    - Idempotent within a single Dockerfile.
 
     Constraints:
     - Do not create the Dockerfile when absent — only augment an existing one.
-    - Do not resolve or vary the version — it is hardcoded 1.0.x.
-    - An I/O error during read/write propagates to the caller (`run_goga_init` traps it and returns a code).
+    - Do not hardcode the version — it is derived from the installed package.
 
-    Use `conventions` for code writing rules, structured logging, and testing.
+    Use `conventions` for logging and testing.
 
-"register_usages(config_path: Path, usage_keys: dict[str, str]) -> added_keys: list[str]":
-  location: init.py
+"register_usages(config_path: Path, usage_keys: dict[str, str]) -> added_keys:list[str]":
+  location: bootstrap.py
   annotations: |
     Round-trip edit of the consumer .goga/config.yml under codemanifest.usages: register each entry of `usage_keys`,
     skipping keys already present, and creating a minimal file when none exists.
 
     `config_path`: path to the consumer .goga/config.yml.
     `usage_keys`: mapping of usage key to the relative path of the usage file to register (pybuggy-<stem> →
-      .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
-    `added_keys`: the keys actually added (pre-existing keys are skipped and excluded).
+    .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
+    `added_keys`: the keys actually added (pre-existing keys skipped).
 
     Algorithm:
-    1. Configure ruamel YAML with preserve_quotes=True.
-    2. When `config_path` exists, load it; when the load yields None (empty file), treat the document as empty.
-       Navigate to codemanifest.usages, creating the nested CommentedMap nodes when missing.
-    3. When `config_path` does not exist, build a fresh CommentedMap with a codemanifest.usages map.
-    4. For each (key, value) in `usage_keys`: when the key is already in usages, skip it; otherwise insert it and
-       append the key to `added_keys`.
-    5. Ensure the parent directory of `config_path` exists and dump the document back to `config_path`.
-    6. Return `added_keys`.
+    1. Load the config round-trip when it exists; otherwise build a fresh document with the codemanifest.usages map.
+    2. For each (key, value): when the key is already present, skip it; otherwise insert it and record the key.
+    3. Ensure the parent directory exists and write the document back.
+    4. Return the added keys.
 
     Requirements:
-    - Existing keys (including user-defined ones outside this command) are never overwritten — the run is idempotent.
-    - Comments, key order, quotes, and block-scalars of the existing file are preserved.
-    - When the file is absent, a minimal valid file carrying the codemanifest.usages block is created.
+    - Existing keys are never overwritten; comments, key order, and quotes are preserved.
 
     Constraints:
-    - Do not use pyyaml — it would reformat the file and drop comments.
     - Do not touch keys outside codemanifest.usages.
 
-    Use `ruamel-yaml` for the round-trip load/modify/dump and the CommentedMap construction.
-    Use `conventions` for type hints and relative imports.
+    Use `ruamel-yaml` for the round-trip edit. Use `conventions` for type hints and testing.
 
-"register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> changed_keys: list[str]":
-  location: init.py
+"register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> changed_keys:list[str]":
+  location: bootstrap.py
   annotations: |
-    Round-trip edit of the consumer .goga/config.yml under codemanifest.annotations: register each annotation line of
-    `annotation_lines` by its backtick reference — when the existing text carries a line with that reference, the line
-    is replaced by the new one when the text differs (an identical line is left as-is); when no line carries the
-    reference, the line is appended. A literal block scalar (|) is created when none exists. Lines carrying no
-    registered reference are preserved verbatim.
+    Round-trip edit of the consumer .goga/config.yml under codemanifest.annotations: register each annotation line by
+    its backtick reference — an identical line is left as-is, a differing line carrying the reference is replaced, a
+    missing line is appended. Lines carrying no registered reference are preserved verbatim.
 
     `config_path`: path to the consumer .goga/config.yml.
     `annotation_lines`: mapping of reference key to one annotation line carrying that backtick reference.
-    `changed_keys`: the keys whose line was appended or replaced with new text (identical/skipped keys excluded).
+    `changed_keys`: the keys whose line was appended or replaced.
 
     Algorithm:
-    1. Configure ruamel YAML with preserve_quotes=True.
-    2. When `config_path` exists, load it; when the load yields None (empty file), treat the document as empty.
-       Navigate to codemanifest, resolving the annotations scalar (empty string when absent/null; ValueError when it
-       exists but is not a scalar).
-    3. When `config_path` does not exist, build a fresh CommentedMap.
-    4. For each (key, line) in `annotation_lines`: locate the first text line carrying the backtick reference of that
-       key; not found -> append the line (with a trailing newline) and record the key in `changed_keys`; found with
-       identical text -> skip; found with different text -> replace that text line with the new line and record the
-       key in `changed_keys`.
-    5. When at least one line was appended or replaced, write the text back as a literal block scalar (|) under
-       codemanifest.annotations. Then ensure the parent directory of `config_path` exists and dump the document back —
-       the dump itself runs unconditionally; an unchanged document round-trips byte-identically (idempotency).
-    6. Return `changed_keys`.
+    1. Load the config round-trip when it exists; otherwise build a fresh document.
+    2. For each (key, line): locate the first text line carrying the reference; not found → append; identical → skip;
+       differing → replace.
+    3. Write the text back as a literal block scalar under codemanifest.annotations and dump the document.
 
     Requirements:
-    - Registration is idempotent by backtick reference: a repeat run with the same lines changes nothing and returns
-      an empty `changed_keys`.
-    - Exactly the first line carrying the reference is replaced — one annotation line per reference is the expected
-      config shape.
-    - Comments, key order, quotes, and block-scalars of the existing file are preserved.
-    - When the file is absent, a minimal valid file carrying the codemanifest.annotations block is created.
+    - Idempotent by backtick reference: a repeat run with the same lines changes nothing.
 
     Constraints:
-    - Do not use pyyaml — it would reformat the file and drop comments.
     - Do not touch keys outside codemanifest.annotations.
-    - Do not remove or reorder annotation lines beyond the single replaced line per registered reference.
+    - Do not remove or reorder lines beyond the single replaced line per reference.
 
-    Use `ruamel-yaml` for the round-trip load/modify/dump and the LiteralScalarString block-scalar construction.
-    Use `conventions` for type hints and relative imports.
+    Use `ruamel-yaml` for the round-trip edit and the block-scalar construction. Use `conventions` for testing.
 
-"ensure_review_executor_skip(config_path: Path) -> changed:bool":
-  location: init.py
+"write_pybuggy_conftest(path: Path)":
+  location: bootstrap.py
   annotations: |
-    Round-trip edit of the consumer .goga/config.yml enforcing build.review_executor.skip: true — the flag telling
-    goga to skip the review-executor stage of the build in pybuggy-initialized projects. Pure (no TTY); the onboarding
-    orchestrator calls it unconditionally on every successful pass, so the block is created in a fresh config and
-    migrated into an existing one alike (a declined goga-config rebuild included).
+    Pure emitter of the target project's root conftest.py from a fixed template — the file that wires the pybuggy
+    plugin into the consumer's pytest run. No TTY, no existence check: always (over)writes `path`.
 
-    `config_path`: path to the consumer .goga/config.yml.
-    `changed`: true when the flag was added or corrected (file written); false when it already held true (no write).
+    `path`: target file path (<cwd>/conftest.py).
+
+    The template content is fixed verbatim (a module-level constant): load the environment, then import and install
+    the plugin — the environment loads before the plugin import so plugin options resolve from os.environ, and the
+    argumentless load keeps override=False so CI-exported variables win.
 
     Algorithm:
-    1. Configure ruamel YAML with preserve_quotes=True.
-    2. When `config_path` exists, load it; when the load yields None (empty file), treat the document as empty.
-       When `config_path` does not exist, build a fresh CommentedMap.
-    3. Navigate to build.review_executor via nested map resolution, creating each missing/null mapping level (a
-       config goga emitted without a build agent carries no build block at all).
-    4. When review_executor.skip already is true, return false without writing (idempotent).
-    5. Set review_executor.skip to true, ensure the parent directory of `config_path` exists, dump the document
-       back, log INFO; return true.
+    1. Ensure the parent directory of `path` exists.
+    2. Write the fixed template to `path`, overwriting unconditionally.
 
     Requirements:
-    - The enforced value is exactly true — a present false (or non-boolean) value is corrected.
-    - The rest of build (e.g. task_executor with its env anchors) and any other config content, comments, key
-      order, and quotes are preserved verbatim.
-    - Idempotent: when the flag already holds true the file is not written at all, so a repeat run leaves the file
-      byte-identical.
-    - When the file is absent, a minimal valid file carrying the build.review_executor block is created.
+    - Output deterministic — no parameterization, no placeholders, no version resolution.
 
     Constraints:
-    - Do not use pyyaml — it would reformat the file and drop comments.
-    - Do not touch keys outside build.review_executor.skip.
-    - Do not prompt — pure (TTY-free); the run gate lives in the onboarding orchestrator.
+    - Do not verify the consumer environment — absence surfaces when the consumer runs pytest.
 
-    Use `ruamel-yaml` for the round-trip load/modify/dump and the CommentedMap construction.
-    Use `conventions` for type hints and structured logging.
-
-"init_cmd(ctx: click.Context, tpl: str | None, ref: str | None, upgrade: bool)":
-  location: init.py
-  annotations: |
-    Click command wrapper for the top-level init command; binds the CLI surface — the optional positional <tpl> (a
-    local path or git URL of a copier-compatible template project, optionally carrying a #ref fragment), the option
-    --ref <git-ref>, and the flag --upgrade — delegates to `run_init`, and propagates the returned exit code via
-    ctx.exit.
-
-    `ctx`: Click execution context used to control the process exit code.
-    `tpl`: template source — local path or git URL; absent in bare and upgrade modes.
-    `ref`: git ref override; None keeps the template's own ref resolution.
-    `upgrade`: migrate a previously scaffolded project instead of onboarding.
-
-    Use `click` for the command wrapper (@click.command, @click.argument, @click.option, @click.pass_context).
+    Use `conventions` for type hints, structured logging, and testing.
 
 ---
 
 Author: Goga
-CreatedAt: 27/07/26
+CreatedAt: 01/10/26
 Description: |
   Init command cell — initializes the consumer's goga project (bare, from a template, or a template upgrade) and
   bootstraps the pybuggy test environment.

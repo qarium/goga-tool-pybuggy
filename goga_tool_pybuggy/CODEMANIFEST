@@ -14,7 +14,7 @@ Imports:
   - Types: [diff_cmd]
     Usages: [diff]
     From: goga_tool_pybuggy/commands/diff
-  - Types: [init_cmd]
+  - Types: [init_cmd, declare_pybuggy_session, amend_pybuggy_config]
     Usages: [init, config-build]
     From: goga_tool_pybuggy/commands/init
   - Types: [install]
@@ -27,6 +27,7 @@ Usages:
   python-dotenv: .goga/usages/cooks/python-dotenv.md
   goga-hooks: .goga/usages/cooks/goga/hooks/registering-hooks.md
   goga-statuses: .goga/usages/cooks/goga/history/registering-statuses.md
+  goga-onboarding-hooks: .goga/usages/cooks/goga/onboarding/registering-hooks.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
@@ -34,10 +35,12 @@ Annotations: |
   Use `python-dotenv` for loading the .env file into os.environ with override=False.
   Use `goga-hooks` for the facade callback contract, the hook signatures, and the failure behavior of registrations.
   Use `goga-statuses` for the registration surface: register parameters, artifact path semantics, anchors, and skip-with-warning.
+  Use `goga-onboarding-hooks` for the two onboarding action subscriptions and the member contract of the participation moments.
   Connected practices describe how consumers use the composed commands and the plugin: `pull`, `list`, `info`, `generate`, `diff`, `init`, `config-build`, `enable`, `configuration`.
 
   This cell is the package composition root: it owns the root group `main`, loads the .env environment before any subcommand runs, and assembles the full CLI.
   Topic statuses: the facade callback subscribes one hook per pipeline line to the statuses registration action; each hook applies its line through direct registration calls in the normative order.
+  Onboarding participation: the facade callback subscribes one hook per participation moment to the onboarding actions; the declaration hook supplies the tool's questions, the amendment hook its config amendments and tool config file.
   Use relative imports inside the cell.
 
 ---
@@ -144,19 +147,30 @@ Annotations: |
 "register_hooks(hooks: object)":
   location: statuses.py
   annotations: |
-    Subscribe the pybuggy topic-status hooks to the statuses registration action of the goga hooks platform.
+    Subscribe the pybuggy hooks to the goga hooks platform: the topic-status hooks on the statuses registration
+    action and the onboarding participation hooks on the two onboarding actions.
 
     `hooks`: the subscription surface delivered by the platform.
 
     Algorithm:
     1. Subscribe `register_automate_statuses` to the statuses registration action under the hook name automate.
     2. Subscribe `register_fix_statuses` to the same action under the hook name fix.
+    3. Subscribe `declare_pybuggy_session` to the declare_session onboarding action under the hook name declare.
+    4. Subscribe `amend_pybuggy_config` to the amend_config onboarding action under the hook name amend.
 
     Requirements:
-    - The subscription address is the statuses domain registration action.
+    - The subscription addresses are the statuses domain registration action and the two onboarding actions.
     - Hook names are stable and unique within the tool.
-    - Only the two topic-status hooks are subscribed.
+    - The onboarding handlers receive their context argument by name — the platform delivers the values by name.
+    - Subscribing to a subset of the actions is legitimate — the moments are independent.
     - Exposed on the ROOT facade via __all__ — the platform imports it from the package root.
+
+    Constraints:
+    - Do not subscribe to any action beyond the four named hooks.
+
+    Use `goga-hooks` for the facade callback contract and the failure behavior of registrations.
+    Use `goga-statuses` for the registration surface of the status hooks.
+    Use `goga-onboarding-hooks` for the member contract of the two participation moments.
 
 "register_automate_statuses(context: object)":
   location: statuses.py

@@ -35,10 +35,11 @@ The package facade `pybuggy` exposes the root group `main`:
       pybuggy endpoint diff
       pybuggy endpoint diff -s shop clients_startup_get
 
-- Consumer-usages bootstrap (top-level `init`, no options):
+- Project initialization and bootstrap (top-level `init`, three modes):
 
-      pybuggy init
-      python -m goga_tool_pybuggy init
+      pybuggy init                                  # bare onboarding (refused over an existing .goga/)
+      pybuggy init <tpl> [--ref <git-ref>]          # scaffold a template, then onboard
+      pybuggy init --upgrade [--ref <git-ref>]      # migrate a scaffolded template only
 
 - Programmatic facade import:
 
@@ -97,15 +98,20 @@ The facade exposes one more entry point beside the CLI: `register_hooks` — the
 platform imports and calls when a command first reaches a hook checkpoint of the run (inspect the registry
 with `goga hooks`). A plain `import goga_tool_pybuggy` never triggers it; the platform owns the call.
 
-`register_hooks` subscribes two status hooks to the single address statuses / register_statuses:
+`register_hooks` subscribes four hooks to three addresses — the statuses registration action and the two
+onboarding actions:
 
-| Hook name | Callable | Registers |
-|-----------|----------|-----------|
-| `automate` | `register_automate_statuses` | the six automate-line statuses (including the completed-accept `automate.done`) |
-| `fix` | `register_fix_statuses` | the five fix-line statuses |
+| Hook name | Callable | Address | Registers |
+|-----------|----------|---------|-----------|
+| `automate` | `register_automate_statuses` | statuses / register_statuses | the six automate-line statuses (including the completed-accept `automate.done`) |
+| `fix` | `register_fix_statuses` | statuses / register_statuses | the five fix-line statuses |
+| `declare` | `declare_pybuggy_session` | onboarding / declare_session | the pybuggy question block of the session survey |
+| `amend` | `amend_pybuggy_config` | onboarding / amend_config | the `build.review.skip` amendment and the tool config file |
 
-Both hook callables live in `goga_tool_pybuggy/statuses.py` and are NOT re-exported on the package
-facade — only `register_hooks` is; the platform reaches them through its subscription.
+Both status hook callables live in `goga_tool_pybuggy/statuses.py`; both onboarding hook callables live in
+`goga_tool_pybuggy/commands/init` — none is re-exported on the package facade, only `register_hooks` is; the
+platform reaches them through its subscription. The onboarding handlers return immediately when the session did
+not invite pybuggy (`goga init` without `-t pybuggy`).
 
 The tool identity (`pybuggy`) is assigned by the platform from the package name — the package never names
 itself. Every registered status is stored and shown qualified: `pybuggy.<name>`.
@@ -140,5 +146,7 @@ add-only and never cached — package edits apply from the next run, without rei
 - `--env-file` (explicit) or `.env` from the CWD (implicit) is loaded into `os.environ` (`override=False`)
   before the command runs; the values are available to all subcommands via `os.environ`
   (e.g. `PYBUGGY_REF` for `pull`).
-- `init` is a top-level command and does NOT require the pybuggy config: it operates on the consumer's
-  goga-project config (`<cwd>/.goga/config.yml`) and reads usages from the installed package.
+- `init` is a top-level command and does NOT require the pybuggy config: it runs a goga onboarding session with
+  pybuggy invited (an existing `.goga/config.yml` ends the session immediately) and then bootstraps the consumer's
+  pybuggy environment (packaged usages, `conventions` slot, `build.review.skip`, Dockerfile install line, root
+  conftest).
