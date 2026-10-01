@@ -91,6 +91,58 @@ class TestEnsureReviewSkip:
         assert config.read_bytes() == first_bytes
         assert config.stat().st_mtime_ns == mtime
 
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param("build:\n  review:\n    skip: false\n", id="explicit-false"),
+            pytest.param("build:\n  review:\n    skip: maybe\n", id="non-boolean-string"),
+        ],
+    )
+    def test_ensure_review_skip_corrects_a_present_non_true_value(self, tmp_path, config_text):
+        """A present false (or non-boolean) skip value is corrected to true."""
+        config = tmp_path / "config.yml"
+        config.write_text(config_text, encoding="utf-8")
+
+        assert ensure_review_skip(config) is True
+        assert YAML().load(config)["build"]["review"]["skip"] is True
+
+
+class TestNeverOverwriteGuards:
+    """The never-overwrite guards — a non-conforming section raises instead of clobbering."""
+
+    @pytest.mark.parametrize(
+        ("config_text", "writer"),
+        [
+            pytest.param("build: scalar\n", ensure_review_skip, id="build-not-a-mapping"),
+            pytest.param("build:\n  review: [list]\n", ensure_review_skip, id="review-not-a-mapping"),
+            pytest.param(
+                "codemanifest: [a, b]\n",
+                lambda config: register_usages(config, _USAGE_INPUT),
+                id="codemanifest-not-a-mapping",
+            ),
+            pytest.param(
+                "codemanifest:\n  usages: scalar\n",
+                lambda config: register_usages(config, _USAGE_INPUT),
+                id="usages-not-a-mapping",
+            ),
+            pytest.param(
+                "codemanifest:\n  annotations: {k: v}\n",
+                lambda config: register_annotations(config, _ANNOTATION_INPUT),
+                id="annotations-not-a-scalar",
+            ),
+        ],
+    )
+    def test_non_conforming_section_raises_and_keeps_file_unchanged(self, tmp_path, config_text, writer):
+        """A non-mapping/non-scalar guarded section raises ValueError and leaves the file untouched."""
+        config = tmp_path / "config.yml"
+        config.write_text(config_text, encoding="utf-8")
+        before = config.read_bytes()
+
+        with pytest.raises(ValueError, match="cannot be extended"):
+            writer(config)
+
+        assert config.read_bytes() == before
+
 
 class TestInstallPybuggy:
     """Dynamic minor x-range install line derivation and idempotency."""
@@ -116,6 +168,15 @@ class TestInstallPybuggy:
 
         assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 1.1.x"
         assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 1.1.x\n"
+
+    def test_install_pybuggy_ensures_newline_separator(self, tmp_path, monkeypatch):
+        """A Dockerfile without a trailing newline still gets the install line on a fresh line."""
+        dockerfile = tmp_path / "Dockerfile"
+        dockerfile.write_text("FROM python:3.12", encoding="utf-8")
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 2.0.x"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
 
     def test_install_pybuggy_noop_without_file(self, tmp_path):
         """An absent Dockerfile is a no-op — the file is never created."""
@@ -160,6 +221,55 @@ class TestRegistrations:
         snapshot = config.read_text(encoding="utf-8")
         assert rerun() == []
         assert config.read_text(encoding="utf-8") == snapshot
+
+    def test_register_annotations_appends_after_plain_scalar_without_trailing_newline(self, tmp_path):
+        """A plain-scalar annotations value gains the line on a fresh line, then no-ops."""
+        config = tmp_path / "config.yml"
+        config.write_text("codemanifest:\n  annotations: some text", encoding="utf-8")
+
+        assert register_annotations(config, {"pybuggy-api": "Use `pybuggy-api` for requests."}) == ["pybuggy-api"]
+        assert YAML().load(config)["codemanifest"]["annotations"] == "some text\nUse `pybuggy-api` for requests.\n"
+        assert register_annotations(config, {"pybuggy-api": "Use `pybuggy-api` for requests."}) == []
+
+    def test_register_annotations_replaces_only_the_first_matching_line(self, tmp_path):
+        """When several lines carry the same backtick reference, exactly the first is replaced."""
+        config = tmp_path / "config.yml"
+        config.write_text(
+            "codemanifest:\n  annotations: |\n    old `pybuggy-api` line\n    another `pybuggy-api` line\n",
+            encoding="utf-8",
+        )
+
+        assert register_annotations(config, {"pybuggy-api": "Use `pybuggy-api` for requests."}) == ["pybuggy-api"]
+
+        annotations = YAML().load(config)["codemanifest"]["annotations"]
+        assert annotations == "Use `pybuggy-api` for requests.\nanother `pybuggy-api` line\n"
+
+    @pytest.mark.parametrize(
+        ("operation", "config_text"),
+        [
+            pytest.param("usages", None, id="usages-absent-file"),
+            pytest.param("usages", "", id="usages-empty-file"),
+            pytest.param("annotations", None, id="annotations-absent-file"),
+            pytest.param("annotations", "", id="annotations-empty-file"),
+        ],
+    )
+    def test_registrations_create_minimal_document_when_no_file(self, tmp_path, operation, config_text):
+        """An absent or zero-byte config gets a minimal document carrying the registrations."""
+        config = tmp_path / "config.yml"
+        if config_text is not None:
+            config.write_text(config_text, encoding="utf-8")
+
+        yaml = YAML()
+
+        if operation == "usages":
+            assert register_usages(config, _USAGE_INPUT) == ["pybuggy-api", "conventions"]
+            assert yaml.load(config)["codemanifest"]["usages"] == _USAGE_INPUT
+        else:
+            assert register_annotations(config, _ANNOTATION_INPUT) == ["pybuggy-api", "conventions"]
+
+            annotations = yaml.load(config)["codemanifest"]["annotations"]
+            assert "Use `pybuggy-api` for executing HTTP requests" in annotations
+            assert "`conventions`" in annotations
 
 
 class TestFixedAssetWriters:

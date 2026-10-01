@@ -189,6 +189,11 @@ class TestInitContract:
         """The private Dockerfile-resolution helper lives in the init module."""
         assert callable(init_module._resolve_dockerfile_path)
 
+    def test_annotation_for_unknown_stem_falls_back_to_bare_backtick(self):
+        """A discovered stem outside the hand-authored table still gets a binding backtick reference."""
+        assert init_module._annotation_for("future-stem") == "`pybuggy-future-stem`"
+        assert init_module._annotation_for("api").startswith("Use `pybuggy-api`")
+
     @pytest.mark.parametrize(
         ("routine", "expected"),
         [
@@ -364,6 +369,57 @@ class TestRunInit:
         else:
             assert order == []
             assert scaffold.upgrade_calls == [(None,)]
+
+    def test_run_init_template_mode_not_guarded_by_existing_goga(self, tmp_path, monkeypatch):
+        """Template mode over an initialized project still scaffolds and runs both seams."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".goga").mkdir()
+        (tmp_path / ".goga" / "config.yml").write_text("language: python\n", encoding="utf-8")
+        scaffold = _ScaffoldRecorder()
+        monkeypatch.setattr(init_module, "Scaffold", lambda: scaffold)
+        order: list[str] = []
+        session = _SeamLog("session", order, [0])
+        bootstrap = _SeamLog("bootstrap", order, [0])
+        monkeypatch.setattr(_SESSION_SEAM, session)
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, bootstrap)
+
+        assert run_init("tpl", None, False) == 0
+        assert order == ["session", "bootstrap"]
+        assert bootstrap.calls == [{"template_mode": True}]
+
+
+class TestResolveDockerfilePath:
+    """The private helper — field resolution and the fallback discipline (never raises into the tier)."""
+
+    def test_resolve_dockerfile_path_returns_the_declared_field(self, tmp_path):
+        """A non-empty string field wins over the fallback."""
+        config = tmp_path / "config.yml"
+        config.write_text("dockerfile: Dockerfile\n", encoding="utf-8")
+
+        assert init_module._resolve_dockerfile_path(config) == Path("Dockerfile")
+
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param("dockerfile: true\n", id="boolean"),
+            pytest.param("dockerfile:\n  from: x\n  path: y\n", id="mapping"),
+            pytest.param("dockerfile: 777\n", id="integer"),
+            pytest.param("dockerfile:\n", id="null"),
+        ],
+    )
+    def test_resolve_dockerfile_path_falls_back_on_non_string_field(self, tmp_path, config_text):
+        """A null or non-string dockerfile field falls back to the default instead of raising."""
+        config = tmp_path / "config.yml"
+        config.write_text(config_text, encoding="utf-8")
+
+        assert init_module._resolve_dockerfile_path(config) == Path(".goga") / "Dockerfile"
+
+    def test_resolve_dockerfile_path_falls_back_on_pyyaml_unparsable_document(self, tmp_path):
+        """A document PyYAML cannot parse falls back — the helper never raises into the tier."""
+        config = tmp_path / "config.yml"
+        config.write_text("? [complex, key]\n: value\n", encoding="utf-8")
+
+        assert init_module._resolve_dockerfile_path(config) == Path(".goga") / "Dockerfile"
 
 
 def _seed_config(root: Path, text: str) -> Path:
@@ -544,18 +600,24 @@ class TestRunBootstrap:
         assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
         assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
 
-    def test_run_bootstrap_idempotent_rerun(self, tmp_path, monkeypatch):
+    def test_run_bootstrap_idempotent_rerun(self, tmp_path, monkeypatch, caplog):
         """A second bare run with a declined conftest overwrite leaves the tree byte-identical."""
         monkeypatch.chdir(tmp_path)
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
-        assert run_bootstrap(template_mode=False) == 0
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
         snapshot = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
         monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
 
-        assert run_bootstrap(template_mode=False) == 0
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
         assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == snapshot
+
+        warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+        assert warnings.count("usage already registered, skipped") == 3
+        assert warnings.count("annotation already registered, skipped") == 3
 
     @pytest.mark.parametrize(
         "config_text",
@@ -581,3 +643,38 @@ class TestRunBootstrap:
         assert config["build"]["review"]["skip"] is True
         assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
         assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param("language: python\ndockerfile: true\n", id="boolean-field"),
+            pytest.param("language: python\ndockerfile:\n  from: x\n  path: y\n", id="mapping-field"),
+        ],
+    )
+    def test_run_bootstrap_non_string_dockerfile_field_falls_back(self, tmp_path, monkeypatch, caplog, config_text):
+        """A non-string dockerfile field never escapes the tier — the fallback path gets the line."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, config_text)
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        dockerfile.write_text("FROM x\n", encoding="utf-8")
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=True)
+
+        assert code == 0
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert _error_records(caplog) == []
+
+    def test_run_bootstrap_corrupt_config_fails_through_the_wrapped_tier(self, tmp_path, monkeypatch, caplog):
+        """An unparsable consumer config is ERROR-logged and mapped to 1 — never a traceback."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\na: [unclosed\n")
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 1
+        errors = _error_records(caplog)
+        assert len(errors) == 1
+        assert errors[0].message == "onboarding bootstrap failed"

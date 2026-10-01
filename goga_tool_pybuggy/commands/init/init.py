@@ -159,9 +159,11 @@ def _resolve_dockerfile_path(config: Path) -> Path:
     """Resolve the project's Dockerfile path from the consumer config.
 
     Reads the ``dockerfile`` field of the consumer ``.goga/config.yml`` so the install line
-    lands in the project's actual Dockerfile (a custom session answer wins); a missing config
-    or a missing/empty field falls back to ``_DOCKERFILE_DEFAULT`` (``.goga/Dockerfile``).
-    The routine never creates the file and reads nothing beyond the config.
+    lands in the project's actual Dockerfile (a custom session answer wins); a missing config,
+    a PyYAML-unparsable document, or a missing/empty/non-string field falls back to
+    ``_DOCKERFILE_DEFAULT`` (``.goga/Dockerfile``). The routine never creates the file, never
+    raises a parse or type error into the bootstrap's wrapped tier, and reads nothing beyond
+    the config.
 
     Args:
         config: Path to the consumer ``.goga/config.yml``.
@@ -170,12 +172,15 @@ def _resolve_dockerfile_path(config: Path) -> Path:
         The resolved Dockerfile path (existing or not).
     """
     if config.exists():
-        document = yaml.safe_load(config.read_text(encoding="utf-8"))
+        try:
+            document = yaml.safe_load(config.read_text(encoding="utf-8"))
+        except yaml.YAMLError:
+            document = None
 
         if isinstance(document, dict):
             field = document.get("dockerfile")
 
-            if field:
+            if isinstance(field, str) and field:
                 return Path(field)
 
     return _DOCKERFILE_DEFAULT

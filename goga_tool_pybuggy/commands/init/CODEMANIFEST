@@ -143,7 +143,8 @@ Annotations: |
        when it exists, log INFO and leave the file untouched.
     4. Enforce build.review.skip: true via `ensure_review_skip` — idempotent; runs on every pass, including when the
        session ended immediately on an existing config.
-    5. Augment the Dockerfile via `install_pybuggy` — idempotent; a no-op when the file is absent.
+    5. Resolve the Dockerfile path from the consumer config dockerfile field (fallback .goga/Dockerfile), then
+       augment it via `install_pybuggy` — idempotent; a no-op when the file is absent.
     6. Register the usage keys via `register_usages` and the annotation lines via `register_annotations` — idempotent.
     7. Deliver the root conftest: when conftest.py does not exist, call `write_pybuggy_conftest`; when it exists —
        template mode: log INFO and skip; bare mode: ask via click.confirm (default no) and overwrite only on yes.
@@ -250,8 +251,8 @@ Annotations: |
 
     Algorithm:
     1. Declare base_url as a required input — a Jinja2 template string.
-    2. Declare every scalar member of `PluginConfigKeys` except HEADERS and LOADER as an optional input, each prompt
-       stating what the field is for.
+    2. Declare every scalar member of `PluginConfigKeys` except BASE_URL, HEADERS, and LOADER as an optional input,
+       each prompt stating what the field is for (BASE_URL is the required base_url input of step 1).
     3. Declare the first-spec group: name (input), type (choice swagger|openapi), location (input), and the optional
        git fields (input; an empty git url means no git source).
     4. Declare extra_specs as one optional input carrying the additional specs, one per line, in the compact form

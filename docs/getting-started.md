@@ -21,18 +21,18 @@ Run in the target project root:
 goga tool pybuggy init
 ```
 
-The command (see [CLI — init](cli/init.md)):
+The command (see [CLI — init](cli/init.md)) runs two stages — the engine-owned
+onboarding session with pybuggy invited, then the pybuggy bootstrap.
 
-1. Interactively initializes the goga project — creates `.goga/config.yml`
-   (language fixed to `python`) and the mandatory `.goga/Dockerfile` with
-   `RUN goga install pybuggy -v 1.0.x`.
-2. Delivers the `conventions` slot — creates `.goga/usages/conventions.md` with the
-   pybuggy test convention when the file is absent; an existing file is left untouched.
-3. Sets `build.review_executor.skip: true` in `.goga/config.yml` (idempotent).
-4. Registers the usage keys `pybuggy-api` / `pybuggy-asserts` in
-   `codemanifest.usages` (idempotent; user-defined keys are never overwritten).
-5. Interactively builds `.goga/tools/pybuggy/config.yml` — plugin options plus the
-   `specs` section (at least one spec is required):
+**The onboarding session.** The goga engine asks the core project questions — the
+language (`python`), the optional codemanifest / build-agent / pipeline sections, and
+the Dockerfile (the confirm **"Create Dockerfile?" defaults to No**; answering Yes
+asks for the path, the base image, and the built image name) — followed by the pybuggy
+block: `base_url` (required, a Jinja2 template), the optional scalar plugin keys
+(Enter skips), the first spec (`name`, `type`, `location`, optional git fields), and
+`extra_specs` lines in the compact `name|type|location|git_url|git_location|git_ref`
+form. The session writes `.goga/config.yml`, the Dockerfile, and the tool config
+`.goga/tools/pybuggy/config.yml`:
     ```yaml
     base_url: https://{{ env }}.svc.example/api
     timeout: 10.0
@@ -45,24 +45,33 @@ The command (see [CLI — init](cli/init.md)):
           location: openapi/shop-openapi.yaml
           ref: main
     ```
-   `base_url` is a Jinja2 template rendered against `os.environ` + the CLI options you pass (e.g. `pytest --env=dev`).
-   See [Configuration](configuration.md).
+`base_url` is a Jinja2 template rendered against `os.environ` + the CLI options you pass (e.g. `pytest --env=dev`).
+Unanswered keys are dropped — never written empty; `headers`/`loader` are not surveyed (hand-add them when needed).
+See [Configuration](configuration.md).
 
-6. Generates the root `conftest.py`:
-   ```python
-   from dotenv import load_dotenv
+**The pybuggy bootstrap.** The files the session does not carry:
 
-   load_dotenv()
+| Artifact | Gate |
+|----------|------|
+| `.goga/usages/cooks/pybuggy/api.md`, `asserts.md` — the packaged usages | written (bare overwrites; template skips existing) |
+| `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
+| `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
+| `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version range is derived from the installed pybuggy version |
+| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
+| root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
-   from goga_tool_pybuggy import plugin
+The command requires a Dockerfile: answering No to the session's "Create Dockerfile?"
+confirm ends `pybuggy init` with a non-zero exit after the session artifacts are
+written (recovery: [CLI — init, the mandatory Dockerfile](cli/init.md)).
 
-   plugin.install()
-   ```
 This is the **bare** flow: it runs in a fresh project. A repeated invocation (an existing
 `.goga/`) is refused — `Project already initialized`, exit code 1, nothing updated — the
 same guard `goga init` applies. The command also scaffolds a project from a
 copier-compatible template (`init <tpl> [--ref <git-ref>]`) and upgrades a scaffolded
-project (`init --upgrade`) — see [CLI — init](cli/init.md).
+project (`init --upgrade`) — see [CLI — init](cli/init.md). A native
+`goga init -t pybuggy` runs the same session without the bootstrap — the flag and the
+pybuggy-owned files land only through the pybuggy CLI (see `MIGRATION.md` at the
+repository root).
 
 ## 3. Run the pipeline: `goga pipeline pybuggy:api.automate`
 

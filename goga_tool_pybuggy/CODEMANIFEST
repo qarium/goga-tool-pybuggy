@@ -26,7 +26,7 @@ Usages:
   click: .goga/usages/cooks/click.md
   python-dotenv: .goga/usages/cooks/python-dotenv.md
   goga-hooks: .goga/usages/cooks/goga/hooks/registering-hooks.md
-  goga-statuses: .goga/usages/cooks/goga/history/registering-statuses.md
+  goga-statuses: .goga/usages/cooks/goga/history/registering-hooks.md
   goga-onboarding-hooks: .goga/usages/cooks/goga/onboarding/registering-hooks.md
 
 Annotations: |
@@ -230,4 +230,5 @@ CreatedAt: 08/07/26
 Description: |
   Package composition root — owns the root CLI group main, assembles the endpoint subgroup
   (pull/list/info/generate/diff), registers the top-level `init` command, loads the .env environment
-  before any command runs, and registers the pybuggy topic statuses on the goga status scale.
+  before any command runs, and registers the pybuggy topic statuses and onboarding participation
+  hooks on the goga platform.

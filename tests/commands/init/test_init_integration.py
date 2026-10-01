@@ -7,19 +7,22 @@ hooks) with only the terminal stubbed — a scripted TTY answering the pinned
 answer map — and asserts the artifact set on disk: the project config, the
 Dockerfile at the answered path, and the tool config written by the engine from
 the plain payload our amend hook buffered, attributed ``(tool: pybuggy)`` in the
-report. The CLI composition tests drive the whole chain
-``init_cmd.callback → run_init → run_session + run_bootstrap`` with the engine
-seams stubbed at the orchestrator's import point — delegation order and exit
-propagation across the layers (the wrapper-binding surface alone is Task 6's;
-the top-level ``init`` registration is ``tests/test_cli.py``'s).
+report. The smoke run then composes the REAL bootstrap over the real session
+artifacts — the full bare-init path in one process. The CLI composition tests
+drive the whole chain ``init_cmd.callback → run_init → run_session +
+run_bootstrap`` with the engine seams stubbed at the orchestrator's import
+point — delegation order and exit propagation across the layers (the
+wrapper-binding surface alone is Task 6's; the top-level ``init`` registration
+is ``tests/test_cli.py``'s).
 """
 
+import importlib.metadata
 import logging
 from pathlib import Path
 
 import click
 import yaml
-from goga_tool_pybuggy.commands.init import init_cmd, run_session
+from goga_tool_pybuggy.commands.init import init_cmd, run_bootstrap, run_session
 
 # The seams of the CLI chain, patched at the orchestrator's import point (M-R2.8).
 _SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
@@ -140,6 +143,27 @@ class TestSessionSmoke:
         prompt_defaults = {text: default for text, default, _returned in tty.prompts}
         assert prompt_defaults["Built image name"] is None
         assert prompt_defaults["Dockerfile path"] == ".goga/Dockerfile"
+
+        # The full bare-init composition: the REAL bootstrap consumes the real session
+        # artifacts — the config-declared Dockerfile carries the install line, the skip
+        # flag and the registrations land, and the conventions slot and conftest appear.
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
+
+        assert (tmp_path / ".goga" / "usages" / "conventions.md").exists()
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert "`pybuggy-api`" in config["codemanifest"]["annotations"]
+        assert (
+            (tmp_path / ".goga" / "Dockerfile")
+            .read_text(encoding="utf-8")
+            .endswith("RUN goga install pybuggy -v 2.0.x\n")
+        )
+        assert (tmp_path / "conftest.py").exists()
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 
 class TestCliComposition:

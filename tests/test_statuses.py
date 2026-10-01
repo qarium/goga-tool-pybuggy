@@ -75,3 +75,58 @@ class TestRegisterHooksSubscriptions:
         register_hooks(recorder)
 
         assert recorder.calls[index][3] is expected
+
+
+class _RecorderContext:
+    """Registration surface double capturing every register call with its anchors.
+
+    Attributes:
+        calls: The ``(name, artifact, after, before)`` tuples, in call order.
+    """
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str | None, str | None]] = []
+
+    def register(self, name: str, artifact: str, after: str | None = None, before: str | None = None) -> None:
+        """Record one registration exactly as the platform delivers it.
+
+        Args:
+            name: The registered status name (no tool prefix — the platform assigns identity).
+            artifact: The topic artifact path the status tracks.
+            after: The anchor the status sits above.
+            before: The anchor the status must stay below.
+        """
+        self.calls.append((name, artifact, after, before))
+
+
+class TestStatusLines:
+    """The two status lines — registration calls, order, and anchors against a recorder context."""
+
+    def test_register_automate_statuses_registers_six_statuses_in_order(self):
+        """The automate line registers bottom-up, each status anchored above its built-in twin."""
+        context = _RecorderContext()
+
+        register_automate_statuses(context)
+
+        assert context.calls == [
+            ("automate.done", "completed/plan.md", "done", None),
+            ("automate.coding-planned", "plan.md", "planned", "pybuggy.automate.done"),
+            ("automate.code-designed", "design.md", "specified", "pybuggy.automate.coding-planned"),
+            ("automate.arch-prepared", "arch.md", "designed", "pybuggy.automate.code-designed"),
+            ("automate.testcases-designed", "testcases.md", "backlog", "pybuggy.automate.arch-prepared"),
+            ("automate.requirements-created", "requirements.md", "defined", "pybuggy.automate.testcases-designed"),
+        ]
+
+    def test_register_fix_statuses_registers_five_statuses_in_order(self):
+        """The fix line is an independent chain anchored at the built-in empty status."""
+        context = _RecorderContext()
+
+        register_fix_statuses(context)
+
+        assert context.calls == [
+            ("fix.collected", "fix-collect.md", "empty", None),
+            ("fix.analyzed", "fix-analysis.md", "pybuggy.fix.collected", None),
+            ("fix.planned", "fix-plan.md", "pybuggy.fix.analyzed", None),
+            ("fix.executed", "fix-execute.md", "pybuggy.fix.planned", None),
+            ("fix.reviewed", "fix-review.md", "pybuggy.fix.executed", None),
+        ]

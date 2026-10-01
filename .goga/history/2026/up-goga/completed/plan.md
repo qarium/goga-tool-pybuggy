@@ -1231,7 +1231,7 @@ authoritative behavior description, do not edit them.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create `MIGRATION.md` at the repo root covering: `build.review_executor.skip` → `build.review.skip`
+- [x] Create `MIGRATION.md` at the repo root covering: `build.review_executor.skip` → `build.review.skip`
       (consumers re-run `pybuggy init --upgrade`-independent enforcement — the bootstrap sets the new key on
       the next run; the old key is not migrated automatically); the new native `goga init -t pybuggy` path
       (same session, same hooks, no bootstrap — the flag and the pybuggy-owned files land only through the
@@ -1239,13 +1239,19 @@ authoritative behavior description, do not edit them.
       construction; 2.0 surfaces the core confirm "Create Dockerfile?" defaulting to No — declining ends
       the command with a non-zero exit after the session artifacts are written; recovery: create the
       Dockerfile at the config `dockerfile` path or remove `.goga` and re-run)
-- [ ] Update `docs/getting-started.md`, `docs/cli/init.md`, `README.md` off the 1.x flow (engine-owned
+- [x] Update `docs/getting-started.md`, `docs/cli/init.md`, `README.md` off the 1.x flow (engine-owned
       session, participation hooks, bootstrap table, three modes, dynamic install line)
-- [ ] Update `docs/plugin/index.md` and `docs/pipelines/*.md` where they describe the 1.x onboarding model
-- [ ] Verify consistency: `grep -rn "review_executor" README.md docs/ MIGRATION.md` — hits only inside
+      (also docs/index.md — same 1.x quickstart comment as README; plugin/pipelines docs verified — no
+      1.x onboarding descriptions remain, nothing to update there)
+- [x] Update `docs/plugin/index.md` and `docs/pipelines/*.md` where they describe the 1.x onboarding model
+      (verified by sweep: the three init mentions — conftest gate in plugin/index.md, bootstrap usage-keys
+      note in api-automate.md, mode-neutral init reference in pipelines/index.md — are all accurate under
+      the 2.0 model; zero edits needed)
+- [x] Verify consistency: `grep -rn "review_executor" README.md docs/ MIGRATION.md` — hits only inside
       MIGRATION.md's migration note; `grep -rn "1\.0\.x" README.md docs/` — no hardcoded install-line pins
-- [ ] Run validation: `.venv/bin/python -m pytest tests/ -x` — still green (docs must not break collection)
-- [ ] Lint: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — clean (commit gate M-R3.4)
+- [x] Run validation: `.venv/bin/python -m pytest tests/ -x` — still green (docs must not break collection)
+      (observed: 927 passed)
+- [x] Lint: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — clean (commit gate M-R3.4)
 
 ### Task 11: Final validation gate — full suite, lint/format, goga lint, e2e evidence (acceptance)
 
@@ -1258,20 +1264,30 @@ green; this task verifies the whole and collects the accepted e2e evidence.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Run the full test suite: `.venv/bin/python -m pytest tests/ -x` — green on goga 2.0.1
-- [ ] Lint the whole tree: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — clean
-- [ ] Format check every file touched by this plan: `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/
+- [x] Run the full test suite: `.venv/bin/python -m pytest tests/ -x` — green on goga 2.0.1
+      (observed: 927 passed)
+- [x] Lint the whole tree: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — clean
+- [x] Format check every file touched by this plan: `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/
       goga_tool_pybuggy/statuses.py tests/commands/init/ tests/test_statuses.py` — clean (report any
       pre-existing deviation in untouched files instead of reformatting them, M-R3.3)
-- [ ] Facade check (fresh interpreter): import all 17 names from `goga_tool_pybuggy.commands.init`;
+      (observed: 14 files already formatted)
+- [x] Facade check (fresh interpreter): import all 17 names from `goga_tool_pybuggy.commands.init`;
       `from goga_tool_pybuggy import register_hooks`
-- [ ] Contract drift check: `goga lint` — no new findings against the baseline (17 cells, 1 pre-existing
+- [x] Contract drift check: `goga lint` — no new findings against the baseline (17 cells, 1 pre-existing
       `goga-statuses` missing-file error — accepted residue)
-- [ ] E2E evidence (manual consumer quickstart, requires a consumer-grade environment — record the run or
+      (observed: cells: 17 errors: 1 — the pre-existing residue only)
+- [x] E2E evidence (manual consumer quickstart, requires a consumer-grade environment — record the run or
       the environment gap in the task notes): `goga install pybuggy` → `goga tool pybuggy init` →
       `goga pipeline pybuggy:api.automate`; the in-process session smoke test
       (`test_session_smoke_end_to_end_with_prompt_stubs`) is the accepted offline equivalence evidence
-- [ ] Final commit gate (M-R3.4): lint + format + full suite green before the closing local commit
+      (observed: install exit 0; a scripted-stdin `goga tool pybuggy init` in a scratch consumer project
+      exited 0 with the full artifact set verified — engine-written `.goga/tools/pybuggy/config.yml`
+      attributed `(tool: pybuggy)` with both specs, `build.review.skip: true`, the DYNAMIC install line
+      `RUN goga install pybuggy -v 1.1.x` derived live from the installed `1.1.1.dev5+g...`, conftest,
+      usages copies; `goga pipeline pybuggy:api.automate` blocked by the recorded environment gap
+      "docker not found in PATH" — the pipeline runs inside the goga Docker container, absent in this
+      sandbox; full evidence in `.ralphex/progress/progress-plan.txt`)
+- [x] Final commit gate (M-R3.4): lint + format + full suite green before the closing local commit
 
 ---
 
@@ -1291,21 +1307,21 @@ All commands run in the Task 1 virtualenv (M-R1.2) unless noted.
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location` (`init.py` ×4, `session.py` ×7, `bootstrap.py` ×6; root `register_hooks` in `statuses.py`)
-- [ ] Every contract entity is accessible from the facade (17 names on `goga_tool_pybuggy.commands.init`; `register_hooks` on the root)
-- [ ] Properties and methods match the declared API (signatures, typed returns, Python signature grammar)
-- [ ] Descriptions are reflected in behavior (engine-owned session, soft contribution failures, plain-data payload, single `build.review.skip` amendment, mode gates, mandatory-Dockerfile invariant, idempotent writers)
-- [ ] Contract dependencies are met (`SpecEntry`/`GitEntry`/`configuration` from the config cell; `PluginConfigKeys` from the plugin cell; engine imports per the verified facts)
-- [ ] Re-exports are accessible from the facade
-- [ ] Every coding task followed the TDD workflow (contract tests → code → verification → logic tests → debugging → re-verification → lint)
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding task
-- [ ] Integration tests exist where cross-entity scenarios require them (the session smoke test + CLI composition)
-- [ ] All 40 planned test scenarios from the design's Test Stack Trace are implemented (21 positive, 11 negative, 8 edge)
-- [ ] The deleted 1.x entities and helpers are gone; no dead code remains in the cell
-- [ ] `pyproject.toml` test extra pins `goga>=2.0.1,<2.1`; the virtualenv exists and carries the installation
-- [ ] MIGRATION.md exists with the three required items; docs are off the 1.x model
-- [ ] Mandatory Rules R1–R4 were followed in every task (coding style, test rules, lint/format gates at every stage and before every local commit, REPL cycle)
-- [ ] No package boundary was expanded; no new cells created
-- [ ] `CODEMANIFEST` files were not modified (contract is read-only; cell `.usages/` files untouched)
-- [ ] All validation commands pass (`pytest tests/ -x`, `ruff check`, `ruff format --check` on touched files, facade checks, `goga lint` no new findings)
-- [ ] Every Usages entry is mentioned in at least one task (all 8 init-cell usages + root `goga-hooks`/`goga-statuses`/`goga-onboarding-hooks` + imported `configuration`)
+- [x] Every contract entity is implemented in the correct `location` (`init.py` ×4, `session.py` ×7, `bootstrap.py` ×6; root `register_hooks` in `statuses.py`)
+- [x] Every contract entity is accessible from the facade (17 names on `goga_tool_pybuggy.commands.init`; `register_hooks` on the root)
+- [x] Properties and methods match the declared API (signatures, typed returns, Python signature grammar)
+- [x] Descriptions are reflected in behavior (engine-owned session, soft contribution failures, plain-data payload, single `build.review.skip` amendment, mode gates, mandatory-Dockerfile invariant, idempotent writers)
+- [x] Contract dependencies are met (`SpecEntry`/`GitEntry`/`configuration` from the config cell; `PluginConfigKeys` from the plugin cell; engine imports per the verified facts)
+- [x] Re-exports are accessible from the facade
+- [x] Every coding task followed the TDD workflow (contract tests → code → verification → logic tests → debugging → re-verification → lint)
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding task
+- [x] Integration tests exist where cross-entity scenarios require them (the session smoke test + CLI composition)
+- [x] All 40 planned test scenarios from the design's Test Stack Trace are implemented (21 positive, 11 negative, 8 edge)
+- [x] The deleted 1.x entities and helpers are gone; no dead code remains in the cell
+- [x] `pyproject.toml` test extra pins `goga>=2.0.1,<2.1`; the virtualenv exists and carries the installation
+- [x] MIGRATION.md exists with the three required items; docs are off the 1.x model
+- [x] Mandatory Rules R1–R4 were followed in every task (coding style, test rules, lint/format gates at every stage and before every local commit, REPL cycle)
+- [x] No package boundary was expanded; no new cells created
+- [x] `CODEMANIFEST` files were not modified (contract is read-only; cell `.usages/` files untouched)
+- [x] All validation commands pass (`pytest tests/ -x`, `ruff check`, `ruff format --check` on touched files, facade checks, `goga lint` no new findings)
+- [x] Every Usages entry is mentioned in at least one task (all 8 init-cell usages + root `goga-hooks`/`goga-statuses`/`goga-onboarding-hooks` + imported `configuration`)

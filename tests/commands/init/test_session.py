@@ -214,10 +214,10 @@ class TestParseSpecs:
             parse_specs(spec_answers, None)
 
     def test_parse_specs_skips_malformed_and_colliding_extra_lines(self, caplog):
-        """Malformed and duplicate extra lines are skipped with the two stable WARNING events."""
+        """Malformed, blank, and duplicate extra lines are skipped with the two stable WARNING events."""
         with caplog.at_level(logging.WARNING):
             specs = parse_specs(
-                dict(_FIRST_SPEC), "billing|yaml|x.yaml\nbad|swagger\n| swagger | loc\nshop|openapi|other.yaml"
+                dict(_FIRST_SPEC), "billing|yaml|x.yaml\n\n   \nbad|swagger\n| swagger | loc\nshop|openapi|other.yaml"
             )
 
         assert set(specs) == {"shop"}
