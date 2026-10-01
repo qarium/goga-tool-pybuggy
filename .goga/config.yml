@@ -41,7 +41,7 @@ usages:
   cooks:
     goga:
       git: https://github.com/qarium/goga.git
-      ref: release/2.0.0
+      ref: 2.0.x
       root: goga
 
 codemanifest:
