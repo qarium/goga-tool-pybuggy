@@ -849,24 +849,24 @@ context.write_config("config.yml", build_config_data(answers))  # engine writes 
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_session.py`, expected to fail against the stubs):
+- [x] **Contract tests** (in `tests/commands/init/test_session.py`, expected to fail against the stubs):
       facade import of the three names; signatures — `run_session() -> int`,
       `declare_pybuggy_session(context: object) -> None`, `amend_pybuggy_config(context: object) -> None`
-- [ ] **REPL cycle** (M-R4.1/M-R4.5): in the venv REPL — import `goga.onboarding` and inspect
+- [x] **REPL cycle** (M-R4.1/M-R4.5): in the venv REPL — import `goga.onboarding` and inspect
       `ToolParticipation`, `InitLogic.__init__` parameter names (constructor verified:
       `InitLogic(questionnaire, generator, participation)`); drive the two hooks by hand against the
       recorder doubles (declare the block, buffer the contribution); migrate the verified bodies into
       `session.py`, re-verify via fresh import
-- [ ] **Code**: implement `run_session` (engine logic construction + `run()`; nothing caught, nothing wrapped)
-- [ ] **Code**: implement `declare_pybuggy_session` (invited guard; declare every block item in order)
-- [ ] **Code**: implement `amend_pybuggy_config` (invited guard; read `answers`; buffer
+- [x] **Code**: implement `run_session` (engine logic construction + `run()`; nothing caught, nothing wrapped)
+- [x] **Code**: implement `declare_pybuggy_session` (invited guard; declare every block item in order)
+- [x] **Code**: implement `amend_pybuggy_config` (invited guard; read `answers`; buffer
       `build_config_amendments()`; `write_config("config.yml", build_config_data(answers))`)
-- [ ] Add the recorder doubles to `tests/commands/init/conftest.py`: a `ToolDeclaration`-like recorder
+- [x] Add the recorder doubles to `tests/commands/init/conftest.py`: a `ToolDeclaration`-like recorder
       (attributes `invited`, lists `declared`, `skips`) and a `ToolContribution`-like recorder (`invited`,
       `answers`, `amendments`, `files`) — plain doubles asserting member usage, not engine internals
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_session.py -v` —
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_session.py -v` —
       contract tests pass
-- [ ] **Logic tests** (design scenarios, Setup/Assertions transferred):
+- [x] **Logic tests** (design scenarios, Setup/Assertions transferred):
       - `test_declare_pybuggy_session_declares_block_when_invited` — recorder `invited=True`;
         Assertions: `[i.id for i in context.declared]` equals the `pybuggy_questions()` id sequence (group
         included); `context.skips == []`
@@ -884,11 +884,11 @@ context.write_config("config.yml", build_config_data(answers))  # engine writes 
       - `test_amend_pybuggy_config_exception_drops_contribution_upstream` — recorder context whose
         `answers` trigger `build_config_data` `ValueError` (bad numeric); Assertions:
         `pytest.raises(ValueError)`; `files == []` (the write never buffered)
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
       (do NOT fix test code)
-- [ ] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations
+- [x] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations
       (engine-owned questions; no-invitation silence; buffered-only writes; propagated exceptions)
-- [ ] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
+- [x] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
       `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/session.py tests/commands/init/` —
       clean (commit gate M-R3.4)
 

@@ -11,7 +11,7 @@ serializable tool-config payload the engine writes verbatim into
 
 import logging
 
-from goga.onboarding import Question, QuestionGroup
+from goga.onboarding import FileGenerator, InitLogic, Question, QuestionGroup, Questionnaire, ToolParticipation
 
 from ...config import GitEntry, SpecEntry
 from ...plugin import PluginConfigKeys
@@ -302,7 +302,13 @@ def run_session() -> int:
     Returns:
         The engine session exit code, propagated as-is.
     """
-    raise NotImplementedError
+    logic = InitLogic(
+        questionnaire=Questionnaire(),
+        generator=FileGenerator(),
+        participation=ToolParticipation(invited=["pybuggy"]),
+    )
+
+    return logic.run()
 
 
 def declare_pybuggy_session(context: object) -> None:
@@ -316,7 +322,11 @@ def declare_pybuggy_session(context: object) -> None:
     Args:
         context: The ``ToolDeclaration`` proxy delivered by name from the hooks platform.
     """
-    raise NotImplementedError
+    if not context.invited:
+        return
+
+    for item in pybuggy_questions():
+        context.declare(item)
 
 
 def amend_pybuggy_config(context: object) -> None:
@@ -338,4 +348,12 @@ def amend_pybuggy_config(context: object) -> None:
         ValueError: If a numeric answer cannot coerce — propagated so the mediator
             soft-drops the contribution.
     """
-    raise NotImplementedError
+    if not context.invited:
+        return
+
+    answers = context.answers
+
+    for id, value in build_config_amendments().items():
+        context.answer(id, value)
+
+    context.write_config("config.yml", build_config_data(answers))
