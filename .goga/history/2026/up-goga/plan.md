@@ -521,38 +521,47 @@ Module layout (from the design — the contract's `location` values):
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] REPL probe first (M-R4.1/M-R4.5): in the venv REPL, import
+- [x] REPL probe first (M-R4.1/M-R4.5): in the venv REPL, import
       `goga.onboarding` entities and inspect `InitLogic.__init__`, `ToolDeclaration`, `ToolContribution`
       members — confirm the import list the skeleton needs
-- [ ] Create `goga_tool_pybuggy/commands/init/session.py` — module docstring, logger, engine imports
+- [x] Create `goga_tool_pybuggy/commands/init/session.py` — module docstring, logger, engine imports
       (`InitLogic`, `Questionnaire`, `FileGenerator`, `ToolParticipation`, `Question`, `QuestionGroup`),
       config/plugin imports (`from ...config import GitEntry, SpecEntry`, `from ..plugin import PluginConfigKeys`),
       the carried-over `_SCALAR_PROMPTS`/`_NUMERIC_MEMBERS`, `_GIT_FIELDS = 6`, and the 7 routine stubs with
       final signatures + Google docstrings + `raise NotImplementedError`
-- [ ] Create `goga_tool_pybuggy/commands/init/bootstrap.py` — module docstring, logger, imports
+      (note: imports not yet used by the stubs — `InitLogic`/`Questionnaire`/`FileGenerator`/
+      `ToolParticipation`/`QuestionGroup`/`GitEntry` — land in Tasks 4–5 with their bodies; ruff F401
+      blocks unused imports at the per-task gate, see progress notes)
+- [x] Create `goga_tool_pybuggy/commands/init/bootstrap.py` — module docstring, logger, imports
       (`import importlib.metadata`, `import importlib.resources`, `from pathlib import Path`,
       `from ruamel.yaml import YAML, YAMLError`, `from ruamel.yaml.comments import CommentedMap`,
       `from ruamel.yaml.scalarstring import LiteralScalarString`), the carried-over `_ensure_map` and
       `_CONFTEST_TEMPLATE`, and the 6 routine stubs with final signatures + Google docstrings +
       `raise NotImplementedError`
-- [ ] Rewrite `goga_tool_pybuggy/commands/init/init.py` — new module docstring (three-mode surface),
+      (same F401 note: `importlib.metadata`/`importlib.resources`/`YAML`/`YAMLError`/`LiteralScalarString`
+      land in Task 3; `_ensure_scalar` also relocated here — unlisted in the plan, consumer is
+      `register_annotations`)
+- [x] Rewrite `goga_tool_pybuggy/commands/init/init.py` — new module docstring (three-mode surface),
       delete every dead routine/helper listed above, keep/land `init_cmd` and `resolve_init_mode` complete
       (behavior unchanged), stub `run_init`/`run_bootstrap`, relocate the init-side private helpers
       (`_walk`, `_discover_usages`, `PYBUGGY_ANNOTATIONS`, `_annotation_for`, `_CONVENTION_LINE`,
       `_log_registration`, `_BARE`/`_TEMPLATE`/`_UPGRADE`, `_DOCKERFILE_DEFAULT`, `_resolve_dockerfile_path`
       stub); imports: `click`, `goga.scaffold.Scaffold`, `importlib.resources`, ruamel error types for the
       catch tuple, `from .bootstrap import ...` (six writers), `from .session import run_session`
-- [ ] Rewrite `goga_tool_pybuggy/commands/init/__init__.py` — re-export all 17 routines, alphabetical
+      (same F401 note: `Scaffold`/`importlib.resources`/`YAMLError`/six writers/`run_session` land in
+      Tasks 6–7)
+- [x] Rewrite `goga_tool_pybuggy/commands/init/__init__.py` — re-export all 17 routines, alphabetical
       `__all__`: `amend_pybuggy_config, build_config_amendments, build_config_data, declare_pybuggy_session,
       ensure_review_skip, init_cmd, install_pybuggy, parse_specs, pybuggy_questions, register_annotations,
       register_usages, resolve_init_mode, run_bootstrap, run_init, run_session, write_pybuggy_conftest,
       write_test_convention`
-- [ ] Verify facade accessibility (fresh interpreter, M-R4.3):
+- [x] Verify facade accessibility (fresh interpreter, M-R4.3):
       `.venv/bin/python -c "from goga_tool_pybuggy.commands.init import amend_pybuggy_config, build_config_amendments, build_config_data, declare_pybuggy_session, ensure_review_skip, init_cmd, install_pybuggy, parse_specs, pybuggy_questions, register_annotations, register_usages, resolve_init_mode, run_bootstrap, run_init, run_session, write_pybuggy_conftest, write_test_convention"`
       — all 17 importable; `import goga_tool_pybuggy` succeeds; `register_hooks` importable from the root
-- [ ] Run validation: `.venv/bin/python -m pytest tests/ -x` — green (package importability restored; the
+- [x] Run validation: `.venv/bin/python -m pytest tests/ -x` — green (package importability restored; the
       init-specific suites do not exist yet; `tests/test_cli.py` passes with the stubs — registration only)
-- [ ] Lint: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
+      (observed: 848 passed)
+- [x] Lint: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
       `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/` — clean (commit gate M-R3.4)
 
 ### Task 3: `bootstrap.py` writers — relocation with two deltas (TDD)
