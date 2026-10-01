@@ -1182,8 +1182,10 @@ Native session (no pybuggy CLI): goga init -t pybuggy
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create `tests/commands/init/test_init_integration.py` (rewrite)
-- [ ] **`test_session_smoke_end_to_end_with_prompt_stubs`** — Setup (the answer map is pinned EXACTLY,
+- [x] Create `tests/commands/init/test_init_integration.py` (rewrite)
+      (composition doubles — `ExitRecorder`/`SeamRecorder`/`ScriptedTTY` — added to
+      `tests/commands/init/conftest.py` per M-R2.3)
+- [x] **`test_session_smoke_end_to_end_with_prompt_stubs`** — Setup (the answer map is pinned EXACTLY,
       review q3/A): `tmp_path` cwd; monkeypatch `click.prompt`/`click.confirm` with a scripted map —
       confirms: `Download base convention` → n, `Add codemanifest usages?` → n,
       `Add codemanifest annotations?` → n, `Configure a build agent?` → n, **`Create Dockerfile?` → y**
@@ -1202,13 +1204,16 @@ Native session (no pybuggy CLI): goga init -t pybuggy
       `language: python`; `.goga/tools/pybuggy/config.yml` equals the expected plain payload (`specs` with
       `shop` + `billing`, `base_url`, `git` block on billing only); Dockerfile exists at the answered path;
       stdout report names the tool config with `(tool: pybuggy)` attribution
-- [ ] **CLI composition coverage** — `init_cmd` (Click wrapper) → `run_init` → `run_session` +
+- [x] **CLI composition coverage** — `init_cmd` (Click wrapper) → `run_init` → `run_session` +
       `run_bootstrap` chain on a fresh project with all seams stubbed (registration, delegation order,
       exit propagation), and the top-level `init` registration in `goga_tool_pybuggy.cli` (already asserted
       by `tests/test_cli.py` — do not duplicate; assert the composition only)
-- [ ] Run validation: `.venv/bin/python -m pytest tests/commands/init/test_init_integration.py -v` then
+      (observed: two composition tests — the bare chain with both real layers over stubbed seams, and the
+      bootstrap failure code reaching `ctx.exit` through the whole chain)
+- [x] Run validation: `.venv/bin/python -m pytest tests/commands/init/test_init_integration.py -v` then
       `.venv/bin/python -m pytest tests/ -x` — all green
-- [ ] Lint: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
+      (observed: 3 passed; full suite 927 passed)
+- [x] Lint: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
       `.venv/bin/ruff format --check tests/commands/init/test_init_integration.py` — clean (commit gate M-R3.4)
 
 ### Task 10: Documentation & migration notes (documentation)
