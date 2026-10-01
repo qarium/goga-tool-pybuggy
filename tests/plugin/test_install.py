@@ -1,13 +1,6 @@
 """Tests for `install` in the `goga_tool_pybuggy.plugin` cell.
 
-Mirrors the source layout (`tests/plugin/test_install.py`). Covers the contract
-surface (importability from the facade + the ``**kwargs`` signature) and the
-behavioral logic of the import-time wiring (hook injection + synchronous
-``pytest_plugins`` population).
-
-The integration-flavored test uses an explicit ``context=`` so it does not depend
-on the call stack; the ``call_context()`` stack invariant is exercised separately
-by the top-level ``install()`` call that runs on import.
+Covers the contract surface and the import-time wiring (hook injection + synchronous ``pytest_plugins`` population).
 """
 
 import importlib
@@ -23,9 +16,7 @@ import pytest
 def isolate_sys_modules():
     """Snapshot and restore sys.modules so import-time trial imports never leak.
 
-    ``test_install_outside_api_tree_does_not_raise`` reloads ``goga_tool_pybuggy.plugin``,
-    which re-runs the top-level ``install()`` (and thus ``_load_plugins``); the
-    loaders and integration suites already isolate ``sys.modules`` the same way.
+    The reload test re-runs the top-level ``install()`` (and thus ``_load_plugins``).
     """
     snapshot = sys.modules.copy()
 
@@ -70,12 +61,10 @@ class TestInstallLogic:
         assert "pytest_plugins" in namespace.__dict__
 
     def test_install_outside_api_tree_does_not_raise(self, tmp_path, monkeypatch):
-        # cwd without an `api/` tree: the top-level `install()` (which runs on
-        # import) must not raise — the default `api` package is optional.
+        # Without an `api/` tree the import-time `install()` must not raise (the default package is optional).
         monkeypatch.chdir(tmp_path)
 
-        # Force a fresh re-execution of the module body so the top-level
-        # `install()` runs against this cwd.
+        # Re-execute the module body so the top-level `install()` runs against this cwd.
         importlib.reload(goga_tool_pybuggy.plugin)
 
         assert getattr(goga_tool_pybuggy.plugin, "pytest_plugins", []) == []

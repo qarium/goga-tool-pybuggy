@@ -9,8 +9,6 @@ from goga_tool_pybuggy.commands.generate import generate_cmd, render_api_module,
 from goga_tool_pybuggy.plugin.loaders.loaders import _module_is_pytest_plugin
 from goga_tool_pybuggy.spec import Endpoint
 
-CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
-
 # Shared OpenAPI fragments ---------------------------------------------------
 
 _OPENAPI_PREFIX = """\
@@ -28,8 +26,9 @@ def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
 
 
 def _write_config(tmp_path: Path, specs: dict) -> Path:
-    """Write a config.yml whose ``specs`` map mirrors ``specs`` (name -> location)."""
-    config_path = tmp_path / "config.yml"
+    """Write a config.yml at the standard tool-config path; ``specs`` maps name -> location."""
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     if not specs:
         config_path.write_text("specs: {}\n")
         return config_path
@@ -140,8 +139,7 @@ paths:
                     type: string
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -170,11 +168,7 @@ def test_run_generate_rewrites_openapi_nullable_to_jsonschema_union(
 ) -> None:
     """run_generate should store OpenAPI nullable: true as a JSON-Schema union type.
 
-    Normalization happens in ``extract_endpoints`` (the OpenAPI → JSON-Schema
-    boundary); ``run_generate`` writes that already-normalized schema, so the jsonschema
-    validator at runtime accepts ``null``. This pins the end-to-end contract: an
-    OpenAPI spec with ``nullable`` produces a JSON-Schema file with union types and
-    no ``nullable`` key (recursing into array items).
+    ``extract_endpoints`` normalizes ``nullable`` into union types, recursing into array items.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -207,8 +201,7 @@ paths:
                     nullable: true
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -244,8 +237,7 @@ paths:
           description: No content
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -290,11 +282,10 @@ paths:
                 type: object
 """,
     )
-    config_path = _write_config(
+    _write_config(
         tmp_path,
         {"shop": ".specs/shop.yaml", "server": ".specs/server.yaml"},
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_generate("shop", False)
 
@@ -325,8 +316,7 @@ paths:
                     type: string
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -344,8 +334,7 @@ def test_run_generate_raises_when_spec_not_found(tmp_path: Path, monkeypatch: py
     """run_generate should raise ClickException when spec_name is not in config."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = _write_config(tmp_path, {})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {})
 
     with pytest.raises(click.ClickException) as exc:
         run_generate("missing", False)
@@ -358,8 +347,7 @@ def test_run_generate_raises_when_spec_has_no_paths(tmp_path: Path, monkeypatch:
 
     (tmp_path / ".specs").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".specs" / "shop.yaml").write_text(_OPENAPI_PREFIX)
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     with pytest.raises(click.ClickException) as exc:
         run_generate(None, False)
@@ -372,8 +360,7 @@ def test_run_generate_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytes
 
     (tmp_path / ".specs").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".specs" / "shop.yaml").write_text("")
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     with pytest.raises(click.ClickException) as exc:
         run_generate(None, False)
@@ -398,8 +385,7 @@ paths:
           description: d
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     with pytest.raises(click.ClickException) as exc:
         run_generate(None, False)
@@ -414,8 +400,7 @@ def test_run_generate_versionless_spec_raises_click_exception(tmp_path: Path, mo
 
     (tmp_path / ".specs").mkdir(parents=True, exist_ok=True)
     (tmp_path / ".specs" / "shop.yaml").write_text("paths:\n  /a:\n    get: {}\n")
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     with pytest.raises(click.ClickException) as exc:
         run_generate(None, False)
@@ -441,8 +426,7 @@ paths:
           type: boolean
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     with caplog.at_level("WARNING"):
         run_generate(None, False)
@@ -474,8 +458,7 @@ paths:
                 type: object
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -512,8 +495,7 @@ paths:
       description: Health check
 """,
     )
-    config_path = _write_config(tmp_path, {"t": ".specs/t.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"t": ".specs/t.yaml"})
 
     run_generate(None, False)
 
@@ -548,8 +530,7 @@ paths:
                 - note
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -586,8 +567,7 @@ paths:
                 - note
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -629,8 +609,7 @@ paths:
                 - note
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -663,8 +642,7 @@ paths:
       description: Health check
 """,
     )
-    config_path = _write_config(tmp_path, {"t": ".specs/t.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"t": ".specs/t.yaml"})
 
     run_generate(None, False)
 
@@ -690,8 +668,7 @@ paths:
       description: Health check
 """,
     )
-    config_path = _write_config(tmp_path, {"t": ".specs/t.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"t": ".specs/t.yaml"})
 
     run_generate(None, False)
 
@@ -736,8 +713,7 @@ paths:
                     type: string
 """,
     )
-    config_path = _write_config(tmp_path, {name: f".specs/{name}.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {name: f".specs/{name}.yaml"})
     return tmp_path / "api" / name / "clients_startup_get"
 
 
@@ -790,8 +766,7 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -876,9 +851,7 @@ def test_run_generate_writes_meta_json_when_api_py_exists(tmp_path: Path, monkey
 def test_run_generate_meta_json_serializes_date_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """date/datetime values carried in parameter schemas render as ISO strings, not TypeError.
 
-    swax/Prance convert YAML date-like examples into ``datetime.date`` objects; the
-    meta.json (and schema-file) writes must serialize them instead of aborting the run
-    mid-write with a partial artifact tree (mirrors ``render_info``).
+    swax/Prance convert YAML date-like examples into ``datetime.date`` objects.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -917,8 +890,7 @@ paths:
                     example: 2020-03-03
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -936,10 +908,7 @@ paths:
 def test_run_generate_serializes_non_finite_numbers_as_null(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """YAML `.nan`/`.inf` values write as null — the bare tokens NaN/Infinity are not strict JSON.
 
-    json.dumps encodes non-finite floats as ``NaN``/``Infinity`` by default,
-    which Python's json.loads tolerates but other parsers reject. The artifact
-    files must stay parseable by any JSON consumer, so the values render as
-    ``null`` and the written text carries no bare token.
+    ``json.dumps`` emits bare ``NaN``/``Infinity`` tokens, which other parsers reject.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -970,8 +939,7 @@ paths:
                     example: .nan
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -992,10 +960,7 @@ def test_run_generate_request_body_date_example_writes_all_artifacts(
 ) -> None:
     """A date-like value in the request body must not abort the artifact write.
 
-    The schema/meta.json writes serialize dates via ``_json_default``; the
-    request-model path must do the same, otherwise a spec with a YAML date
-    example under ``format: date`` aborts the run with a raw ``TypeError``
-    after earlier artifacts are already on disk.
+    The request-model path must serialize dates like the schema/meta.json writes.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -1027,8 +992,7 @@ paths:
                 type: object
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)  # must not raise
 
@@ -1064,8 +1028,7 @@ paths:
       description: Health check
 """,
     )
-    config_path = _write_config(tmp_path, {"t": ".specs/t.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"t": ".specs/t.yaml"})
 
     # A consumer placed a real package facade in an __init__.py along the path
     facade_dir = tmp_path / "api" / "t"
@@ -1104,8 +1067,7 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(tmp_path, {"t": ".specs/t.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"t": ".specs/t.yaml"})
 
     run_generate(None, False)
     run_generate(None, False)  # re-run — must not raise, must not duplicate or clobber
@@ -1124,8 +1086,7 @@ def test_run_generate_noop_on_empty_config(
     """run_generate should be a no-op (no raise, no artifacts, no logs) on an empty config."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = _write_config(tmp_path, {})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {})
 
     with caplog.at_level("DEBUG"):
         run_generate(None, False)
@@ -1190,8 +1151,7 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(tmp_path, {name: f".specs/{name}.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {name: f".specs/{name}.yaml"})
 
 
 def test_run_generate_filters_to_single_endpoint_id(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1284,11 +1244,10 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(
+    _write_config(
         tmp_path,
         {"shop": ".specs/shop.yaml", "billing": ".specs/billing.yaml"},
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_generate(None, False, ["health_get"])
 
@@ -1326,11 +1285,10 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(
+    _write_config(
         tmp_path,
         {"shop": ".specs/shop.yaml", "billing": ".specs/billing.yaml"},
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     # health_get exists in billing but the --spec filter restricts the scope to shop
     with pytest.raises(click.ClickException) as exc:
@@ -1603,9 +1561,7 @@ def test_render_api_module_non_dict_schema_maps_to_any_without_raising(pschema) 
 def test_render_api_module_quotes_route_with_special_characters() -> None:
     """A path key carrying a quote must render a valid string literal, not broken source.
 
-    YAML permits quotes in path keys (e.g. "/o'brien/{id}"); a plain single-quoted
-    interpolation would produce an unimportable api.py (ruff format aborts). The route
-    itself is preserved verbatim — only the literal quoting changes.
+    A plain single-quoted interpolation would produce an unimportable api.py.
     """
     endpoint = Endpoint(
         method="get",
@@ -1625,9 +1581,7 @@ def test_render_api_module_quotes_route_with_special_characters() -> None:
 def test_render_api_module_sanitizes_fixture_name_to_identifier() -> None:
     """A path segment outside [a-z0-9_] must not leak into the fixture name.
 
-    build_endpoint_id normalizes "/" and "-" only; the dot in "/v1.0/clients"
-    survives into the id, and the fixture name is emitted as source text —
-    without sanitation the module is syntactically invalid.
+    ``build_endpoint_id`` normalizes "/" and "-" only, so the dot in "/v1.0/clients" survives.
     """
     endpoint = Endpoint(
         method="get",
@@ -1648,9 +1602,7 @@ def test_render_api_module_sanitizes_fixture_name_to_identifier() -> None:
 def test_run_generate_endpoint_dir_is_importable_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The per-endpoint directory must be an importable package name.
 
-    The fixture module is loaded by dotted name from its directory path, so a
-    non-identifier character in the endpoint id (the dot in "/v1.0/clients")
-    would leave the generated tree unloadable even though api.py itself is valid.
+    The fixture module is loaded by dotted name, so a non-identifier segment leaves the tree unloadable.
     """
     monkeypatch.chdir(tmp_path)
     monkeypatch.syspath_prepend(tmp_path)
@@ -1672,8 +1624,7 @@ paths:
                 type: object
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -1688,10 +1639,7 @@ paths:
 def test_run_generate_fixture_name_matches_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Fixture name and directory derive from the same sanitized id.
 
-    Distinct raw paths must not collapse onto the same fixture name while
-    writing to distinct directories — the two fixtures would shadow each other
-    with no warning. "/clients" and "/clients/" are distinct ids that stay
-    distinct after sanitization.
+    Distinct raw paths must not collapse onto one fixture name — the fixtures would shadow each other.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -1722,8 +1670,7 @@ paths:
                 type: object
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     run_generate(None, False)
 
@@ -1743,10 +1690,7 @@ paths:
 def test_run_generate_rejects_sanitized_id_collision(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Two distinct ids sanitizing to one directory abort before any write.
 
-    "/v1.0/clients" and "/v1_0/clients" both map to "v1_0_clients_get"; without
-    the check the second endpoint's artifacts would be silently skipped (they
-    "already exist") and its response schemas would land in the first endpoint's
-    directory.
+    "/v1.0/clients" and "/v1_0/clients" both map to "v1_0_clients_get".
     """
     monkeypatch.chdir(tmp_path)
 
@@ -1775,8 +1719,7 @@ paths:
                 type: object
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     with pytest.raises(click.ClickException, match="v1_0_clients_get"):
         run_generate(None, False)
@@ -1788,11 +1731,7 @@ paths:
 def test_run_generate_rejects_identical_id_from_distinct_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Two paths producing the *identical* raw id also collide and must abort.
 
-    ``build_endpoint_id`` maps both "-" and "/" to "_", so "/a-b/x" and "/a/b/x"
-    (same method) yield the same id "a_b_x_get" — not two ids that merely
-    sanitize alike. Keying the guard on the raw id lets this through: without
-    --force the second endpoint's artifacts are silently skipped, and with
-    --force they overwrite the first endpoint's schema.
+    ``build_endpoint_id`` maps "-" and "/" to "_", so "/a-b/x" and "/a/b/x" yield one raw id.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -1827,8 +1766,7 @@ paths:
                     type: string
 """,
     )
-    config_path = _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml"})
 
     # the message names both offending paths — the id alone cannot tell them apart
     with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):

@@ -1,16 +1,6 @@
 """Field-level asserts for `goga_tool_pybuggy.api`.
 
-``AssertField`` wraps a search :class:`~goga_tool_pybuggy.api.asserts.contexts.BaseContext`
-and exposes matchcrest-backed assertions over the resolved field value. Every
-check is an ``assert_that(context, matcher, reason=...)`` that returns ``self``
-for fluent chaining; calling the field (``field(search=..., index=..., hook=...)``
-or ``field(index=0)``) drills one level deeper.
-
-pybuggy ships plain classes (no reporting layer). The ``timeout``/``delay``
-polling options drive matchcrest's retry loop — the context re-fetches the
-response via ``resq.http.Response.reload()`` between attempts. The
-``timeout``/``delay`` inherited from ``AssertConfig`` are the baseline; the
-per-check ``timeout``/``delay`` kwargs override them for one assertion.
+Checks return ``self`` for chaining; calling the field drills one level deeper.
 """
 
 from __future__ import annotations
@@ -59,12 +49,9 @@ class AssertField(BaseAssert):
 
     Args:
         context: the search context providing ``value``/``key``.
-        in_array: when True, the resolved value is treated as a list and each
-            matcher option (``any``) applies element-wise.
-        timeout: baseline polling timeout (seconds) inherited from
-            ``AssertConfig``; per-check ``timeout`` kwargs override it.
-        delay: baseline polling delay (seconds) inherited from ``AssertConfig``;
-            per-check ``delay`` kwargs override it.
+        in_array: treat the resolved value as a list; matcher options apply element-wise.
+        timeout: baseline polling timeout (seconds); per-check kwargs override it.
+        delay: baseline polling delay (seconds); per-check kwargs override it.
     """
 
     def __init__(

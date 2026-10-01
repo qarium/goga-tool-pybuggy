@@ -1,10 +1,6 @@
 """Tests for ``Api.request`` serialization in `goga_tool_pybuggy.api.api`.
 
-Covers the single-request serialization algorithm: pydantic ``params``/``json``
-dumping (with ``use_aliases``), ``:name`` path substitution, headers/cookies
-merge with call-level precedence, ``auth`` defaulting (a placed ``CombineAuth``
-is never overridden), and the stripping of ``timeout``/``delay``. The resq
-``Session`` verb is mocked at its boundary.
+The resq ``Session`` verb is mocked at its boundary.
 """
 
 from __future__ import annotations
@@ -103,9 +99,7 @@ class TestRequestPathParams:
     def test_prefixed_param_names_substituted_exactly(self) -> None:
         """``:id`` must not match inside ``:id2`` — substitution is per segment.
 
-        A plain ``str.replace`` over the whole path collapses ``:id2`` to
-        ``<value>2`` whenever one parameter name is a prefix of another, and
-        the result then depends on dict ordering.
+        A whole-path ``str.replace`` would collapse ``:id2`` whenever one name is a prefix of another.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]
@@ -141,8 +135,7 @@ class TestRequestPathParams:
     def test_colon_without_param_left_untouched(self) -> None:
         """A ``:word`` with no matching parameter is literal path content.
 
-        A static segment may legally contain a colon (``09:30``); it must not
-        be treated as an unsubstituted placeholder and must not raise.
+        A static segment may legally contain a colon (``09:30``) and must not raise.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]
@@ -156,10 +149,7 @@ class TestRequestPathParams:
     def test_param_name_not_matched_inside_longer_undeclared_token(self) -> None:
         """A declared name must not match a longer token that is not declared.
 
-        Without a token-end bound, ``:id`` matches the ``:id`` prefix of the
-        literal segment ``:identity`` and silently rewrites the URL to
-        ``<value>entity``; likewise ``:3`` matches inside the static ``09:30``.
-        Only declared names substitute — anything longer stays literal.
+        Only declared names substitute — undeclared longer tokens (``:identity``) stay literal.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]
@@ -174,9 +164,7 @@ class TestRequestPathParams:
     def test_param_name_with_punctuation_matched_whole(self) -> None:
         """Names with non-word characters (``-``, ``.``) match their full token.
 
-        ``build_endpoint_id`` and ``_convert_route`` pass spec parameter names
-        through verbatim, and OpenAPI names are only required to be legal in a
-        path template — ``{order-id}`` / ``{file.name}`` are valid.
+        OpenAPI path names may contain ``-``/``.`` (``{order-id}``, ``{file.name}``) and pass through verbatim.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]
@@ -190,10 +178,7 @@ class TestRequestPathParams:
     def test_param_name_followed_by_literal_glue(self) -> None:
         """A declared ``:name`` directly before a literal ``.`` substitutes.
 
-        A path template may put the variable inside a larger segment —
-        ``/files/{id}.json`` renders to ``:id.json``. The ``.`` belongs to the
-        literal text, not to the placeholder, so the value must land in the URL
-        and must not be dropped from ``params``.
+        In ``/files/{id}.json`` the ``.`` is literal glue; the value lands in the URL and stays in ``params``.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]
@@ -207,10 +192,7 @@ class TestRequestPathParams:
     def test_hyphen_glue_before_word_char_stays_conservative(self) -> None:
         """``:name-`` before a word char does not substitute — indistinguishable.
 
-        ``/reports/{name}-final`` and an undeclared ``{name-final}`` both render
-        to ``:name-final``. Substituting ``:name`` there would also rewrite the
-        ``:order`` prefix of the legal declared name ``:order-id`` (the prefix
-        collapse pinned above), so this shape stays literal.
+        ``:name-final`` is indistinguishable from an undeclared ``{name-final}``, so it stays literal.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]
@@ -223,8 +205,7 @@ class TestRequestPathParams:
     def test_adjacent_placeholders_in_one_segment(self) -> None:
         """Two placeholders glued by a literal ``-``/``.`` both substitute.
 
-        ``/range/{from}-{to}`` renders to ``/range/:from-:to`` — each name ends
-        where the glue starts, so neither may swallow the other's token.
+        In ``/range/:from-:to`` each name ends where the glue starts, so neither swallows the other.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]
@@ -238,9 +219,7 @@ class TestRequestPathParams:
     def test_glued_name_not_matched_inside_undeclared_longer_token(self) -> None:
         """The glue rule must not reintroduce the prefix-collapse regression.
 
-        ``:id`` followed by ``.``/``-`` glue substitutes, but it must still not
-        match the ``:id`` prefix of an undeclared longer token such as
-        ``:identity`` or ``:id.json`` when ``:id`` itself is not declared.
+        Glue substitution must still not match the ``:id`` prefix of an undeclared ``:identity``.
         """
         api = _api()
         api._client.get = mock.Mock()  # type: ignore[method-assign]

@@ -1,18 +1,13 @@
 """End-to-end integration tests for the pybuggy CLI.
 
-Tests the full CLI flow from entry point through subcommands. The config path is
-static (``goga_tool_pybuggy.config.CONFIG_PATH``); tests point it at a local ``config.yml``
-via monkeypatch and run inside an isolated filesystem.
+The config comes from ``.goga/tools/pybuggy/config.yml``; tests write that tree in an isolated filesystem.
 """
 
 import json
 import pathlib
 
-import pytest
 from click.testing import CliRunner
 from goga_tool_pybuggy import main
-
-CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
 
 _CLIENT_SPEC = """
 openapi: 3.0.0
@@ -55,8 +50,9 @@ paths:
 
 
 def _write_config(specs_body: str) -> pathlib.Path:
-    """Write a config.yml (relative path) in the current cwd and return it."""
-    config_file = pathlib.Path("config.yml")
+    """Write a config.yml at the standard relative tool-config path in the current cwd."""
+    config_file = pathlib.Path(".goga/tools/pybuggy/config.yml")
+    config_file.parent.mkdir(parents=True, exist_ok=True)
     config_file.write_text(f"specs:\n{specs_body}")
 
     return config_file
@@ -85,9 +81,7 @@ def test_endpoint_group_help() -> None:
 def test_endpoint_group_help_includes_generate() -> None:
     """Verify that endpoint --help lists the generate subcommand.
 
-    The facade ``CODEMANIFEST`` declares that ``generate_cmd`` is registered on
-    the ``endpoint`` subgroup (``main()`` Algorithm step 3). This regression
-    test fails fast if the registration is ever dropped.
+    Regression: ``generate_cmd`` is registered on the ``endpoint`` subgroup per ``main()`` Algorithm step 3.
     """
     runner = CliRunner()
     result = runner.invoke(main, ["endpoint", "--help"])
@@ -99,7 +93,7 @@ def test_endpoint_group_help_includes_generate() -> None:
     assert "generate" in main.commands["endpoint"].commands
 
 
-def test_endpoint_list_with_real_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_list_with_real_spec() -> None:
     """Test endpoint list with a real minimal spec file."""
     runner = CliRunner()
 
@@ -108,8 +102,7 @@ def test_endpoint_list_with_real_spec(monkeypatch: pytest.MonkeyPatch) -> None:
         spec_file.parent.mkdir(parents=True, exist_ok=True)
         spec_file.write_text(_CLIENT_SPEC)
 
-        config_file = _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+        _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
 
         result = runner.invoke(main, ["endpoint", "list"])
 
@@ -122,7 +115,7 @@ def test_endpoint_list_with_real_spec(monkeypatch: pytest.MonkeyPatch) -> None:
         assert "clients_startup_get" in result.output
 
 
-def test_endpoint_info_with_real_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_info_with_real_spec() -> None:
     """Test endpoint info with a real minimal spec file."""
     runner = CliRunner()
 
@@ -163,8 +156,7 @@ paths:
 """
         )
 
-        config_file = _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+        _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
 
         result = runner.invoke(main, ["endpoint", "info", "clients_id_get"])
 
@@ -176,7 +168,7 @@ paths:
         assert "verbose" in data["QueryParams"]
 
 
-def test_endpoint_info_not_found(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_info_not_found() -> None:
     """Test endpoint info when endpoint_id is not found."""
     runner = CliRunner()
 
@@ -198,8 +190,7 @@ paths:
 """
         )
 
-        config_file = _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+        _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
 
         result = runner.invoke(main, ["endpoint", "info", "nonexistent_id"])
 
@@ -228,7 +219,7 @@ def test_endpoint_pull_exposes_ref_option() -> None:
     assert "--spec" in result.output  # existing option still wired
 
 
-def test_endpoint_list_with_spec_filter(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_list_with_spec_filter() -> None:
     """Test endpoint list with --spec filter."""
     runner = CliRunner()
 
@@ -264,11 +255,10 @@ paths:
 """
         )
 
-        config_file = _write_config(
+        _write_config(
             "  api1:\n    type: openapi\n    location: specs/api1.yaml\n"
             "  api2:\n    type: openapi\n    location: specs/api2.yaml\n"
         )
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
 
         result = runner.invoke(main, ["endpoint", "list", "--spec", "api1"])
 
@@ -278,12 +268,10 @@ paths:
         assert "api2" not in result.output.lower()
 
 
-def test_endpoint_generate_scaffolds_files(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_generate_scaffolds_files() -> None:
     """Test endpoint generate scaffolds response schemas and an empty tests dir end-to-end.
 
-    Drives the full chain ``main`` → ``endpoint_group`` → ``generate_cmd`` → ``run_generate``
-    → ``load_config``/``load_spec``/``extract_endpoints`` → filesystem. Confirms that the
-    ``-s/--spec`` option is wired through the facade and the scaffolded tree matches the contract.
+    Drives the full generate chain to the filesystem, confirming ``-s/--spec`` wiring and the contract tree.
     """
     runner = CliRunner()
 
@@ -322,8 +310,7 @@ paths:
 """
         )
 
-        config_file = _write_config("  t:\n    type: openapi\n    location: specs/t.yaml\n")
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+        _write_config("  t:\n    type: openapi\n    location: specs/t.yaml\n")
 
         result = runner.invoke(main, ["endpoint", "generate", "-s", "t"])
 
@@ -366,14 +353,10 @@ paths:
 """
 
 
-def test_endpoint_generate_scaffolds_files_swagger_spec(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_generate_scaffolds_files_swagger_spec() -> None:
     """Test endpoint generate scaffolds response schemas from a Swagger 2.0 spec end-to-end.
 
-    Parallel to ``test_endpoint_generate_scaffolds_files`` but with a Swagger 2.0
-    spec and a ``type: swagger`` config entry. Drives the full chain with
-    content-based version detection (``extract_endpoints`` detects ``swagger``),
-    confirming the generate pipeline produces the same scaffolded tree for a
-    Swagger spec as for the equivalent OpenAPI spec.
+    Parallel to the OpenAPI test, driven via ``type: swagger`` and content-based version detection.
     """
     runner = CliRunner()
 
@@ -382,8 +365,7 @@ def test_endpoint_generate_scaffolds_files_swagger_spec(monkeypatch: pytest.Monk
         spec_file.parent.mkdir(parents=True, exist_ok=True)
         spec_file.write_text(_swagger_spec_yaml())
 
-        config_file = _write_config("  t:\n    type: swagger\n    location: specs/t.yaml\n")
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+        _write_config("  t:\n    type: swagger\n    location: specs/t.yaml\n")
 
         result = runner.invoke(main, ["endpoint", "generate", "-s", "t"])
 
@@ -393,13 +375,10 @@ def test_endpoint_generate_scaffolds_files_swagger_spec(monkeypatch: pytest.Monk
         assert pathlib.Path("tests/t/clients_startup_get").is_dir()
 
 
-def test_endpoint_list_status_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_list_status_end_to_end() -> None:
     """Test endpoint list --status end-to-end over a generated artifact tree.
 
-    Drives the full chain ``main`` → ``list_cmd`` → ``run_list`` →
-    ``endpoint_statuses`` → ``render_status_list`` against a tree produced by a
-    real ``generate`` invocation — no handler monkeypatching, so a break in the
-    click layer itself (flag wiring, exit-code mapping) surfaces here.
+    No handler monkeypatching, so a break in the click layer (flag wiring, exit-code mapping) surfaces here.
     """
     runner = CliRunner()
 
@@ -408,8 +387,7 @@ def test_endpoint_list_status_end_to_end(monkeypatch: pytest.MonkeyPatch) -> Non
         spec_file.parent.mkdir(parents=True, exist_ok=True)
         spec_file.write_text(_CLIENT_SPEC)
 
-        config_file = _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+        _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
 
         generate_result = runner.invoke(main, ["endpoint", "generate", "-s", "test"])
         assert generate_result.exit_code == 0
@@ -424,12 +402,10 @@ def test_endpoint_list_status_end_to_end(monkeypatch: pytest.MonkeyPatch) -> Non
         assert "REMOVED" not in result.output
 
 
-def test_endpoint_diff_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_endpoint_diff_end_to_end() -> None:
     """Test endpoint diff end-to-end: a generated tree prints one empty document per endpoint.
 
-    Drives the full chain ``main`` → ``diff_cmd`` → ``run_diff`` → ``render_diff``
-    against a real generated tree, then confirms the drift verdict for a spec-side
-    change — the exit code stays 0 in both cases (drift is a result, not a failure).
+    Drift is a result, not a failure — the exit code stays 0 even with a spec-side change.
     """
     runner = CliRunner()
 
@@ -438,8 +414,7 @@ def test_endpoint_diff_end_to_end(monkeypatch: pytest.MonkeyPatch) -> None:
         spec_file.parent.mkdir(parents=True, exist_ok=True)
         spec_file.write_text(_CLIENT_SPEC)
 
-        config_file = _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
-        monkeypatch.setattr(CONFIG_PATH_ATTR, config_file)
+        _write_config("  test:\n    type: openapi\n    location: specs/test_api.yaml\n")
 
         generate_result = runner.invoke(main, ["endpoint", "generate", "-s", "test"])
         assert generate_result.exit_code == 0

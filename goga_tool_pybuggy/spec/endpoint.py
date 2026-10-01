@@ -10,7 +10,6 @@ from .endpoint_id import build_endpoint_id
 class Endpoint(BaseModel):
     """HTTP endpoint representation with computed id.
 
-    Represents a single API endpoint extracted from an OpenAPI/Swagger spec.
     The `id` field is computed from method and path via `build_endpoint_id`.
 
     Attributes:

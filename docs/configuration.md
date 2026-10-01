@@ -4,9 +4,10 @@ pybuggy reads a single YAML file — `.goga/tools/pybuggy/config.yml` — from a
 path** relative to the project root. There is no `--config` option; every command loads
 the config itself.
 
-The file carries three concerns: the **plugin options** (feed the `api` fixture), the
-**`specs`** section (what the CLI commands operate on), and the optional **`loader`**
-section (generated-fixture discovery).
+The file carries four concerns: the **plugin options** (feed the `api` fixture), the
+**`specs`** section (what the CLI commands operate on), the optional **`loader`**
+section (generated-fixture discovery), and the optional **`pipelines`** section
+(autonomous-run switches).
 
 ## Plugin options
 
@@ -108,6 +109,25 @@ specs:
 - `git.ref` is the default ref for cloning; `--ref` overrides it (priority:
   `--ref` > `git.ref` > default branch — see [pull](cli/pull.md)).
 
+## The `pipelines` section
+
+Optional per-pipeline autonomy switches, keyed by pipeline name:
+
+```yaml
+pipelines:
+  api.automate:
+    autonomous: true
+```
+
+- The dict key (`api.automate`) names the pipeline; each entry carries exactly one
+  boolean member, `autonomous`. An entry with any other member is a **hard error** —
+  a mistyped key fails the run instead of silently disabling autonomy.
+- An absent file, an absent `pipelines` section, an absent name, and
+  `autonomous: false` all mean **disabled** (the default interactive run).
+- Entries for pipeline names the tool does not implement are ignored.
+- `autonomous: true` makes a running `api.automate` pipeline run unattended — see
+  [Autonomous runs](pipelines/api-automate.md#autonomous-runs).
+
 ## The `loader` section
 
 Overrides the generated-fixture discovery of the plugin (default: the `api/` package,
@@ -128,4 +148,5 @@ Details: [Plugin — loaders](plugin/loaders.md).
 
 The file is read as YAML and validated into a typed model; an invalid configuration
 raises a validation error. Scalar plugin keys that `Config` does not know are ignored
-(`extra=ignore`) — the same file safely serves both the CLI and the plugin.
+(`extra=ignore`), and the `pipelines` section is likewise ignored by the plugin model —
+the same file safely serves the CLI, the plugin, and autonomy.

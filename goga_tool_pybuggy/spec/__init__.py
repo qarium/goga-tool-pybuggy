@@ -1,8 +1,5 @@
 """
 goga_tool_pybuggy.spec — OpenAPI/Swagger endpoint extraction.
-
-Exports build_endpoint_id, detect_spec_version, Endpoint, load_spec,
-extract_endpoints.
 """
 
 from .endpoint import Endpoint

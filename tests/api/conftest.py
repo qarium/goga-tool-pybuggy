@@ -1,13 +1,6 @@
 """Shared fixtures and helpers for `goga_tool_pybuggy.api` cell tests.
 
-Provides:
-- ``HeaderAuth`` — an ``AuthBase`` that sets a single configurable header on a
-  prepared request; reused as ``Api.auth`` and as a call-level ``AuthBase``.
-- ``stub_request`` — a fixture returning a minimal object exposing a mutable
-  ``headers`` dict, standing in for a ``requests`` ``PreparedRequest`` in
-  pure-logic auth tests.
-- ``FakeResponse`` / ``make_response`` — a minimal ``resq.http.Response`` stand-in
-  exposing ``status_code``/``headers``/``url``/``json()`` for assert tests.
+Provides ``HeaderAuth``, ``stub_request``, and ``FakeResponse``/``make_response``.
 """
 
 from __future__ import annotations
@@ -52,9 +45,7 @@ class StubRequest:
 class FakeResponse:
     """Minimal stand-in for ``resq.http.Response`` in assert tests.
 
-    Exposes the surface the asserts read: ``status_code``, ``headers``, ``url``,
-    and ``json()``. ``resq.http.Response`` has no ``.request``, so neither does
-    this stand-in.
+    Exposes ``status_code``/``headers``/``url``/``json()``; no ``.request``, matching ``resq.http.Response``.
 
     Args:
         status_code: HTTP status code.

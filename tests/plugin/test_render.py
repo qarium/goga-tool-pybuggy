@@ -1,16 +1,6 @@
 """Tests for the `goga_tool_pybuggy.plugin.render` cell (`render_base_url`).
 
-Mirrors the source layout (`tests/plugin/test_render.py`). Covers the contract
-surface (importability + presence of `render_base_url`) and the rendering
-behavior: Jinja2 variable substitution, `StrictUndefined`, the `match_re` test,
-plain-URL backward compatibility, and URL whitespace normalization.
-
-Whitespace normalization is the URL-specific behavior of `render_base_url`: a
-URL never legitimately contains literal whitespace (it would be percent-encoded
-to `%20` and break the request path), so every whitespace run in the rendered
-result is removed. This is what makes multi-line `base_url` templates — whether
-a YAML folded scalar (`>`) or a literal block scalar (`|`) — render to a single
-clean URL in both conditional branches.
+Covers Jinja2 substitution, `StrictUndefined`, `match_re`, plain-URL compat, and whitespace normalization.
 """
 
 import jinja2
@@ -76,12 +66,7 @@ class TestRenderBaseUrlRendering:
 class TestRenderBaseUrlWhitespaceNormalization:
     """URL whitespace normalization — the fix for multi-line templates.
 
-    These template strings mirror what YAML produces AFTER parsing a multi-line
-    `base_url`: a folded scalar (`>`) folds newlines into spaces, and a literal
-    block scalar (`|`) keeps them. `render_base_url` must strip every whitespace
-    run so the URL is clean in both conditional branches (the trailing space
-    left by an empty conditional, and the internal space left before a matched
-    conditional suffix).
+    Templates mirror parsed YAML scalars; every whitespace run must be stripped.
     """
 
     def test_strips_leading_and_trailing_whitespace(self):
@@ -89,15 +74,13 @@ class TestRenderBaseUrlWhitespaceNormalization:
         assert render_base_url("  https://x.example/api  ", {}) == "https://x.example/api"
 
     def test_strips_trailing_space_from_empty_conditional(self):
-        # The reported bug: a folded scalar puts a space before `{% if %}`, and an
-        # empty (no-match) conditional leaves it as a trailing space -> `%20`.
+        # A folded scalar's space before `{% if %}` is left trailing on no-match -> `%20`.
         template = "http://{{ env }}.svc.example/api/v1 {% if v is match_re('^feature-.*$') %}-{{ v }}{% endif %}\n"
 
         assert render_base_url(template, {"env": "stage-el", "v": "1.2.3"}) == ("http://stage-el.svc.example/api/v1")
 
     def test_strips_internal_space_from_matched_conditional(self):
-        # Same root cause, matched branch: the space before `{% if %}` would land
-        # in the middle of the URL (`/api/v1 -feature-123` -> `/api/v1%20-feature-123`).
+        # Same root cause, matched branch: the space would land mid-URL (`/api/v1%20-feature-123`).
         template = "http://{{ env }}.svc.example/api/v1 {% if v is match_re('^feature-.*$') %}-{{ v }}{% endif %}\n"
 
         assert render_base_url(template, {"env": "stage-el", "v": "feature-123"}) == (
@@ -105,8 +88,7 @@ class TestRenderBaseUrlWhitespaceNormalization:
         )
 
     def test_strips_newlines_from_literal_block_template(self):
-        # A literal block scalar (`|`) keeps the newline between the URL line and
-        # the conditional line; it must not survive into the rendered URL.
+        # A literal block scalar (`|`) keeps the newline; it must not survive the render.
         template = "http://{{ env }}.svc.example/api/v1\n{% if v is match_re('^feature-.*$') %}-{{ v }}{% endif %}"
 
         assert render_base_url(template, {"env": "stage-el", "v": "feature-123"}) == (

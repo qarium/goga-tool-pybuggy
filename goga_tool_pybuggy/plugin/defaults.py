@@ -1,10 +1,6 @@
 """Plugin-cell defaults.
 
-Implementation-hint constants (not contract types): the yaml config-file path
-read by ``pluginator``'s ``plugin_config`` for the ``ApiPlugin`` options, and
-the ``default_from`` sources for the ``assert_timeout``/``assert_delay`` options
-(``None`` — polling is opt-in via config/CLI). The config file is tolerated
-when absent (``plugin_config`` returns ``default_config`` or ``{}``).
+Implementation-hint constants (not contract types); ``None`` defaults make assert polling opt-in via config/CLI.
 """
 
 from typing import Final

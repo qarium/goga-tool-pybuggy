@@ -6,8 +6,7 @@ from goga_tool_pybuggy import main
 def test_init_registered_top_level_not_under_endpoint() -> None:
     """init_cmd is registered on the root group directly, not under the endpoint subgroup.
 
-    Mirrors the ``main()`` Algorithm steps 5-6 in ``goga_tool_pybuggy/CODEMANIFEST``: ``init_cmd`` is attached
-    to ``main`` top-level, while pull/list/info/generate remain under the ``endpoint`` subgroup.
+    ``init_cmd`` is top-level per ``main()`` Algorithm steps 5-6; the endpoint commands stay grouped.
     """
     assert "endpoint" in main.commands
     assert "init" in main.commands
@@ -20,9 +19,7 @@ def test_init_registered_top_level_not_under_endpoint() -> None:
 def test_cli_registers_diff_on_endpoint_subgroup() -> None:
     """diff_cmd is registered on the endpoint subgroup after generate_cmd.
 
-    Mirrors the ``main()`` Algorithm step 5 in ``goga_tool_pybuggy/CODEMANIFEST``: ``diff_cmd`` is
-    attached to the ``endpoint`` subgroup (final order pull, list, info, generate, diff), while
-    ``init`` stays top-level only.
+    ``diff_cmd`` joins the ``endpoint`` subgroup (order pull, list, info, generate, diff) per ``main()`` step 5.
     """
     assert "endpoint" in main.commands
 

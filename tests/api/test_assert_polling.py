@@ -1,16 +1,6 @@
 """Tests for assert polling and pluggable-class loading in `goga_tool_pybuggy.api.asserts`.
 
-Covers the four ``ApiPlugin`` assert options:
-
-- ``assert_timeout`` / ``assert_delay`` — matchcrest's retry loop, re-fetching
-  the response via ``resq.http.Response.reload()`` between attempts (driven by
-  ``AssertConfig.timeout``/``delay`` and overridable per check method);
-- ``assert_field_class`` / ``assert_response_class`` — dotted-path loading of a
-  custom ``AssertField`` / ``Expect`` subclass.
-
-The network is not involved: a ``ReloadableResponse`` stands in for
-``resq.http.Response`` (its ``reload()`` advances a queue of canned bodies), and
-a fake clock bounds the retry loop so the timeout case is deterministic.
+No network: a canned-body ``ReloadableResponse`` and a fake clock keep the retry loop deterministic.
 """
 
 from __future__ import annotations
@@ -31,9 +21,7 @@ from tests.api.conftest import FakeResponse
 class _FakeClock:
     """Deterministic stand-in for ``time.time``/``time.sleep``.
 
-    ``sleep`` advances the virtual clock by the requested delay (no real wait);
-    ``time`` reports it. Installed onto the real ``time`` module for the polling
-    tests so the retry loop is bounded and instant.
+    ``sleep`` advances the virtual clock instead of waiting; installed onto the real ``time`` module.
     """
 
     def __init__(self) -> None:
