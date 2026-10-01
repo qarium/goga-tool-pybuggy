@@ -466,21 +466,23 @@ the deleted API (they will be recreated by Tasks 3–9 per the Source File Regis
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create the project virtualenv at `.venv` (`python3 -m venv .venv`) using the system Python 3.12
-- [ ] Edit `pyproject.toml`: in `[project.optional-dependencies].test` replace `goga>=1.3.0,<1.4.0` with
+- [x] Create the project virtualenv at `.venv` (`python3 -m venv .venv`) using the system Python 3.12
+- [x] Edit `pyproject.toml`: in `[project.optional-dependencies].test` replace `goga>=1.3.0,<1.4.0` with
       `goga>=2.0.1,<2.1`
-- [ ] Install: `.venv/bin/python -m pip install -e .[test]`
-- [ ] Verify the engine surface in the venv (REPL, M-R4.5):
+- [x] Install: `.venv/bin/python -m pip install -e .[test]`
+- [x] Verify the engine surface in the venv (REPL, M-R4.5):
       `.venv/bin/python -c "from goga.onboarding import FileGenerator, InitLogic, Question, QuestionGroup, Questionnaire, SessionAnswers, ToolParticipation; from goga.scaffold import Scaffold"` — must succeed
-- [ ] Delete the stale 1.x test files `tests/commands/init/test_init.py` and
+- [x] Delete the stale 1.x test files `tests/commands/init/test_init.py` and
       `tests/commands/init/test_init_integration.py` (they import `run_goga_init` / `build_pybuggy_config` /
       `run_onboarding` / `write_pybuggy_config` / `ensure_review_executor_skip` — all deleted by this plan)
-- [ ] Verify facade accessibility (current, pre-skeleton state — expected to FAIL on the new names, this
+- [x] Verify facade accessibility (current, pre-skeleton state — expected to FAIL on the new names, this
       records the gap): `.venv/bin/python -c "import goga_tool_pybuggy"` — the documented dead-import gap;
       document the observed error in the task notes
-- [ ] Record the working-tree diff: `git status` shows exactly `pyproject.toml` modified and the two test
+      (observed: `ImportError: cannot import name 'GogaConfigAnswers' from 'goga.onboarding'` at
+      `goga_tool_pybuggy/commands/init/init.py:19`; task notes in `.ralphex/progress/progress-plan.txt`)
+- [x] Record the working-tree diff: `git status` shows exactly `pyproject.toml` modified and the two test
       files deleted — nothing else
-- [ ] Lint: `.venv/bin/ruff check goga_tool_pybuggy/` — clean (sources untouched; commit gate M-R3.4)
+- [x] Lint: `.venv/bin/ruff check goga_tool_pybuggy/` — clean (sources untouched; commit gate M-R3.4)
 
 ### Task 2: Cell skeleton — `session.py`/`bootstrap.py` modules, dead-code removal, 17-name facade (infrastructure)
 
