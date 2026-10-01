@@ -14,6 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import click
+from goga.scaffold import Scaffold
+
+from .session import run_session
 
 logger = logging.getLogger(__name__)
 
@@ -206,7 +209,31 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
         click.ClickException: On an invalid flag combination (raised by
             :func:`resolve_init_mode`; click prints the message and exits 1).
     """
-    raise NotImplementedError
+    mode = resolve_init_mode(tpl, ref, upgrade)
+
+    # Already-initialized guard — bare mode only, mirroring `goga init`: a repeat invocation
+    # over an initialized project must not update any file, so it refuses before the session
+    # or the bootstrap could write anything. The check is directory existence only — exactly
+    # goga's `Path(".goga").is_dir()`; a `.goga` regular file passes (nothing is initialized).
+    if mode == _BARE and Path(".goga").is_dir():
+        click.echo("Project already initialized", err=True)
+        return 1
+
+    if mode == _UPGRADE:
+        return Scaffold().upgrade(ref)
+
+    if mode == _TEMPLATE:
+        engine_code = Scaffold().generate(tpl, ref)
+
+        if engine_code != 0:
+            return engine_code
+
+    session_code = run_session()
+
+    if session_code != 0:
+        return session_code
+
+    return run_bootstrap(template_mode=(mode == _TEMPLATE))
 
 
 def run_bootstrap(template_mode: bool) -> int:

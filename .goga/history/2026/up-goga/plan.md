@@ -926,19 +926,19 @@ Output: 0 / 1 / propagated engine or session code.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_init.py`, expected to fail against the stubs):
+- [x] **Contract tests** (in `tests/commands/init/test_init.py`, expected to fail against the stubs):
       facade import of the three names; `init_cmd.__click_params__` surface (optional positional `tpl`,
       flag `--upgrade`, option `--ref`); `run_init` / `resolve_init_mode` signatures
-- [ ] **REPL cycle** (M-R4.1/M-R4.2): in the venv REPL — exercise `resolve_init_mode` across the flag table;
+- [x] **REPL cycle** (M-R4.1/M-R4.2): in the venv REPL — exercise `resolve_init_mode` across the flag table;
       dry-drive `run_init` with `run_session`/`run_bootstrap` monkeypatched recorders (bare → session+bootstrap
       order, template flag propagation); migrate the verified `run_init` body into `init.py`, re-verify via
       fresh import
-- [ ] **Code**: implement `run_init` per the trace above (session seam propagated; bootstrap last; no wrapping)
-- [ ] **Code**: confirm `init_cmd` and `resolve_init_mode` complete (landed in Task 2; verify behavior —
+- [x] **Code**: implement `run_init` per the trace above (session seam propagated; bootstrap last; no wrapping)
+- [x] **Code**: confirm `init_cmd` and `resolve_init_mode` complete (landed in Task 2; verify behavior —
       carried-over code, zero diffs expected beyond module moves)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_init.py -v` — contract
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_init.py -v` — contract
       tests pass
-- [ ] **Logic tests** (design scenarios, Setup/Assertions transferred):
+- [x] **Logic tests** (design scenarios, Setup/Assertions transferred):
       - `test_resolve_init_mode_table` (parametrized) — `(None, None, False)`→`bare`; `("tpl", None, False)`→
         `template`; `("tpl", "v2", False)`→`template`; `(None, "v2", True)`→`upgrade`;
         `(None, None, True)`→`upgrade`
@@ -961,11 +961,11 @@ Output: 0 / 1 / propagated engine or session code.
       - `test_init_cmd_binds_surface_and_propagates_exit` — introspect `init_cmd.__click_params__`; fake
         `ctx` object; `init_cmd(ctx, None, None, False)` with `run_init` monkeypatched → 3; Assertions:
         params carry the optional positional `tpl`, flag `--upgrade`, option `--ref`; `ctx.exit` called with 3
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
       (do NOT fix test code)
-- [ ] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations (guard
+- [x] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations (guard
       semantics, code propagation, no wrapping of engine diagnostics)
-- [ ] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
+- [x] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
       `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/init.py tests/commands/init/test_init.py`
       — clean (commit gate M-R3.4)
 
