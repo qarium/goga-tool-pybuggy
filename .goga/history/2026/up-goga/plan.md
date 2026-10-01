@@ -1029,22 +1029,22 @@ by the already-initialized guard. Documented in MIGRATION.md (Task 10) and `.usa
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_init.py`, expected to fail against the stub):
+- [x] **Contract tests** (in `tests/commands/init/test_init.py`, expected to fail against the stub):
       facade import of `run_bootstrap`; signature `run_bootstrap(template_mode: bool) -> int`;
       `_resolve_dockerfile_path` present in the module
-- [ ] **REPL cycle** (M-R4.1/M-R4.2): in the venv REPL with a scratch cwd under `tmp_path` — pre-create the
+- [x] **REPL cycle** (M-R4.1/M-R4.2): in the venv REPL with a scratch cwd under `tmp_path` — pre-create the
       session artifacts (`.goga/config.yml` with `dockerfile: Dockerfile`, a root `Dockerfile` with
       `FROM x`), run `run_bootstrap(template_mode=True)` interactively, inspect every produced file
       (usages copies, conventions slot, `build.review.skip`, install line at the RESOLVED path, conftest);
       reload after each edit (M-R4.2); migrate verified code, re-verify via fresh import (M-R4.3)
-- [ ] **Code**: implement `_resolve_dockerfile_path` (config `dockerfile` field via `yaml.safe_load`,
+- [x] **Code**: implement `_resolve_dockerfile_path` (config `dockerfile` field via `yaml.safe_load`,
       fallback `_DOCKERFILE_DEFAULT`; missing/empty config → fallback)
-- [ ] **Code**: implement `run_bootstrap` — the nine steps with the wrapped tier
+- [x] **Code**: implement `run_bootstrap` — the nine steps with the wrapped tier
       (`except (OSError, YAMLError, ValueError)` → `logger.error` + return 1), the mode gates, the final
       Dockerfile existence check (ERROR + 1)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_init.py -v` — contract
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_init.py -v` — contract
       tests pass
-- [ ] **Logic tests** (design scenarios, Setup/Assertions transferred):
+- [x] **Logic tests** (design scenarios, Setup/Assertions transferred):
       - `test_run_bootstrap_full_pass_on_fresh_session_artifacts` — Setup: `tmp_path` cwd; pre-create
         `.goga/config.yml` (yaml text with `dockerfile: .goga/Dockerfile`), `.goga/Dockerfile` (`FROM x`);
         no conftest; `run_bootstrap(template_mode=False)`; Assertions: return 0;
@@ -1079,11 +1079,13 @@ by the already-initialized guard. Documented in MIGRATION.md (Task 10) and `.usa
       - `test_run_bootstrap_empty_and_broken_config_variants` — variant A: absent `.goga/config.yml`
         (registrations create the minimal document; dockerfile falls back); variant B: empty file (ruamel
         `load` → `None` handling); Assertions: no exception; Dockerfile fallback path used
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
       (do NOT fix test code)
-- [ ] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations (gates,
+      (observed: one test-side assertion fixed — the step-failure cause lives in the log record's
+      `extra={"error": ...}` per M-R1.5, not in the message text; implementation unchanged)
+- [x] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations (gates,
       idempotency, mandatory Dockerfile invariant, non-raising failure tier)
-- [ ] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
+- [x] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
       `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/init.py tests/commands/init/test_init.py`
       — clean; decompose if the C90 complexity cap demands it (commit gate M-R3.4)
 

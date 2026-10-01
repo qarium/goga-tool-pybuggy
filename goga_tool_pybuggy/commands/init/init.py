@@ -9,13 +9,24 @@ silent-skip gates; **upgrade** (``pybuggy init --upgrade [--ref R]``) migrates a
 previously scaffolded project through the engine alone — no session, no bootstrap.
 """
 
+import importlib.resources
 import logging
 from pathlib import Path
 from typing import Any
 
 import click
+import yaml
 from goga.scaffold import Scaffold
+from ruamel.yaml import YAMLError
 
+from .bootstrap import (
+    ensure_review_skip,
+    install_pybuggy,
+    register_annotations,
+    register_usages,
+    write_pybuggy_conftest,
+    write_test_convention,
+)
 from .session import run_session
 
 logger = logging.getLogger(__name__)
@@ -106,6 +117,30 @@ def _log_registration(
             logger.warning("annotation already registered, skipped", extra={"key": key})
 
 
+def _gate_conftest(cwd: Path, template_mode: bool) -> None:
+    """Deliver the root ``conftest.py`` through the mode-dependent gate (bootstrap step 7).
+
+    Extracted from :func:`run_bootstrap` to keep it under the cyclomatic-complexity cap. When
+    ``<cwd>/conftest.py`` does not exist it is written unconditionally; when it exists, template
+    mode silently skips with an INFO log and bare mode asks (``click.confirm``, default ``no``) —
+    declining leaves the file untouched and the bootstrap continues. The decision lives here, in
+    the orchestrator's helper: :func:`write_pybuggy_conftest` itself always writes without any
+    check. A ``click.Abort`` at the confirm propagates to click unswallowed.
+
+    Args:
+        cwd: The target project root whose ``conftest.py`` is (re)generated.
+        template_mode: Whether the bootstrap runs in template mode (silent skip instead of a prompt).
+    """
+    conftest = cwd / "conftest.py"
+
+    if not conftest.exists():
+        write_pybuggy_conftest(conftest)
+    elif template_mode:
+        logger.info("existing file kept untouched", extra={"path": str(conftest)})
+    elif click.confirm("conftest.py exists — overwrite it?", default=False):
+        write_pybuggy_conftest(conftest)
+
+
 # The three init modes (the contract fixes the literal strings) — bare onboarding, template
 # scaffolding, and template migration. Module-level constants so each mode value has a single
 # source: resolve_init_mode returns them, run_init dispatches on them.
@@ -134,7 +169,16 @@ def _resolve_dockerfile_path(config: Path) -> Path:
     Returns:
         The resolved Dockerfile path (existing or not).
     """
-    raise NotImplementedError
+    if config.exists():
+        document = yaml.safe_load(config.read_text(encoding="utf-8"))
+
+        if isinstance(document, dict):
+            field = document.get("dockerfile")
+
+            if field:
+                return Path(field)
+
+    return _DOCKERFILE_DEFAULT
 
 
 def resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> str:
@@ -272,7 +316,58 @@ def run_bootstrap(template_mode: bool) -> int:
     Returns:
         0 on success; 1 on a failed step or a missing Dockerfile after the session.
     """
-    raise NotImplementedError
+    cwd = Path.cwd()
+    config = cwd / ".goga" / "config.yml"
+
+    try:
+        discovered = _discover_usages(importlib.resources.files("goga_tool_pybuggy.api"))
+
+        for stem, text in discovered:
+            dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"
+
+            if dest.exists() and template_mode:
+                logger.info("existing file kept untouched", extra={"path": str(dest)})
+                continue
+
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text, encoding="utf-8")
+
+        # The conventions slot is delivered skip-if-exists in BOTH modes — existing content is
+        # never overwritten (INFO) and never prompted about.
+        slot = cwd / ".goga" / "usages" / "conventions.md"
+
+        if slot.exists():
+            logger.info("existing file kept untouched", extra={"path": str(slot)})
+        else:
+            write_test_convention(slot)
+
+        # Always-run augmentations — they apply to whatever the target directory already contains.
+        ensure_review_skip(config)
+
+        dockerfile = _resolve_dockerfile_path(config)
+        install_pybuggy(dockerfile)
+
+        usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem, _ in discovered}
+        usage_keys["conventions"] = ".goga/usages/conventions.md"
+        annotation_lines = {f"pybuggy-{stem}": _annotation_for(stem) for stem, _ in discovered}
+        annotation_lines["conventions"] = _CONVENTION_LINE
+
+        added_usage_keys = register_usages(config, usage_keys)
+        changed_annotation_keys = register_annotations(config, annotation_lines)
+        _log_registration(usage_keys, added_usage_keys, annotation_lines, changed_annotation_keys)
+
+        _gate_conftest(cwd, template_mode)
+    except (OSError, YAMLError, ValueError) as e:
+        logger.error("onboarding bootstrap failed", extra={"error": str(e)})
+        return 1
+
+    # The mandatory-Dockerfile invariant: pybuggy requires a Dockerfile to carry its install
+    # line, so a session that leaves none (the declined-Dockerfile branch) fails the command.
+    if not dockerfile.exists():
+        logger.error("Dockerfile missing after the session", extra={"path": str(dockerfile)})
+        return 1
+
+    return 0
 
 
 @click.command("init")

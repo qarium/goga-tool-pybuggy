@@ -1,24 +1,44 @@
-"""Tests for the init module — CLI surface, mode resolution, three-mode orchestrator.
+"""Tests for the init module — CLI surface, mode resolution, three-mode orchestrator, bootstrap.
 
-Covers ``init.py`` in the goga 2.0 shape (Task 6): the contract surface (facade
-names, the Click wrapper's bound parameters, the handler signatures), the
-carried-over pure ``resolve_init_mode`` flag table, and the rewired ``run_init``
-orchestrator — bare guard on ``.goga`` directory existence, engine scaffold
-codes propagated as-is, the session seam propagated unchanged with the
-bootstrap skipped on failure, and the bootstrap last with the template-mode
-flag. The wrapper is driven through a fake ``ctx`` (M-R2.6 — no CliRunner).
+Covers ``init.py`` in the goga 2.0 shape: the contract surface (facade names, the Click
+wrapper's bound parameters, the handler signatures), the carried-over pure
+``resolve_init_mode`` flag table, the rewired ``run_init`` orchestrator (Task 6) — bare guard
+on ``.goga`` directory existence, engine scaffold codes propagated as-is, the session seam
+propagated unchanged with the bootstrap skipped on failure — and ``run_bootstrap`` (Task 7):
+the 9-step post-session delivery with mode-dependent gates, the config-resolved Dockerfile
+path, the ERROR-and-return-1 failure tier, and the mandatory-Dockerfile invariant. The
+wrapper is driven through a fake ``ctx`` (M-R2.6 — no CliRunner).
 """
+
+import importlib.metadata
+import importlib.resources
+import logging
+from pathlib import Path
 
 import click
 import pytest
+import yaml
 from goga_tool_pybuggy.commands.init import init as init_module
-from goga_tool_pybuggy.commands.init import init_cmd, resolve_init_mode, run_init
+from goga_tool_pybuggy.commands.init import init_cmd, resolve_init_mode, run_bootstrap, run_init
 
 # The seams run_init dispatches through, patched at the import point (M-R2.8): the session
 # seam and the bootstrap seam live in init.py's namespace; the scaffold engine is reached
 # through init.py's Scaffold constructor.
 _SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
 _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
+
+_EXPECTED_CONFTEST = (
+    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
+)
+
+_API_PACKAGE = importlib.resources.files("goga_tool_pybuggy.api")
+_PACKAGED_USAGES = {
+    "api": (_API_PACKAGE / ".usages" / "api.md").read_text(encoding="utf-8"),
+    "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
+}
+
+# The install line expected under the patched package version "2.0.3" (minor x-range derivation).
+_INSTALL_LINE = "RUN goga install pybuggy -v 2.0.x"
 
 
 class _FakeCtx:
@@ -159,16 +179,22 @@ class TestInitContract:
     """Facade exposure, Click wrapper surface, and handler signatures."""
 
     def test_facade_exports_init_routines(self):
-        """The wrapper, the orchestrator, and the mode resolver are importable from the cell facade."""
+        """The wrapper, the orchestrator, the mode resolver, and the bootstrap are on the cell facade."""
         assert callable(init_cmd)
         assert callable(run_init)
         assert callable(resolve_init_mode)
+        assert callable(run_bootstrap)
+
+    def test_resolve_dockerfile_helper_present_in_module(self):
+        """The private Dockerfile-resolution helper lives in the init module."""
+        assert callable(init_module._resolve_dockerfile_path)
 
     @pytest.mark.parametrize(
         ("routine", "expected"),
         [
             (run_init, {"tpl": str | None, "ref": str | None, "upgrade": bool, "return": int}),
             (resolve_init_mode, {"tpl": str | None, "ref": str | None, "upgrade": bool, "return": str}),
+            (run_bootstrap, {"template_mode": bool, "return": int}),
         ],
     )
     def test_handler_signature_matches_contract(self, routine, expected):
@@ -338,3 +364,220 @@ class TestRunInit:
         else:
             assert order == []
             assert scaffold.upgrade_calls == [(None,)]
+
+
+def _seed_config(root: Path, text: str) -> Path:
+    """Write the consumer ``.goga/config.yml`` carrying ``text`` and return its path.
+
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
+        text: The raw YAML text of the consumer config.
+
+    Returns:
+        The written config path.
+    """
+    goga = root / ".goga"
+    goga.mkdir(exist_ok=True)
+    config = goga / "config.yml"
+    config.write_text(text, encoding="utf-8")
+
+    return config
+
+
+def _error_records(caplog):
+    """Return the ERROR-or-worse records captured so far."""
+    return [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+
+def _no_prompt(*_args: object, **_kwargs: object) -> bool:
+    """Fail the test when the bootstrap prompts in a mode that must not.
+
+    Returns:
+        Never returns — the AssertionError propagates.
+    """
+    raise AssertionError("template mode must not prompt")
+
+
+class TestRunBootstrap:
+    """The 9-step post-session orchestrator — gates, Dockerfile resolution, failure tier."""
+
+    def test_run_bootstrap_full_pass_on_fresh_session_artifacts(self, tmp_path, monkeypatch, caplog):
+        """A fresh session tree gets every artifact delivered with no ERROR logged."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 0
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert (usages / "api.md").read_text(encoding="utf-8") == _PACKAGED_USAGES["api"]
+        assert (usages / "asserts.md").read_text(encoding="utf-8") == _PACKAGED_USAGES["asserts"]
+        slot = tmp_path / ".goga" / "usages" / "conventions.md"
+        packaged_convention = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(
+            encoding="utf-8"
+        )
+        assert slot.read_text(encoding="utf-8") == packaged_convention
+
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert config["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
+        annotations = config["codemanifest"]["annotations"]
+        assert "`pybuggy-api`" in annotations
+        assert "`conventions`" in annotations
+
+        assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == _EXPECTED_CONFTEST
+        dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
+        assert dockerfile.endswith(f"{_INSTALL_LINE}\n")
+        assert _error_records(caplog) == []
+
+    def test_run_bootstrap_resolves_dockerfile_from_config_field(self, tmp_path, monkeypatch):
+        """The install line lands in the config-declared root Dockerfile, never in the fallback."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: Dockerfile\n")
+        (tmp_path / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+
+        code = run_bootstrap(template_mode=True)
+
+        assert code == 0
+        assert (tmp_path / "Dockerfile").read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert not (tmp_path / ".goga" / "Dockerfile").exists()
+
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param("language: python\ndockerfile: custom/Dockerfile\n", id="field-points-at-absent-file"),
+            pytest.param("language: python\n", id="declined-dockerfile-session"),
+        ],
+    )
+    def test_run_bootstrap_missing_dockerfile_fails_with_error(self, tmp_path, monkeypatch, caplog, config_text):
+        """A Dockerfile missing after the session fails at step 8 with steps 2-7 already applied."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, config_text)
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 1
+        errors = _error_records(caplog)
+        assert len(errors) == 1
+        assert "Dockerfile" in errors[0].message
+        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
+        assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == _EXPECTED_CONFTEST
+        assert not (tmp_path / ".goga" / "Dockerfile").exists()
+
+    def test_run_bootstrap_step_failure_maps_to_nonzero(self, tmp_path, monkeypatch, caplog):
+        """A step failure is ERROR-logged and mapped to 1 — never raised as ClickException."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+
+        def _boom(config_path: Path, usage_keys: dict[str, str]) -> list[str]:
+            raise OSError("disk on fire")
+
+        monkeypatch.setattr(init_module, "register_usages", _boom)
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 1
+        errors = _error_records(caplog)
+        assert len(errors) == 1
+        assert errors[0].error == "disk on fire"
+
+    def test_run_bootstrap_template_mode_never_prompts(self, tmp_path, monkeypatch, caplog):
+        """A template-mode rerun over a bootstrapped tree writes nothing and never confirms."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+
+        assert run_bootstrap(template_mode=True) == 0
+        snapshot = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+        monkeypatch.setattr(click, "confirm", _no_prompt)
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=True)
+
+        assert code == 0
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == snapshot
+        assert any("existing file kept untouched" in record.message for record in caplog.records)
+
+    def test_run_bootstrap_bare_mode_gates(self, tmp_path, monkeypatch):
+        """Bare mode overwrites a stale usages copy and asks for the conftest (decline keeps it)."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        api_copy = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md"
+        api_copy.parent.mkdir(parents=True)
+        api_copy.write_text("stale api usage\n", encoding="utf-8")
+        conftest = tmp_path / "conftest.py"
+        conftest.write_text("# user conftest\n", encoding="utf-8")
+
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
+        assert run_bootstrap(template_mode=False) == 0
+        assert api_copy.read_text(encoding="utf-8") == _PACKAGED_USAGES["api"]
+        assert conftest.read_text(encoding="utf-8") == "# user conftest\n"
+
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: True)
+        assert run_bootstrap(template_mode=False) == 0
+        assert conftest.read_text(encoding="utf-8") == _EXPECTED_CONFTEST
+
+    def test_run_bootstrap_existing_config_session_end_still_enforces(self, tmp_path, monkeypatch):
+        """A template-brought config (session ended at once) still gets flag, keys, install line."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\nbuild:\n  agent: swax\n")
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
+
+        code = run_bootstrap(template_mode=True)
+
+        assert code == 0
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["build"]["agent"] == "swax"
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+
+    def test_run_bootstrap_idempotent_rerun(self, tmp_path, monkeypatch):
+        """A second bare run with a declined conftest overwrite leaves the tree byte-identical."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+
+        assert run_bootstrap(template_mode=False) == 0
+        snapshot = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
+
+        assert run_bootstrap(template_mode=False) == 0
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == snapshot
+
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param(None, id="absent-config"),
+            pytest.param("", id="empty-config"),
+        ],
+    )
+    def test_run_bootstrap_empty_and_broken_config_variants(self, tmp_path, monkeypatch, config_text):
+        """An absent or empty config still enforces, registers, and falls back for the Dockerfile."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        (tmp_path / ".goga").mkdir()
+        if config_text is not None:
+            (tmp_path / ".goga" / "config.yml").write_text(config_text, encoding="utf-8")
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        dockerfile.write_text("FROM x\n", encoding="utf-8")
+
+        code = run_bootstrap(template_mode=False)
+
+        assert code == 0
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
