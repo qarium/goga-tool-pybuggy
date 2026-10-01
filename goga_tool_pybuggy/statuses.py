@@ -1,19 +1,25 @@
-"""pybuggy topic statuses on the goga status scale.
+"""pybuggy topic statuses and onboarding participation on the goga platform.
 
 Registers the automate status line and the independent fix status line on the
-goga topic status scale. The two platform surfaces arrive as arguments —
-``hooks`` (subscription) and ``context`` (status registration) — so the module
-needs no imports.
+goga topic status scale, and subscribes the two onboarding participation
+moments (question declaration, config amendment) implemented by the init
+cell's session module. The platform surfaces arrive as arguments — ``hooks``
+(subscription) and ``context`` (status registration / participation) — so the
+only import is the onboarding handler pair.
 """
+
+from .commands.init import amend_pybuggy_config, declare_pybuggy_session
 
 
 def register_hooks(hooks: object) -> None:
-    """Subscribe the pybuggy topic-status hooks to the statuses registration action.
+    """Subscribe the pybuggy platform hooks — four subscriptions in platform order.
 
-    Makes exactly two subscriptions on the statuses domain registration
-    action: the automate line under the hook name ``automate`` and the fix
-    line under the hook name ``fix``. The platform imports this callback from
-    the package root.
+    Makes exactly four subscriptions: the two statuses registrations on the
+    statuses domain registration action (the automate line under the hook
+    name ``automate`` and the fix line under the hook name ``fix``) and the
+    two onboarding participation moments (question declaration under the hook
+    name ``declare`` and config amendment under the hook name ``amend``). The
+    platform imports this callback from the package root.
 
     Args:
         hooks: The subscription surface delivered by the platform.
@@ -21,6 +27,10 @@ def register_hooks(hooks: object) -> None:
     hooks.subscribe("statuses", "register_statuses", "automate", register_automate_statuses)
 
     hooks.subscribe("statuses", "register_statuses", "fix", register_fix_statuses)
+
+    hooks.subscribe("onboarding", "declare_session", "declare", declare_pybuggy_session)
+
+    hooks.subscribe("onboarding", "amend_config", "amend", amend_pybuggy_config)
 
 
 def register_automate_statuses(context: object) -> None:

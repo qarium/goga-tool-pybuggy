@@ -1119,16 +1119,16 @@ The subscription table is the platform contract — a wrong address/name silentl
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/test_statuses.py`, new file, expected to fail): `register_hooks` exposed
+- [x] **Contract tests** (in `tests/test_statuses.py`, new file, expected to fail): `register_hooks` exposed
       on the root facade (`goga_tool_pybuggy.register_hooks`); signature `register_hooks(hooks: object) -> None`
-- [ ] **REPL cycle** (M-R4.1/M-R4.5): in the venv REPL — import `goga_tool_pybuggy`, call `register_hooks`
+- [x] **REPL cycle** (M-R4.1/M-R4.5): in the venv REPL — import `goga_tool_pybuggy`, call `register_hooks`
       with a recorder `hooks` object, inspect the four captured calls; verify the onboarding callables are
       the init-cell session objects by identity (`from goga_tool_pybuggy.commands.init import ...`);
       migrate, re-verify via fresh import
-- [ ] **Code**: extend `register_hooks` with the two onboarding subscriptions and the top-level relative
+- [x] **Code**: extend `register_hooks` with the two onboarding subscriptions and the top-level relative
       import; module docstring updated (four subscriptions)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/test_statuses.py -v` — contract tests pass
-- [ ] **Logic tests** (design scenario):
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/test_statuses.py -v` — contract tests pass
+- [x] **Logic tests** (design scenario):
       - `test_register_hooks_subscribes_four_hooks` — recorder `hooks` capturing `subscribe` calls (root
         facade import); Assertions: calls ==
         `[("statuses","register_statuses","automate", register_automate_statuses),
@@ -1136,11 +1136,15 @@ The subscription table is the platform contract — a wrong address/name silentl
         ("onboarding","declare_session","declare", declare_pybuggy_session),
         ("onboarding","amend_config","amend", amend_pybuggy_config)]` in order; the onboarding callables are
         the init-cell session objects (`from goga_tool_pybuggy.commands.init import ...` identity)
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
       (do NOT fix test code)
-- [ ] **Contract re-verification**: exactly four subscriptions, nothing beyond; statuses tables untouched;
+      (observed: green on first run after implementation — 924 passed; the TDD-red phase failed only the two
+      subscription tests as expected)
+- [x] **Contract re-verification**: exactly four subscriptions, nothing beyond; statuses tables untouched;
       handlers not on the package facade
-- [ ] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
+      (verified in a fresh interpreter: recorder equality with the imported cell objects, identity `is`
+      checks, root `__all__` unchanged at six names, handlers absent from the facade)
+- [x] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
       `.venv/bin/ruff format --check goga_tool_pybuggy/statuses.py tests/test_statuses.py` — clean
       (commit gate M-R3.4)
 
