@@ -11,9 +11,9 @@ serializable tool-config payload the engine writes verbatim into
 
 import logging
 
-from goga.onboarding import Question
+from goga.onboarding import Question, QuestionGroup
 
-from ...config import SpecEntry
+from ...config import GitEntry, SpecEntry
 from ...plugin import PluginConfigKeys
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,14 @@ _NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
 # On a longer line the first six fields win; anything past ``git_ref`` is ignored.
 _GIT_FIELDS = 6
 
+# The spec formats a ``SpecEntry`` accepts — the shared strictness of the first spec and the
+# lenient extra lines (a ``type`` outside this tuple is always rejected).
+_SPEC_TYPES = ("swagger", "openapi")
+
+# Minimum field count of a well-formed ``extra_specs`` line: ``name``, ``type``, ``location``.
+# Shorter lines are malformed and skipped; the git fields (up to ``_GIT_FIELDS`` total) are optional.
+_SPEC_MIN_FIELDS = 3
+
 
 def pybuggy_questions() -> list[Question]:
     """Build the declarative pybuggy question block in survey order.
@@ -75,7 +83,38 @@ def pybuggy_questions() -> list[Question]:
         The question records — ``Question`` items plus the single ``first_spec``
         ``QuestionGroup`` (exactly one nesting level, simple children only).
     """
-    raise NotImplementedError
+    items: list[Question] = [Question(id="base_url", kind="input", prompt="Base URL (Jinja2 template, required)")]
+
+    for member in PluginConfigKeys:
+        if member in (PluginConfigKeys.BASE_URL, PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER):
+            continue
+
+        items.append(Question(id=member.value, kind="input", default="", prompt=_SCALAR_PROMPTS[member]))
+
+    items.append(
+        QuestionGroup(
+            id="first_spec",
+            prompt="The first spec",
+            children=[
+                Question(id="name", kind="input", prompt="Spec name"),
+                Question(id="type", kind="choice", prompt="Spec type", choices=list(_SPEC_TYPES)),
+                Question(id="location", kind="input", prompt="Spec location (path from project root)"),
+                Question(id="git_url", kind="input", default="", prompt="Git URL (empty — no git source)"),
+                Question(id="git_location", kind="input", default="", prompt="Path inside the repository"),
+                Question(id="git_ref", kind="input", default="", prompt="Git ref (branch/tag; empty — default branch)"),
+            ],
+        )
+    )
+    items.append(
+        Question(
+            id="extra_specs",
+            kind="input",
+            default="",
+            prompt="Additional specs, one per line: name|type|location|git_url|git_location|git_ref",
+        )
+    )
+
+    return items
 
 
 def build_config_data(answers: dict[str, object]) -> dict[str, object]:
@@ -99,7 +138,22 @@ def build_config_data(answers: dict[str, object]) -> dict[str, object]:
         ValueError: If a numeric member's answer cannot coerce to its target type (the
             mediator soft-drops the contribution).
     """
-    raise NotImplementedError
+    specs = parse_specs(answers.get("first_spec") or {}, answers.get("extra_specs") or None)
+    data: dict[str, object] = {}
+
+    for member in PluginConfigKeys:
+        if member in (PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER):
+            continue
+
+        value = answers.get(member.value)
+        if value is None or value == "":
+            continue
+
+        data[member.value] = _NUMERIC_MEMBERS[member](value) if member in _NUMERIC_MEMBERS else value
+
+    data["specs"] = {name: entry.model_dump(exclude_none=True) for name, entry in specs.items()}
+
+    return data
 
 
 def build_config_amendments() -> dict[str, object]:
@@ -113,7 +167,82 @@ def build_config_amendments() -> dict[str, object]:
     Returns:
         The single amendment mapping.
     """
-    raise NotImplementedError
+    return {"build.review.skip": True}
+
+
+def _git_entry(url: object, location: object, ref: object) -> GitEntry | None:
+    """Build a ``GitEntry`` from raw git answers — ``None`` unless url AND location are non-empty.
+
+    Args:
+        url: The ``git_url`` answer (clone URL).
+        location: The ``git_location`` answer (path inside the repository).
+        ref: The ``git_ref`` answer (branch/tag); empty maps to ``None`` (default branch).
+
+    Returns:
+        The typed git source, or ``None`` when the spec is local-only.
+    """
+    if not url or not location:
+        return None
+
+    return GitEntry(url=str(url), location=str(location), ref=str(ref) if ref else None)
+
+
+def _first_spec_entry(spec_answers: dict[str, object]) -> tuple[str, SpecEntry]:
+    """Validate the ``first_spec`` group answers and build the typed entry.
+
+    Strict — the single source of the first spec: a non-empty ``name``, a ``type``
+    in ``_SPEC_TYPES``, and a non-empty ``location`` are all required.
+
+    Args:
+        spec_answers: The ``first_spec`` group answers (child id → answer).
+
+    Returns:
+        The spec name and its typed ``SpecEntry`` (git attached only when both git
+        url and git location are answered).
+
+    Raises:
+        ValueError: If any of name, type, or location is empty or invalid.
+    """
+    name = spec_answers.get("name")
+    spec_type = spec_answers.get("type")
+    location = spec_answers.get("location")
+
+    if not name:
+        raise ValueError("first spec name must not be empty")
+
+    if spec_type not in _SPEC_TYPES:
+        raise ValueError(f"first spec type {spec_type!r} must be swagger or openapi")
+
+    if not location:
+        raise ValueError("first spec location must not be empty")
+
+    git = _git_entry(spec_answers.get("git_url"), spec_answers.get("git_location"), spec_answers.get("git_ref"))
+
+    return str(name), SpecEntry(type=str(spec_type), location=str(location), git=git)
+
+
+def _extra_spec_entry(line: str) -> tuple[str, SpecEntry] | None:
+    """Parse one ``extra_specs`` compact-form line into a typed entry.
+
+    Lenient — a malformed line (fewer than three fields, an empty name or
+    location, an invalid type) is WARNING-logged and dropped, never raised. On a
+    line longer than ``_GIT_FIELDS`` fields the first six win.
+
+    Args:
+        line: The raw compact-form line ``name|type|location|git_url|git_location|git_ref``.
+
+    Returns:
+        The spec name and its typed ``SpecEntry``, or ``None`` when the line is malformed.
+    """
+    parts = [part.strip() for part in line.split("|")]
+
+    if len(parts) < _SPEC_MIN_FIELDS or not parts[0] or parts[1] not in _SPEC_TYPES or not parts[2]:
+        logger.warning("malformed extra spec line skipped", extra={"line": line})
+        return None
+
+    git_url, git_location, git_ref = ([*parts[3:_GIT_FIELDS], "", "", ""])[:3]
+
+    return parts[0], SpecEntry(type=parts[1], location=parts[2], git=_git_entry(git_url, git_location, git_ref))
 
 
 def parse_specs(spec_answers: dict[str, object], extra_specs: str | None) -> dict[str, SpecEntry]:
@@ -138,7 +267,26 @@ def parse_specs(spec_answers: dict[str, object], extra_specs: str | None) -> dic
     Raises:
         ValueError: If the first spec is incomplete or invalid.
     """
-    raise NotImplementedError
+    name, entry = _first_spec_entry(spec_answers)
+    specs: dict[str, SpecEntry] = {name: entry}
+
+    if extra_specs:
+        for line in extra_specs.splitlines():
+            if not line.strip():
+                continue
+
+            parsed = _extra_spec_entry(line)
+            if parsed is None:
+                continue
+
+            extra_name, extra_entry = parsed
+            if extra_name in specs:
+                logger.warning("duplicate spec name skipped", extra={"spec": extra_name})
+                continue
+
+            specs[extra_name] = extra_entry
+
+    return specs
 
 
 def run_session() -> int:

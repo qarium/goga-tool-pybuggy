@@ -741,26 +741,26 @@ RETURN specs
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_session.py`, expected to fail against the stubs):
+- [x] **Contract tests** (in `tests/commands/init/test_session.py`, expected to fail against the stubs):
       facade import of the four names; signatures —
       `pybuggy_questions() -> list`, `build_config_data(answers: dict[str, object]) -> dict[str, object]`,
       `build_config_amendments() -> dict[str, object]`,
       `parse_specs(spec_answers: dict[str, object], extra_specs: str | None) -> dict[str, SpecEntry]`
-- [ ] **REPL cycle** (M-R4.1–M-R4.3): in the venv REPL — construct the block and inspect order/ids/defaults;
+- [x] **REPL cycle** (M-R4.1–M-R4.3): in the venv REPL — construct the block and inspect order/ids/defaults;
       call `parse_specs` with the design sample (`shop|swagger|specs/shop.yaml` first spec + the billing extra
       line `billing|openapi|specs/billing.yaml|https://git/b.git|specs/b.yaml|`); call `build_config_data`
       on that answer view and verify with `yaml.safe_dump` that the payload serializes and contains no
       pydantic objects; migrate the verified bodies into `session.py`, re-verify via fresh import
-- [ ] **Code**: implement `pybuggy_questions` (exact ids/prompts/order per the algorithm block; fresh
+- [x] **Code**: implement `pybuggy_questions` (exact ids/prompts/order per the algorithm block; fresh
       records per call; data-driven scalar set from `PluginConfigKeys`)
-- [ ] **Code**: implement `parse_specs` (strict first spec; lenient extras with WARNING events
+- [x] **Code**: implement `parse_specs` (strict first spec; lenient extras with WARNING events
       `"malformed extra spec line skipped"` / `"duplicate spec name skipped"` via `extra`)
-- [ ] **Code**: implement `build_config_data` (drop unanswered; numeric coercion via `_NUMERIC_MEMBERS`;
+- [x] **Code**: implement `build_config_data` (drop unanswered; numeric coercion via `_NUMERIC_MEMBERS`;
       `model_dump(exclude_none=True)` specs; `specs` last)
-- [ ] **Code**: implement `build_config_amendments` (single unconditional `build.review.skip` entry)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_session.py -v` —
+- [x] **Code**: implement `build_config_amendments` (single unconditional `build.review.skip` entry)
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_session.py -v` —
       contract tests pass
-- [ ] **Logic tests** (design scenarios, Setup/Assertions transferred):
+- [x] **Logic tests** (design scenarios, Setup/Assertions transferred):
       - `test_pybuggy_questions_returns_block_in_survey_order` — Assertions: `len(items) == 9`;
         `items[0].id == "base_url" and items[0].default is None`; scalar ids equal the `PluginConfigKeys`
         values in declaration order, each `default == ""`; the group `id == "first_spec"`, `children` ids
@@ -795,11 +795,11 @@ RETURN specs
       - `test_build_config_data_non_numeric_answer_raises` — `timeout="abc"` → `pytest.raises(ValueError)`
       - `test_build_config_amendments_review_skip_declared_intent_only` — result ==
         `{"build.review.skip": True}` — exactly one entry, bool value
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all tests pass
       (do NOT fix test code)
-- [ ] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations (one
+- [x] **Contract re-verification**: facade, API shape, behavior match the CODEMANIFEST annotations (one
       nesting level; payload plain serializable; single amendment; lenient extras)
-- [ ] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
+- [x] **Lint**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` +
       `.venv/bin/ruff format --check goga_tool_pybuggy/commands/init/session.py tests/commands/init/test_session.py`
       — clean (commit gate M-R3.4)
 
