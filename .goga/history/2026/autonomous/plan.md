@@ -837,8 +837,8 @@ The root subscription is NOT touched here (Task 5).>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 3: autonomous cell — build_autonomous_workflow, amend_workflow`).
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/autonomous/__init__.py`,
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 3: autonomous cell — build_autonomous_workflow, amend_workflow`).
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/autonomous/__init__.py`,
       `tests/autonomous/conftest.py` (the `_AmendmentView` double:
       `__init__(self, pipeline)` setting `self.pipeline` and `self.contributed = []`;
       `contribute(self, document)` appending), `tests/autonomous/test_workflow.py`,
@@ -846,22 +846,22 @@ The root subscription is NOT touched here (Task 5).>
       `goga_tool_pybuggy.autonomous`; `build_autonomous_workflow` signature `() ->
       dict[str, object]`; `amend_workflow` signature `(context: object) -> None`. Expected
       to fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/workflow.py` — the
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/workflow.py` — the
       constants block + `build_autonomous_workflow()` per the context above; pure, no
       platform calls, no I/O.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/amendment.py` —
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/amendment.py` —
       `_PIPELINE` + `amend_workflow(context)` implementing the five steps; no catching.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/__init__.py` —
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/__init__.py` —
       facade docstring, relative imports,
       `__all__ = ["amend_workflow", "build_autonomous_workflow"]`.
-- [ ] **REPL cycle (M4)**: in the venv REPL — call `build_autonomous_workflow()` twice,
+- [x] **REPL cycle (M4)**: in the venv REPL — call `build_autonomous_workflow()` twice,
       confirm deep equality and the exact stage list order; verify the script string
       byte-for-byte (shell quotes included); drive `amend_workflow` with an inline view
       double for `"api.automate"` (resolver monkeypatched True via
       `monkeypatch`-equivalent `setattr`) and for `"code.review"`; verify a raising
       resolver propagates. Reload after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/autonomous/ -v`.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/autonomous/test_workflow.py` —
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/autonomous/ -v`.
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/autonomous/test_workflow.py` —
       `test_build_autonomous_workflow_document_shape`:
       `set(document) == {"stages", "extend"}`;
       `list(document["stages"]) == ["review-testcases", "create-testcases", "code-design",
@@ -885,18 +885,18 @@ The root subscription is NOT touched here (Task 5).>
       `test_amend_workflow_errors_propagate_undamped` (resolver stub raising
       `ValueError("pybuggy tool config: boom")`; `pytest.raises(ValueError, match=...)`;
       `view.contributed == []`).
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/autonomous/ tests/config/ -x` — fix
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/autonomous/ tests/config/ -x` — fix
       implementation until green (full-suite failures remain only the declared eight seam
       files).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe —
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe —
       `.venv/bin/python -c "from goga_tool_pybuggy.autonomous import amend_workflow, build_autonomous_workflow"`;
       confirm no `try`/`except` and no logging in `amendment.py`; confirm `workflow.py`
       imports nothing.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
       M3.3 (scoped pytest green) and `git commit`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 4: init cell — autonomy confirm + conditional axis entry (TDD coding)
 
