@@ -1055,26 +1055,26 @@ shared `tool_config` fixture from `tests/conftest.py` (Task 2).>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create `tests/test_autonomy_integration.py` (module docstring stating the two
+- [x] Create `tests/test_autonomy_integration.py` (module docstring stating the two
       chains).
-- [ ] Test cross-cell interaction (run chain): `test_amend_workflow_end_to_end_with_real_config`
+- [x] Test cross-cell interaction (run chain): `test_amend_workflow_end_to_end_with_real_config`
       — `tool_config` writes `"pipelines:\n  api.automate:\n    autonomous: true\n"`;
       `_AmendmentView("api.automate")` (import the double from `tests/autonomous/conftest.py`
       or re-declare locally); `amend_workflow(view)` with the real resolver;
       `view.contributed == [build_autonomous_workflow()]`.
-- [ ] Test cross-cell interaction (emit↔consume bridge):
+- [x] Test cross-cell interaction (emit↔consume bridge):
       `test_build_config_data_payload_enables_resolve_autonomy` — build the enabling
       payload via `build_config_data`; `tool_config(yaml.safe_dump(payload))`;
       `resolve_autonomy("api.automate") is True`; and the disabling payload
       (`"autonomous": False`) leaves `resolve_autonomy(...) is False` (no `pipelines` key
       written).
-- [ ] Test edge case: `test_amend_workflow_end_to_end_disabled_is_silent_no_op` — the
+- [x] Test edge case: `test_amend_workflow_end_to_end_disabled_is_silent_no_op` — the
       same chain with `autonomous: false` in the tree; `view.contributed == []`, no
       exception.
-- [ ] Run validation: `.venv/bin/pytest tests/test_autonomy_integration.py -v`.
-- [ ] **Lint**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] Run validation: `.venv/bin/pytest tests/test_autonomy_integration.py -v`.
+- [x] **Lint**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **COMMIT GATE (M3.3)**: scoped pytest green; `git commit`.
+- [x] **COMMIT GATE (M3.3)**: scoped pytest green; `git commit`.
 
 ### Task 7: Test seam migration — the eight `CONFIG_PATH` files (integration tests)
 
