@@ -138,14 +138,13 @@ def test_load_env_then_run_pull_env_coupling(tmp_path: Path, monkeypatch: pytest
     from click.testing import CliRunner
     from goga_tool_pybuggy import main
 
-    config_path_attr = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
-
     env_file = tmp_path / ".env"
     env_file.write_text("PYBUGGY_REF=v2\n")
     monkeypatch.delenv("PYBUGGY_REF", raising=False)
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -157,7 +156,6 @@ specs:
       location: specs/client.yaml
 """
     )
-    monkeypatch.setattr(config_path_attr, config_path)
 
     clone_root = tmp_path / "clone"
     (clone_root / "specs").mkdir(parents=True)

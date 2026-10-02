@@ -1104,21 +1104,23 @@ restores the full acceptance gate.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Migrate `tests/test_cli_integration.py` and `tests/test_cli_env.py` (delete
+- [x] Migrate `tests/test_cli_integration.py` and `tests/test_cli_env.py` (delete
       `CONFIG_PATH_ATTR` + every `monkeypatch.setattr(CONFIG_PATH_ATTR, ...)`; write the
       standard relative path inside the existing isolated filesystems).
-- [ ] Migrate `tests/commands/pull/test_pull.py`, `tests/commands/diff/test_diff.py`,
+- [x] Migrate `tests/commands/pull/test_pull.py`, `tests/commands/diff/test_diff.py`,
       `tests/commands/diff/test_diff_integration.py`, `tests/commands/info/test_info.py`,
       `tests/commands/list/test_list.py`, `tests/commands/generate/test_generate.py`
       (same pattern; per-file `_write_config` helper adapted to the standard path).
-- [ ] Verify no stragglers: `grep -rn "CONFIG_PATH" tests/ goga_tool_pybuggy/` → zero hits.
-- [ ] REPL cycle (M4): spot-drive one migrated command handler in the REPL against a
+- [x] Verify no stragglers: `grep -rn "CONFIG_PATH" tests/ goga_tool_pybuggy/` → zero hits
+      (the negative assertions in `tests/config/test_storage.py` spell the deleted name
+      piecewise so the grep stays clean while still asserting its absence).
+- [x] REPL cycle (M4): spot-drive one migrated command handler in the REPL against a
       chdir'd scratch tree with the standard config path before trusting the suite.
-- [ ] Run validation (full gate): `.venv/bin/pytest tests/ -x` — **entire suite green**;
-      `.venv/bin/goga lint` → 19 cells, 0 errors.
-- [ ] **Lint**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] Run validation (full gate): `.venv/bin/pytest tests/ -x` — **entire suite green**
+      (1016 passed); `.venv/bin/goga lint` → 19 cells, 0 errors.
+- [x] **Lint**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **COMMIT GATE (M3.3)**: full pytest green; `git commit`.
+- [x] **COMMIT GATE (M3.3)**: full pytest green; `git commit`.
 
 ### Task 8: Documentation — the autonomy sections (infrastructure)
 

@@ -7,8 +7,6 @@ import click
 import pytest
 from goga_tool_pybuggy.commands.info import info_cmd, run_info
 
-CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
-
 _OPENAPI_PREFIX = """\
 openapi: 3.0.0
 info:
@@ -24,8 +22,9 @@ def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
 
 
 def _write_config(tmp_path: Path, specs: dict) -> Path:
-    """Write a config.yml whose ``specs`` map mirrors ``specs`` (name -> location)."""
-    config_path = tmp_path / "config.yml"
+    """Write a config.yml at the standard tool-config path; ``specs`` maps name -> location."""
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     if not specs:
         config_path.write_text("specs: {}\n")
         return config_path
@@ -111,7 +110,8 @@ paths:
 """
     )
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -120,7 +120,6 @@ specs:
     location: .specs/client.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_info(["clients_startup_get"])
 
@@ -154,7 +153,8 @@ paths:
 """
     )
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -163,7 +163,6 @@ specs:
     location: .specs/client.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     with pytest.raises(click.ClickException) as exc_info:
         run_info(["nonexistent_id"])
@@ -209,7 +208,8 @@ paths:
 """
     )
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -221,7 +221,6 @@ specs:
     location: .specs/server.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_info(["clients_startup_get"])
 
@@ -270,7 +269,8 @@ paths:
 """
     )
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -282,7 +282,6 @@ specs:
     location: .specs/server.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_info(["clients_startup_get"], spec_name="client")
 
@@ -348,8 +347,7 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(tmp_path, {name: f".specs/{name}.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {name: f".specs/{name}.yaml"})
 
 
 def test_run_info_filters_to_single_endpoint_id(
@@ -462,11 +460,10 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(
+    _write_config(
         tmp_path,
         {"shop": ".specs/shop.yaml", "billing": ".specs/billing.yaml"},
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_info(["health_get"])
 
@@ -504,11 +501,10 @@ paths:
           description: Success
 """,
     )
-    config_path = _write_config(
+    _write_config(
         tmp_path,
         {"shop": ".specs/shop.yaml", "billing": ".specs/billing.yaml"},
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     # health_get exists in billing but the --spec filter restricts the scope to shop
     with pytest.raises(click.ClickException) as exc:
@@ -540,8 +536,7 @@ paths:
           description: bad key
 """,
     )
-    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException) as exc_info:
         run_info(spec_name="client")
@@ -562,8 +557,7 @@ def test_run_info_null_paths_raises_click_exception(tmp_path: Path, monkeypatch:
 paths:
 """,
     )
-    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="missing 'paths'"):
         run_info(spec_name="client")

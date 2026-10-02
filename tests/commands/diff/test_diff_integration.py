@@ -4,7 +4,7 @@ Cross-cell scenarios (generate cell + diff cell + output facade): the strongest 
 guarantee is that artifacts written by ``run_generate`` read back as no-drift through
 ``run_diff``; the read-only acceptance criterion is a byte-identical api tree after a run.
 Handlers are called directly (no CliRunner) over real files under ``tmp_path``, with the
-config path redirected through ``CONFIG_PATH_ATTR``.
+config written to the standard ``.goga/tools/pybuggy/config.yml`` tree.
 """
 
 import hashlib
@@ -16,8 +16,6 @@ from pathlib import Path
 import pytest
 from goga_tool_pybuggy.commands.diff import run_diff
 from goga_tool_pybuggy.commands.generate import run_generate
-
-CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
 
 _OPENAPI_PREFIX = """\
 openapi: 3.0.0
@@ -48,8 +46,9 @@ def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
 
 
 def _write_config(tmp_path: Path, specs: dict) -> Path:
-    """Write a config.yml whose ``specs`` map mirrors ``specs`` (name -> location)."""
-    config_path = tmp_path / "config.yml"
+    """Write a config.yml at the standard tool-config path; ``specs`` maps name -> location."""
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     if not specs:
         config_path.write_text("specs: {}\n")
         return config_path
@@ -79,7 +78,7 @@ def _setup_generated_workspace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     """Write a one-spec workspace and run run_generate to produce the full artifact set."""
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", _STARTUP_GET)
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     run_generate(None, force=True)
 
 

@@ -9,8 +9,6 @@ import pytest
 from goga_tool_pybuggy.commands.list import endpoint_statuses, list_cmd, run_list
 from goga_tool_pybuggy.spec import Endpoint, extract_endpoints, load_spec
 
-CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
-
 # Shared OpenAPI fragments ---------------------------------------------------
 
 _OPENAPI_PREFIX = """\
@@ -33,8 +31,9 @@ def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
 
 
 def _write_config(tmp_path: Path, specs: dict) -> Path:
-    """Write a config.yml whose ``specs`` map mirrors ``specs`` (name -> location)."""
-    config_path = tmp_path / "config.yml"
+    """Write a config.yml at the standard tool-config path; ``specs`` maps name -> location."""
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     if not specs:
         config_path.write_text("specs: {}\n")
         return config_path
@@ -135,7 +134,8 @@ paths:
 """
     )
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -144,7 +144,6 @@ specs:
     location: .specs/client.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_list(None)
 
@@ -172,7 +171,8 @@ paths: {}
 """
     )
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -181,7 +181,6 @@ specs:
     location: .specs/empty.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_list(None)
 
@@ -237,7 +236,8 @@ paths:
 """
     )
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -249,7 +249,6 @@ specs:
     location: .specs/server.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     run_list("client")
 
@@ -262,7 +261,8 @@ def test_run_list_raises_on_spec_not_found(tmp_path: Path, monkeypatch: pytest.M
     """run_list should raise ClickException when spec_name not found in config."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -271,7 +271,6 @@ specs:
     location: .specs/client.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     with pytest.raises(click.ClickException) as exc_info:
         run_list("nonexistent_spec")
@@ -306,7 +305,8 @@ paths:
           description: bad key
 """
     )
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -315,7 +315,6 @@ specs:
     location: .specs/client.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     with pytest.raises(click.ClickException) as exc_info:
         run_list("client")
@@ -340,7 +339,8 @@ info:
 paths:
 """
     )
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -349,7 +349,6 @@ specs:
     location: .specs/client.yaml
 """
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
 
     with pytest.raises(click.ClickException, match="missing 'paths'"):
         run_list("client")
@@ -364,8 +363,7 @@ def test_run_list_status_mode_unknown_spec_raises(
     """Status mode rejects an unknown spec before any output, like the plain mode."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="spec not found: nonexistent_spec"):
         run_list("nonexistent_spec", with_status=True)
@@ -377,8 +375,7 @@ def test_run_list_status_mode_invalid_spec_raises(tmp_path: Path, monkeypatch: p
     monkeypatch.chdir(tmp_path)
 
     _write_spec(tmp_path / ".specs", "client.yaml", "paths:\n")
-    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="missing 'paths'"):
         run_list("client", with_status=True)
@@ -400,7 +397,7 @@ def test_run_list_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.Mo
     (tmp_path / ".specs").mkdir()
     # Written raw: the _write_spec prefix would add a valid openapi mapping header.
     (tmp_path / ".specs/client.yaml").write_text(body)
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="invalid spec file"):
         run_list(None, with_status=False)
@@ -416,7 +413,7 @@ def test_run_list_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.Mo
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".specs").mkdir()
     (tmp_path / ".specs/client.yaml").write_text("info:\n  title: T\npaths: {}\n")
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="invalid spec file"):
         run_list(None, with_status=True)
@@ -445,8 +442,7 @@ paths:
                 type: object
 """,
     )
-    config_path = _write_config(tmp_path, {"client": ".specs/client.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     run_list(None, with_status=True)
 
@@ -465,8 +461,7 @@ def test_run_list_status_mode_empty_spec_no_lines_prints_no_block(
     monkeypatch.chdir(tmp_path)
 
     _write_spec(tmp_path / ".specs", "empty.yaml", "paths: {}\n")
-    config_path = _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
 
     with caplog.at_level("WARNING"):
         run_list(None, with_status=True)
@@ -482,8 +477,7 @@ def test_run_list_status_mode_empty_spec_with_orphan_prints_removed_only(
     monkeypatch.chdir(tmp_path)
 
     _write_spec(tmp_path / ".specs", "empty.yaml", "paths: {}\n")
-    config_path = _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
-    monkeypatch.setattr(CONFIG_PATH_ATTR, config_path)
+    _write_config(tmp_path, {"empty": ".specs/empty.yaml"})
     _write_artifact(tmp_path, "empty", "legacy_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
 
     run_list(None, with_status=True)
@@ -737,7 +731,7 @@ paths:
                 type: string
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match=r"/a-b/x.*and.*/a/b/x"):
         run_list(None, with_status=True)
@@ -839,7 +833,7 @@ paths:
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     # OK — the artifact pair matches the spec side exactly
     _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
@@ -915,7 +909,7 @@ paths:
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
     (tmp_path / "api" / "client" / "clients_startup_get" / "meta.json").write_text("{ not json", encoding="utf-8")
 
@@ -944,7 +938,7 @@ paths:
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
     _write_artifact(tmp_path, "client", "legacy_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
     (tmp_path / "api" / "client" / "legacy_get" / "meta.json").write_text("{ not json", encoding="utf-8")
@@ -974,7 +968,7 @@ paths:
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     _write_artifact(tmp_path, "client", "clients_startup_get", _CANONICAL_OK_META, _CANONICAL_OK_SCHEMAS)
     (tmp_path / "api" / "client" / "clients_startup_get" / "schemas" / "200.json").write_text(
         "{ not json", encoding="utf-8"

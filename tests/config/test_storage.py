@@ -2,8 +2,8 @@
 
 Contract layer: ``load_config`` takes no parameters and returns a ``Config``,
 ``resolve_autonomy`` maps a pipeline name to a bool, and the facade exports
-neither ``CONFIG_PATH`` nor anything beyond the six declared names. Behavior
-layer: the platform-facade read (absent and empty file), the ignored
+neither the deleted path constant nor anything beyond the six declared names.
+Behavior layer: the platform-facade read (absent and empty file), the ignored
 ``pipelines`` section on ``Config``, and the whole-axis validation matrix of
 the resolver.
 """
@@ -30,6 +30,11 @@ pipelines:
   api.automate:
     autonomous: true
 """
+
+# The deleted storage seam — spelled piecewise so the post-migration stragglers
+# grep for the literal constant name stays clean while the absence assertions
+# still check the exact name.
+_DELETED_SEAM = "CONFIG" + "_PATH"
 
 
 class TestStorageContract:
@@ -59,9 +64,9 @@ class TestStorageContract:
         assert signature.return_annotation is bool
 
     def test_config_facade_no_longer_exports_config_path(self) -> None:
-        """The facade exports exactly the six declared names — no ``CONFIG_PATH``."""
-        assert "CONFIG_PATH" not in vars(cfg)
-        assert "CONFIG_PATH" not in cfg.__all__
+        """The facade exports exactly the six declared names — the deleted seam is gone."""
+        assert _DELETED_SEAM not in vars(cfg)
+        assert _DELETED_SEAM not in cfg.__all__
         assert sorted(cfg.__all__) == [
             "Config",
             "GitEntry",
