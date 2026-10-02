@@ -17,6 +17,7 @@ is ``tests/test_cli.py``'s).
 """
 
 import importlib.metadata
+import importlib.resources
 import logging
 from pathlib import Path
 
@@ -30,10 +31,11 @@ _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 
 # The pinned confirm map (review q3/A): every core gate declined EXCEPT the
 # Dockerfile creation — declining it is the failed-init branch of q1/A, so the
-# smoke run accepts it. Declaration order = ask order; the smoke test asserts
-# the engine asked exactly these gates.
+# smoke run accepts it. The goga base-convention gate is ABSENT — the declaration
+# hook skips the core convention section, and the strict map would fail the run
+# if the engine asked the gate anyway. The add-another-spec loop of the amend
+# hook is answered from a FIFO queue: one accepted extra spec, then a decline.
 _CONFIRM_ANSWERS = {
-    "Download base convention": False,
     "Add codemanifest usages?": False,
     "Add codemanifest annotations?": False,
     "Configure a build agent?": False,
@@ -41,39 +43,50 @@ _CONFIRM_ANSWERS = {
     "Configure a pipeline agent?": False,
     "Add tools?": False,
     "Add usages records?": False,
+    "Add another spec?": [True, False],
 }
+
+# The expected confirm ask order — the seven core gates, then the amend-moment
+# loop (accepted once for the extra spec, then declined).
+_EXPECTED_CONFIRMS = [
+    "Add codemanifest usages?",
+    "Add codemanifest annotations?",
+    "Configure a build agent?",
+    "Create Dockerfile?",
+    "Configure a pipeline agent?",
+    "Add tools?",
+    "Add usages records?",
+    "Add another spec?",
+    "Add another spec?",
+]
 
 # The pinned prompt inputs: only the prompts that must carry an explicit value.
 # ``resolve_project_name()`` returns None in the pytest tmp dir (no git origin),
 # so "Built image name" offers NO default and Enter is impossible — the map
-# carries an explicit image name. The optional prompts (the Dockerfile path, the
-# base image, the optional scalars, the git fields) stay unscripted and read as
-# Enter through the ScriptedTTY default rule; the offline guarantee holds because
-# no answer activates the conventions download (every gate above is declined).
+# carries an explicit image name. The repeated spec-field prompts are answered
+# from FIFO queues: the engine's ``first_spec`` ask consumes the first entry,
+# the amend hook's surveyed extra spec the second. The optional prompts (the
+# Dockerfile path, the base image, the optional scalars, the git fields) stay
+# unscripted and read as Enter through the ScriptedTTY default rule; the offline
+# guarantee holds because the conventions download is never offered (the skipped
+# section) and no answer activates it.
 _PROMPT_ANSWERS = {
     "Language": "python",
     "Built image name": "pybuggy-smoke:latest",
     "Base URL (Jinja2 template, required)": "https://{{ HOST }}/api",
-    "Spec name": "shop",
-    "Spec type": "swagger",
-    "Spec location (path from project root)": "specs/shop.yaml",
-    "Additional specs, one per line: name|type|location|git_url|git_location|git_ref": (
-        "billing|openapi|specs/billing.yaml|https://git/b.git|specs/b.yaml|"
-    ),
+    "Spec name": ["shop", "billing"],
+    "Spec type": ["swagger", "openapi"],
+    "Spec location (path from project root)": ["specs/shop.yaml", "specs/billing.yaml"],
 }
 
 # The plain payload the engine must serialize verbatim into .goga/tools/pybuggy/config.yml:
-# the answered base_url, the first spec without a git block, the extra spec with one
-# (empty ref excluded), and no optional scalar keys (every one Enter-skipped).
+# the answered base_url, the surveyed first spec, the surveyed extra spec (both git-less —
+# the git prompts read as Enter), and no optional scalar keys (every one Enter-skipped).
 _EXPECTED_TOOL_CONFIG = {
     "base_url": "https://{{ HOST }}/api",
     "specs": {
         "shop": {"type": "swagger", "location": "specs/shop.yaml"},
-        "billing": {
-            "type": "openapi",
-            "location": "specs/billing.yaml",
-            "git": {"url": "https://git/b.git", "location": "specs/b.yaml"},
-        },
+        "billing": {"type": "openapi", "location": "specs/billing.yaml"},
     },
 }
 
@@ -102,10 +115,11 @@ class TestSessionSmoke:
 
         The registry imports the real ``register_hooks`` of the installed package, so
         the two participation moments run for real: the declared block is surveyed
-        under ``--- Tool: pybuggy ---``, the amend hook buffers the single amendment
-        and the plain payload, and the engine writes the tool config itself with
-        attribution. The run stays offline — no answer activates the conventions
-        download (every gate declined), so nothing leaves the process.
+        under ``--- Tool: pybuggy ---``, the amend hook surveys the additional spec
+        itself (the confirm-gated loop), buffers the single amendment and the plain
+        payload, and the engine writes the tool config itself with attribution. The
+        run stays offline — the skipped convention section means the base-convention
+        download is never offered, so nothing leaves the process.
         """
         monkeypatch.chdir(tmp_path)
         _write_minimal_specs(tmp_path)
@@ -118,7 +132,7 @@ class TestSessionSmoke:
 
         captured = capsys.readouterr()
         assert code == 0
-        assert [text for text, _answer in tty.confirms] == list(_CONFIRM_ANSWERS)
+        assert [text for text, _answer in tty.confirms] == _EXPECTED_CONFIRMS
         assert "created .goga/tools/pybuggy/config.yml (tool: pybuggy)" in captured.out
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
@@ -129,13 +143,16 @@ class TestSessionSmoke:
         assert "build" not in config  # the build.review.skip amendment never reaches the config (q2/A)
         assert "codemanifest" not in config  # both gates declined — the offline guarantee
 
-        tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").read_text("utf-8"))
+        tool_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        tool_config = yaml.safe_load(tool_config_path.read_text("utf-8"))
         assert tool_config == _EXPECTED_TOOL_CONFIG
+        assert "#" not in tool_config_path.read_text(encoding="utf-8")  # plain engine serialization
 
         dockerfile = tmp_path / ".goga" / "Dockerfile"
         assert dockerfile.read_text(encoding="utf-8").startswith("FROM ")
 
-        # The conventions slot is the bootstrap's delivery, never the session's.
+        # The conventions slot is the bootstrap's delivery, never the session's — and the
+        # skipped section means the engine never downloaded the goga base convention.
         assert not (tmp_path / ".goga" / "usages" / "conventions.md").exists()
 
         # The Enter-impossible prompt: no project name in the pytest tmp dir, so the
@@ -146,13 +163,25 @@ class TestSessionSmoke:
 
         # The full bare-init composition: the REAL bootstrap consumes the real session
         # artifacts — the config-declared Dockerfile carries the install line, the skip
-        # flag and the registrations land, and the conventions slot and conftest appear.
+        # flag and the registrations land, the tool config gains its commented examples,
+        # and the conventions slot (the packaged pybuggy asset) and conftest appear.
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
 
         with caplog.at_level(logging.INFO):
             assert run_bootstrap(template_mode=False) == 0
 
-        assert (tmp_path / ".goga" / "usages" / "conventions.md").exists()
+        packaged_convention = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(
+            encoding="utf-8"
+        )
+        assert (tmp_path / ".goga" / "usages" / "conventions.md").read_text(encoding="utf-8") == packaged_convention
+
+        tool_config_text = tool_config_path.read_text(encoding="utf-8")
+        assert yaml.safe_load(tool_config_text) == _EXPECTED_TOOL_CONFIG  # active keys untouched
+        assert "# headers: example (skipped complex member)" in tool_config_text
+        assert "# timeout: (skipped optional scalar)" in tool_config_text
+        assert "# loader: example (skipped complex member)" in tool_config_text
+        assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
+
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         assert config["build"]["review"]["skip"] is True
         assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"

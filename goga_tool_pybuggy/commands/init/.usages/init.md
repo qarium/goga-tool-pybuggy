@@ -33,8 +33,15 @@ copier TUI (template questions) require a TTY.
 ## The onboarding session
 
 `pybuggy init` and a native `goga init -t pybuggy` run the **same** engine session with pybuggy invited. The engine
-asks the core goga questions and then the pybuggy block under a heading with the tool name; pybuggy never prompts on
-its own.
+asks the core goga questions and then the pybuggy block under a heading with the tool name. The engine asks
+everything the declarative records can express; the one pybuggy-owned ask is the additional-specs follow-up —
+`Add another spec?` and its per-field loop — run by the amendment hook right after the engine survey (a
+confirm-gated repeated group is beyond the declarative records).
+
+The session also skips the core base-convention section: a pybuggy session never offers the goga language-convention
+download, because the engine would land it in `.goga/usages/conventions.md` first and the bootstrap's
+skip-if-exists gate would keep the wrong convention. The `conventions` slot is the bootstrap's delivery and always
+carries the packaged pybuggy test convention in a fresh project.
 
 Session semantics that shape the modes:
 
@@ -44,14 +51,14 @@ Session semantics that shape the modes:
 - In template mode it is the expected path when the template brings its own `.goga/config.yml`: the session returns
   at once and only the bootstrap below runs.
 - A failing tool contribution is soft: the engine discards it with a warning naming pybuggy and continues; the
-  session still returns 0.
+  session still returns 0. This includes a Ctrl-C at the additional-spec prompts.
 
-Through the session pybuggy delivers two things: its questions (the tool configuration survey) and its tool config
-file `.goga/tools/pybuggy/config.yml`. It also buffers the `build.review.skip: true` amendment — the tool's declared
-intent in the session answer space. The engine's config mapper does not carry that flag into the generated
-`.goga/config.yml`; the `pybuggy init` bootstrap enforces it afterwards (`ensure_review_skip`). Consequence: a
-native `goga init -t pybuggy` session (without the pybuggy CLI) runs no bootstrap and sets no flag — add
-`build.review.skip: true` by hand or run the bootstrap programmatically.
+Through the session pybuggy delivers two things: its questions (the tool configuration survey plus the surveyed
+additional specs) and its tool config file `.goga/tools/pybuggy/config.yml`. It also buffers the
+`build.review.skip: true` amendment — the tool's declared intent in the session answer space. The engine's config
+mapper does not carry that flag into the generated `.goga/config.yml`; the `pybuggy init` bootstrap enforces it
+afterwards (`ensure_review_skip`). Consequence: a native `goga init -t pybuggy` session (without the pybuggy CLI)
+runs no bootstrap and sets no flag — add `build.review.skip: true` by hand or run the bootstrap programmatically.
 
 ## The pybuggy bootstrap
 
@@ -60,6 +67,7 @@ After the session (bare and template modes only), the command delivers the files
 | Artifact | Gate |
 |---|---|
 | `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages | template: skip existing (INFO); bare: overwrite |
+| commented example records for the absent members of `.goga/tools/pybuggy/config.yml` | added when the file exists, idempotent |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
 | the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |

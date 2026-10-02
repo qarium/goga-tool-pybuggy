@@ -5,9 +5,10 @@ wrapper's bound parameters, the handler signatures), the carried-over pure
 ``resolve_init_mode`` flag table, the rewired ``run_init`` orchestrator (Task 6) — bare guard
 on ``.goga`` directory existence, engine scaffold codes propagated as-is, the session seam
 propagated unchanged with the bootstrap skipped on failure — and ``run_bootstrap`` (Task 7):
-the 9-step post-session delivery with mode-dependent gates, the config-resolved Dockerfile
-path, the ERROR-and-return-1 failure tier, and the mandatory-Dockerfile invariant. The
-wrapper is driven through a fake ``ctx`` (M-R2.6 — no CliRunner).
+the 10-step post-session delivery with mode-dependent gates, the config-resolved Dockerfile
+path, the tool-config example documentation, the ERROR-and-return-1 failure tier, and the
+mandatory-Dockerfile invariant. The wrapper is driven through a fake ``ctx`` (M-R2.6 — no
+CliRunner).
 """
 
 import importlib.metadata
@@ -455,7 +456,7 @@ def _no_prompt(*_args: object, **_kwargs: object) -> bool:
 
 
 class TestRunBootstrap:
-    """The 9-step post-session orchestrator — gates, Dockerfile resolution, failure tier."""
+    """The 10-step post-session orchestrator — gates, Dockerfile resolution, failure tier."""
 
     def test_run_bootstrap_full_pass_on_fresh_session_artifacts(self, tmp_path, monkeypatch, caplog):
         """A fresh session tree gets every artifact delivered with no ERROR logged."""
@@ -463,6 +464,12 @@ class TestRunBootstrap:
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        tool_config.parent.mkdir(parents=True)
+        tool_config.write_text(
+            "base_url: https://{{ HOST }}/api\nspecs:\n  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
+            encoding="utf-8",
+        )
 
         with caplog.at_level(logging.INFO):
             code = run_bootstrap(template_mode=False)
@@ -476,6 +483,13 @@ class TestRunBootstrap:
             encoding="utf-8"
         )
         assert slot.read_text(encoding="utf-8") == packaged_convention
+
+        tool_config_text = tool_config.read_text(encoding="utf-8")
+        assert "# headers: example (skipped complex member)" in tool_config_text
+        assert "# timeout: (skipped optional scalar)" in tool_config_text
+        assert "# loader: example (skipped complex member)" in tool_config_text
+        assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
+        assert "tool config examples documented" in caplog.text
 
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         assert config["build"]["review"]["skip"] is True
@@ -511,7 +525,7 @@ class TestRunBootstrap:
         ],
     )
     def test_run_bootstrap_missing_dockerfile_fails_with_error(self, tmp_path, monkeypatch, caplog, config_text):
-        """A Dockerfile missing after the session fails at step 8 with steps 2-7 already applied."""
+        """A Dockerfile missing after the session fails at step 9 with steps 2-8 already applied."""
         monkeypatch.chdir(tmp_path)
         _seed_config(tmp_path, config_text)
 

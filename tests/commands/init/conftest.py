@@ -12,6 +12,9 @@ from collections.abc import Callable
 
 import pytest
 
+# The sentinel marking an unscripted (or exhausted) scripted queue entry.
+_EMPTY = object()
+
 
 class DeclarationRecorder:
     """A ``ToolDeclaration``-like double — records what the declare hook declared.
@@ -167,25 +170,60 @@ class ScriptedTTY:
     strictly from the scripted map (an unscripted gate is an unexpected ask); a
     prompt carrying a scripted value returns it, an unscripted prompt accepts its
     offered default (pressing Enter — the optional scalars and git fields), and an
-    unscripted prompt without a default is an unexpected ask.
+    unscripted prompt without a default is an unexpected ask. A scripted value may
+    be a list — the asks of that text then consume it as a FIFO queue (a repeated
+    gate or prompt, e.g. the add-another-spec loop), and an exhausted queue falls
+    back to the unscripted rule of its kind.
 
     Attributes:
         confirms: The ``(text, answer)`` confirm calls, in ask order.
         prompts: The ``(text, default, returned)`` prompt calls, in ask order.
     """
 
-    def __init__(self, confirms: dict[str, bool], prompts: dict[str, object]) -> None:
+    def __init__(self, confirms: dict[str, bool | list[bool]], prompts: dict[str, object | list[object]]) -> None:
         """Build the double from the pinned answer maps.
 
         Args:
-            confirms: The confirm gate texts and their scripted answers.
+            confirms: The confirm gate texts and their scripted answers — a list
+                value answers the successive asks of a repeated gate.
             prompts: The prompt texts and their scripted inputs — the optional
-                ones stay unscripted and read as Enter.
+                ones stay unscripted and read as Enter; a list value answers the
+                successive asks of a repeated prompt.
         """
-        self._confirms = dict(confirms)
-        self._prompts = dict(prompts)
+        self._confirms = {text: self._queue(answer) for text, answer in confirms.items()}
+        self._prompts = {text: self._queue(answer) for text, answer in prompts.items()}
         self.confirms: list[tuple[str, bool]] = []
         self.prompts: list[tuple[str, object, object]] = []
+
+    @staticmethod
+    def _queue(answer: object) -> list[object]:
+        """Normalize one scripted answer to a consumable FIFO queue.
+
+        Args:
+            answer: The scripted answer — a scalar wraps into a one-entry list.
+
+        Returns:
+            The queue consumed one entry per ask of the mapped text.
+        """
+        return list(answer) if isinstance(answer, list) else [answer]
+
+    def _consume(self, scripted: dict[str, list[object]], text: str) -> object:
+        """Consume the next queued answer of ``text`` when its queue holds one.
+
+        Args:
+            scripted: The scripted queues of the calling kind.
+            text: The asked confirm/prompt text.
+
+        Returns:
+            The queued answer, or the ``_EMPTY`` sentinel when the text is
+            unscripted or its queue is exhausted.
+        """
+        queue = scripted.get(text)
+
+        if queue:
+            return queue.pop(0)
+
+        return _EMPTY
 
     def confirm(self, text: str, default: bool = False, **_: object) -> bool:
         """Answer one confirm gate from the scripted map.
@@ -201,10 +239,11 @@ class ScriptedTTY:
         Raises:
             AssertionError: When the engine asks a gate the map does not carry.
         """
-        if text not in self._confirms:
+        answer = self._consume(self._confirms, text)
+
+        if answer is _EMPTY:
             raise AssertionError(f"unexpected confirm: {text!r}")
 
-        answer = self._confirms[text]
         self.confirms.append((text, answer))
         return answer
 
@@ -223,12 +262,13 @@ class ScriptedTTY:
             AssertionError: When an unscripted prompt offers no default — the
                 map must carry every required input.
         """
-        if text in self._prompts:
-            answer = self._prompts[text]
-        elif default is not None:
-            answer = default
-        else:
-            raise AssertionError(f"unexpected prompt without a default: {text!r}")
+        answer = self._consume(self._prompts, text)
+
+        if answer is _EMPTY:
+            if default is not None:
+                answer = default
+            else:
+                raise AssertionError(f"unexpected prompt without a default: {text!r}")
 
         self.prompts.append((text, default, answer))
         return answer

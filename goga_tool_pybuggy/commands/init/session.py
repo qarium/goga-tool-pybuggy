@@ -6,11 +6,15 @@ onboarding session with pybuggy invited; ``declare_pybuggy_session`` and
 facade callback; the pure builders (``pybuggy_questions``, ``build_config_data``,
 ``build_config_amendments``, ``parse_specs``) turn session answers into the plain
 serializable tool-config payload the engine writes verbatim into
-``.goga/tools/pybuggy/config.yml``.
+``.goga/tools/pybuggy/config.yml``. The additional specs are the one part the
+declarative engine records cannot express (a confirm gate plus repeated per-field
+groups), so ``survey_extra_specs`` asks them itself at the amendment moment —
+right after the engine survey, in the same screen position the 1.x wizard used.
 """
 
 import logging
 
+import click
 from goga.onboarding import FileGenerator, InitLogic, Question, QuestionGroup, Questionnaire, ToolParticipation
 
 from ...config import GitEntry, SpecEntry
@@ -52,17 +56,9 @@ _NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
     PluginConfigKeys.ASSERT_DELAY: float,
 }
 
-# Field count of the ``extra_specs`` compact form: ``name|type|location|git_url|git_location|git_ref``.
-# On a longer line the first six fields win; anything past ``git_ref`` is ignored.
-_GIT_FIELDS = 6
-
 # The spec formats a ``SpecEntry`` accepts — the shared strictness of the first spec and the
-# lenient extra lines (a ``type`` outside this tuple is always rejected).
+# surveyed extras (a ``type`` outside this tuple is always rejected).
 _SPEC_TYPES = ("swagger", "openapi")
-
-# Minimum field count of a well-formed ``extra_specs`` line: ``name``, ``type``, ``location``.
-# Shorter lines are malformed and skipped; the git fields (up to ``_GIT_FIELDS`` total) are optional.
-_SPEC_MIN_FIELDS = 3
 
 
 def pybuggy_questions() -> list[Question]:
@@ -74,10 +70,10 @@ def pybuggy_questions() -> list[Question]:
     ``LOADER`` (``default=""`` — Enter yields ``""``, optional; prompt texts from
     ``_SCALAR_PROMPTS``); then the one-level group ``first_spec`` (children
     ``name``/``type``/``location``/``git_url``/``git_location``/``git_ref`` — name and
-    location required, type a ``swagger``/``openapi`` choice, git fields optional); then
-    ``extra_specs`` (input, ``default=""`` — one spec per line in the compact form
-    ``name|type|location|git_url|git_location|git_ref``). Survey order equals declaration
-    order, and every record is fresh per call.
+    location required, type a ``swagger``/``openapi`` choice, git fields optional). The
+    additional specs are NOT declared here — a confirm-gated repeated group is beyond the
+    declarative records, so ``survey_extra_specs`` asks them at the amendment moment.
+    Survey order equals declaration order, and every record is fresh per call.
 
     Returns:
         The question records — ``Question`` items plus the single ``first_spec``
@@ -105,31 +101,87 @@ def pybuggy_questions() -> list[Question]:
             ],
         )
     )
-    items.append(
-        Question(
-            id="extra_specs",
-            kind="input",
-            default="",
-            prompt="Additional specs, one per line: name|type|location|git_url|git_location|git_ref",
-        )
-    )
 
     return items
 
 
-def build_config_data(answers: dict[str, object]) -> dict[str, object]:
+def _required(prompt: str) -> str:
+    """Ask a required free-text value, re-asking while the entry strips to nothing.
+
+    The first ask is plain; an empty entry re-asks with a ``(required)`` prompt suffix —
+    the 1.x wizard pattern. A ``click.Abort`` (Ctrl-C) propagates unchanged.
+
+    Args:
+        prompt: The prompt text of the required value.
+
+    Returns:
+        The non-empty stripped answer.
+    """
+    value = click.prompt(prompt, default="", show_default=False).strip()
+
+    while not value:
+        value = click.prompt(f"{prompt} (required)", default="", show_default=False).strip()
+
+    return value
+
+
+def survey_extra_specs() -> list[dict[str, object]]:
+    """Interactively survey the additional specs — the confirm-gated per-field follow-up.
+
+    The one pybuggy-owned ask of the session, run at the amendment moment (right after the
+    engine survey asked the ``first_spec`` group): ``Add another spec?`` (confirm, default
+    no) gates the whole block; each accepted spec is then asked field by field in the
+    ``first_spec`` order — ``name`` (required, re-asked when empty), ``type`` (a
+    ``swagger``/``openapi`` choice), ``location`` (required, re-asked), then the optional
+    git fields (an empty ``git_url`` means no git source; an empty ``git_ref`` means the
+    default branch) — and the confirm repeats, so any number of extras can be entered.
+
+    Returns:
+        The surveyed specs — one mapping per accepted spec, keyed by the ``first_spec``
+        child ids (``name``/``type``/``location``/``git_url``/``git_location``/``git_ref``).
+
+    Raises:
+        click.Abort: Forwarded unchanged from any cancelled prompt — the engine mediator
+            then drops the whole pybuggy contribution with a warning and the session
+            continues.
+    """
+    surveyed: list[dict[str, object]] = []
+
+    while click.confirm("Add another spec?", default=False):
+        spec: dict[str, object] = {
+            "name": _required("Spec name"),
+            "type": click.prompt("Spec type", type=click.Choice(list(_SPEC_TYPES))),
+            "location": _required("Spec location (path from project root)"),
+            "git_url": click.prompt("Git URL (empty — no git source)", default="", show_default=False).strip(),
+            "git_location": click.prompt("Path inside the repository", default="", show_default=False).strip(),
+            "git_ref": click.prompt(
+                "Git ref (branch/tag; empty — default branch)", default="", show_default=False
+            ).strip(),
+        }
+
+        surveyed.append(spec)
+
+    return surveyed
+
+
+def build_config_data(
+    answers: dict[str, object],
+    extra_specs: list[dict[str, object]] | None = None,
+) -> dict[str, object]:
     """Build the plain serializable tool-config payload from the session answers.
 
     Scalar walk in ``PluginConfigKeys`` declaration order skipping ``HEADERS``/``LOADER``:
     unanswered members (``None``/``""``) are dropped — never written empty — and numeric
     members (``timeout``→float, ``retries``→int, ``assert_timeout``→int, ``assert_delay``→float
-    via ``_NUMERIC_MEMBERS``) are coerced. The specs from :func:`parse_specs` land under
+    via ``_NUMERIC_MEMBERS``) are coerced. The specs from :func:`parse_specs` — the
+    ``first_spec`` group answer plus the ``survey_extra_specs`` mappings — land under
     ``specs`` as ``model_dump(exclude_none=True)`` plain mappings, with ``specs`` last. The
     payload is plain serializable data only — never pydantic objects (the engine
     ``yaml.dump``s buffered data verbatim and silently drops unserializable files).
 
     Args:
         answers: The pybuggy answer view (core sections plus the own block under local names).
+        extra_specs: The ``survey_extra_specs`` mappings; None when the gate was declined.
 
     Returns:
         The tool-config payload keyed in plugin key order with ``specs`` last.
@@ -138,7 +190,7 @@ def build_config_data(answers: dict[str, object]) -> dict[str, object]:
         ValueError: If a numeric member's answer cannot coerce to its target type (the
             mediator soft-drops the contribution).
     """
-    specs = parse_specs(answers.get("first_spec") or {}, answers.get("extra_specs") or None)
+    specs = parse_specs(answers.get("first_spec") or {}, extra_specs)
     data: dict[str, object] = {}
 
     for member in PluginConfigKeys:
@@ -221,45 +273,50 @@ def _first_spec_entry(spec_answers: dict[str, object]) -> tuple[str, SpecEntry]:
     return str(name), SpecEntry(type=str(spec_type), location=str(location), git=git)
 
 
-def _extra_spec_entry(line: str) -> tuple[str, SpecEntry] | None:
-    """Parse one ``extra_specs`` compact-form line into a typed entry.
+def _extra_spec_entry(spec_answers: dict[str, object]) -> tuple[str, SpecEntry] | None:
+    """Build one surveyed extra spec into a typed entry.
 
-    Lenient — a malformed line (fewer than three fields, an empty name or
-    location, an invalid type) is WARNING-logged and dropped, never raised. On a
-    line longer than ``_GIT_FIELDS`` fields the first six win.
+    Lenient guard of the (prompt-validated) ``survey_extra_specs`` mapping: a record
+    without a non-empty ``name``, a ``type`` in ``_SPEC_TYPES``, and a non-empty
+    ``location`` is WARNING-logged and dropped, never raised.
 
     Args:
-        line: The raw compact-form line ``name|type|location|git_url|git_location|git_ref``.
+        spec_answers: One surveyed extra-spec mapping (the ``first_spec`` child ids).
 
     Returns:
-        The spec name and its typed ``SpecEntry``, or ``None`` when the line is malformed.
+        The spec name and its typed ``SpecEntry``, or ``None`` when the record is malformed.
     """
-    parts = [part.strip() for part in line.split("|")]
+    name = str(spec_answers.get("name") or "").strip()
+    spec_type = spec_answers.get("type")
+    location = str(spec_answers.get("location") or "").strip()
 
-    if len(parts) < _SPEC_MIN_FIELDS or not parts[0] or parts[1] not in _SPEC_TYPES or not parts[2]:
-        logger.warning("malformed extra spec line skipped", extra={"line": line})
+    if not name or spec_type not in _SPEC_TYPES or not location:
+        logger.warning("malformed extra spec skipped", extra={"spec": name})
         return None
 
-    git_url, git_location, git_ref = ([*parts[3:_GIT_FIELDS], "", "", ""])[:3]
+    git = _git_entry(spec_answers.get("git_url"), spec_answers.get("git_location"), spec_answers.get("git_ref"))
 
-    return parts[0], SpecEntry(type=parts[1], location=parts[2], git=_git_entry(git_url, git_location, git_ref))
+    return name, SpecEntry(type=str(spec_type), location=location, git=git)
 
 
-def parse_specs(spec_answers: dict[str, object], extra_specs: str | None) -> dict[str, SpecEntry]:
-    """Parse the first-spec answers and the extra-specs compact lines into typed entries.
+def parse_specs(
+    spec_answers: dict[str, object],
+    extra_specs: list[dict[str, object]] | None,
+) -> dict[str, SpecEntry]:
+    """Parse the first-spec answers and the surveyed extra specs into typed entries.
 
     The first spec is strict: a non-empty ``name``, ``type`` in {``swagger``, ``openapi``},
     and a non-empty ``location`` are required — anything else raises ``ValueError`` (the
     mediator soft-drops the contribution upstream). A ``GitEntry(url, location, ref)`` is
     attached only when ``git_url`` AND ``git_location`` are both non-empty
-    (``ref = git_ref or None``). The extras are lenient: every non-empty line is split on
-    ``|``, malformed lines (fewer than 3 parts, an empty name/location, an invalid type)
-    and duplicate names are skipped with a WARNING; a name collision keeps the first entry.
+    (``ref = git_ref or None``). The extras are lenient: every surveyed mapping becomes
+    its ``SpecEntry``; a malformed record (unreachable through the prompt validation) and
+    a duplicate name are skipped with a WARNING; a name collision keeps the first entry.
 
     Args:
         spec_answers: The ``first_spec`` group answers (child id → answer).
-        extra_specs: The raw ``extra_specs`` answer — one spec per line in the compact form
-            ``name|type|location|git_url|git_location|git_ref`` — or ``None``/empty when absent.
+        extra_specs: The ``survey_extra_specs`` mappings, or ``None`` when the gate was
+            declined.
 
     Returns:
         The ordered mapping of spec name to ``SpecEntry``; always holds at least the first spec.
@@ -270,21 +327,19 @@ def parse_specs(spec_answers: dict[str, object], extra_specs: str | None) -> dic
     name, entry = _first_spec_entry(spec_answers)
     specs: dict[str, SpecEntry] = {name: entry}
 
-    if extra_specs:
-        for line in extra_specs.splitlines():
-            if not line.strip():
-                continue
+    for spec in extra_specs or []:
+        parsed = _extra_spec_entry(spec)
 
-            parsed = _extra_spec_entry(line)
-            if parsed is None:
-                continue
+        if parsed is None:
+            continue
 
-            extra_name, extra_entry = parsed
-            if extra_name in specs:
-                logger.warning("duplicate spec name skipped", extra={"spec": extra_name})
-                continue
+        extra_name, extra_entry = parsed
 
-            specs[extra_name] = extra_entry
+        if extra_name in specs:
+            logger.warning("duplicate spec name skipped", extra={"spec": extra_name})
+            continue
+
+        specs[extra_name] = extra_entry
 
     return specs
 
@@ -316,8 +371,13 @@ def declare_pybuggy_session(context: object) -> None:
 
     When ``context.invited`` is falsy the routine returns without calling anything;
     otherwise every item of :func:`pybuggy_questions` is declared in survey order via
-    ``context.declare``. Nothing is surveyed or prompted (the engine owns the asking),
-    no answers are read, and no core subtree is skipped.
+    ``context.declare``, and the core ``convention`` section is skipped via
+    ``context.skip`` — a pybuggy session must not offer the goga base-convention
+    download, because the engine would land the language conventions in
+    ``.goga/usages/conventions.md`` first and the bootstrap's skip-if-exists slot gate
+    would then keep them instead of the pybuggy test convention. Nothing is surveyed or
+    prompted (the engine owns the asking) and no answers are read. The skip no-ops with
+    an engine warning when the section is already absent (an existing conventions file).
 
     Args:
         context: The ``ToolDeclaration`` proxy delivered by name from the hooks platform.
@@ -328,18 +388,23 @@ def declare_pybuggy_session(context: object) -> None:
     for item in pybuggy_questions():
         context.declare(item)
 
+    context.skip("convention")
+
 
 def amend_pybuggy_config(context: object) -> None:
     """Amend the session answers and buffer the tool config (participation moment two).
 
     When ``context.invited`` is falsy the routine returns without calling anything;
-    otherwise the declared-intent amendments from :func:`build_config_amendments` are
-    committed via ``context.answer`` and the plain-data payload from
-    :func:`build_config_data` is buffered via ``context.write_config("config.yml", ...)``
-    — the engine serializes it into ``.goga/tools/pybuggy/config.yml``. Files are never
-    written directly and another tool's answers are never read; an exception propagates
-    to the mediator, which drops the whole contribution with a warning naming pybuggy
-    (soft — the session and the bootstrap still complete).
+    otherwise the additional specs are surveyed first via :func:`survey_extra_specs`
+    (the confirm-gated per-field follow-up — the declarative engine records cannot
+    express it), then the declared-intent amendments from
+    :func:`build_config_amendments` are committed via ``context.answer`` and the
+    plain-data payload from :func:`build_config_data` is buffered via
+    ``context.write_config("config.yml", ...)`` — the engine serializes it into
+    ``.goga/tools/pybuggy/config.yml``. Files are never written directly and another
+    tool's answers are never read; an exception (including a ``click.Abort`` at the
+    extra-spec prompts) propagates to the mediator, which drops the whole contribution
+    with a warning naming pybuggy (soft — the session and the bootstrap still complete).
 
     Args:
         context: The ``ToolContribution`` proxy delivered by name from the hooks platform.
@@ -352,8 +417,9 @@ def amend_pybuggy_config(context: object) -> None:
         return
 
     answers = context.answers
+    extra_specs = survey_extra_specs()
 
     for id, value in build_config_amendments().items():
         context.answer(id, value)
 
-    context.write_config("config.yml", build_config_data(answers))
+    context.write_config("config.yml", build_config_data(answers, extra_specs))

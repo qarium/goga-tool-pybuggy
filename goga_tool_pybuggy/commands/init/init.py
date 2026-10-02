@@ -20,6 +20,7 @@ from goga.scaffold import Scaffold
 from ruamel.yaml import YAMLError
 
 from .bootstrap import (
+    document_config_examples,
     ensure_review_skip,
     install_pybuggy,
     register_annotations,
@@ -286,7 +287,7 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
 
 
 def run_bootstrap(template_mode: bool) -> int:
-    """Run the 9-step post-session bootstrap with mode-dependent gates.
+    """Run the 10-step post-session bootstrap with mode-dependent gates.
 
     The pybuggy-owned delivery of the files the onboarding session does not carry:
 
@@ -294,23 +295,27 @@ def run_bootstrap(template_mode: bool) -> int:
     2. Copy every discovered ``.usages/*.md`` of the installed ``goga_tool_pybuggy.api``
        package to ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md`` — an existing destination is
        kept untouched in template mode (INFO) and overwritten in bare mode.
-    3. Deliver the ``conventions`` slot (``<cwd>/.goga/usages/conventions.md``)
+    3. Document the absent plugin members of ``<cwd>/.goga/tools/pybuggy/config.yml`` as
+       commented example records via :func:`document_config_examples` — the 1.x option
+       surface the engine's plain serialization does not carry; idempotent, and a no-op
+       when the session wrote no tool config.
+    4. Deliver the ``conventions`` slot (``<cwd>/.goga/usages/conventions.md``)
        skip-if-exists in BOTH modes; otherwise write the packaged asset.
-    4. Always enforce ``build.review.skip: true`` in ``<cwd>/.goga/config.yml`` via
+    5. Always enforce ``build.review.skip: true`` in ``<cwd>/.goga/config.yml`` via
        :func:`ensure_review_skip`.
-    5. Resolve the Dockerfile from the consumer config ``dockerfile`` field (fallback
+    6. Resolve the Dockerfile from the consumer config ``dockerfile`` field (fallback
        ``.goga/Dockerfile``) and append the pybuggy install line via
        :func:`install_pybuggy` (a no-op when the file is absent).
-    6. Register the usage keys and annotation lines in ``<cwd>/.goga/config.yml`` via
+    7. Register the usage keys and annotation lines in ``<cwd>/.goga/config.yml`` via
        :func:`register_usages` / :func:`register_annotations` and log the results
        (INFO added, WARNING skipped).
-    7. Gate the root ``conftest.py``: absent → write; existing + template mode → INFO skip;
+    8. Gate the root ``conftest.py``: absent → write; existing + template mode → INFO skip;
        existing + bare mode → ``click.confirm`` (default no; declining leaves it untouched).
-    8. Fail with ERROR ``Dockerfile missing after the session`` and exit code 1 when the
+    9. Fail with ERROR ``Dockerfile missing after the session`` and exit code 1 when the
        resolved Dockerfile still does not exist (the declined-Dockerfile session).
-    9. Return 0.
+    10. Return 0.
 
-    Steps 2-7 are wrapped: an ``(OSError, YAMLError, ValueError)`` is ERROR-logged and maps
+    Steps 2-8 are wrapped: an ``(OSError, YAMLError, ValueError)`` is ERROR-logged and maps
     to exit code 1 — never a ``click.ClickException``.
 
     Args:
@@ -337,8 +342,14 @@ def run_bootstrap(template_mode: bool) -> int:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text, encoding="utf-8")
 
+        documented = document_config_examples(cwd / ".goga" / "tools" / "pybuggy" / "config.yml")
+
+        if documented:
+            logger.info("tool config examples documented", extra={"count": len(documented)})
+
         # The conventions slot is delivered skip-if-exists in BOTH modes — existing content is
-        # never overwritten (INFO) and never prompted about.
+        # never overwritten (INFO) and never prompted about. The engine's goga base-convention
+        # download is skipped by the declaration hook, so a fresh session leaves the slot empty.
         slot = cwd / ".goga" / "usages" / "conventions.md"
 
         if slot.exists():

@@ -4,8 +4,10 @@
 
 The onboarding step that collects the pybuggy tool configuration and delivers it as the tool's session contribution:
 the file `.goga/tools/pybuggy/config.yml`. The questions are declared by pybuggy and asked by the goga onboarding
-engine — in `pybuggy init` and in a native `goga init -t pybuggy` session alike. The audience is the integrator
-wiring pybuggy in, and the consumer's goga agent.
+engine — in `pybuggy init` and in a native `goga init -t pybuggy` session alike. The additional specs are the one
+exception: a confirm-gated repeated group is beyond the declarative engine records, so pybuggy asks them itself at
+the amendment moment, right after the engine survey. The audience is the integrator wiring pybuggy in, and the
+consumer's goga agent.
 
 ## What is asked
 
@@ -15,32 +17,34 @@ wiring pybuggy in, and the consumer's goga agent.
   `assert_delay`, `assert_field_class`, `assert_response_class`.
 - The first spec, field by field: `name`, `type` (a choice of `swagger` or `openapi`), `location`, and the optional
   git fields `git_url`, `git_location`, `git_ref` — an empty `git_url` means no git source.
-- `extra_specs` — optional. Additional specs, one per line, in the compact form:
-
-      name|type|location|git_url|git_location|git_ref
-
-  A line carrying fewer than the three required fields (name, type, location) is malformed. A malformed line is
-  skipped with a warning — the rest of the contribution is unaffected. A name colliding with the first spec keeps
-  the first spec and warns. The first spec is validated strictly, so at least one spec always lands in the config.
+- The additional specs, asked by pybuggy at the amendment moment: `Add another spec?` (confirm, default no) gates
+  the block; each accepted spec is asked field by field in the first-spec order (`name` required and re-asked when
+  empty, `type` a swagger/openapi choice, `location` required, then the optional git fields); the confirm repeats
+  after every spec until declined. A name colliding with an earlier spec keeps the earlier spec and warns. The
+  first spec is validated strictly, so at least one spec always lands in the config.
 
 ## What is not asked
 
-`headers` and `loader` are never surveyed, and the tool config is serialized as plain YAML — the file carries only
-the answered values. The two complex sections stay documented as hand-added examples (add them to the file
-yourself when needed):
+`headers` and `loader` are never surveyed — the tool config is serialized as plain YAML carrying only the answered
+values, and the `pybuggy init` bootstrap then documents the unanswered members as commented example records in the
+file itself (uncomment and fill them when needed):
 
-      # headers:                        # optional section, hand-added: mapping of header name to value/template
-      #   X-Api-Key: "{{ API_KEY }}"
-      # loader:                         # optional section, hand-added: packages/modules structure
-      #   packages: [api]
+      # headers: example (skipped complex member)   # emitted by the bootstrap
+      #   X-Example: value
+      #   default request headers dict
+      # timeout: (skipped optional scalar)
+      # loader: example (skipped complex member)
+      #   packages:
+      #     - api
+      #   modules: []
 
 ## The contribution
 
-The answers never touch the filesystem directly — the amendment hook buffers the contribution and the engine
-commits it:
+The answers never touch the filesystem directly — the amendment hook surveys the additional specs, buffers the
+contribution, and the engine commits it:
 
 - the tool config file `.goga/tools/pybuggy/config.yml` — the specs mapping plus the answered scalar keys
-  (unanswered keys are dropped, never written empty);
+  (unanswered keys are dropped, never written empty; the bootstrap adds their commented examples afterwards);
 - the `build.review.skip: true` amendment — the tool's declared intent in the session answer space. The engine's
   config mapper does not carry the flag into the generated `.goga/config.yml`; the `pybuggy init` bootstrap
   enforces it afterwards (`ensure_review_skip`). A native `goga init -t pybuggy` session runs no bootstrap and
@@ -48,16 +52,19 @@ commits it:
 
 ## Failure and re-run semantics
 
-- An exception raised while building the contribution drops the whole contribution with a warning naming pybuggy —
-  the session continues and returns 0; the pybuggy bootstrap then still delivers its own files.
+- An exception raised while building the contribution — including a Ctrl-C at the additional-spec prompts — drops
+  the whole contribution with a warning naming pybuggy; the session continues and returns 0; the pybuggy bootstrap
+  then still delivers its own files.
 - An existing `.goga/config.yml` ends the session immediately — no questions, no contribution. Whoever created the
   config first wins: the tool config file is never rewritten by a later session.
 
 ## Programmatic usage (tests/scripts)
 
 `parse_specs`, `build_config_data`, and `build_config_amendments` are pure mappings from the answer view — test
-them directly with dict inputs, no TTY and no filesystem. `pybuggy_questions` is likewise pure: assert the record
-shapes and the survey order against the `PluginConfigKeys` members.
+them directly with dict inputs, no TTY and no filesystem (`extra_specs` is the list of surveyed mappings, or None
+for a declined gate). `pybuggy_questions` is likewise pure: assert the record shapes and the survey order against
+the `PluginConfigKeys` members. `survey_extra_specs` is the one TTY routine — stub `click.prompt`/`click.confirm`
+of the session module to script it in tests.
 
 ## Preconditions and side effects
 

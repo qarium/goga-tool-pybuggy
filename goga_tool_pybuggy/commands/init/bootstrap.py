@@ -18,6 +18,8 @@ from ruamel.yaml import YAML
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString
 
+from ...plugin import PluginConfigKeys
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +80,14 @@ _CONFTEST_TEMPLATE = (
     "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
 )
 
+# Commented example records for the plugin members the session never captures — the exact
+# 1.x texts. The engine writes only the answered plain data, so the ``headers``/``loader``
+# complex members and the unanswered optional scalars are documented as ``# ``-prefixed
+# example records instead of active keys (``Config`` ignores extra scalars): ruamel emits
+# every line of a before-comment with the ``# `` prefix, reproducing the 1.x layout.
+_HEADERS_BLOCK = "headers: example (skipped complex member)\n  X-Example: value\n  default request headers dict"
+_LOADER_BLOCK = "loader: example (skipped complex member)\n  packages:\n    - api\n  modules: []"
+
 
 def write_test_convention(path: Path) -> None:
     """Occupy the consumer's ``conventions`` slot with the packaged pybuggy test convention.
@@ -103,6 +113,86 @@ def write_test_convention(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     path.write_text(asset_text, encoding="utf-8")
+
+
+def _example_record(member: PluginConfigKeys) -> str:
+    """Return the commented example record text of one plugin member.
+
+    The complex ``HEADERS``/``LOADER`` members resolve to their multi-line example blocks;
+    every scalar member resolves to its ``(skipped optional scalar)`` record — the 1.x texts.
+
+    Args:
+        member: The plugin config key to document.
+
+    Returns:
+        The record text emitted as ``# ``-prefixed comment lines.
+    """
+    if member is PluginConfigKeys.HEADERS:
+        return _HEADERS_BLOCK
+
+    if member is PluginConfigKeys.LOADER:
+        return _LOADER_BLOCK
+
+    return f"{member.value}: (skipped optional scalar)"
+
+
+def document_config_examples(config_path: Path) -> list[str]:
+    """Document the absent plugin members of the tool config as commented example records.
+
+    Round-trip edit of ``.goga/tools/pybuggy/config.yml``: for every ``PluginConfigKeys``
+    member that is absent as an active key and whose record marker is not already in the
+    file text, the 1.x example record (``_example_record``) is added — pinned, in plugin
+    key order, before the next active key via the ruamel before-comment (``specs`` is the
+    terminal anchor), so the commented records sit exactly where the keys would appear.
+    Idempotent by marker detection: a repeat run over its own output adds nothing, and a
+    member the user activated (uncommented) keeps its active key undisturbed. Active keys
+    are never modified — only comments are added.
+
+    Args:
+        config_path: Path to the tool config file (``<cwd>/.goga/tools/pybuggy/config.yml``).
+
+    Returns:
+        The record texts added; empty when the file is absent, holds no mapping, or every
+        absent member is already documented.
+
+    Raises:
+        YAMLError: If the existing file contains invalid YAML.
+    """
+    if not config_path.exists():
+        return []
+
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.width = 4096
+
+    data = yaml.load(config_path)
+
+    if not isinstance(data, CommentedMap):
+        return []
+
+    text = config_path.read_text(encoding="utf-8")
+    pending: list[str] = []
+    documented: list[str] = []
+
+    for member in PluginConfigKeys:
+        record = _example_record(member)
+
+        if member.value in data:
+            if pending:
+                data.yaml_set_comment_before_after_key(member.value, before="\n".join(pending))
+                documented.extend(pending)
+                pending = []
+        elif record.split("\n", 1)[0] not in text:
+            pending.append(record)
+
+    if pending and "specs" in data:
+        data.yaml_set_comment_before_after_key("specs", before="\n".join(pending))
+        documented.extend(pending)
+
+    if documented:
+        yaml.dump(data, config_path)
+
+    return documented
 
 
 def ensure_review_skip(config_path: Path) -> bool:
@@ -159,10 +249,12 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
     importlib.metadata.version("goga-tool-pybuggy")`` → ``minor =
     ".".join(version.split(".")[:2])`` → ``RUN goga install pybuggy -v {minor}.x`` (the
     minor x-range is a valid ``goga install`` version form, ``N.M.x`` → ``~=N.M.0``; a
-    dev/pre tail like ``1.1.1.dev4+gabc`` still yields ``1.1.x``). A no-op when
-    ``dockerfile_path`` does not exist (the file is never created here) or the line is
-    already present; otherwise a trailing newline is ensured, the line appended, and the
-    file written — only the install line is ever appended.
+    dev/pre tail like ``1.1.1.dev4+gabc`` still yields ``1.1.x``). A missing distribution
+    metadata (a metadata-less source-tree run) raises ``ValueError`` — the bootstrap's
+    wrapped tier turns it into a clean ERROR and exit 1 instead of a raw traceback. A
+    no-op when ``dockerfile_path`` does not exist (the file is never created here) or the
+    line is already present; otherwise a trailing newline is ensured, the line appended,
+    and the file written — only the install line is ever appended.
 
     Args:
         dockerfile_path: Path to the project Dockerfile (resolved from the consumer
@@ -171,11 +263,22 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
     Returns:
         The appended ``RUN`` line text, or ``None`` when nothing was appended (file
         absent or line already present).
+
+    Raises:
+        ValueError: When the running interpreter lacks the ``goga-tool-pybuggy``
+            distribution metadata — the install version cannot be derived.
     """
     if not dockerfile_path.exists():
         return None
 
-    version = importlib.metadata.version("goga-tool-pybuggy")
+    try:
+        version = importlib.metadata.version("goga-tool-pybuggy")
+    except importlib.metadata.PackageNotFoundError as exc:
+        raise ValueError(
+            "goga-tool-pybuggy distribution metadata not found — the install version cannot be derived; "
+            "run an installed package (goga install pybuggy), not a metadata-less source tree"
+        ) from exc
+
     minor = ".".join(version.split(".")[:2])
     line = f"RUN goga install pybuggy -v {minor}.x"
 

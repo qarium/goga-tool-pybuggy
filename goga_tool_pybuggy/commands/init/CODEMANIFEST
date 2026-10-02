@@ -38,10 +38,13 @@ Annotations: |
 
   Order of actions: resolve the mode, apply the bare guard, run the scaffold engine in template and upgrade modes,
   run the onboarding session, close with the pybuggy bootstrap. The session is engine-owned: the core questions and
-  the pybuggy block are surveyed by the engine, and the tool config file and the config amendments are committed
-  through the participation mechanism; an existing .goga/config.yml ends the session immediately and is never
-  rewritten. The bootstrap owns the pybuggy files the session does not carry: the packaged usages copy, the
-  `conventions` slot, the build.review.skip enforcement, the Dockerfile install line, the usage and annotation
+  the pybuggy block are surveyed by the engine, the core convention section is skipped (the pybuggy session never
+  offers the goga base-convention download — the `conventions` slot is the bootstrap's delivery), and the additional
+  specs are surveyed by the tool itself at the amendment moment — a confirm-gated repeated group is beyond the
+  declarative engine records. The tool config file and the config amendments are committed through the participation
+  mechanism; an existing .goga/config.yml ends the session immediately and is never rewritten. The bootstrap owns
+  the pybuggy files the session does not carry: the packaged usages copy, the tool-config example documentation,
+  the `conventions` slot, the build.review.skip enforcement, the Dockerfile install line, the usage and annotation
   registrations, and the root conftest. Use relative imports inside the cell.
 
 ---
@@ -139,21 +142,24 @@ Annotations: |
     2. Discover every .usages/*.md under the api cell of the installed package; copy each into
        .goga/usages/cooks/pybuggy/<stem>.md — template mode: an existing target is skipped with an INFO log; bare
        mode: an existing target is overwritten.
-    3. Deliver the `conventions` slot: when .goga/usages/conventions.md does not exist, call `write_test_convention`;
+    3. Document the absent plugin members of .goga/tools/pybuggy/config.yml as commented example records via
+       `document_config_examples` — idempotent; a no-op when the session wrote no tool config.
+    4. Deliver the `conventions` slot: when .goga/usages/conventions.md does not exist, call `write_test_convention`;
        when it exists, log INFO and leave the file untouched.
-    4. Enforce build.review.skip: true via `ensure_review_skip` — idempotent; runs on every pass, including when the
+    5. Enforce build.review.skip: true via `ensure_review_skip` — idempotent; runs on every pass, including when the
        session ended immediately on an existing config.
-    5. Resolve the Dockerfile path from the consumer config dockerfile field (fallback .goga/Dockerfile), then
+    6. Resolve the Dockerfile path from the consumer config dockerfile field (fallback .goga/Dockerfile), then
        augment it via `install_pybuggy` — idempotent; a no-op when the file is absent.
-    6. Register the usage keys via `register_usages` and the annotation lines via `register_annotations` — idempotent.
-    7. Deliver the root conftest: when conftest.py does not exist, call `write_pybuggy_conftest`; when it exists —
+    7. Register the usage keys via `register_usages` and the annotation lines via `register_annotations` — idempotent.
+    8. Deliver the root conftest: when conftest.py does not exist, call `write_pybuggy_conftest`; when it exists —
        template mode: log INFO and skip; bare mode: ask via click.confirm (default no) and overwrite only on yes.
-    8. Verify the Dockerfile exists; when it does not, log ERROR and return non-zero.
-    9. Return 0.
+    9. Verify the Dockerfile exists; when it does not, log ERROR and return non-zero.
+    10. Return 0.
 
     Requirements:
     - After every successful run the consumer config carries build.review.skip: true; the pybuggy usage keys and
-      annotation lines are registered; the packaged usages are copied; the `conventions` slot is occupied when it was
+      annotation lines are registered; the packaged usages are copied; the tool config carries the commented examples
+      of its absent optional members (when the session wrote it); the `conventions` slot is occupied when it was
       absent; the root conftest exists.
     - The pure writers always (over)write when called — every existence check and confirmation lives here.
     - Every step is idempotent; a repeat run changes nothing.
@@ -165,8 +171,9 @@ Annotations: |
     - Do not prompt about existing files in template mode — the template expresses the user's intent.
     - Do not create the Dockerfile when the engine did not write it — report and fail.
 
-    Use `write_test_convention`, `ensure_review_skip`, `install_pybuggy`, `register_usages`, `register_annotations`,
-    `write_pybuggy_conftest`. Use `click` for the bare-mode gates. Use `conventions` for logging and testing.
+    Use `write_test_convention`, `document_config_examples`, `ensure_review_skip`, `install_pybuggy`,
+    `register_usages`, `register_annotations`, `write_pybuggy_conftest`. Use `click` for the bare-mode gates.
+    Use `conventions` for logging and testing.
 
 "run_session() -> exit_code:int":
   location: session.py
@@ -199,17 +206,21 @@ Annotations: |
   location: session.py
   annotations: |
     Declaration moment of the participation contract: declare the pybuggy question block on the session context so the
-    engine surveys it after the core questions, under a heading with the tool identity.
+    engine surveys it after the core questions, under a heading with the tool identity, and skip the core convention
+    section.
 
     `context`: the declaration surface delivered by the platform.
 
     Algorithm:
     1. Return immediately when the session did not invite this tool.
     2. Declare every item of `pybuggy_questions` on the context.
+    3. Skip the core convention section — a pybuggy session never offers the goga base-convention download; the
+       `conventions` slot is delivered by the bootstrap with the packaged pybuggy test convention.
 
     Requirements:
     - The no-invitation branch calls nothing — the contract rule of the moment.
     - Local question names are unique among siblings; the engine qualifies them with the tool identity.
+    - The skip no-ops with an engine warning when the section is already absent (an existing conventions file).
 
     Constraints:
     - Do not survey, prompt, or read answers — the engine asks the declared records itself.
@@ -220,27 +231,29 @@ Annotations: |
 "amend_pybuggy_config(context: object)":
   location: session.py
   annotations: |
-    Amendment moment of the participation contract: read the isolated answer view and buffer the pybuggy contribution —
-    the config amendments and the tool config file.
+    Amendment moment of the participation contract: survey the additional specs, read the isolated answer view, and
+    buffer the pybuggy contribution — the config amendments and the tool config file.
 
     `context`: the amendment surface delivered by the platform.
 
     Algorithm:
     1. Return immediately when the session did not invite this tool.
-    2. Read the answer view from the context.
-    3. Buffer every entry of `build_config_amendments` as a config amendment.
-    4. Buffer the tool config file with `build_config_data`.
+    2. Survey the additional specs via `survey_extra_specs` (the confirm-gated per-field follow-up).
+    3. Read the answer view from the context.
+    4. Buffer every entry of `build_config_amendments` as a config amendment.
+    5. Buffer the tool config file with `build_config_data`.
 
     Requirements:
     - The answer view carries the core answers plus this tool's own answers under local names.
-    - An exception raised here drops the whole contribution with a warning naming the tool — the session continues.
+    - An exception raised here — including a cancelled extra-spec prompt — drops the whole contribution with a warning
+      naming the tool; the session continues.
 
     Constraints:
     - Do not write files directly — the engine serializes and writes the buffered config.
     - Do not read another tool's answers — they are never visible.
 
-    Use `build_config_amendments`, `build_config_data`. Use `goga-onboarding-hooks` for the member contract and the
-    failure behavior. Use `goga-onboarding-generator` for the buffered file serialization.
+    Use `survey_extra_specs`, `build_config_amendments`, `build_config_data`. Use `goga-onboarding-hooks` for the
+    member contract and the failure behavior. Use `goga-onboarding-generator` for the buffered file serialization.
 
 "pybuggy_questions() -> items:list[Question]":
   location: session.py
@@ -255,8 +268,6 @@ Annotations: |
        each prompt stating what the field is for (BASE_URL is the required base_url input of step 1).
     3. Declare the first-spec group: name (input), type (choice swagger|openapi), location (input), and the optional
        git fields (input; an empty git url means no git source).
-    4. Declare extra_specs as one optional input carrying the additional specs, one per line, in the compact form
-       name|type|location|git_url|git_location|git_ref.
 
     Requirements:
     - The block holds exactly one nesting level — groups carry simple children only.
@@ -264,23 +275,52 @@ Annotations: |
     - The first-spec group makes at least one spec structurally unavoidable: its answer is always recorded.
 
     Constraints:
-    - Do not survey HEADERS or LOADER — they stay documented as hand-added examples in the cell usage file.
+    - Do not survey HEADERS or LOADER — the bootstrap documents them as commented example records in the tool config.
+    - Do not declare a compact additional-specs record — the additional specs are surveyed by `survey_extra_specs` at
+      the amendment moment (a confirm-gated repeated group is beyond the declarative records).
     - Do not duplicate plugin key names — iterate `PluginConfigKeys`.
 
     Use `goga-onboarding-questions` for the record kinds and the nesting rule. Use `PluginConfigKeys` for the scalar
     key set. Use `conventions` for type hints and testing.
 
-"build_config_data(answers: dict[str, object]) -> data:dict[str, object]":
+"survey_extra_specs() -> specs:list[dict[str, object]]":
+  location: session.py
+  annotations: |
+    Interactively survey the additional specs — the confirm-gated per-field follow-up of the pybuggy block, asked by
+    the tool at the amendment moment (right after the engine survey asked the first-spec group).
+
+    `specs`: the surveyed specs — one mapping per accepted spec, keyed by the first-spec field names.
+
+    Algorithm:
+    1. Ask "Add another spec?" as a confirm (default no); a decline ends the survey with no specs.
+    2. For each accepted spec ask the fields in the first-spec order: name (required — an empty entry re-asks with a
+       required prompt), type (a swagger|openapi choice), location (required — re-asked when empty), then the optional
+       git fields (input; an empty git url means no git source, an empty git ref the default branch).
+    3. Repeat the confirm after every accepted spec until declined; return the collected mappings.
+
+    Requirements:
+    - The prompt texts mirror the first-spec group so both surveys read as one flow.
+    - Required fields are validated at the prompt — an empty name or location never reaches the payload.
+
+    Constraints:
+    - Do not validate spec semantics here — `parse_specs` owns the entry assembly.
+    - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole contribution
+      with a warning (the session continues).
+
+    Use `conventions` for logging-free TTY practices and testing.
+
+"build_config_data(answers: dict[str, object], extra_specs: list[dict[str, object]] | None) -> data:dict[str, object]":
   location: session.py
   annotations: |
     Pure mapping of the tool answer view into the tool config file payload: the specs mapping and the answered scalar
     keys.
 
     `answers`: the tool answer view — the block answers under local names.
+    `extra_specs`: the `survey_extra_specs` mappings; None when the gate was declined.
     `data`: the serializable payload of .goga/tools/pybuggy/config.yml.
 
     Algorithm:
-    1. Build the specs mapping via `parse_specs` from the first-spec group answer and the extra_specs answer.
+    1. Build the specs mapping via `parse_specs` from the first-spec group answer and the surveyed extra specs.
     2. Collect the answered scalar keys from the `PluginConfigKeys` members, dropping unanswered ones.
     3. Return the payload: the specs mapping plus the active scalar keys.
 
@@ -291,8 +331,8 @@ Annotations: |
 
     Constraints:
     - Do not prompt or touch the filesystem — pure.
-    - Do not emit commented records — the engine serializes plain data; the documented examples live in the cell usage
-      file.
+    - Do not emit commented records — the engine serializes plain data; the commented examples of the absent members
+      are added by `document_config_examples` in the bootstrap.
 
     Use `parse_specs`. Use `PluginConfigKeys` for the scalar key set. Use `configuration` for schema compatibility.
     Use `conventions` for type hints and testing.
@@ -319,29 +359,29 @@ Annotations: |
 
     Use `goga-onboarding-hooks` for the amendment semantics. Use `conventions` for type hints and testing.
 
-"parse_specs(spec_answers: dict[str, object], extra_specs: str | None) -> specs:dict[str, SpecEntry]":
+"parse_specs(spec_answers: dict[str, object], extra_specs: list[dict[str, object]] | None) -> specs:dict[str, SpecEntry]":
   location: session.py
   annotations: |
-    Pure, lenient assembly of the specs mapping: the first-spec group answer plus the extra_specs compact lines.
+    Pure, lenient assembly of the specs mapping: the first-spec group answer plus the surveyed extra specs.
 
     `spec_answers`: the first-spec group answer under local names.
-    `extra_specs`: the optional compact input; None or empty when unanswered.
+    `extra_specs`: the `survey_extra_specs` mappings; None when the gate was declined.
     `specs`: the specs mapping keyed by spec name.
 
     Algorithm:
     1. Validate the first spec strictly — a non-empty name, a type of swagger or openapi, a non-empty location — and
        build its `SpecEntry`, attaching a `GitEntry` when the git url and location are present.
-    2. For every non-empty line of `extra_specs`: split it on the field separator; a malformed line is skipped with a
-       WARNING; a well-formed line becomes its `SpecEntry` under its name.
+    2. For every surveyed extra mapping: build its `SpecEntry`; a malformed record (unreachable through the prompt
+       validation) is skipped with a WARNING; a well-formed record lands under its name.
     3. Return the mapping.
 
     Requirements:
     - The mapping always holds at least the first spec.
-    - A spec name collision between the first spec and an extra line keeps the first spec and warns.
+    - A spec name collision between the first spec and a surveyed extra keeps the first spec and warns.
     - An absent git url yields no git block.
 
     Constraints:
-    - Do not fail the whole contribution on a malformed extra line — skip it and warn.
+    - Do not fail the whole contribution on a malformed extra record — skip it and warn.
     - Do not prompt — pure.
 
     Use `SpecEntry` and `GitEntry` for the entry shapes. Use `configuration` for the schema. Use `conventions` for
@@ -369,6 +409,36 @@ Annotations: |
     - Do not check for, merge into, or diff an existing file.
 
     Use `conventions` for type hints, structured logging, and testing.
+
+"document_config_examples(config_path: Path) -> documented:list[str]":
+  location: bootstrap.py
+  annotations: |
+    Round-trip edit of .goga/tools/pybuggy/config.yml documenting the absent plugin members as commented example
+    records — the option surface the engine's plain serialization does not carry.
+
+    `config_path`: path to the tool config file.
+    `documented`: the record texts added; empty when nothing was added.
+
+    Algorithm:
+    1. No-op (return an empty list) when the file is absent or holds no mapping.
+    2. Walk the `PluginConfigKeys` members in declaration order; a member absent as an active key whose record marker
+       is not already in the file text accumulates its example record (the headers/loader complex blocks, the
+       optional scalars as skipped records).
+    3. Pin the accumulated records, in walk order, before the next active key via the before-comment — specs is the
+       terminal anchor — so every record sits where its key would appear.
+    4. Write the document back only when at least one record was added.
+
+    Requirements:
+    - Idempotent by marker detection: a repeat run over its own output adds nothing.
+    - Active keys and their values are never modified — only comments are added.
+    - A member the user activated keeps its active key and is never documented.
+
+    Constraints:
+    - Do not create the file when absent — only document an existing tool config.
+    - Do not touch keys or comments beyond the added records.
+
+    Use `PluginConfigKeys` for the member walk. Use `ruamel-yaml` for the round-trip edit. Use `conventions` for
+    testing.
 
 "ensure_review_skip(config_path: Path) -> changed:bool":
   location: bootstrap.py
@@ -407,7 +477,9 @@ Annotations: |
 
     Algorithm:
     1. No-op (return None) when the Dockerfile does not exist — never create the file here.
-    2. Derive the install line from the installed package version.
+    2. Derive the install line from the installed package version; an unreadable distribution metadata (a
+       metadata-less source-tree run) raises ValueError — the caller's wrapped tier maps it to a clean ERROR and a
+       non-zero exit, never a raw traceback.
     3. When the line is already present, return None (idempotent).
     4. Ensure the content ends with a newline, append the line, write the file back; log INFO; return the line.
 
