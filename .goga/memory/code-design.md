@@ -2,11 +2,7 @@
 
 ## Explicit scope governance
 
-Approval covers only what was clearly confirmed and explicitly approved: single-item emphasis in an approval reply is treated as a mandate for that item alone and resolved with one short, option-scoped follow-up question before implementation. A fix is confined to the explicitly approved minimal set of spec-level value edits, leaving keys, annotations, signatures, footers, and runtime code untouched, and is confirmed through the project's standard validation gates plus the full regression suite rather than by widening the change. Once scope is settled, discovered drift outside it is left untouched and flagged as a recommended follow-up in the final report rather than silently absorbed into the change.
-
-## Config-rename reference reconciliation
-
-Renaming a usage group or dependency in the project config physically relocates the synced usage files but never rewrites the manifest references to them, so the manifest path entries must always be updated by hand after such a rename.
+Approval covers only what was clearly confirmed and explicitly approved: single-item emphasis in an approval reply is treated as a mandate for that item alone and resolved with one short, option-scoped follow-up question before implementation. Once the scope is approved, remediation is complete and single-pass: when every review finding is fixable within the design artifact itself and no governing contract is violated, all findings — including minor test-gap findings — are applied in one pass, the affected chains are then re-verified against the live stack, nothing is deferred or recorded as skipped, and the contracts stay unchanged; edits remain confined to the explicitly approved minimal set of spec-level value edits, leaving keys, annotations, signatures, footers, and runtime code untouched, with confirmation through the project's standard validation gates plus the full regression suite rather than by widening the change. Once scope is settled, discovered drift outside it is left untouched and flagged as a recommended follow-up in the final report rather than silently absorbed into the change.
 
 ## Honest contract surface
 
@@ -24,6 +20,14 @@ When a redesign silently changes product behavior, most notably an optional-comp
 
 Factual statements in design documents must match the code they describe: dependency lists must exclude modules the code never calls, exception-handling claims must reflect the actual catch tuples and exception inheritance, and module layouts must include every constant the code reads; a consistency fix must remain purely textual and never smuggle in a behavioral change.
 
+## Pinned interaction scripts
+
+Executable validation steps described in design documents must pin the exact scripted answer map for interactive flows: which prompts lack a default and require an explicit value, which confirmations default to declining, and which gates must be declined to keep the run offline and deterministic; a vague "accept the defaults" instruction is invalid because defaults silently depend on the environment.
+
+## Config-rename reference reconciliation
+
+Renaming a usage group or dependency in the project config physically relocates the synced usage files but never rewrites the manifest references to them, so the manifest path entries must always be updated by hand after such a rename.
+
 ## Exclusive output-slot ownership
 
 Each generated output slot has exactly one writer: when the generic engine writer would fill a slot first and thereby defeat a component's skip-if-exists gate, the session declares that slot skipped so the engine never writes it and the owning component's packaged asset lands instead; relying on the gate to win a double-writer race is rejected.
@@ -31,7 +35,3 @@ Each generated output slot has exactly one writer: when the generic engine write
 ## Post-hoc comment restoration for generated configs
 
 Config serialized through a data-only buffer cannot carry documentation comments, so commented examples for absent or optional members are re-inserted after writing by the owning side: idempotently via marker detection, in canonical key order anchored before the next active key, never touching active entries, and a no-op when the file is absent; emitting plain serialized data and dropping the examples is rejected.
-
-## Pinned interaction scripts
-
-Executable validation steps described in design documents must pin the exact scripted answer map for interactive flows: which prompts lack a default and require an explicit value, which confirmations default to declining, and which gates must be declined to keep the run offline and deterministic; a vague "accept the defaults" instruction is invalid because defaults silently depend on the environment.
