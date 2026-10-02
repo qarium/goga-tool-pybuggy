@@ -2,10 +2,17 @@
 
 Compile-time constants of the autonomy contribution: the seven-stage
 auto-approval window ending at ``commit-changes`` and the build stage added
-after it. The module is a pure leaf — it imports nothing and performs no
-I/O; the builder assembles the constants into a WorkflowDocument-shaped
-mapping, byte-identical on every call.
+after it. The module is a pure leaf — it imports nothing at module scope and
+performs no I/O; the builder assembles the constants into the platform's
+``WorkflowDocument``, equal on every call.
 """
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:  # the platform document type — reached at call time in the builder
+    from goga.pipeline.workflow import WorkflowDocument
 
 _WINDOW_STAGES = (
     "review-testcases",
@@ -25,7 +32,7 @@ _BUILD_TIMEOUT = "8h"
 _BUILD_AFTER = ("commit-changes",)
 
 
-def build_autonomous_workflow() -> dict[str, object]:
+def build_autonomous_workflow() -> WorkflowDocument:
     """Build the declarative autonomy contribution from the compile-time constants.
 
     Assembles the fixed auto-approval window — each of the seven stages
@@ -35,20 +42,29 @@ def build_autonomous_workflow() -> dict[str, object]:
     stage is never part of the document.
 
     Returns:
-        The WorkflowDocument-shaped contribution: the ``stages`` overrides
-        plus the single ``extend`` entry.
+        The autonomy contribution: a platform :class:`WorkflowDocument`
+        built exactly as the equivalent authored workflow-file would parse —
+        the ``stages`` overrides plus the single ``extend`` entry.
     """
-    stages = {name: {"approve": "auto"} for name in _WINDOW_STAGES}
+    # Call-time import — contract: keeps goga out of the module's import-time
+    # dependencies; the platform models are reached only when the hook fires
+    # (the platform itself is running then).
+    from goga.pipeline.workflow import (  # noqa: PLC0415
+        WorkflowDocument,
+        WorkflowExtendStage,
+        WorkflowStage,
+    )
 
-    build_entry = {
-        "after": list(_BUILD_AFTER),
-        "title": _BUILD_TITLE,
-        "script": _BUILD_SCRIPT,
-        "after_script": _BUILD_AFTER_SCRIPT,
-        "timeout": _BUILD_TIMEOUT,
-    }
+    stages = {name: WorkflowStage(approve="auto") for name in _WINDOW_STAGES}
 
-    return {
-        "stages": stages,
-        "extend": {_BUILD_NAME: build_entry},
-    }
+    build_entry = WorkflowExtendStage(
+        after=list(_BUILD_AFTER),
+        body={
+            "title": _BUILD_TITLE,
+            "script": _BUILD_SCRIPT,
+            "after_script": _BUILD_AFTER_SCRIPT,
+            "timeout": _BUILD_TIMEOUT,
+        },
+    )
+
+    return WorkflowDocument(stages=stages, extend={_BUILD_NAME: build_entry})

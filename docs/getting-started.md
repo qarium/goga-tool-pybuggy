@@ -29,9 +29,11 @@ language (`python`), the optional codemanifest / build-agent / pipeline sections
 the Dockerfile (the confirm **"Create Dockerfile?" defaults to No**; answering Yes
 asks for the path, the base image, and the built image name) — followed by the pybuggy
 block: `base_url` (required, a Jinja2 template), the optional scalar plugin keys
-(Enter skips), the first spec (`name`, `type`, `location`, optional git fields), and
-`extra_specs` lines in the compact `name|type|location|git_url|git_location|git_ref`
-form. The session writes `.goga/config.yml`, the Dockerfile, and the tool config
+(Enter skips), the first spec (`name`, `type`, `location`, optional git fields), the
+autonomy confirm (**"Run the api.automate pipeline unattended (autonomous mode)?"
+defaults to No**; Yes writes the `pipelines` axis entry — see
+[Autonomous runs](pipelines/api-automate.md#autonomous-runs)), and `extra_specs` lines
+in the compact `name|type|location|git_url|git_location|git_ref` form. The session writes `.goga/config.yml`, the Dockerfile, and the tool config
 `.goga/tools/pybuggy/config.yml`:
     ```yaml
     base_url: https://{{ env }}.svc.example/api
@@ -84,7 +86,8 @@ This is the primary way to create tests with pybuggy. The pipeline:
 - asks for the **testing subject** and collects detailed requirements from your
   description and the service spec — the topic is the current git branch;
 - walks the whole chain — requirements → test cases → test cells → test code → review →
-  acceptance — involving you at every communication stage;
+  acceptance — involving you at every communication stage in the default interactive
+  mode (see [Autonomous runs](pipelines/api-automate.md#autonomous-runs));
 - scaffolds the `api/` fixtures and materializes the tests into `tests/<spec>/<id>/`;
 - commits nothing without your confirmation; failures found at acceptance are triaged
   with you and recorded in the topic's `bugs.md` (the `goga history` tree).

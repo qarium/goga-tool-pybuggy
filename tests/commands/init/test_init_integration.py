@@ -199,6 +199,32 @@ class TestSessionSmoke:
         assert (tmp_path / "conftest.py").exists()
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
+    def test_session_smoke_autonomy_confirm_accepted_writes_axis(self, tmp_path, monkeypatch, caplog, scripted_tty):
+        """Answering the autonomy confirm True lands the ``pipelines`` axis in the written config.
+
+        The declined smoke run cannot distinguish ``answer recorded False`` from
+        ``answer key lost`` — both produce no axis; this variant accepts the
+        confirm and asserts the enabling entry reaches the engine-written tool
+        config, the exact bridge the run hook later reads.
+        """
+        monkeypatch.chdir(tmp_path)
+        _write_minimal_specs(tmp_path)
+        tty = scripted_tty(
+            confirms={**_CONFIRM_ANSWERS, "Run the api.automate pipeline unattended (autonomous mode)?": True},
+            prompts=_PROMPT_ANSWERS,
+        )
+        monkeypatch.setattr(click, "confirm", tty.confirm)
+        monkeypatch.setattr(click, "prompt", tty.prompt)
+
+        with caplog.at_level(logging.INFO):
+            code = run_session()
+
+        assert code == 0
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+        tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").read_text("utf-8"))
+        assert tool_config["pipelines"] == {"api.automate": {"autonomous": True}}
+
 
 class TestCliComposition:
     """The CLI chain — wrapper through orchestrator to the two seams, seams stubbed."""

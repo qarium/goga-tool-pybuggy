@@ -29,17 +29,34 @@ example, the [`api.automate`](api-automate.md) pipeline is launched with
 
 ## What a workflow can change
 
-| Key                     | Effect                                                                                                                                |
-|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `prompt` (top level)    | Injected as the first directive of the compiled pipeline — e.g. an "answer in Russian" directive.                                     |
-| `stages.<stage>.agent`  | The CLI agent that runs the stage (`claude`, `codex`, `opencode`, …); other stages keep the default agent.                            |
-| `stages.<stage>.prompt` | Additional per-stage context. It has a *lower* precedence than the stage's own prompt: it frames the intent rather than replacing it. |
-| `stages.<stage>.loop`   | Iteration count (`>= 1`); `>= 2` expands the stage into N chained copies (`<stage>-1`, …, `<stage>-N`).                               |
+| Key                      | Effect                                                                                                                                |
+|--------------------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `prompt` (top level)     | Injected as the first directive of the compiled pipeline — e.g. an "answer in Russian" directive.                                     |
+| `stages.<stage>.agent`   | The CLI agent that runs the stage (`claude`, `codex`, `opencode`, …); other stages keep the default agent.                            |
+| `stages.<stage>.prompt`  | Additional per-stage context. It has a *lower* precedence than the stage's own prompt: it frames the intent rather than replacing it. |
+| `stages.<stage>.loop`    | Iteration count (`>= 1`); `>= 2` expands the stage into N chained copies (`<stage>-1`, …, `<stage>-N`).                               |
+| `stages.<stage>.approve` | Auto-approval directive (`auto` / `plan` / `dialog`); `auto` skips the interactive pause of a communication stage.                    |
+| `extend.<name>`          | Appends a new stage, positioned by `before`/`after` (at least one required); the body carries the stage content verbatim.             |
 
 `<stage>` is the name of a stage in the target pipeline — see the
 [Stages](api-automate.md#stages) table of the pipeline you customize. A name that
 matches no stage of the pipeline is silently skipped, so one workflow file can cover
 several pipelines.
+
+An `extend.<name>` entry names the new stage by its map key and carries the stage body
+(`title`, `script`, `after_script`, `timeout`, `prompt`, `skills`, `communication`, …)
+plus the positioning keys — for example the `build` stage pybuggy itself contributes on
+[autonomous runs](api-automate.md#autonomous-runs):
+
+```yaml
+extend:
+  build:
+    after: [commit-changes]
+    title: Build tests
+    script: python3 -P -m goga.build "$(python3 -m goga history path -f plan.md)"
+    after_script: rm -rf .ralphex
+    timeout: 8h
+```
 
 > **Requirements in a workflow prompt:** free-form prose is treated as background, not
 > as a directive. To make a workflow `prompt` carry enforceable requirements, use the
@@ -58,6 +75,13 @@ before the output stages are built:
 3. **Agent-mode resolution** — unchanged by the workflow: a stage's own `agents` field
    (the roles that organize work *inside* the stage) is orthogonal to the workflow
    `agent` (which CLI agent *runs* the stage).
+
+Installed tools may also contribute a workflow document to your runs. Authored intent
+wins per slot: a directive your workflow-file sets is never yielded to a tool
+contribution, an extend entry under a name you authored is kept verbatim, and a name
+neither side set falls through to the tool's value. This is how the
+[autonomous runs](api-automate.md#autonomous-runs) window is re-enableable per stage
+without forking the pipeline.
 
 ## Example
 

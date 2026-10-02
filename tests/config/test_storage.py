@@ -14,6 +14,7 @@ import goga_tool_pybuggy.config as cfg
 import pytest
 import yaml
 from goga_tool_pybuggy.config import Config, load_config, resolve_autonomy
+from pydantic import ValidationError
 
 _SPECS_TREE = """\
 specs:
@@ -120,6 +121,20 @@ class TestLoadConfigBehavior:
         tool_config("specs: [unclosed")
 
         with pytest.raises((yaml.YAMLError, ValueError)):
+            load_config()
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param("just a string", id="string-root"),
+            pytest.param("- a\n- list\n", id="list-root"),
+        ],
+    )
+    def test_load_config_non_mapping_root_fails_validation(self, tool_config, content) -> None:
+        """A parse whose root is not a mapping fails ``Config`` validation, not the read."""
+        tool_config(content)
+
+        with pytest.raises(ValidationError):
             load_config()
 
 

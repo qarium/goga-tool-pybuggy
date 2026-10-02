@@ -11,7 +11,7 @@ import goga_tool_pybuggy.autonomous.amendment as amendment_module
 import pytest
 from goga_tool_pybuggy.autonomous import amend_workflow, build_autonomous_workflow
 
-from tests.autonomous.conftest import _AmendmentView
+from tests.autonomous.conftest import _AmendmentView, amendment_identity
 
 
 class TestAmendWorkflowContract:
@@ -44,7 +44,7 @@ class TestAmendWorkflowBehavior:
     def test_amend_workflow_no_op_for_other_pipeline_even_when_axis_enabled(self, monkeypatch):
         """The api.automate-shaped window never leaks into another pipeline (the D1 fix)."""
         monkeypatch.setattr(amendment_module, "resolve_autonomy", lambda _pipeline: True)
-        view = _AmendmentView("code.review")
+        view = _AmendmentView(amendment_identity("pybuggy:code.review"))
 
         amend_workflow(view)
 

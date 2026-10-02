@@ -10,12 +10,16 @@ extending the contribution.
 ## What the cell provides
 
 - `amend_workflow(context)` — the amendment moment: resolves autonomy for the running
-  pipeline and contributes the document when enabled; a silent no-op otherwise.
+  pipeline and contributes the document when enabled; a silent no-op otherwise. The gate
+  reads the `name` of the platform-delivered `PipelineIdentity` — the discovered,
+  installer-namespaced form `pybuggy:api.automate`.
 - `build_autonomous_workflow()` — the pure builder of the contributed document: the
   seven-stage auto-approval window (review-testcases, create-testcases, code-design,
   design-review, coding-plan, plan-review, commit-changes) and the build stage added after
   commit-changes (the topic plan build, eight-hour timeout, scratch-tree cleanup). The
-  acceptance stage is never part of the contribution.
+  acceptance stage is never part of the contribution. The builder returns a real platform
+  `WorkflowDocument` (the models are imported at call time) — the delivery reads the
+  buffer by attribute, so a plain mapping cannot be contributed.
 
 ## Subscribe from the registration surface
 

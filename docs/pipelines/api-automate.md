@@ -2,7 +2,8 @@
 
 The staged pipeline automates API-test creation end to end — from topic requirements
 to committed, accepted tests. Each stage is a dedicated goga skill; every stage except
-`create-testcases` is a *communication* stage that involves you.
+`create-testcases` is a *communication* stage that involves you in the default
+interactive mode (see [Autonomous runs](#autonomous-runs) for the unattended window).
 
 Need to adjust the pipeline for your project without forking it? See
 [Workflows](workflows.md).
@@ -22,7 +23,7 @@ Need to adjust the pipeline for your project without forking it? See
 | 9  | `design-review`       | Review the test design                                                                                               |
 | 10 | `coding-plan`         | Compile the execution plan (with `pytest` as validation) → `plan.md`                                                 |
 | 11 | `plan-review`         | Review the plan                                                                                                      |
-| 12 | `commit-changes`      | Commit the work; ask the user whether the tests are ready for acceptance                                             |
+| 12 | `commit-changes`      | Commit the work; ask the user whether the tests are ready for acceptance (auto-approved on [autonomous runs](#autonomous-runs)) |
 | 13 | `accept-result`       | Accept the test results: consistency check, `pytest` run, triage of failures with the user, bug records in `bugs.md` |
 
 The `create-requirements` stage opens the topic: once the testing subject is clarified, its intake runs
