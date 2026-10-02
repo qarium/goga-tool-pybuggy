@@ -13,11 +13,11 @@ Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
   ruamel-yaml: .goga/usages/cooks/ruamel-yaml.md
-  goga-scaffold: .goga/usages/cooks/goga/scaffold/scaffold-usage.md
-  goga-onboarding: .goga/usages/cooks/goga/onboarding/onboarding-usage.md
-  goga-onboarding-hooks: .goga/usages/cooks/goga/onboarding/registering-hooks.md
-  goga-onboarding-questions: .goga/usages/cooks/goga/onboarding/questions/question-records.md
-  goga-onboarding-generator: .goga/usages/cooks/goga/onboarding/generator/artifact-generation.md
+  goga-scaffold: .goga/usages/github/goga/scaffold/scaffold-usage.md
+  goga-onboarding: .goga/usages/github/goga/onboarding/onboarding-usage.md
+  goga-onboarding-hooks: .goga/usages/github/goga/onboarding/registering-hooks.md
+  goga-onboarding-questions: .goga/usages/github/goga/onboarding/questions/question-records.md
+  goga-onboarding-generator: .goga/usages/github/goga/onboarding/generator/artifact-generation.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.

@@ -25,9 +25,9 @@ Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
   python-dotenv: .goga/usages/cooks/python-dotenv.md
-  goga-hooks: .goga/usages/cooks/goga/hooks/registering-hooks.md
-  goga-statuses: .goga/usages/cooks/goga/history/registering-hooks.md
-  goga-onboarding-hooks: .goga/usages/cooks/goga/onboarding/registering-hooks.md
+  goga-hooks: .goga/usages/github/goga/hooks/registering-hooks.md
+  goga-statuses: .goga/usages/github/goga/history/registering-hooks.md
+  goga-onboarding-hooks: .goga/usages/github/goga/onboarding/registering-hooks.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
