@@ -1,16 +1,17 @@
 Usages:
   conventions: .goga/usages/conventions.md
-  pyyaml: |
-    Read config.yml with yaml.safe_load only — never yaml.load. The raw dict is
-    an intermediate; the contract validates it into pydantic models via model_validate.
+  goga-tool-config: .goga/usages/github/goga/config/tool-configuration.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `pyyaml` for loading the config file at .goga/tools/pybuggy/config.yml.
+  Use `goga-tool-config` for reading the tool config file through the platform facade.
 
   All pydantic models use kw_only=True (Python 3.10+).
   Use typing.Optional (not X | None) for fields meaning explicit absence.
   Use relative imports inside the cell.
+  The tool config file is the single source of both reading routines: each obtains the raw
+  parse through the platform facade; the platform import resolves at call time so goga
+  never becomes a runtime dependency.
 
 ---
 
@@ -61,24 +62,73 @@ Annotations: |
     Constraints:
     - `specs` is required — a config without specs is invalid.
 
-"load_config(path: Optional[pathlib.Path]) -> config: Config":
+"load_config() -> config: Config":
   location: storage.py
   annotations: |
-    Read the pybuggy config file and validate it into a `Config` model.
+    Read the pybuggy tool config and validate it into a `Config` model.
 
-    `path`: path to the config file; optional — when None, defaults to the fixed pybuggy config location (.goga/tools/pybuggy/config.yml).
     `config`: the parsed and validated configuration.
 
     Algorithm:
-    1. If `path` is None, use the fixed config location (.goga/tools/pybuggy/config.yml).
-    2. Read file text as UTF-8.
-    3. yaml.safe_load the contents.
-    4. Config.model_validate(raw) to enforce the schema.
+    1. Read the raw content of the tool config file through the platform facade.
+    2. When the file is absent, fail with a clean error naming the tool config location.
+    3. Validate the raw mapping into `Config`.
 
     Requirements:
-    - Use yaml.safe_load only — never yaml.load.
+    - The file location follows the platform path standard for tool configs.
+    - The platform facade import resolves at call time — goga stays out of the runtime
+      dependencies.
 
-    Use `pyyaml` for the loading pattern.
+    Use `goga-tool-config` for the facade contract and the absence semantics.
+    Use `conventions` for pydantic validation rules.
+
+"PipelineAutonomy(autonomous: bool)":
+  location: pipeline_autonomy.py
+  annotations: |
+    One entry of the pipelines axis of the tool config: the autonomy flag of a single
+    pipeline name.
+
+    `autonomous`: whether the pipeline runs unattended.
+
+    Requirements:
+    - pydantic model with kw_only=True.
+    - The record admits exactly the `autonomous` member — a key outside the member set
+      fails validation (a mistyped key must surface, not silently disable autonomy).
+
+    Use `conventions` for pydantic model rules.
+  properties:
+    "autonomous -> bool": |
+      Whether the pipeline named by the entry's dict key runs unattended.
+
+"resolve_autonomy(pipeline: str) -> enabled: bool":
+  location: storage.py
+  annotations: |
+    Resolve whether autonomy is enabled for the running pipeline, validating the whole
+    pipelines axis of the tool config on the way.
+
+    `pipeline`: the identity of the running pipeline.
+    `enabled`: True only when the axis carries an enabling entry for `pipeline`.
+
+    Algorithm:
+    1. Read the raw content of the tool config file through the platform facade.
+    2. When the file is absent or holds no pipelines section, return False.
+    3. Validate the axis: every entry must be a mapping validatable into `PipelineAutonomy`.
+    4. Look up `pipeline` in the axis: an absent name returns False; a present name returns
+       its autonomous value.
+
+    Requirements:
+    - A structural violation — a non-mapping config root, a non-mapping pipelines value, a
+      non-mapping entry, or a record not validatable into `PipelineAutonomy` — fails with a
+      clean error naming pybuggy.
+    - Absent file, absent section, absent name, and autonomous: false all mean disabled.
+    - Names other than `pipeline` are ignored — the axis is permissive toward unknown
+      pipeline names.
+
+    Constraints:
+    - Do not interpret config sections other than pipelines.
+    - Do not cache the read — each call obtains a fresh raw parse.
+
+    Use `goga-tool-config` for the facade contract and the absence semantics.
     Use `conventions` for pydantic validation rules.
 
 ---
@@ -86,4 +136,5 @@ Annotations: |
 Author: Goga
 CreatedAt: 02/07/26
 Description: |
-  pybuggy configuration models and YAML loader for .goga/tools/pybuggy/config.yml.
+  pybuggy configuration models and reading routines for .goga/tools/pybuggy/config.yml —
+  the specs schema and the pipelines autonomy axis.

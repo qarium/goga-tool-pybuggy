@@ -17,6 +17,7 @@ consumer's goga agent.
   `assert_delay`, `assert_field_class`, `assert_response_class`.
 - The first spec, field by field: `name`, `type` (a choice of `swagger` or `openapi`), `location`, and the optional
   git fields `git_url`, `git_location`, `git_ref` — an empty `git_url` means no git source.
+- `autonomous` — **asked last**. A confirm (default no): enable the autonomous runs of the `api.automate` pipeline.
 - The additional specs, asked by pybuggy at the amendment moment: `Add another spec?` (confirm, default no) gates
   the block; each accepted spec is asked field by field in the first-spec order (`name` required and re-asked when
   empty, `type` a swagger/openapi choice, `location` required, then the optional git fields); the confirm repeats
@@ -44,7 +45,9 @@ The answers never touch the filesystem directly — the amendment hook surveys t
 contribution, and the engine commits it:
 
 - the tool config file `.goga/tools/pybuggy/config.yml` — the specs mapping plus the answered scalar keys
-  (unanswered keys are dropped, never written empty; the bootstrap adds their commented examples afterwards);
+  (unanswered keys are dropped, never written empty; the bootstrap adds their commented examples afterwards), plus
+  the `pipelines` axis entry — the `api.automate` record with `autonomous: true` — when the autonomy confirm was
+  enabled; absent otherwise;
 - the `build.review.skip: true` amendment — the tool's declared intent in the session answer space. The engine's
   config mapper does not carry the flag into the generated `.goga/config.yml`; the `pybuggy init` bootstrap
   enforces it afterwards (`ensure_review_skip`). A native `goga init -t pybuggy` session runs no bootstrap and
@@ -71,4 +74,6 @@ of the session module to script it in tests.
 - Writes `.goga/tools/pybuggy/config.yml` through the engine (the parent directory is created).
 - The generated file is valid for configuration loading: `specs` is present with the required entry fields; the
   scalar plugin keys are ignored on loading (extra=ignore).
+- The `pipelines` axis entry is written only on an enabling answer — the disabling default leaves the axis absent,
+  so an onboarded project stays interactive until the user opts in.
 - The key list is data-driven from `PluginConfigKeys` — no duplication.

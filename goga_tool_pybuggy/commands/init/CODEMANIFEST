@@ -4,6 +4,7 @@ Imports:
       - GitEntry
     Usages:
       - configuration
+      - autonomy
     From: goga_tool_pybuggy/config
   - Types:
       - PluginConfigKeys
@@ -269,11 +270,14 @@ Annotations: |
        each prompt stating what the field is for (BASE_URL is the required base_url input of step 1).
     3. Declare the first-spec group: name (input), type (choice swagger|openapi), location (input), and the optional
        git fields (input; an empty git url means no git source).
+    4. Declare the autonomy confirm — a boolean question, defaulting to disabled, asked last: whether the
+       api.automate pipeline runs unattended.
 
     Requirements:
     - The block holds exactly one nesting level — groups carry simple children only.
     - base_url is required and its answer is a Jinja2 template; the remaining scalars are optional.
     - The first-spec group makes at least one spec structurally unavoidable: its answer is always recorded.
+    - The autonomy question defaults to disabled; its boolean answer is recorded on every survey.
 
     Constraints:
     - Do not survey HEADERS or LOADER — the bootstrap documents them as commented example records in the tool config.
@@ -282,7 +286,7 @@ Annotations: |
     - Do not duplicate plugin key names — iterate `PluginConfigKeys`.
 
     Use `goga-onboarding-questions` for the record kinds and the nesting rule. Use `PluginConfigKeys` for the scalar
-    key set. Use `conventions` for type hints and testing.
+    key set. Use `autonomy` for the axis the answer gates. Use `conventions` for type hints and testing.
 
 "survey_extra_specs() -> specs:list[dict[str, object]]":
   location: session.py
@@ -313,8 +317,8 @@ Annotations: |
 "build_config_data(answers: dict[str, object], extra_specs: list[dict[str, object]] | None) -> data:dict[str, object]":
   location: session.py
   annotations: |
-    Pure mapping of the tool answer view into the tool config file payload: the specs mapping and the answered scalar
-    keys.
+    Pure mapping of the tool answer view into the tool config file payload: the specs mapping, the answered scalar
+    keys, and the conditional pipelines axis entry.
 
     `answers`: the tool answer view — the block answers under local names.
     `extra_specs`: the `survey_extra_specs` mappings; None when the gate was declined.
@@ -323,20 +327,24 @@ Annotations: |
     Algorithm:
     1. Build the specs mapping via `parse_specs` from the first-spec group answer and the surveyed extra specs.
     2. Collect the answered scalar keys from the `PluginConfigKeys` members, dropping unanswered ones.
-    3. Return the payload: the specs mapping plus the active scalar keys.
+    3. Read the autonomy answer; when it enables autonomy, add the pipelines axis entry — the api.automate record
+       with autonomous true.
+    4. Return the payload: the specs mapping plus the active scalar keys and, when enabled, the axis entry.
 
     Requirements:
     - The payload satisfies the config schema (see `configuration`): a specs mapping whose entries carry the required
       fields; the scalar plugin keys are ignored on loading.
+    - The axis entry matches the pipelines contract (see `autonomy`); the entry is absent on a disabling or absent
+      answer — existing projects stay untouched until the user opts in.
     - The payload is plain serializable data — the engine writes the YAML.
 
     Constraints:
     - Do not prompt or touch the filesystem — pure.
-    - Do not emit commented records — the engine serializes plain data; the commented examples of the absent members
-      are added by `document_config_examples` in the bootstrap.
+    - Do not emit commented records — the commented examples of the absent members are added by
+      `document_config_examples` in the bootstrap.
 
     Use `parse_specs`. Use `PluginConfigKeys` for the scalar key set. Use `configuration` for schema compatibility.
-    Use `conventions` for type hints and testing.
+    Use `autonomy` for the axis shape. Use `conventions` for type hints and testing.
 
 "build_config_amendments() -> amendments:dict[str, object]":
   location: session.py
@@ -503,7 +511,7 @@ Annotations: |
 
     `config_path`: path to the consumer .goga/config.yml.
     `usage_keys`: mapping of usage key to the relative path of the usage file to register (pybuggy-<stem> →
-    .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
+      .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
     `added_keys`: the keys actually added (pre-existing keys skipped).
 
     Algorithm:

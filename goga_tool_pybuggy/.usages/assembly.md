@@ -88,9 +88,10 @@ Registered under `endpoint`: `pull`, `list`, `info`, `generate`, `diff`.
 
 ## Static config
 
-The config path is fixed (`.goga/tools/pybuggy/config.yml`, see `goga_tool_pybuggy.config.CONFIG_PATH`).
-There is no `--config` option — commands load the config themselves via `load_config()` (no argument). The
-pass-object `ctx.obj` exists but carries only the env context (`EnvContext`), not the config.
+The config location is fixed by the platform path standard for tool configs (`.goga/tools/pybuggy/config.yml`);
+the config cell reads the file through the platform facade. There is no `--config` option — commands load the
+config themselves via `load_config()` (no argument). The pass-object `ctx.obj` exists but carries only the env
+context (`EnvContext`), not the config.
 
 ## goga hooks platform integration
 
@@ -98,20 +99,23 @@ The facade exposes one more entry point beside the CLI: `register_hooks` — the
 platform imports and calls when a command first reaches a hook checkpoint of the run (inspect the registry
 with `goga hooks`). A plain `import goga_tool_pybuggy` never triggers it; the platform owns the call.
 
-`register_hooks` subscribes four hooks to three addresses — the statuses registration action and the two
-onboarding actions:
+`register_hooks` lives in `goga_tool_pybuggy/reg_hooks.py` and subscribes five hooks to four addresses —
+the statuses registration action, the two onboarding actions, and the pipeline amendment action:
 
-| Hook name | Callable | Address | Registers |
-|-----------|----------|---------|-----------|
+| Hook name | Callable | Address | Registers / contributes |
+|-----------|----------|---------|------------------------|
 | `automate` | `register_automate_statuses` | statuses / register_statuses | the six automate-line statuses (including the completed-accept `automate.done`) |
 | `fix` | `register_fix_statuses` | statuses / register_statuses | the five fix-line statuses |
 | `declare` | `declare_pybuggy_session` | onboarding / declare_session | the pybuggy question block of the session survey |
 | `amend` | `amend_pybuggy_config` | onboarding / amend_config | the `build.review.skip` amendment and the tool config file |
+| `autonomy` | `amend_workflow` | pipeline / amend_workflow | the autonomous workflow amendment (auto-approval window + build stage) for a qualifying run |
 
-Both status hook callables live in `goga_tool_pybuggy/statuses.py`; both onboarding hook callables live in
-`goga_tool_pybuggy/commands/init` — none is re-exported on the package facade, only `register_hooks` is; the
-platform reaches them through its subscription. The onboarding handlers return immediately when the session did
-not invite pybuggy (`goga init` without `-t pybuggy`).
+The status hook callables live in `goga_tool_pybuggy/statuses`, the autonomy hook callable in
+`goga_tool_pybuggy/autonomous`, the onboarding hook callables in `goga_tool_pybuggy/commands/init` — none is
+re-exported on the package facade, only `register_hooks` is; the platform reaches them through its
+subscription. The onboarding handlers return immediately when the session did not invite pybuggy
+(`goga init` without `-t pybuggy`); the autonomy hook is a silent no-op unless the running pipeline is
+`api.automate` with autonomy enabled in the tool config `pipelines` axis.
 
 The tool identity (`pybuggy`) is assigned by the platform from the package name — the package never names
 itself. Every registered status is stored and shown qualified: `pybuggy.<name>`.

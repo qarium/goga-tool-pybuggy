@@ -9,10 +9,10 @@ Cell `goga_tool_pybuggy/config` provides consumption patterns for loading `.goga
 ```python
 from goga_tool_pybuggy.config import load_config
 
-config = load_config(path)  # path is project-root-relative; None → fixed path .goga/tools/pybuggy/config.yml
+config = load_config()  # the fixed location .goga/tools/pybuggy/config.yml
 ```
 
-The `load_config` function reads the YAML file via `yaml.safe_load` and validates the result into the `Config` model. If the configuration is invalid, `load_config` raises a pydantic validation error.
+The `load_config` function obtains the raw parse of the tool config file through the goga tool-config facade and validates the result into the `Config` model. An absent file fails with a clean error naming the tool config location; an invalid configuration raises a pydantic validation error.
 
 ## Accessing spec entries
 
@@ -31,5 +31,5 @@ for name, entry in config.specs.items():
 
 ## Preconditions
 
-- The configuration path is resolved relative to the project root (cwd); the default value is `.goga/tools/pybuggy/config.yml`.
+- The file location follows the platform path standard for tool configs (`.goga/tools/<tool>/<filename>`); the platform resolves it.
 - The `type` field is declarative — it does not affect parsing (Prance auto-detects the version).
