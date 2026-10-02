@@ -1144,19 +1144,19 @@ states only behaviors implemented by Tasks 1–7.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Add the "Autonomous runs" section to `docs/pipelines/api-automate.md` (axis YAML
+- [x] Add the "Autonomous runs" section to `docs/pipelines/api-automate.md` (axis YAML
       example, enabled/disabled behavior, error behavior, `accept-result` interactivity
       note).
-- [ ] Extend `docs/cli/init.md` with the `autonomous` confirm (asked last, default no) and
+- [x] Extend `docs/cli/init.md` with the `autonomous` confirm (asked last, default no) and
       the conditional axis entry in the written tool config.
-- [ ] Verify consistency: every documented statement traces to an implemented behavior
+- [x] Verify consistency: every documented statement traces to an implemented behavior
       (Tasks 1–7); no forward references to unimplemented features.
-- [ ] Run validation: `grep -c "Autonomous runs" docs/pipelines/api-automate.md` ≥ 1 and
+- [x] Run validation: `grep -c "Autonomous runs" docs/pipelines/api-automate.md` ≥ 1 and
       `grep -c "autonomous" docs/cli/init.md` ≥ 1; `.venv/bin/goga lint` still 19 cells,
       0 errors.
-- [ ] **Lint** (where applicable — markdown is outside ruff scope; keep line lengths and
+- [x] **Lint** (where applicable — markdown is outside ruff scope; keep line lengths and
       formatting consistent with the neighboring sections).
-- [ ] **COMMIT GATE (M3.3)**: `pytest tests/ -x` green (docs cannot break it — confirm);
+- [x] **COMMIT GATE (M3.3)**: `pytest tests/ -x` green (docs cannot break it — confirm);
       `git commit`.
 
 ---
@@ -1194,44 +1194,44 @@ All commands run inside the project virtualenv (create if missing per M1.2:
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location`:
+- [x] Every contract entity is implemented in the correct `location`:
       `statuses/{automate,fix,__init__}.py`, `config/{pipeline_autonomy,storage,__init__}.py`,
       `autonomous/{amendment,workflow,__init__}.py`, root `reg_hooks.py`, and the two
       `commands/init/session.py` edits
-- [ ] Every contract entity is accessible from its facade (statuses, config, autonomous,
+- [x] Every contract entity is accessible from its facade (statuses, config, autonomous,
       root — including `register_hooks` on the package root)
-- [ ] Properties and methods match the declared API (`PipelineAutonomy.autonomous -> bool`;
+- [x] Properties and methods match the declared API (`PipelineAutonomy.autonomous -> bool`;
       the no-arg `load_config`; `resolve_autonomy(pipeline: str) -> bool`)
-- [ ] Descriptions are reflected in behavior: the five-step amendment algorithm (identity
+- [x] Descriptions are reflected in behavior: the five-step amendment algorithm (identity
       gate first), the whole-axis validation with pybuggy-naming errors, the exact
       workflow constants (script string verbatim), the conditional axis emission, the
       confirm asked last defaulting to disabled
-- [ ] Contract dependencies are met: `amend_workflow` uses `resolve_autonomy` via
+- [x] Contract dependencies are met: `amend_workflow` uses `resolve_autonomy` via
       `from ..config import resolve_autonomy`; the root imports the statuses and autonomous
       types and consumes the `registration`/`contribution` practices
-- [ ] Re-exports are accessible from the facade (`install` unchanged)
-- [ ] Every coding task followed the TDD workflow (contract tests → code → verification →
+- [x] Re-exports are accessible from the facade (`install` unchanged)
+- [x] Every coding task followed the TDD workflow (contract tests → code → verification →
       logic tests → debugging → re-verification → lint)
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding
       task; the designed matrices (disabled states, structural violations, record
       rejections) are parametrized tables including every boundary
-- [ ] Integration tests exist for the cross-cell chains (`tests/test_autonomy_integration.py`)
-- [ ] No package boundary was expanded (no new cells, no new facades beyond the declared
+- [x] Integration tests exist for the cross-cell chains (`tests/test_autonomy_integration.py`)
+- [x] No package boundary was expanded (no new cells, no new facades beyond the declared
       ones, no changes to out-of-scope files: `pipelines/api.automate.yml`, stage skills,
       `accept-result`, the goga platform, the five command cells' CODEMANIFESTs,
       `pyproject.toml` dependencies)
-- [ ] `CODEMANIFEST` files were not modified (contract is read-only)
-- [ ] All validation commands pass — in particular `pytest tests/ -x` fully green, both
+- [x] `CODEMANIFEST` files were not modified (contract is read-only)
+- [x] All validation commands pass — in particular `pytest tests/ -x` fully green, both
       ruff commands clean, every facade probe resolves, `goga lint` 19 cells 0 errors
-- [ ] Every Usages entry is mentioned in at least one task (`conventions`, `goga-statuses`,
+- [x] Every Usages entry is mentioned in at least one task (`conventions`, `goga-statuses`,
       `goga-tool-config`, `goga-pipeline-hooks`, `goga-workflow-document`, `goga-compile-flow`,
       `goga-hooks`, `goga-onboarding-hooks`, imported `autonomy`/`registration`/
       `contribution`/`configuration`)
-- [ ] The Mandatory Rules were enforced throughout: coding style per M1, test rules per M2,
+- [x] The Mandatory Rules were enforced throughout: coding style per M1, test rules per M2,
       ruff lint+format at every task gate and every local commit per M3, and the REPL cycle
       (continuous evaluation, hot reloading, REPL→source migration, findings pinned as
       tests) per M4
-- [ ] The arch.md checklist items concerning source behavior are re-verified: the
+- [x] The arch.md checklist items concerning source behavior are re-verified: the
       `resolve_autonomy` matrix, the workflow vocabulary, the five subscriptions, the
       `statuses.py` absence, the `CONFIG_PATH` removal + full seam migration, and the
       question default / payload conditionality

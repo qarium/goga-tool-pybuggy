@@ -74,6 +74,47 @@ Each automate status anchors above its built-in twin (`automate.done` above the 
 `goga history status`; filter topics by any registered name with `goga history status -s <name>`.
 Service bugs recorded in `bugs.md` are history records — they mark no status on the scale.
 
+## Autonomous runs
+
+The pipeline can run unattended from the test-cells review onward. Autonomy is opt-in per
+pipeline through the `pipelines` axis of the tool config — set it by hand or through the
+autonomy confirm of [`pybuggy init`](../cli/init.md):
+
+```yaml
+# .goga/tools/pybuggy/config.yml
+pipelines:
+  api.automate:
+    autonomous: true
+```
+
+With the entry enabled, pybuggy contributes a fixed workflow document (the
+[Workflows](workflows.md) mechanism) to every `api.automate` run:
+
+- The seven-stage auto-approval window `review-testcases` → `commit-changes` (stages 6–12
+  of the table above): every stage of the window is approved automatically — the
+  communication stages no longer pause for your review.
+- A `build` stage appended after `commit-changes`: the same `goga build` step as the
+  *Building the tests* note above, run on the topic's `plan.md` with an eight-hour
+  timeout and the `.ralphex` scratch tree removed afterwards — the committed tests are
+  built without a manual build step.
+
+Everything outside the window stays with you: the requirement-shaping stages
+(`create-requirements` … `prepare-testcases`) run interactively, and `accept-result` is
+never part of the contribution — it keeps its manual trigger, so accepting the results
+(the `pytest` run and the failure triage) remains an interactive step.
+
+The contribution is a silent no-op for every other pipeline — the window shape is
+`api.automate`-specific — and for every disabled state: an absent file, an absent
+`pipelines` section, an absent `api.automate` entry, and `autonomous: false` all mean a
+normal interactive run. Autonomy never disables silently on a malformed config: a
+structural violation of the axis (a file root or `pipelines` value that is not a mapping,
+an entry shaped other than exactly `autonomous: <boolean>`) stops the command with a
+clean error naming pybuggy, and the whole contribution is discarded.
+
+An authored project workflow wins per slot over the contribution — a
+`.goga/workflows/pybuggy:api.automate.yml` can re-enable interaction for any window
+stage or displace the `build` entry.
+
 ## How it relates to the rest
 
 - When accepted suites break — now or later — the [`api.fix` lifecycle](api-fix.md)

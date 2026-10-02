@@ -130,6 +130,20 @@ asked (by the engine):
   `git_ref`. A git block is attached only when both `git_url` and `git_location` are
   non-empty; an empty `git_ref` means the default branch. The first spec is validated
   strictly, so at least one spec always lands in the config.
+- The autonomy confirm, asked after the `first_spec` group as the last declared pybuggy
+  question: `Run the api.automate pipeline unattended (autonomous mode)?` — default No.
+  Answering Yes is the one way the session writes a `pipelines` axis entry into the tool
+  config:
+
+  ```yaml
+  pipelines:
+    api.automate:
+      autonomous: true
+  ```
+
+  The default (or declined) answer writes nothing — the entry is dropped like any
+  unanswered key, and the project's `api.automate` runs stay fully interactive (see
+  [Autonomous runs](../pipelines/api-automate.md#autonomous-runs)).
 - `extra_specs` — optional. Additional specs, one per line, in the compact form:
 
   ```
