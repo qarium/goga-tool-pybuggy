@@ -238,8 +238,9 @@ Annotations: |
 
     Algorithm:
     1. Return immediately when the session did not invite this tool.
-    2. Survey the additional specs via `survey_extra_specs` (the confirm-gated per-field follow-up).
-    3. Read the answer view from the context.
+    2. Read the answer view from the context (the survey never touches it — the two reads are
+       independent).
+    3. Survey the additional specs via `survey_extra_specs` (the confirm-gated per-field follow-up).
     4. Buffer every entry of `build_config_amendments` as a config amendment.
     5. Buffer the tool config file with `build_config_data`.
 
