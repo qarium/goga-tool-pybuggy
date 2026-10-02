@@ -997,23 +997,23 @@ facade/signature test. Nothing else in the root changes; root `__all__` stays un
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 5: root — fifth subscription + test_reg_hooks`).
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/test_reg_hooks.py` with the
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 5: root — fifth subscription + test_reg_hooks`).
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/test_reg_hooks.py` with the
       `_RecorderHooks` double (capturing `(domain, action, name, hook)` tuples) and
       contract rows: `register_hooks` importable from `goga_tool_pybuggy` and callable —
       expected to fail against the current four-subscription table (the table assertion
       expects five entries).
-- [ ] **STEP 2 (IMPLEMENTATION)**: in `goga_tool_pybuggy/reg_hooks.py` — add
+- [x] **STEP 2 (IMPLEMENTATION)**: in `goga_tool_pybuggy/reg_hooks.py` — add
       `from .autonomous import amend_workflow`; append the fifth `hooks.subscribe(...)`
       call; update the docstring to the five-subscription description (topic-status hooks,
       onboarding pair, autonomy amendment hook).
-- [ ] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy import
+- [x] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy import
       register_hooks`; drive it with an inline recorder; verify the five tuples in order
       and that each fourth element IS the cell object by identity
       (`goga_tool_pybuggy.statuses.register_automate_statuses`, etc.). Reload after the
       edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/test_reg_hooks.py -v`.
-- [ ] **STEP 4 (LOGIC TESTS)**: `test_register_hooks_subscribes_five_hooks` —
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/test_reg_hooks.py -v`.
+- [x] **STEP 4 (LOGIC TESTS)**: `test_register_hooks_subscribes_five_hooks` —
       `recorder.calls == [("statuses", "register_statuses", "automate",
       register_automate_statuses), ("statuses", "register_statuses", "fix",
       register_fix_statuses), ("onboarding", "declare_session", "declare",
@@ -1022,17 +1022,17 @@ facade/signature test. Nothing else in the root changes; root `__all__` stays un
       with each callable the cell object by identity; plus
       `test_register_hooks_facade_and_signature` — `callable(register_hooks)`;
       `register_hooks.__annotations__ == {"hooks": object, "return": None}`.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/test_reg_hooks.py tests/statuses/
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/test_reg_hooks.py tests/statuses/
       tests/autonomous/ -x` — fix implementation until green (full-suite failures remain
       only the declared eight seam files).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: the acceptance probe —
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: the acceptance probe —
       `.venv/bin/python -c "from goga_tool_pybuggy import register_hooks"`; confirm
       exactly five `subscribe` calls and no other root file changed.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
       M3.3 (scoped pytest green) and `git commit`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 6: Integration tests — the autonomy bridge (integration tests)
 
