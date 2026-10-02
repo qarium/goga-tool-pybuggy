@@ -925,26 +925,26 @@ Extend `tests/commands/init/test_session.py` (existing file, existing fixtures).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 4: init cell — autonomy confirm + conditional axis entry`).
-- [ ] **STEP 1 (CONTRACT TESTS)**: in `tests/commands/init/test_session.py` add contract
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 4: init cell — autonomy confirm + conditional axis entry`).
+- [x] **STEP 1 (CONTRACT TESTS)**: in `tests/commands/init/test_session.py` add contract
       rows: `pybuggy_questions()` last item is a `Question` with `id == "autonomous"`,
       `kind == "confirm"`, `default is False`; `build_config_data` keeps its declared
       signature. Expected to fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: in `pybuggy_questions()` append the confirm as the final
+- [x] **STEP 2 (IMPLEMENTATION)**: in `pybuggy_questions()` append the confirm as the final
       `items.append(...)` — literal texts from the context above (prompt wording is the
       design-fixed [decision]).
-- [ ] **STEP 2 (IMPLEMENTATION)**: in `build_config_data()` insert the conditional axis
+- [x] **STEP 2 (IMPLEMENTATION)**: in `build_config_data()` insert the conditional axis
       step between the scalar loop and the `specs` assignment; update the docstring's
       payload-order description (scalar keys, then `pipelines` when enabled, then `specs`
       last) and the module docstring if it enumerates the block.
-- [ ] **REPL cycle (M4)**: in the venv REPL — call `pybuggy_questions()`; assert
+- [x] **REPL cycle (M4)**: in the venv REPL — call `pybuggy_questions()`; assert
       `items[-1].id == "autonomous"`, `items[-2].id == "first_spec"`; drive
       `build_config_data` with an enabling and a disabling answer view; `yaml.safe_load(
       yaml.safe_dump(data)) == data` (plain serializable); feed the enabling payload
       through `yaml.safe_dump` into a scratch `config.yml` and confirm `resolve_autonomy(
       "api.automate") is True` on it (the bridge, live). Reload after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/commands/init/ -v`.
-- [ ] **STEP 4 (LOGIC TESTS)**:
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/commands/init/ -v`.
+- [x] **STEP 4 (LOGIC TESTS)**:
       `test_pybuggy_questions_appends_autonomy_confirm_last` (`last = items[-1]`;
       `isinstance(last, Question)`; `last.id == "autonomous"`; `last.kind == "confirm"`;
       `last.default is False`; `items[-2].id == "first_spec"`),
@@ -958,18 +958,18 @@ Extend `tests/commands/init/test_session.py` (existing file, existing fixtures).
       to the new block shape — `len(items) == 9`, the `first_spec` group at `items[-2]`
       (the autonomy confirm is `items[-1]`); preserve every other existing row unchanged
       (they stay green).
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/commands/init/ -x` — fix
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/commands/init/ -x` — fix
       implementation until green (full-suite failures remain only the declared eight seam
       files).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: probes —
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: probes —
       `.venv/bin/python -c "from goga_tool_pybuggy.commands.init import declare_pybuggy_session, amend_pybuggy_config"`;
       confirm no existing question id collides with `autonomous`; confirm the block still
       holds exactly one nesting level.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
       M3.3 (scoped pytest green) and `git commit`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 5: root — fifth subscription + `tests/test_reg_hooks.py` (TDD coding)
 

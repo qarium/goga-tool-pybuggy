@@ -70,10 +70,13 @@ def pybuggy_questions() -> list[Question]:
     ``LOADER`` (``default=""`` — Enter yields ``""``, optional; prompt texts from
     ``_SCALAR_PROMPTS``); then the one-level group ``first_spec`` (children
     ``name``/``type``/``location``/``git_url``/``git_location``/``git_ref`` — name and
-    location required, type a ``swagger``/``openapi`` choice, git fields optional). The
-    additional specs are NOT declared here — a confirm-gated repeated group is beyond the
-    declarative records, so ``survey_extra_specs`` asks them at the amendment moment.
-    Survey order equals declaration order, and every record is fresh per call.
+    location required, type a ``swagger``/``openapi`` choice, git fields optional); then
+    the autonomy confirm ``autonomous`` last (``default=False`` — whether the
+    ``api.automate`` pipeline runs unattended; a simple top-level child, so the block
+    keeps exactly one nesting level). The additional specs are NOT declared here — a
+    confirm-gated repeated group is beyond the declarative records, so
+    ``survey_extra_specs`` asks them at the amendment moment. Survey order equals
+    declaration order, and every record is fresh per call.
 
     Returns:
         The question records — ``Question`` items plus the single ``first_spec``
@@ -99,6 +102,15 @@ def pybuggy_questions() -> list[Question]:
                 Question(id="git_location", kind="input", default="", prompt="Path inside the repository"),
                 Question(id="git_ref", kind="input", default="", prompt="Git ref (branch/tag; empty — default branch)"),
             ],
+        )
+    )
+
+    items.append(
+        Question(
+            id="autonomous",
+            kind="confirm",
+            default=False,
+            prompt="Run the api.automate pipeline unattended (autonomous mode)?",
         )
     )
 
@@ -173,18 +185,23 @@ def build_config_data(
     Scalar walk in ``PluginConfigKeys`` declaration order skipping ``HEADERS``/``LOADER``:
     unanswered members (``None``/``""``) are dropped — never written empty — and numeric
     members (``timeout``→float, ``retries``→int, ``assert_timeout``→int, ``assert_delay``→float
-    via ``_NUMERIC_MEMBERS``) are coerced. The specs from :func:`parse_specs` — the
-    ``first_spec`` group answer plus the ``survey_extra_specs`` mappings — land under
-    ``specs`` as ``model_dump(exclude_none=True)`` plain mappings, with ``specs`` last. The
-    payload is plain serializable data only — never pydantic objects (the engine
-    ``yaml.dump``s buffered data verbatim and silently drops unserializable files).
+    via ``_NUMERIC_MEMBERS``) are coerced. When the ``autonomous`` answer enables autonomy,
+    the ``pipelines`` axis entry — ``{"api.automate": {"autonomous": True}}``, the exact
+    :func:`goga_tool_pybuggy.config.resolve_autonomy` consumption shape — follows the
+    scalar keys; a falsy answer (``False``, the confirm default, or absent) emits nothing.
+    The specs from :func:`parse_specs` — the ``first_spec`` group answer plus the
+    ``survey_extra_specs`` mappings — land under ``specs`` as ``model_dump(exclude_none=True)``
+    plain mappings, with ``specs`` last. The payload is plain serializable data only — never
+    pydantic objects (the engine ``yaml.dump``s buffered data verbatim and silently drops
+    unserializable files).
 
     Args:
         answers: The pybuggy answer view (core sections plus the own block under local names).
         extra_specs: The ``survey_extra_specs`` mappings; None when the gate was declined.
 
     Returns:
-        The tool-config payload keyed in plugin key order with ``specs`` last.
+        The tool-config payload keyed in plugin key order, then ``pipelines`` when the
+        autonomy answer enables it, with ``specs`` last.
 
     Raises:
         ValueError: If a numeric member's answer cannot coerce to its target type (the
@@ -202,6 +219,9 @@ def build_config_data(
             continue
 
         data[member.value] = _NUMERIC_MEMBERS[member](value) if member in _NUMERIC_MEMBERS else value
+
+    if answers.get("autonomous"):
+        data["pipelines"] = {"api.automate": {"autonomous": True}}
 
     data["specs"] = {name: entry.model_dump(exclude_none=True) for name, entry in specs.items()}
 

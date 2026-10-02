@@ -162,6 +162,15 @@ class TestSessionBuildersContract:
         """Every builder carries its contract signature with typed parameters and return."""
         assert routine.__annotations__ == expected
 
+    def test_pybuggy_questions_last_item_is_autonomy_confirm(self):
+        """The block's final item is the autonomy confirm — id, kind, and the disabled default."""
+        last = pybuggy_questions()[-1]
+
+        assert isinstance(last, Question)
+        assert last.id == "autonomous"
+        assert last.kind == "confirm"
+        assert last.default is False
+
 
 class TestSessionParticipationContract:
     """Facade exposure and signature surface of the hooks and the session seam."""
@@ -191,18 +200,18 @@ class TestPybuggyQuestions:
     """The declarative question block — ids, order, defaults, nesting."""
 
     def test_pybuggy_questions_returns_block_in_survey_order(self):
-        """base_url first (required), scalars in declaration order, the first-spec group last."""
+        """base_url first (required), scalars in declaration order, the first-spec group, the autonomy confirm."""
         items = pybuggy_questions()
 
-        assert len(items) == 8
+        assert len(items) == 9
         assert items[0].id == "base_url"
         assert items[0].default is None
 
-        scalar_items = [item for item in items if isinstance(item, Question)][1:]
+        scalar_items = [item for item in items if isinstance(item, Question)][1:-1]
         assert [item.id for item in scalar_items] == [member.value for member in _SCALAR_MEMBERS]
         assert all(item.default == "" for item in scalar_items)
 
-        group = items[-1]
+        group = items[-2]
         assert isinstance(group, QuestionGroup)
         assert group.id == "first_spec"
         assert group.prompt == "The first spec"
@@ -215,6 +224,18 @@ class TestPybuggyQuestions:
             "git_ref",
         ]
         assert group.children[1].choices == ["swagger", "openapi"]
+
+    def test_pybuggy_questions_appends_autonomy_confirm_last(self):
+        """The autonomy confirm is the final item — a simple child right after the first-spec group."""
+        items = pybuggy_questions()
+
+        last = items[-1]
+        assert isinstance(last, Question)
+        assert last.id == "autonomous"
+        assert last.kind == "confirm"
+        assert last.default is False
+        assert last.prompt == "Run the api.automate pipeline unattended (autonomous mode)?"
+        assert items[-2].id == "first_spec"
 
     def test_pybuggy_questions_declares_no_compact_extra_specs(self):
         """The compact one-per-line extra_specs record is gone — the amend-moment survey owns it."""
@@ -446,6 +467,28 @@ class TestBuildConfigData:
         """A non-numeric numeric answer raises ValueError (soft-drop upstream)."""
         with pytest.raises(ValueError, match="could not convert"):
             build_config_data({**_ANSWERS, "timeout": "abc"}, None)
+
+    def test_build_config_data_emits_pipelines_axis_on_enabling_answer(self):
+        """An enabling autonomy answer adds the axis entry after the scalar keys — the resolver's exact shape."""
+        data = build_config_data({**_ANSWERS, "autonomous": True}, None)
+
+        assert data["pipelines"] == {"api.automate": {"autonomous": True}}
+        assert list(data) == ["base_url", "timeout", "retries", "pipelines", "specs"]
+        assert list(data)[-1] == "specs"
+        assert yaml.safe_load(yaml.safe_dump(data)) == data
+
+    @pytest.mark.parametrize(
+        "answers",
+        [{**_ANSWERS, "autonomous": False}, dict(_ANSWERS)],
+        ids=["declined-confirm", "absent-key"],
+    )
+    def test_build_config_data_disabling_and_absent_answers_emit_no_axis(self, answers):
+        """A falsy or absent autonomy answer emits no pipelines key — the specs still land."""
+        data = build_config_data(answers, None)
+
+        assert "pipelines" not in data
+        assert "specs" in data
+        assert list(data["specs"]) == ["shop"]
 
 
 class TestBuildConfigAmendments:

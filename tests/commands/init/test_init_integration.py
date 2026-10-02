@@ -33,8 +33,10 @@ _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 # Dockerfile creation — declining it is the failed-init branch of q1/A, so the
 # smoke run accepts it. The goga base-convention gate is ABSENT — the declaration
 # hook skips the core convention section, and the strict map would fail the run
-# if the engine asked the gate anyway. The add-another-spec loop of the amend
-# hook is answered from a FIFO queue: one accepted extra spec, then a decline.
+# if the engine asked the gate anyway. The autonomy confirm of the pybuggy block
+# is declined — the default — so the tool config carries no pipelines axis. The
+# add-another-spec loop of the amend hook is answered from a FIFO queue: one
+# accepted extra spec, then a decline.
 _CONFIRM_ANSWERS = {
     "Add codemanifest usages?": False,
     "Add codemanifest annotations?": False,
@@ -43,11 +45,13 @@ _CONFIRM_ANSWERS = {
     "Configure a pipeline agent?": False,
     "Add tools?": False,
     "Add usages records?": False,
+    "Run the api.automate pipeline unattended (autonomous mode)?": False,
     "Add another spec?": [True, False],
 }
 
-# The expected confirm ask order — the seven core gates, then the amend-moment
-# loop (accepted once for the extra spec, then declined).
+# The expected confirm ask order — the seven core gates, the block's autonomy
+# confirm (last item of the pybuggy survey), then the amend-moment loop (accepted
+# once for the extra spec, then declined).
 _EXPECTED_CONFIRMS = [
     "Add codemanifest usages?",
     "Add codemanifest annotations?",
@@ -56,6 +60,7 @@ _EXPECTED_CONFIRMS = [
     "Configure a pipeline agent?",
     "Add tools?",
     "Add usages records?",
+    "Run the api.automate pipeline unattended (autonomous mode)?",
     "Add another spec?",
     "Add another spec?",
 ]
