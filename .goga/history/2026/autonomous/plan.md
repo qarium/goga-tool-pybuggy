@@ -702,8 +702,8 @@ scoped until then; `tests/config/` must be green.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 2: config cell — PipelineAutonomy, load_config, resolve_autonomy`).
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/config/test_PipelineAutonomy.py`
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 2: config cell — PipelineAutonomy, load_config, resolve_autonomy`).
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/config/test_PipelineAutonomy.py`
       (importable from `goga_tool_pybuggy.config`; `PipelineAutonomy.model_fields` holds
       exactly `autonomous`; `model_config` is kw_only + extra=forbid) and rewrite
       `tests/config/test_storage.py` contract rows: `load_config` importable and
@@ -716,11 +716,11 @@ scoped until then; `tests/config/` must be green.>
       `tests/conftest.py`:
       `@pytest.fixture def tool_config(tmp_path, monkeypatch): monkeypatch.chdir(tmp_path); def _write(text): path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"; path.parent.mkdir(parents=True, exist_ok=True); path.write_text(text, encoding="utf-8"); return _write`.
       Expected to fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/config/pipeline_autonomy.py` —
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/config/pipeline_autonomy.py` —
       `class PipelineAutonomy(BaseModel)` with
       `model_config = ConfigDict(kw_only=True, extra="forbid")` and
       `autonomous: bool`; Google docstring; property semantics per the annotation.
-- [ ] **STEP 2 (IMPLEMENTATION)**: rewrite `goga_tool_pybuggy/config/storage.py` — drop
+- [x] **STEP 2 (IMPLEMENTATION)**: rewrite `goga_tool_pybuggy/config/storage.py` — drop
       `CONFIG_PATH` and the `path` parameter; module constants `_TOOL = "pybuggy"`,
       `_FILENAME = "config.yml"`; `load_config()` implementing:
       call-time `from goga.config import load_tool_config`; `raw =
@@ -735,21 +735,21 @@ scoped until then; `tests/config/` must be green.>
       `ValueError(f"pybuggy tool config: invalid pipelines entry {name!r}") from err`;
       `pipeline not in records` → `False`; `return bool(records[pipeline].autonomous)`.
       No try/except beyond the entry wrap; no caching; pydantic/facade errors propagate.
-- [ ] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/config/__init__.py` — imports
+- [x] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/config/__init__.py` — imports
       `Config`, `GitEntry`, `PipelineAutonomy`, `SpecEntry`, `load_config`,
       `resolve_autonomy`; `__all__ = ["Config", "GitEntry", "PipelineAutonomy",
       "SpecEntry", "load_config", "resolve_autonomy"]`; facade docstring updated (no
       `CONFIG_PATH`).
-- [ ] **REPL cycle (M4)**: in the venv REPL against a scratch tree — verify live: absent
+- [x] **REPL cycle (M4)**: in the venv REPL against a scratch tree — verify live: absent
       file and empty file both raise the exact `FileNotFoundError` (message contains
       `.goga/tools/pybuggy/config.yml`); axis-enabled tree returns `True`; each violation
       string raises `ValueError` starting `pybuggy tool config:`; `"autonomous": "maybe"`
       raises while `"autonomous": "yes"` coerces to True (pin both as tests); a rewrite of
       the file between two `resolve_autonomy` calls is visible immediately (no caching).
       Reload after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/config/ -v` — contract
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/config/ -v` — contract
       tests pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/config/test_PipelineAutonomy.py` —
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/config/test_PipelineAutonomy.py` —
       `test_pipeline_autonomy_accepts_valid_record`
       (`model_validate({"autonomous": True}).autonomous is True`;
       `PipelineAutonomy(autonomous=False).autonomous is False`) and
@@ -776,7 +776,7 @@ scoped until then; `tests/config/` must be green.>
       `"specs: {}\n"`, other-pipeline entry, `autonomous: false` → `result is False`),
       `test_resolve_autonomy_no_caching` (false → rewrite true → `is True`),
       `test_resolve_autonomy_unknown_names_never_fail`.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/config/ tests/statuses/ -x` — fix
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/config/ tests/statuses/ -x` — fix
       implementation code until green. Then `.venv/bin/pytest tests/ --ignore
       tests/test_cli_integration.py --ignore tests/test_cli_env.py --ignore
       tests/commands/pull/test_pull.py --ignore tests/commands/diff/test_diff.py --ignore
@@ -785,15 +785,15 @@ scoped until then; `tests/config/` must be green.>
       tests/commands/generate/test_generate.py` — green (everything outside the declared
       eight-file red set passes; the seam files themselves stay red with `CONFIG_PATH`
       `AttributeError` until Task 7 migrates them).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes —
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes —
       `.venv/bin/python -c "from goga_tool_pybuggy.config import Config, GitEntry, PipelineAutonomy, SpecEntry, load_config, resolve_autonomy"`
       and `.venv/bin/python -c "import goga_tool_pybuggy.config as c; assert not hasattr(c, 'CONFIG_PATH')"`.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; commit gate per
       M3.3 (pytest scoped green: `tests/config/ tests/statuses/ tests/commands/init/` +
       the declared eight-file red set) and `git commit`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 3: autonomous cell — `build_autonomous_workflow`, `amend_workflow` (TDD coding)
 

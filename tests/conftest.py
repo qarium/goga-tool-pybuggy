@@ -1,9 +1,8 @@
-"""Shared pytest fixtures for the pybuggy test suite.
-
-Stub module — extended with shared fixtures as cells are implemented.
-"""
+"""Shared pytest fixtures for the pybuggy test suite."""
 
 import os
+import pathlib
+from collections.abc import Callable
 
 import pytest
 
@@ -32,3 +31,30 @@ def _isolate_os_environ() -> None:
     finally:
         os.environ.clear()
         os.environ.update(snapshot)
+
+
+@pytest.fixture
+def tool_config(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], pathlib.Path]:
+    """Write a pybuggy tool config under the standard tree, rooted at ``tmp_path``.
+
+    Chdirs into ``tmp_path`` so the platform facade's cwd-relative composition
+    (``<cwd>/.goga/tools/pybuggy/config.yml``) is exercised with zero patching:
+    the routines under test resolve the real path against the test's own root.
+
+    Args:
+        tmp_path: The per-test temporary directory serving as the project root.
+        monkeypatch: The pytest monkeypatch fixture performing the chdir.
+
+    Returns:
+        A writer placing ``text`` at the standard tool-config path and
+        returning the written path.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    def _write(text: str) -> pathlib.Path:
+        path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    return _write
