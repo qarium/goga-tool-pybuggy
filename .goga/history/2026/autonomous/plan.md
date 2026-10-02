@@ -582,15 +582,15 @@ unresolvable anchors are platform-side skip-with-warning.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 1: statuses cell + package import repair`) before writing anything.
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/statuses/__init__.py`,
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 1: statuses cell + package import repair`) before writing anything.
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/statuses/__init__.py`,
       `tests/statuses/conftest.py` (the `_RecorderContext` double capturing
       `(name, artifact, after, before)` tuples), `tests/statuses/test_automate.py`, and
       `tests/statuses/test_fix.py`. Contract tests: both routines importable from
       `goga_tool_pybuggy.statuses`; `inspect.signature` shows exactly one parameter
       `context: object`, return annotation `None`. Expected to fail now (the cell has no
       Python files).
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/automate.py` —
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/automate.py` —
       relocate `register_automate_statuses` verbatim from `git show
       HEAD:goga_tool_pybuggy/statuses.py` (six literal `context.register` calls:
       `("automate.done", "completed/plan.md", after="done")`,
@@ -604,17 +604,17 @@ unresolvable anchors are platform-side skip-with-warning.>
       before="pybuggy.automate.arch-prepared")`,
       `("automate.requirements-created", "requirements.md", after="defined",
       before="pybuggy.automate.testcases-designed")`); only the module docstring changes.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/fix.py` — relocate
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/fix.py` — relocate
       `register_fix_statuses` verbatim (five literal calls:
       `("fix.collected", "fix-collect.md", after="empty")`,
       `("fix.analyzed", "fix-analysis.md", after="pybuggy.fix.collected")`,
       `("fix.planned", "fix-plan.md", after="pybuggy.fix.analyzed")`,
       `("fix.executed", "fix-execute.md", after="pybuggy.fix.planned")`,
       `("fix.reviewed", "fix-review.md", after="pybuggy.fix.executed")`).
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/__init__.py` — the
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/__init__.py` — the
       cell facade docstring, the two relative imports, and
       `__all__ = ["register_automate_statuses", "register_fix_statuses"]`.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create root `goga_tool_pybuggy/reg_hooks.py` —
+- [x] **STEP 2 (IMPLEMENTATION)**: create root `goga_tool_pybuggy/reg_hooks.py` —
       `register_hooks(hooks: object) -> None` with the **four** subscriptions available at
       this stage, in platform order:
       `hooks.subscribe("statuses", "register_statuses", "automate", register_automate_statuses)`,
@@ -624,19 +624,19 @@ unresolvable anchors are platform-side skip-with-warning.>
       imports `from .statuses import register_automate_statuses, register_fix_statuses` and
       `from .commands.init import amend_pybuggy_config, declare_pybuggy_session`; docstring
       documents the four subscriptions (updated to five in Task 5).
-- [ ] **STEP 2 (IMPLEMENTATION)**: switch `goga_tool_pybuggy/__init__.py` — replace
+- [x] **STEP 2 (IMPLEMENTATION)**: switch `goga_tool_pybuggy/__init__.py` — replace
       `from .statuses import register_hooks` with `from .reg_hooks import register_hooks`;
       keep `__all__` unchanged (this repairs the package import).
-- [ ] **STEP 2 (IMPLEMENTATION)**: delete `tests/test_statuses.py` (tests the deleted
+- [x] **STEP 2 (IMPLEMENTATION)**: delete `tests/test_statuses.py` (tests the deleted
       module; superseded by `tests/statuses/*` and, in Task 5, `tests/test_reg_hooks.py`).
-- [ ] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy import
+- [x] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy import
       register_hooks` resolves; `from goga_tool_pybuggy.statuses import
       register_automate_statuses, register_fix_statuses` resolve; exercise both routines
       against an inline recorder object; verify six + five tuples and the anchor chain;
       reload (`importlib.reload`) after any edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/statuses/ -v` — all
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/statuses/ -v` — all
       contract tests pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/statuses/test_automate.py` —
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/statuses/test_automate.py` —
       `test_register_automate_statuses_registers_six_statuses_in_order` asserting
       `context.calls == [("automate.done", "completed/plan.md", "done", None),
       ("automate.coding-planned", "plan.md", "planned", "pybuggy.automate.done"),
@@ -651,21 +651,21 @@ unresolvable anchors are platform-side skip-with-warning.>
       ("fix.planned", "fix-plan.md", "pybuggy.fix.analyzed", None),
       ("fix.executed", "fix-execute.md", "pybuggy.fix.planned", None),
       ("fix.reviewed", "fix-review.md", "pybuggy.fix.executed", None)]`.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass (the full suite is expected green at this point: `CONFIG_PATH` still
       exists, the old `tests/config/test_storage.py` still matches the old signature).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes —
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes —
       `.venv/bin/python -c "from goga_tool_pybuggy import register_hooks"` and
       `.venv/bin/python -c "from goga_tool_pybuggy.statuses import register_automate_statuses, register_fix_statuses"`;
       confirm the register tables are byte-identical to the git-HEAD originals (diff the
       call blocks).
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — fix formatting, decompose if
       necessary.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run the
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run the
       local commit gate (M3.3: ruff check, ruff format --check, `pytest tests/ -x` green)
       and `git commit` the task.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 2: config cell — `PipelineAutonomy`, `load_config`, `resolve_autonomy`, facade without `CONFIG_PATH` (TDD coding)
 
