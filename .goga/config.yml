@@ -38,9 +38,9 @@ lint:
 
 
 usages:
-  cooks:
+  github:
     goga:
-      git: https://github.com/qarium/goga.git
+      git: git@github.com:qarium/goga.git
       ref: 2.0.x
       root: goga
 
