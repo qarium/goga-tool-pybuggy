@@ -1,19 +1,6 @@
 """Integration tests — the native-session smoke end-to-end and the CLI composition.
 
-The acceptance-level proof of the participation mechanism, in process (Task 9):
-``test_session_smoke_end_to_end_with_prompt_stubs`` runs the REAL engine session
-(``run_session`` → ``InitLogic`` → registry → real ``register_hooks`` → real
-hooks) with only the terminal stubbed — a scripted TTY answering the pinned
-answer map — and asserts the artifact set on disk: the project config, the
-Dockerfile at the answered path, and the tool config written by the engine from
-the plain payload our amend hook buffered, attributed ``(tool: pybuggy)`` in the
-report. The smoke run then composes the REAL bootstrap over the real session
-artifacts — the full bare-init path in one process. The CLI composition tests
-drive the whole chain ``init_cmd.callback → run_init → run_session +
-run_bootstrap`` with the engine seams stubbed at the orchestrator's import
-point — delegation order and exit propagation across the layers (the
-wrapper-binding surface alone is Task 6's; the top-level ``init`` registration
-is ``tests/test_cli.py``'s).
+The smoke run drives the real engine with only the TTY stubbed; the CLI tests stub the engine seams.
 """
 
 import importlib.metadata
@@ -29,14 +16,7 @@ from goga_tool_pybuggy.commands.init import init_cmd, run_bootstrap, run_session
 _SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
 _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 
-# The pinned confirm map (review q3/A): every core gate declined EXCEPT the
-# Dockerfile creation — declining it is the failed-init branch of q1/A, so the
-# smoke run accepts it. The goga base-convention gate is ABSENT — the declaration
-# hook skips the core convention section, and the strict map would fail the run
-# if the engine asked the gate anyway. The autonomy confirm of the pybuggy block
-# is declined — the default — so the tool config carries no pipelines axis. The
-# add-another-spec loop of the amend hook is answered from a FIFO queue: one
-# accepted extra spec, then a decline.
+# Every core gate is declined except Dockerfile creation — its decline is the failed-init branch.
 _CONFIRM_ANSWERS = {
     "Add codemanifest usages?": False,
     "Add codemanifest annotations?": False,
@@ -49,9 +29,7 @@ _CONFIRM_ANSWERS = {
     "Add another spec?": [True, False],
 }
 
-# The expected confirm ask order — the seven core gates, the block's autonomy
-# confirm (last item of the pybuggy survey), then the amend-moment loop (accepted
-# once for the extra spec, then declined).
+# The expected confirm ask order — core gates, the autonomy confirm, then the amend-moment loop.
 _EXPECTED_CONFIRMS = [
     "Add codemanifest usages?",
     "Add codemanifest annotations?",
@@ -65,16 +43,7 @@ _EXPECTED_CONFIRMS = [
     "Add another spec?",
 ]
 
-# The pinned prompt inputs: only the prompts that must carry an explicit value.
-# ``resolve_project_name()`` returns None in the pytest tmp dir (no git origin),
-# so "Built image name" offers NO default and Enter is impossible — the map
-# carries an explicit image name. The repeated spec-field prompts are answered
-# from FIFO queues: the engine's ``first_spec`` ask consumes the first entry,
-# the amend hook's surveyed extra spec the second. The optional prompts (the
-# Dockerfile path, the base image, the optional scalars, the git fields) stay
-# unscripted and read as Enter through the ScriptedTTY default rule; the offline
-# guarantee holds because the conventions download is never offered (the skipped
-# section) and no answer activates it.
+# Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter.
 _PROMPT_ANSWERS = {
     "Language": "python",
     "Built image name": "pybuggy-smoke:latest",
@@ -84,9 +53,7 @@ _PROMPT_ANSWERS = {
     "Spec location (path from project root)": ["specs/shop.yaml", "specs/billing.yaml"],
 }
 
-# The plain payload the engine must serialize verbatim into .goga/tools/pybuggy/config.yml:
-# the answered base_url, the surveyed first spec, the surveyed extra spec (both git-less —
-# the git prompts read as Enter), and no optional scalar keys (every one Enter-skipped).
+# The plain payload the engine must serialize verbatim into the tool config.
 _EXPECTED_TOOL_CONFIG = {
     "base_url": "https://{{ HOST }}/api",
     "specs": {
@@ -118,13 +85,7 @@ class TestSessionSmoke:
     def test_session_smoke_end_to_end_with_prompt_stubs(self, tmp_path, monkeypatch, capsys, caplog, scripted_tty):
         """The engine session surveys core + pybuggy block and writes every artifact.
 
-        The registry imports the real ``register_hooks`` of the installed package, so
-        the two participation moments run for real: the declared block is surveyed
-        under ``--- Tool: pybuggy ---``, the amend hook surveys the additional spec
-        itself (the confirm-gated loop), buffers the single amendment and the plain
-        payload, and the engine writes the tool config itself with attribution. The
-        run stays offline — the skipped convention section means the base-convention
-        download is never offered, so nothing leaves the process.
+        The real ``register_hooks`` run for both participation moments; the run stays offline.
         """
         monkeypatch.chdir(tmp_path)
         _write_minimal_specs(tmp_path)
@@ -156,20 +117,15 @@ class TestSessionSmoke:
         dockerfile = tmp_path / ".goga" / "Dockerfile"
         assert dockerfile.read_text(encoding="utf-8").startswith("FROM ")
 
-        # The conventions slot is the bootstrap's delivery, never the session's — and the
-        # skipped section means the engine never downloaded the goga base convention.
+        # The conventions slot is the bootstrap's delivery — the session never downloads the base convention.
         assert not (tmp_path / ".goga" / "usages" / "conventions.md").exists()
 
-        # The Enter-impossible prompt: no project name in the pytest tmp dir, so the
-        # built-image ask offers no default — the scripted map must carry the value.
+        # No git origin in the pytest tmp dir, so the built-image ask offers no default.
         prompt_defaults = {text: default for text, default, _returned in tty.prompts}
         assert prompt_defaults["Built image name"] is None
         assert prompt_defaults["Dockerfile path"] == ".goga/Dockerfile"
 
-        # The full bare-init composition: the REAL bootstrap consumes the real session
-        # artifacts — the config-declared Dockerfile carries the install line, the skip
-        # flag and the registrations land, the tool config gains its commented examples,
-        # and the conventions slot (the packaged pybuggy asset) and conftest appear.
+        # The full bare-init composition — the real bootstrap consumes the real session artifacts.
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
 
         with caplog.at_level(logging.INFO):
@@ -202,10 +158,7 @@ class TestSessionSmoke:
     def test_session_smoke_autonomy_confirm_accepted_writes_axis(self, tmp_path, monkeypatch, caplog, scripted_tty):
         """Answering the autonomy confirm True lands the ``pipelines`` axis in the written config.
 
-        The declined smoke run cannot distinguish ``answer recorded False`` from
-        ``answer key lost`` — both produce no axis; this variant accepts the
-        confirm and asserts the enabling entry reaches the engine-written tool
-        config, the exact bridge the run hook later reads.
+        Accepting the confirm distinguishes a recorded False from a lost answer key.
         """
         monkeypatch.chdir(tmp_path)
         _write_minimal_specs(tmp_path)
@@ -234,11 +187,7 @@ class TestCliComposition:
     ):
         """``init_cmd.callback`` drives the real ``run_init`` into session-then-bootstrap.
 
-        Composition, not unit: the wrapper and the orchestrator are both real; only
-        the two engine-facing seams are stubbed at the orchestrator's import point.
-        A fresh project takes the bare chain — the guard passes, the session runs
-        first, the bootstrap runs last with the bare gate (``template_mode False``),
-        and the wrapper propagates the resulting code through ``ctx.exit``.
+        Composition test — the wrapper and orchestrator are real, only the two seams are stubbed.
         """
         monkeypatch.chdir(tmp_path)
         order: list[str] = []
@@ -261,9 +210,7 @@ class TestCliComposition:
     ):
         """A bootstrap failure code reaches ``ctx.exit`` through the whole chain unchanged.
 
-        The farthest seam's non-zero code (never normalized to 1) surfaces as the
-        CLI exit code — the same propagation contract ``run_init`` owns, observed
-        across both real layers.
+        The farthest seam's non-zero code is never normalized to 1 across the layers.
         """
         monkeypatch.chdir(tmp_path)
         order: list[str] = []

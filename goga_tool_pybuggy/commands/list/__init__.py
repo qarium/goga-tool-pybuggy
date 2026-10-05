@@ -1,8 +1,4 @@
-"""List command facade.
-
-Exports the endpoint_statuses classifier, the run_list handler and the
-list_cmd Click command for endpoint listing operations.
-"""
+"""List command facade."""
 
 from .list import endpoint_statuses, list_cmd, run_list
 

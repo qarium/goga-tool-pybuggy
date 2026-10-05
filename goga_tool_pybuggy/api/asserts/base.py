@@ -1,11 +1,6 @@
 """Shared base for `goga_tool_pybuggy.api` asserts (matchcrest-backed).
 
-``BaseAssert`` is the minimal helper shared by the assert entities: it builds a
-matchcrest matcher from its class and the expected value, injecting the polling
-options (``timeout``/``delay``) into the matcher. The baseline values come from
-``AssertConfig`` (stored as ``self._timeout``/``self._delay`` by subclasses); a
-per-check ``timeout``/``delay`` kwarg overrides them for one assertion. pybuggy
-ships plain classes (no reporting layer).
+``BaseAssert`` builds matchcrest matchers, injecting the polling options (``timeout``/``delay``).
 """
 
 from __future__ import annotations
@@ -20,9 +15,8 @@ def load_assert_class(import_path: str, base_class: type) -> type:
     """Import an assert class by dotted ``module:Class`` path.
 
     Args:
-        import_path: ``"module.path:ClassName"`` — the module is imported with
-            ``importlib`` and the class read off it.
-        base_class: the required base — the loaded class must be a subclass.
+        import_path: ``"module.path:ClassName"`` dotted specifier.
+        base_class: required base class; the loaded class must subclass it.
 
     Returns:
         The loaded class.
@@ -56,12 +50,7 @@ def load_assert_class(import_path: str, base_class: type) -> type:
 class BaseAssert:
     """Helper building matchcrest matchers with polling options.
 
-    Subclasses set ``self._timeout``/``self._delay`` (the config baseline) and
-    call ``_create_matcher`` to instantiate a matcher. A per-check
-    ``timeout``/``delay`` kwarg overrides the baseline for that one matcher;
-    ``None`` values are dropped so the matcher defaults apply. The remaining
-    kwargs (``any``/``in_array``/``strict``/``or_equal``/``count``/…) are
-    forwarded verbatim.
+    Subclasses set ``self._timeout``/``self._delay`` as the baseline; per-check kwargs override it.
     """
 
     _timeout: int | float | None = None
@@ -75,16 +64,10 @@ class BaseAssert:
     ) -> BaseMatcher:
         """Build a matcher, applying the polling baseline.
 
-        ``timeout``/``delay`` in ``kwargs`` (per-check overrides) win; when
-        absent, ``self._timeout``/``self._delay`` (the config baseline) apply.
-        All ``None`` kwargs are filtered out so matchcrest's own defaults take
-        over.
-
         Args:
             matcher: a matchcrest matcher class.
             expected_value: the value the matcher asserts against.
-            **kwargs: matcher options; ``timeout``/``delay`` override the
-                baseline, the rest are forwarded; ``None`` values are dropped.
+            **kwargs: matcher options; ``timeout``/``delay`` override the baseline, ``None`` values are dropped.
 
         Returns:
             The constructed matcher instance.

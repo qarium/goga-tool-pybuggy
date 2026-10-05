@@ -3,9 +3,8 @@
 import pytest
 from goga.pipeline.hooks.identity import PipelineIdentity
 
-# The discovered identity of the autonomy target, exactly as the platform
-# delivers it at the amendment checkpoint — a PipelineIdentity carrying the
-# installer's namespaced tool-pipeline name, never a bare string.
+# Autonomy-target identity as delivered at the amendment checkpoint — a
+# PipelineIdentity, never a bare string.
 _AUTONOMOUS_PIPELINE = PipelineIdentity(
     name="pybuggy:api.automate",
     description="Pybuggy API-test automate lifecycle",
@@ -28,10 +27,7 @@ def amendment_identity(name: str) -> PipelineIdentity:
 class _AmendmentView:
     """Amendment view double capturing the contributed documents.
 
-    Mirrors the platform's ``WorkflowAmendment`` read-and-contribute
-    contract: ``pipeline`` is the ``PipelineIdentity`` of the running
-    pipeline (the delivery hands the dataclass, never a bare string), and
-    ``contribute`` buffers one document per call.
+    Mirrors ``WorkflowAmendment``: ``pipeline`` is a ``PipelineIdentity``; ``contribute`` buffers one document per call.
 
     Attributes:
         pipeline: The identity of the running pipeline the view reports.

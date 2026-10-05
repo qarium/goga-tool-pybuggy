@@ -1,24 +1,6 @@
 """Integration tests for the autonomy bridge — the feature's end-to-end chains.
 
-Chain one (the run chain): ``amend_workflow`` (autonomous cell) composed with
-the REAL ``resolve_autonomy`` (config cell) reading a prepared standard tree —
-the two cells integrate through the real file standard
-(``.goga/tools/pybuggy/config.yml``) with no stubs: the enabled tree
-contributes the fixed workflow document, the disabled tree is a silent no-op.
-
-Chain two (the emit↔consume bridge): the ``build_config_data`` payload (init
-cell), serialized as YAML to the standard path, is consumed by
-``resolve_autonomy`` — emit → engine YAML → raw parse → axis validation — the
-exact bridge the onboarding session writes and the run hook later reads.
-
-Chain three (the platform delivery): the hook driven through the REAL
-platform emission — ``PipelineHooks.amend_workflow`` builds the run registry,
-imports the installed package's real ``register_hooks``, delivers the
-amendment view, validates the buffered document, and merges the overlay; the
-passthrough proves the D1 gate at the platform boundary.
-
-Both config-reading scenarios ride the shared ``tool_config`` fixture, so the
-platform facade's real cwd-relative path composition is exercised end to end.
+Covers the run chain with the real resolver, the emit↔consume YAML bridge, and the real platform delivery.
 """
 
 import pathlib
@@ -33,15 +15,13 @@ from goga_tool_pybuggy.config import resolve_autonomy
 
 from tests.autonomous.conftest import _AmendmentView, amendment_identity
 
-# A minimal survey-shaped answer view — a first spec plus the base template;
-# the autonomy confirm rides on top as the enabling or disabling answer.
+# Minimal survey answers; the autonomy confirm rides on top as the enabling or disabling answer.
 _ANSWERS = {
     "base_url": "https://{{ HOST }}/api",
     "first_spec": {"name": "shop", "type": "swagger", "location": "specs/shop.yaml"},
 }
 
-# The discovered identity of the tool's pipeline — the installer's namespaced
-# form, the name the platform delivers at the amendment checkpoint.
+# The tool's pipeline identity as the platform delivers it at the amendment checkpoint.
 _RUN_PIPELINE = PipelineIdentity(
     name="pybuggy:api.automate",
     description="Pybuggy API-test automate lifecycle",
@@ -52,9 +32,7 @@ _RUN_PIPELINE = PipelineIdentity(
 def _deliver(pipeline: PipelineIdentity) -> object:
     """Drive the real platform amendment emission for one pipeline identity.
 
-    Builds the run registry (the installed package's real ``register_hooks``
-    included), delivers the amendment checkpoint exactly as ``run_pipeline``
-    does, and returns the composed overlay.
+    Builds the run registry with the real ``register_hooks`` and delivers the checkpoint as ``run_pipeline`` does.
 
     Args:
         pipeline: The identity of the pipeline being composed.

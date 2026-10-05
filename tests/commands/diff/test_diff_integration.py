@@ -1,10 +1,6 @@
 """Integration tests for the generate → diff symmetry and the read-only guarantee.
 
-Cross-cell scenarios (generate cell + diff cell + output facade): the strongest symmetry
-guarantee is that artifacts written by ``run_generate`` read back as no-drift through
-``run_diff``; the read-only acceptance criterion is a byte-identical api tree after a run.
-Handlers are called directly (no CliRunner) over real files under ``tmp_path``, with the
-config written to the standard ``.goga/tools/pybuggy/config.yml`` tree.
+Handlers are called directly (no CliRunner) over real files under ``tmp_path``.
 """
 
 import hashlib
@@ -99,9 +95,7 @@ def test_run_diff_after_generate_no_drift(
 ) -> None:
     """Artifacts written by run_generate read back through run_diff with an empty diff.
 
-    The full artifact set (meta.json, schemas/, api.py, markers, tests tree) comes from a real
-    ``run_generate`` run, so this catches any sanitize-rule or meta-key drift between the
-    generate and diff cells: an asymmetric rule would surface as a non-empty diff document.
+    The full artifact set comes from a real ``run_generate`` run, catching cross-cell drift.
     """
     _setup_generated_workspace(tmp_path, monkeypatch)
 
@@ -135,16 +129,12 @@ def test_run_diff_after_importing_generated_tree_still_no_drift(
 ) -> None:
     """A run over an imported (pytest-executed) artifact tree still reports no drift.
 
-    Importing the generated fixture package — the documented generate -> test
-    workflow — leaves ``__pycache__`` directories under ``api/<spec>/``. Those
-    are tooling output, not removed endpoints, and must not be reported.
+    Importing the generated fixture package leaves ``__pycache__`` under ``api/<spec>/``.
     """
     _setup_generated_workspace(tmp_path, monkeypatch)
 
-    # Import the generated fixture module the way the plugin loader does,
-    # which materializes api/<spec>/__pycache__/ on disk. The sys.path entry
-    # and every "api*" module are dropped afterwards so the import cannot
-    # leak into later tests.
+    # Import the generated module the way the plugin loader does (materializes __pycache__).
+    # The sys.path entry and "api*" modules are dropped so the import cannot leak.
     sys.path.insert(0, str(tmp_path))
     try:
         importlib.import_module("api.client.clients_startup_get.api")

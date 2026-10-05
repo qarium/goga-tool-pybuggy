@@ -1,9 +1,6 @@
 """Comparison-side contract builders for the endpoint diff command.
 
-spec_contract assembles the spec side of the comparison from an Endpoint;
-artifact_contract reads the generated side from an endpoint's artifact
-directory (meta.json + schemas/*.json). Both yield the same four-key
-structure, so a no-drift pair compares equal under DeepDiff.
+Both builders yield the same four-key structure, so a no-drift pair compares equal under DeepDiff.
 """
 
 import json
@@ -24,20 +21,7 @@ class _CorruptArtifactError(ValueError):
 def _json_default(obj: object) -> object:
     """Serialize non-JSON-native objects carried in resolved specs.
 
-    swax/Prance convert YAML date-like values (e.g. ``example: 2020-01-01``
-    under ``format: date``/``date-time``) into ``datetime.date``/
-    ``datetime.datetime`` objects, which ``json.dumps`` cannot encode by
-    default. Rendering them as ISO 8601 strings keeps the spec side
-    byte-symmetric with the artifact side, which generate wrote through the
-    same convention — skipping the normalization would surface as
-    ``type_changes`` noise in the diff. ``datetime.datetime`` is a subclass
-    of ``date``, so a single ``date`` check covers both.
-
-    YAML also yields non-finite floats (``.nan``/``.inf``), which generate
-    renders as ``null`` — floats serialize natively so the ``default`` hook is
-    never consulted for them; the spec side normalizes them through
-    ``_json_native`` so a regenerated tree compares equal instead of drifting
-    on every run.
+    Dates render as ISO 8601 strings, matching the convention generate wrote the artifact side with.
 
     Args:
         obj: Object that ``json.dumps`` could not encode natively.
@@ -46,8 +30,7 @@ def _json_default(obj: object) -> object:
         ISO 8601 string for date/datetime values.
 
     Raises:
-        TypeError: For any type this serializer does not handle, re-raised so
-            ``json.dumps`` reports it with its standard message.
+        TypeError: For any unhandled type, so ``json.dumps`` reports it with its standard message.
     """
     if isinstance(obj, date):
         return obj.isoformat()
@@ -58,12 +41,7 @@ def _json_default(obj: object) -> object:
 def _json_native(value: Any) -> Any:
     """Normalize a resolved spec value to strict-JSON-native form.
 
-    Recurses through the mappings, lists and scalars a resolved schema can
-    carry. Non-finite floats (YAML ``.nan``/``.inf``) become ``None`` — the
-    tokens ``NaN``/``Infinity`` that ``json.dumps`` would emit for them are
-    not valid strict JSON, and generate writes ``null`` for the same values,
-    so normalizing here keeps the two comparison sides symmetric. Every other
-    value passes through untouched.
+    Non-finite floats become ``None`` (generate writes ``null``), keeping the comparison sides symmetric.
 
     Args:
         value: A resolved schema fragment (mapping, list or scalar).
@@ -83,14 +61,7 @@ def _json_native(value: Any) -> Any:
 def spec_contract(endpoint: Endpoint) -> dict[str, Any]:
     """Assemble the spec side of the comparison for one endpoint.
 
-    Builds the unified four-key structure — ``parameters``/``request_body``/
-    ``vars`` mirror the keys generate writes to ``meta.json``, ``schemas``
-    carries ``{status_code: schema}`` from the endpoint response — then
-    normalizes the whole mapping to JSON-native values through a JSON
-    round-trip (dates to ISO 8601 strings, tuples to lists, non-string keys
-    to strings), making it structurally symmetric with the artifact side.
-    Schemas are taken exactly as extracted and never re-normalized. The
-    function is pure: no I/O, no filesystem access.
+    The keys mirror ``meta.json`` plus ``schemas``; a JSON round-trip keeps the sides symmetric.
 
     Args:
         endpoint: Endpoint whose contract the spec side describes.
@@ -111,12 +82,7 @@ def spec_contract(endpoint: Endpoint) -> dict[str, Any]:
 def artifact_contract(artifact_dir: Path) -> dict[str, Any]:
     """Read the generated side of the comparison from an artifact directory.
 
-    Reads ``meta.json`` for the ``parameters``/``request_body``/``vars`` keys
-    and every ``schemas/*.json`` file (keyed by file stem, in glob sort
-    order). An absent ``schemas/`` subdirectory yields ``schemas: {}`` —
-    globbing a missing directory is empty. Contents are passed through
-    verbatim: never interpreted, never validated. The directory is only
-    read, never written.
+    Reads ``meta.json`` plus ``schemas/*.json`` keyed by file stem; contents pass through verbatim, never validated.
 
     Args:
         artifact_dir: Existing artifact directory ``api/<spec>/<segment>/``
@@ -135,14 +101,12 @@ def artifact_contract(artifact_dir: Path) -> dict[str, Any]:
     try:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
         if not isinstance(meta, dict):
-            # Valid JSON that is not an object (null, a list, a scalar) is
-            # equally corrupt — key lookups on it raise TypeError, not KeyError.
+            # Valid JSON that is not an object is equally corrupt — key lookups on it raise TypeError, not KeyError.
             raise _CorruptArtifactError(meta_path)
         parameters = meta["parameters"]
         request_body = meta["request_body"]
         vars_ = meta["vars"]
-    # UnicodeDecodeError: a non-UTF-8 file is unreadable under the declared
-    # read convention and maps to the same operational error.
+    # UnicodeDecodeError: a non-UTF-8 file is unreadable and maps to the same operational error.
     except (OSError, UnicodeDecodeError, json.JSONDecodeError, KeyError, _CorruptArtifactError) as error:
         raise click.ClickException(f"unreadable or corrupt artifact meta.json: {meta_path}") from error
 

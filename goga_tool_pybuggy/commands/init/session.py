@@ -1,15 +1,6 @@
 """Onboarding-session participation — question block, answer payloads, and the session seam.
 
-The goga 2.0 session-participation model: ``run_session`` drives the engine-owned
-onboarding session with pybuggy invited; ``declare_pybuggy_session`` and
-``amend_pybuggy_config`` are the two participation hooks subscribed by the root
-facade callback; the pure builders (``pybuggy_questions``, ``build_config_data``,
-``build_config_amendments``, ``parse_specs``) turn session answers into the plain
-serializable tool-config payload the engine writes verbatim into
-``.goga/tools/pybuggy/config.yml``. The additional specs are the one part the
-declarative engine records cannot express (a confirm gate plus repeated per-field
-groups), so ``survey_extra_specs`` asks them itself at the amendment moment —
-right after the engine survey, in the same screen position the 1.x wizard used.
+``run_session`` drives the engine-owned session; the declare/amend hooks and the pure builders feed it.
 """
 
 import logging
@@ -22,10 +13,8 @@ from ...plugin import PluginConfigKeys
 
 logger = logging.getLogger(__name__)
 
-# Human-readable prompt text for each optional scalar plugin key — mirrors the
-# ``ApiPlugin`` option docstrings so the user knows what every field is for.
-# ``BASE_URL`` is collected separately as a (possibly multi-line) Jinja2 template;
-# ``HEADERS``/``LOADER`` are complex members and never surveyed here.
+# Prompt text per optional scalar key — mirrors the ``ApiPlugin`` option docstrings.
+# ``BASE_URL``/``HEADERS``/``LOADER`` are never surveyed here.
 _SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
     PluginConfigKeys.TIMEOUT: ("timeout — request timeout in seconds for HTTP calls (optional). Enter to skip"),
     PluginConfigKeys.RETRIES: (
@@ -45,10 +34,8 @@ _SCALAR_PROMPTS: dict[PluginConfigKeys, str] = {
     ),
 }
 
-# Numeric plugin members coerced to their ``ApiPlugin`` option types in ``build_config_data``,
-# so the emitted YAML scalar is a number instead of the plain string captured by the session
-# answer. All other scalar members stay plain strings; an unanswered member (``None``/``""``)
-# is dropped from the payload entirely.
+# Numeric members coerced to their ``ApiPlugin`` types so the YAML scalar is a number;
+# unanswered members are dropped from the payload.
 _NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
     PluginConfigKeys.TIMEOUT: float,
     PluginConfigKeys.RETRIES: int,
@@ -64,19 +51,7 @@ _SPEC_TYPES = ("swagger", "openapi")
 def pybuggy_questions() -> list[Question]:
     """Build the declarative pybuggy question block in survey order.
 
-    Exact ids and order — they are the answer keys consumed downstream: ``base_url``
-    first (input, no default — the engine re-asks until non-empty, so it is required);
-    then one input per ``PluginConfigKeys`` member except ``BASE_URL``, ``HEADERS``, and
-    ``LOADER`` (``default=""`` — Enter yields ``""``, optional; prompt texts from
-    ``_SCALAR_PROMPTS``); then the one-level group ``first_spec`` (children
-    ``name``/``type``/``location``/``git_url``/``git_location``/``git_ref`` — name and
-    location required, type a ``swagger``/``openapi`` choice, git fields optional); then
-    the autonomy confirm ``autonomous`` last (``default=False`` — whether the
-    ``api.automate`` pipeline runs unattended; a simple top-level child, so the block
-    keeps exactly one nesting level). The additional specs are NOT declared here — a
-    confirm-gated repeated group is beyond the declarative records, so
-    ``survey_extra_specs`` asks them at the amendment moment. Survey order equals
-    declaration order, and every record is fresh per call.
+    Exact ids and order — the answer keys consumed downstream; extra specs go to :func:`survey_extra_specs`.
 
     Returns:
         The question records — ``Question`` items plus the single ``first_spec``
@@ -120,8 +95,7 @@ def pybuggy_questions() -> list[Question]:
 def _required(prompt: str) -> str:
     """Ask a required free-text value, re-asking while the entry strips to nothing.
 
-    The first ask is plain; an empty entry re-asks with a ``(required)`` prompt suffix —
-    the 1.x wizard pattern. A ``click.Abort`` (Ctrl-C) propagates unchanged.
+    An empty entry re-asks with a ``(required)`` suffix; a ``click.Abort`` propagates unchanged.
 
     Args:
         prompt: The prompt text of the required value.
@@ -140,22 +114,15 @@ def _required(prompt: str) -> str:
 def survey_extra_specs() -> list[dict[str, object]]:
     """Interactively survey the additional specs — the confirm-gated per-field follow-up.
 
-    The one pybuggy-owned ask of the session, run at the amendment moment (right after the
-    engine survey asked the ``first_spec`` group): ``Add another spec?`` (confirm, default
-    no) gates the whole block; each accepted spec is then asked field by field in the
-    ``first_spec`` order — ``name`` (required, re-asked when empty), ``type`` (a
-    ``swagger``/``openapi`` choice), ``location`` (required, re-asked), then the optional
-    git fields (an empty ``git_url`` means no git source; an empty ``git_ref`` means the
-    default branch) — and the confirm repeats, so any number of extras can be entered.
+    The repeating confirm accepts any number of extras; empty git fields mean no source / default branch.
 
     Returns:
         The surveyed specs — one mapping per accepted spec, keyed by the ``first_spec``
         child ids (``name``/``type``/``location``/``git_url``/``git_location``/``git_ref``).
 
     Raises:
-        click.Abort: Forwarded unchanged from any cancelled prompt — the engine mediator
-            then drops the whole pybuggy contribution with a warning and the session
-            continues.
+        click.Abort: Forwarded unchanged from a cancelled prompt; the mediator drops the
+            contribution with a warning.
     """
     surveyed: list[dict[str, object]] = []
 
@@ -182,18 +149,7 @@ def build_config_data(
 ) -> dict[str, object]:
     """Build the plain serializable tool-config payload from the session answers.
 
-    Scalar walk in ``PluginConfigKeys`` declaration order skipping ``HEADERS``/``LOADER``:
-    unanswered members (``None``/``""``) are dropped — never written empty — and numeric
-    members (``timeout``→float, ``retries``→int, ``assert_timeout``→int, ``assert_delay``→float
-    via ``_NUMERIC_MEMBERS``) are coerced. When the ``autonomous`` answer enables autonomy,
-    the ``pipelines`` axis entry — ``{"api.automate": {"autonomous": True}}``, the exact
-    :func:`goga_tool_pybuggy.config.resolve_autonomy` consumption shape — follows the
-    scalar keys; a falsy answer (``False``, the confirm default, or absent) emits nothing.
-    The specs from :func:`parse_specs` — the ``first_spec`` group answer plus the
-    ``survey_extra_specs`` mappings — land under ``specs`` as ``model_dump(exclude_none=True)``
-    plain mappings, with ``specs`` last. The payload is plain serializable data only — never
-    pydantic objects (the engine ``yaml.dump``s buffered data verbatim and silently drops
-    unserializable files).
+    The payload is plain serializable data only — the engine ``yaml.dump``s it verbatim.
 
     Args:
         answers: The pybuggy answer view (core sections plus the own block under local names).
@@ -231,10 +187,7 @@ def build_config_data(
 def build_config_amendments() -> dict[str, object]:
     """Return the tool's declared-intent answer amendments.
 
-    Exactly ``{"build.review.skip": True}`` — unconditional, no parameters. The engine
-    config mapper drops the key (``_build_config_document`` emits only ``agent``/``env``
-    for the build block); consumer-visible enforcement is the bootstrap's
-    :func:`goga_tool_pybuggy.commands.init.ensure_review_skip`.
+    Exactly ``{"build.review.skip": True}`` — consumer enforcement is the bootstrap's ``ensure_review_skip``.
 
     Returns:
         The single amendment mapping.
@@ -261,9 +214,6 @@ def _git_entry(url: object, location: object, ref: object) -> GitEntry | None:
 
 def _first_spec_entry(spec_answers: dict[str, object]) -> tuple[str, SpecEntry]:
     """Validate the ``first_spec`` group answers and build the typed entry.
-
-    Strict — the single source of the first spec: a non-empty ``name``, a ``type``
-    in ``_SPEC_TYPES``, and a non-empty ``location`` are all required.
 
     Args:
         spec_answers: The ``first_spec`` group answers (child id → answer).
@@ -296,9 +246,7 @@ def _first_spec_entry(spec_answers: dict[str, object]) -> tuple[str, SpecEntry]:
 def _extra_spec_entry(spec_answers: dict[str, object]) -> tuple[str, SpecEntry] | None:
     """Build one surveyed extra spec into a typed entry.
 
-    Lenient guard of the (prompt-validated) ``survey_extra_specs`` mapping: a record
-    without a non-empty ``name``, a ``type`` in ``_SPEC_TYPES``, and a non-empty
-    ``location`` is WARNING-logged and dropped, never raised.
+    A malformed record is WARNING-logged and dropped, never raised.
 
     Args:
         spec_answers: One surveyed extra-spec mapping (the ``first_spec`` child ids).
@@ -325,13 +273,7 @@ def parse_specs(
 ) -> dict[str, SpecEntry]:
     """Parse the first-spec answers and the surveyed extra specs into typed entries.
 
-    The first spec is strict: a non-empty ``name``, ``type`` in {``swagger``, ``openapi``},
-    and a non-empty ``location`` are required — anything else raises ``ValueError`` (the
-    mediator soft-drops the contribution upstream). A ``GitEntry(url, location, ref)`` is
-    attached only when ``git_url`` AND ``git_location`` are both non-empty
-    (``ref = git_ref or None``). The extras are lenient: every surveyed mapping becomes
-    its ``SpecEntry``; a malformed record (unreachable through the prompt validation) and
-    a duplicate name are skipped with a WARNING; a name collision keeps the first entry.
+    Extras are lenient — malformed records and duplicate names are skipped with a WARNING, keeping the first entry.
 
     Args:
         spec_answers: The ``first_spec`` group answers (child id → answer).
@@ -367,12 +309,7 @@ def parse_specs(
 def run_session() -> int:
     """Run the engine-owned onboarding session with pybuggy invited.
 
-    Builds ``InitLogic(questionnaire=Questionnaire(), generator=FileGenerator(),
-    participation=ToolParticipation(invited=["pybuggy"]))`` and returns ``logic.run()``
-    unchanged. The session is engine-owned throughout: an existing ``.goga/config.yml``
-    ends it with 0 and no side effects; a tool contribution failure is soft (the engine
-    warns and drops the contribution, the session still returns 0); a user abort returns
-    a quiet 1. No engine error is caught or wrapped here.
+    No engine error is caught or wrapped; a failed tool contribution is soft (warned and dropped).
 
     Returns:
         The engine session exit code, propagated as-is.
@@ -389,15 +326,7 @@ def run_session() -> int:
 def declare_pybuggy_session(context: object) -> None:
     """Declare the pybuggy question block in the session (participation moment one).
 
-    When ``context.invited`` is falsy the routine returns without calling anything;
-    otherwise every item of :func:`pybuggy_questions` is declared in survey order via
-    ``context.declare``, and the core ``convention`` section is skipped via
-    ``context.skip`` — a pybuggy session must not offer the goga base-convention
-    download, because the engine would land the language conventions in
-    ``.goga/usages/conventions.md`` first and the bootstrap's skip-if-exists slot gate
-    would then keep them instead of the pybuggy test convention. Nothing is surveyed or
-    prompted (the engine owns the asking) and no answers are read. The skip no-ops with
-    an engine warning when the section is already absent (an existing conventions file).
+    No-op unless invited; the ``convention`` skip keeps the conventions slot for the pybuggy test convention.
 
     Args:
         context: The ``ToolDeclaration`` proxy delivered by name from the hooks platform.
@@ -414,17 +343,7 @@ def declare_pybuggy_session(context: object) -> None:
 def amend_pybuggy_config(context: object) -> None:
     """Amend the session answers and buffer the tool config (participation moment two).
 
-    When ``context.invited`` is falsy the routine returns without calling anything;
-    otherwise the additional specs are surveyed first via :func:`survey_extra_specs`
-    (the confirm-gated per-field follow-up — the declarative engine records cannot
-    express it), then the declared-intent amendments from
-    :func:`build_config_amendments` are committed via ``context.answer`` and the
-    plain-data payload from :func:`build_config_data` is buffered via
-    ``context.write_config("config.yml", ...)`` — the engine serializes it into
-    ``.goga/tools/pybuggy/config.yml``. Files are never written directly and another
-    tool's answers are never read; an exception (including a ``click.Abort`` at the
-    extra-spec prompts) propagates to the mediator, which drops the whole contribution
-    with a warning naming pybuggy (soft — the session and the bootstrap still complete).
+    No-op unless invited; any exception makes the mediator drop the contribution (the session continues).
 
     Args:
         context: The ``ToolContribution`` proxy delivered by name from the hooks platform.

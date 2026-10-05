@@ -5,8 +5,7 @@ from pydantic import ValidationError
 from .config import Config
 from .pipeline_autonomy import PipelineAutonomy
 
-# Tool-config read arguments for the platform facade: the fixed standard
-# location ``.goga/tools/pybuggy/config.yml``.
+# Tool-config read arguments: fixed standard location ``.goga/tools/pybuggy/config.yml``.
 _TOOL = "pybuggy"
 _FILENAME = "config.yml"
 
@@ -14,8 +13,6 @@ _FILENAME = "config.yml"
 def load_config() -> Config:
     """Load the pybuggy tool config and validate it into a ``Config`` model.
 
-    Obtains the raw parse of ``.goga/tools/pybuggy/config.yml`` through the
-    platform tool-config facade and validates the result into :class:`Config`.
     Extra keys — including the ``pipelines`` axis — are ignored by the model.
 
     Returns:
@@ -42,10 +39,7 @@ def load_config() -> Config:
 def resolve_autonomy(pipeline: str) -> bool:
     """Resolve whether autonomy is enabled for the running pipeline.
 
-    Validates the whole ``pipelines`` axis of the tool config on every call:
-    each entry must be a mapping validatable into :class:`PipelineAutonomy`.
-    Absent file, absent ``pipelines`` section, absent name, and
-    ``autonomous: false`` all mean disabled.
+    The whole ``pipelines`` axis is validated on every call, not just the running pipeline.
 
     Args:
         pipeline: The identity of the running pipeline.
@@ -56,7 +50,7 @@ def resolve_autonomy(pipeline: str) -> bool:
     Raises:
         ValueError: On a structural violation — a non-mapping config root, a
             non-mapping ``pipelines`` value, or an entry not validatable into
-            :class:`PipelineAutonomy` (the pydantic detail is chained).
+            :class:`PipelineAutonomy` (pydantic detail chained).
         yaml.YAMLError: If the file contains invalid YAML (propagated raw).
     """
     # Call-time import — contract: keeps goga out of the runtime dependencies.

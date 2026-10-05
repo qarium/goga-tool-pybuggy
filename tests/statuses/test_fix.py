@@ -1,8 +1,6 @@
 """Tests for the fix status line — ``statuses/fix.py``.
 
-Contract layer: the routine is importable from the cell facade with the
-``register_fix_statuses(context: object) -> None`` signature. Behavior
-layer: the five literal registration calls in pipeline order.
+Contract: the facade signature; behavior: the five literal registration calls in pipeline order.
 """
 
 import inspect

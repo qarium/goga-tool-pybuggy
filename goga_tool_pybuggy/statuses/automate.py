@@ -1,21 +1,13 @@
 """The pybuggy automate status line — the topic status registrations for api.automate runs.
 
-Registers the automate status line on the goga topic status scale: the
-completed-accept status anchored at the built-in ``done``, then the middle
-automate statuses in reverse pipeline order. The registration surface
-arrives as the ``context`` argument — the routine is a leaf with no imports.
+Middle statuses are registered in reverse pipeline order from the ``done`` anchor.
 """
 
 
 def register_automate_statuses(context: object) -> None:
     """Register the automate status line.
 
-    Performs 6 literal registration calls in the normative table order: the
-    completed-accept status anchored above the built-in ``done``, then the
-    middle automate statuses in reverse pipeline order (plan, design, arch,
-    testcases, requirements) each anchored above its built-in twin and below
-    the previously registered automate status. Registered names carry no tool
-    prefix — the platform assigns the tool identity.
+    Registered names carry no tool prefix; the platform assigns the tool identity.
 
     Args:
         context: The registration surface scoped to the tool.

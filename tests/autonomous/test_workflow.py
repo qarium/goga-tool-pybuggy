@@ -1,9 +1,6 @@
 """Tests for the autonomous workflow builder — ``autonomous/workflow.py``.
 
-Contract layer: the builder is importable from the cell facade with the
-``build_autonomous_workflow() -> WorkflowDocument`` signature. Behavior
-layer: the fixed seven-stage auto-approval window and the build extend
-entry.
+Contract: the facade signature; behavior: the fixed seven-stage auto-approval window and the build extend entry.
 """
 
 import inspect

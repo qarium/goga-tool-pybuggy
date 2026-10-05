@@ -1,11 +1,6 @@
 """Tests for the config reading routines — ``config/storage.py``.
 
-Contract layer: ``load_config`` takes no parameters and returns a ``Config``,
-``resolve_autonomy`` maps a pipeline name to a bool, and the facade exports
-neither the deleted path constant nor anything beyond the six declared names.
-Behavior layer: the platform-facade read (absent and empty file), the ignored
-``pipelines`` section on ``Config``, and the whole-axis validation matrix of
-the resolver.
+``load_config`` is a no-arg ``Config`` read; ``resolve_autonomy`` maps a pipeline name to a bool.
 """
 
 import inspect
@@ -32,9 +27,7 @@ pipelines:
     autonomous: true
 """
 
-# The deleted storage seam — spelled piecewise so the post-migration stragglers
-# grep for the literal constant name stays clean while the absence assertions
-# still check the exact name.
+# Deleted storage seam, spelled piecewise so grepping the literal name stays clean.
 _DELETED_SEAM = "CONFIG" + "_PATH"
 
 
@@ -166,9 +159,7 @@ class TestResolveAutonomyBehavior:
     def test_resolve_autonomy_structural_violations_parametrized(self, tool_config, content) -> None:
         """Every structural violation raises a clean error naming pybuggy.
 
-        YAML-truthy spellings (``yes``/``on``) are deliberately absent from the
-        matrix: PyYAML (YAML 1.1) parses them to real booleans, so the
-        non-bool rejection row must use the non-coercible ``maybe``.
+        PyYAML parses bare ``yes``/``on`` to booleans, so the rejection row uses the non-coercible ``maybe``.
         """
         tool_config(content)
 

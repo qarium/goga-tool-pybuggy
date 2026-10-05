@@ -1,8 +1,6 @@
 """List formatter for endpoint display.
 
-Provides render_list - a pure function that formats endpoint data into
-text blocks for CLI consumption - and render_status_list, the same block
-with the artifact synchronization status annotated on every line.
+render_list renders text blocks; render_status_list annotates every line with the sync status.
 """
 
 from typing import TYPE_CHECKING
@@ -14,8 +12,7 @@ if TYPE_CHECKING:
 def render_list(name: str, location: str, endpoints: list["Endpoint"]) -> str:
     """Render endpoint list as text.
 
-    Produces a header line followed by one line per endpoint, sorted by id.
-    Format: "<name> (<location>)" then "* <id> -> [<METHOD>] <path>" for each.
+    One line per endpoint, sorted by id, under a "<name> (<location>)" header.
 
     Args:
         name: Spec name for the header.
@@ -43,17 +40,13 @@ def render_status_list(
 ) -> str:
     """Render endpoint list as text with the synchronization status of every line.
 
-    Produces a header line followed by one line per entry - endpoints and removed
-    artifact segments merged into one list sorted by line name. Endpoint lines read
-    "* <id> -> [<METHOD>] <path> — STATUS: <status>", removed lines read
-    "* <segment> — STATUS: REMOVED".
+    Endpoints and removed artifact segments are merged into one list sorted by line name.
 
     Args:
         name: Spec name for the header.
         location: Spec location path for the header.
         endpoints: List of endpoints to render.
-        statuses: Mapping of endpoint id to its status (ADD, UPD, OK); must cover
-            every endpoint of `endpoints`.
+        statuses: Mapping of endpoint id to its status (ADD, UPD, OK); must cover every endpoint.
         removed: Artifact directory segments matching no endpoint (the REMOVED side).
 
     Returns:

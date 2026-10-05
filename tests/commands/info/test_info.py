@@ -517,10 +517,7 @@ def test_run_info_invalid_response_key_raises_click_exception(
 ) -> None:
     """run_info should map an illegal response status key to ClickException, not a raw traceback.
 
-    `_extract_responses` raises ValueError on response keys outside the shapes the
-    specifications allow (the key becomes an artifact filename in generate); info must
-    surface that as a CLI error, mirroring generate/diff (regression: raw ValueError
-    traceback before the guard).
+    `_extract_responses` raises ValueError on response keys outside the allowed shapes.
     """
     monkeypatch.chdir(tmp_path)
 

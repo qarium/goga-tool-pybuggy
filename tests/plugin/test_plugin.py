@@ -1,14 +1,6 @@
 """Tests for the `goga_tool_pybuggy.plugin` cell (`ApiPlugin` + service constants).
 
-Mirrors the source layout (`tests/plugin/test_plugin.py`). Covers the contract
-surface (importability + presence of the option descriptors and the `api`
-method) and the behavioral logic of the `ApiPlugin` fixture.
-
-Note: option resolution is driven through env vars (``BASE_URL`` /
-``API_TIMEOUT``), the documented resolution chain. The `Api` constructor is
-mocked in the positive case so the fixture logic is asserted independently of
-the `resq` network layer (constructing `Api` performs no network I/O, but the
-stub `resq` here has no `Session`).
+Options resolve via env vars (``BASE_URL``/``API_TIMEOUT``); ``Api`` is mocked to stay independent of the stub ``resq``.
 """
 
 import inspect
@@ -18,16 +10,14 @@ import pytest
 from goga_tool_pybuggy.plugin import ApiPlugin
 from goga_tool_pybuggy.plugin.loaders import PackageLoader
 
-# Jinja2 is a required dependency of pybuggy (declared in pyproject.toml core
-# dependencies), so the Jinja render-path tests run unconditionally.
+# Jinja2 is a core dependency, so the render-path tests run unconditionally.
 
 # Jinja base_url template exercising conditional logic + the match_re test.
 _JINJA_CONDITIONAL_URL = (
     "http://x/api/v1{% if service_version is match_re('^feature-.*$') %}-{{ service_version }}{% endif %}"
 )
 
-# Source for a generated-fixture module (carries a `@pytest.fixture` so the probe
-# recognizes it as a pytest plugin). Used by the `_load_plugins` tests.
+# Generated-fixture source for the `_load_plugins` tests (carries a `@pytest.fixture`).
 _GENERATED_FIXTURE_SOURCE = """
 import pytest
 
@@ -38,11 +28,8 @@ def get_orders():
 """
 
 
-# Minimal pytest ``Config`` stand-ins for the ``configure()`` lifecycle tests.
-# The real pytest Config exposes ``invocation_params.args`` (raw CLI tokens) and
-# ``option`` (the resolved option namespace); ``getoption`` resolves one flag.
-# These fakes emulate just that surface so ``configure()`` can be driven without
-# a running pytest.
+# Minimal pytest ``Config`` stand-ins for the ``configure()`` lifecycle tests:
+# only ``invocation_params.args``, ``option`` and ``getoption`` are emulated.
 class _FakeOption:
     """Minimal ``Config.option`` stand-in: an attribute namespace."""
 
@@ -193,9 +180,7 @@ class TestApiPluginContract:
 class TestApiPluginLogic:
     """Behavioral logic tests for the `api` fixture.
 
-    pytest 9 wraps `@pytest.fixture` methods in `FixtureFunctionDefinition` and
-    forbids calling them directly. The raw function is reached via
-    `__wrapped__` to unit-test the fixture body with an explicit instance.
+    pytest 9 forbids calling fixture methods directly, so the raw function is reached via `__wrapped__`.
     """
 
     def test_api_fixture_builds_api_from_options(self, tmp_path, monkeypatch):
@@ -204,9 +189,7 @@ class TestApiPluginLogic:
         monkeypatch.setenv("API_TIMEOUT", "5")
 
         plugin = ApiPlugin(context={})
-        # The assert-polling / pluggable-class options resolve from the plugin
-        # config (the CLI-bearing ones need a source before the pytest-config
-        # step, which is absent in this unit test).
+        # The assert/class options resolve from plugin config (no pytest-config step here).
         plugin.plugin_config = {
             "assert_timeout": 10,
             "assert_delay": 0.5,
@@ -239,9 +222,7 @@ class TestApiPluginLogic:
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BASE_URL", raising=False)
 
-        # base_url resolves nowhere (no config/env/CLI) -> configure() raises the
-        # required-option ValueError (rendering happens eagerly in configure(),
-        # not lazily on fixture invocation).
+        # base_url resolves nowhere -> configure() raises the required-option ValueError eagerly.
         plugin = ApiPlugin(context={})
         plugin.init_pytest_config(_FakePytestConfig())  # --base-url absent
 
@@ -287,10 +268,7 @@ class TestApiPluginLogic:
     def test_api_fixture_closes_api_on_teardown(self, tmp_path, monkeypatch):
         """Exhausting the generator runs the teardown — api.close() is called.
 
-        The fixture yields the Api, then closes it on teardown via Api.close()
-        (delegating to the underlying resq.Session's public close()). Driving
-        the generator past the yield (a second `next`) raises StopIteration and
-        must have invoked close() on the constructed Api exactly once.
+        Driving past the yield raises StopIteration after close() ran exactly once.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://x.example")
@@ -315,12 +293,7 @@ class TestApiPluginLogic:
 class TestApiPluginConfigure:
     """Behavioral tests for the ``configure()`` lifecycle hook and template rendering.
 
-    ``configure()`` is a pluginator lifecycle callback (no ``@pytest.hookimpl``)
-    that renders ``base_url`` once with Jinja2 against ``os.environ`` plus the CLI
-    options the user actually typed, and stores the rendered value back onto
-    ``self.base_url``. These tests emulate the lifecycle (``init_pytest_config``
-    + ``configure()``) with a fake pytest Config carrying raw
-    ``invocation_params.args`` and an ``option`` namespace.
+    ``configure()`` renders ``base_url`` once with Jinja2 against ``os.environ`` plus the typed CLI options.
     """
 
     def test_configure_renders_env_placeholder(self, tmp_path, monkeypatch):
@@ -368,10 +341,7 @@ class TestApiPluginConfigure:
     def test_configure_is_idempotent_after_first_render(self, tmp_path, monkeypatch):
         """Re-running configure() after the first render leaves the URL unchanged.
 
-        configure() stores the rendered value back onto self.base_url, so the
-        template is consumed by the first render; a second configure() re-renders
-        an already-resolved URL (no placeholders left) and is therefore a no-op.
-        pluginator calls configure() exactly once at configphase.
+        The first render consumes the template, so a second render is a no-op.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://{{ env }}.svc.example")
@@ -387,10 +357,7 @@ class TestApiPluginConfigure:
     def test_passed_cli_options_filters_to_typed_only(self, tmp_path, monkeypatch):
         """Only CLI keys present in invocation_params.args enter the context.
 
-        config.option carries 150+ internal/plugin options; the full namespace is
-        intentionally NOT used. An option present on the namespace but NOT typed
-        on the CLI must not leak into the template — its key is absent from the
-        rendering context passed to render_base_url.
+        config.option carries 150+ internal options; untyped ones must not leak.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://x.example")
@@ -445,10 +412,7 @@ class TestApiPluginConfigure:
 class TestBaseUrlCliPrecedence:
     """``--base-url`` CLI precedence for the ``base_url`` option.
 
-    The pluginator chain resolves the config before the CLI, so a typed
-    ``--base-url`` is re-applied in ``configure()`` with top precedence over
-    the config file and ``BASE_URL``. The CLI value is itself a Jinja2
-    template rendered against the same context.
+    A typed ``--base-url`` is re-applied in ``configure()`` with top precedence over config/env.
     """
 
     def test_cli_base_url_overrides_config(self, tmp_path, monkeypatch):
@@ -497,8 +461,7 @@ class TestBaseUrlCliPrecedence:
         assert plugin.base_url == "https://dev.cli.example"
 
     def test_config_wins_when_cli_flag_absent(self, tmp_path, monkeypatch):
-        # Without a typed flag the pluginator chain stands (config wins); an
-        # option present on the namespace but NOT typed must not be applied.
+        # Without a typed flag the chain stands (config wins; untyped options are ignored).
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BASE_URL", raising=False)
 
@@ -515,10 +478,7 @@ class TestBaseUrlCliPrecedence:
 class TestApiPluginJinjaBaseUrl:
     """Jinja2 ``base_url`` rendering and the custom ``match_re`` test.
 
-    ``configure()`` renders every ``base_url`` with a single engine, Jinja2
-    (``StrictUndefined``; the ``match_re`` test); the rendered value is stored
-    back onto ``self.base_url``. An unknown variable raises (URLs must not be
-    silently truncated); a plain URL renders to itself.
+    ``StrictUndefined``: an unknown variable raises rather than silently truncating the URL.
     """
 
     def test_configure_renders_jinja_variable(self, tmp_path, monkeypatch):
@@ -581,10 +541,7 @@ class TestApiPluginJinjaBaseUrl:
     def test_configure_multiline_folded_url_no_match(self, tmp_path, monkeypatch):
         """A multi-line folded-scalar base_url renders to a clean URL (no trailing space).
 
-        The reported bug: a YAML folded scalar (`>`) folds the newline before
-        `{% if %}` into a space, and an empty (no-match) conditional leaves it as a
-        trailing space that becomes `%20` in the request path (404). render_base_url
-        strips it, so the URL is clean.
+        The folded space before `{% if %}` becomes `%20` in the request path; it is stripped.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BASE_URL", raising=False)
@@ -610,9 +567,7 @@ class TestApiPluginJinjaBaseUrl:
     def test_configure_multiline_folded_url_match(self, tmp_path, monkeypatch):
         """The matched branch of a multi-line folded-scalar base_url is also clean.
 
-        Same root cause as the no-match case, matched branch: the space the folded
-        scalar inserts before `{% if %}` would land in the MIDDLE of the URL
-        (`/api/v1 -feature-123`). render_base_url strips it.
+        The folded space would land mid-URL (`/api/v1 -feature-123`); it is stripped.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BASE_URL", raising=False)
@@ -639,11 +594,7 @@ class TestApiPluginJinjaBaseUrl:
 class TestApiPluginLoadPlugins:
     """Contract + behavioral tests for `ApiPlugin._load_plugins`.
 
-    `_load_plugins` assembles the recursive `pytest_plugins` list from the
-    `loader` section of `plugin_config` plus the explicit `loaders`, mutating
-    `context['pytest_plugins']` in place. The api/ default discovery is
-    `install()`'s job (via its `loaders` default), so an empty config with no
-    explicit loaders loads nothing here.
+    It builds `pytest_plugins` from the `loader` config plus explicit loaders; the api/ default is `install()`'s job.
     """
 
     @staticmethod
@@ -679,8 +630,7 @@ class TestApiPluginLoadPlugins:
         assert context["pytest_plugins"] == ["api.orders.get_orders.api"]
 
     def test_load_plugins_empty_config_loads_nothing(self, tmp_path, monkeypatch):
-        # No loader section and no explicit loaders -> nothing appended. The api/
-        # default is install()'s responsibility, not _load_plugins'.
+        # No loader section and no explicit loaders -> nothing appended (the api/ default is install()'s).
         monkeypatch.chdir(tmp_path)
 
         plugin = ApiPlugin(context={})
@@ -696,9 +646,7 @@ class TestApiPluginLoadPlugins:
         monkeypatch.chdir(tmp_path)
         self._make_api_tree(tmp_path)
 
-        # The package walk discovers the module, the config module entry names it
-        # directly, and the seed context already lists it — three real duplicates
-        # that collapse to one.
+        # The walk, the config entry, and the seed context all name it — three duplicates collapse to one.
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {
             "loader": {
@@ -718,9 +666,7 @@ class TestApiPluginLoadPlugins:
         monkeypatch.chdir(tmp_path)
         self._make_api_tree(tmp_path)
 
-        # An explicit loader (the install() default pattern) discovers the module;
-        # a pre-existing seed entry is kept. `list(set(...))` dedupes, so order is
-        # not asserted — only membership.
+        # The explicit loader discovers the module; `list(set(...))` dedupes, so only membership is asserted.
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {"loader": {"packages": [], "modules": []}}
         context: dict[str, object] = {"pytest_plugins": ["seed.plugin"]}
@@ -733,8 +679,7 @@ class TestApiPluginLoadPlugins:
 class _FakeItem:
     """Minimal stand-in for a collected pytest item.
 
-    Records markers added via ``add_marker`` and exposes the ``_flaky_max_runs``
-    attribute the retries hook reads to detect already-marked items.
+    Exposes ``_flaky_max_runs`` and records ``add_marker`` calls.
     """
 
     def __init__(self, flaky_max_runs: int = 0) -> None:
@@ -748,10 +693,7 @@ class _FakeItem:
 class TestApiPluginRetries:
     """Behavioral tests for the ``retries`` option and its collection hook.
 
-    ``retries`` is driven through the ``retries`` plugin config key (resolution
-    step 1), so the option resolves without an initialized pytest config — the
-    command-line step is never reached. The flaky marker is the contract
-    surface; ``flaky`` itself is not imported here.
+    ``retries`` resolves from plugin config alone, so no pytest config is needed.
     """
 
     @staticmethod

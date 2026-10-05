@@ -1,10 +1,6 @@
 """The autonomous workflow document — the fixed contribution of a qualifying run.
 
-Compile-time constants of the autonomy contribution: the seven-stage
-auto-approval window ending at ``commit-changes`` and the build stage added
-after it. The module is a pure leaf — it imports nothing at module scope and
-performs no I/O; the builder assembles the constants into the platform's
-``WorkflowDocument``, equal on every call.
+Seven-stage auto-approval window ending at ``commit-changes``, plus the build stage after it.
 """
 
 from __future__ import annotations
@@ -35,20 +31,12 @@ _BUILD_AFTER = ("commit-changes",)
 def build_autonomous_workflow() -> WorkflowDocument:
     """Build the declarative autonomy contribution from the compile-time constants.
 
-    Assembles the fixed auto-approval window — each of the seven stages
-    carries the ``approve: "auto"`` directive — and the build extend entry
-    positioned after ``commit-changes``: the topic plan build with its
-    scratch-tree cleanup script and the eight-hour timeout. The acceptance
-    stage is never part of the document.
+    All seven window stages carry ``approve: "auto"``; the acceptance stage is never included.
 
     Returns:
-        The autonomy contribution: a platform :class:`WorkflowDocument`
-        built exactly as the equivalent authored workflow-file would parse —
-        the ``stages`` overrides plus the single ``extend`` entry.
+        A :class:`WorkflowDocument` with the ``stages`` overrides plus the single ``extend`` entry.
     """
-    # Call-time import — contract: keeps goga out of the module's import-time
-    # dependencies; the platform models are reached only when the hook fires
-    # (the platform itself is running then).
+    # Call-time import keeps goga out of the module's import-time dependencies.
     from goga.pipeline.workflow import (  # noqa: PLC0415
         WorkflowDocument,
         WorkflowExtendStage,

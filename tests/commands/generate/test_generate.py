@@ -168,11 +168,7 @@ def test_run_generate_rewrites_openapi_nullable_to_jsonschema_union(
 ) -> None:
     """run_generate should store OpenAPI nullable: true as a JSON-Schema union type.
 
-    Normalization happens in ``extract_endpoints`` (the OpenAPI → JSON-Schema
-    boundary); ``run_generate`` writes that already-normalized schema, so the jsonschema
-    validator at runtime accepts ``null``. This pins the end-to-end contract: an
-    OpenAPI spec with ``nullable`` produces a JSON-Schema file with union types and
-    no ``nullable`` key (recursing into array items).
+    ``extract_endpoints`` normalizes ``nullable`` into union types, recursing into array items.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -855,9 +851,7 @@ def test_run_generate_writes_meta_json_when_api_py_exists(tmp_path: Path, monkey
 def test_run_generate_meta_json_serializes_date_examples(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """date/datetime values carried in parameter schemas render as ISO strings, not TypeError.
 
-    swax/Prance convert YAML date-like examples into ``datetime.date`` objects; the
-    meta.json (and schema-file) writes must serialize them instead of aborting the run
-    mid-write with a partial artifact tree (mirrors ``render_info``).
+    swax/Prance convert YAML date-like examples into ``datetime.date`` objects.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -914,10 +908,7 @@ paths:
 def test_run_generate_serializes_non_finite_numbers_as_null(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """YAML `.nan`/`.inf` values write as null — the bare tokens NaN/Infinity are not strict JSON.
 
-    json.dumps encodes non-finite floats as ``NaN``/``Infinity`` by default,
-    which Python's json.loads tolerates but other parsers reject. The artifact
-    files must stay parseable by any JSON consumer, so the values render as
-    ``null`` and the written text carries no bare token.
+    ``json.dumps`` emits bare ``NaN``/``Infinity`` tokens, which other parsers reject.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -969,10 +960,7 @@ def test_run_generate_request_body_date_example_writes_all_artifacts(
 ) -> None:
     """A date-like value in the request body must not abort the artifact write.
 
-    The schema/meta.json writes serialize dates via ``_json_default``; the
-    request-model path must do the same, otherwise a spec with a YAML date
-    example under ``format: date`` aborts the run with a raw ``TypeError``
-    after earlier artifacts are already on disk.
+    The request-model path must serialize dates like the schema/meta.json writes.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -1573,9 +1561,7 @@ def test_render_api_module_non_dict_schema_maps_to_any_without_raising(pschema) 
 def test_render_api_module_quotes_route_with_special_characters() -> None:
     """A path key carrying a quote must render a valid string literal, not broken source.
 
-    YAML permits quotes in path keys (e.g. "/o'brien/{id}"); a plain single-quoted
-    interpolation would produce an unimportable api.py (ruff format aborts). The route
-    itself is preserved verbatim — only the literal quoting changes.
+    A plain single-quoted interpolation would produce an unimportable api.py.
     """
     endpoint = Endpoint(
         method="get",
@@ -1595,9 +1581,7 @@ def test_render_api_module_quotes_route_with_special_characters() -> None:
 def test_render_api_module_sanitizes_fixture_name_to_identifier() -> None:
     """A path segment outside [a-z0-9_] must not leak into the fixture name.
 
-    build_endpoint_id normalizes "/" and "-" only; the dot in "/v1.0/clients"
-    survives into the id, and the fixture name is emitted as source text —
-    without sanitation the module is syntactically invalid.
+    ``build_endpoint_id`` normalizes "/" and "-" only, so the dot in "/v1.0/clients" survives.
     """
     endpoint = Endpoint(
         method="get",
@@ -1618,9 +1602,7 @@ def test_render_api_module_sanitizes_fixture_name_to_identifier() -> None:
 def test_run_generate_endpoint_dir_is_importable_package(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """The per-endpoint directory must be an importable package name.
 
-    The fixture module is loaded by dotted name from its directory path, so a
-    non-identifier character in the endpoint id (the dot in "/v1.0/clients")
-    would leave the generated tree unloadable even though api.py itself is valid.
+    The fixture module is loaded by dotted name, so a non-identifier segment leaves the tree unloadable.
     """
     monkeypatch.chdir(tmp_path)
     monkeypatch.syspath_prepend(tmp_path)
@@ -1657,10 +1639,7 @@ paths:
 def test_run_generate_fixture_name_matches_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Fixture name and directory derive from the same sanitized id.
 
-    Distinct raw paths must not collapse onto the same fixture name while
-    writing to distinct directories — the two fixtures would shadow each other
-    with no warning. "/clients" and "/clients/" are distinct ids that stay
-    distinct after sanitization.
+    Distinct raw paths must not collapse onto one fixture name — the fixtures would shadow each other.
     """
     monkeypatch.chdir(tmp_path)
 
@@ -1711,10 +1690,7 @@ paths:
 def test_run_generate_rejects_sanitized_id_collision(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Two distinct ids sanitizing to one directory abort before any write.
 
-    "/v1.0/clients" and "/v1_0/clients" both map to "v1_0_clients_get"; without
-    the check the second endpoint's artifacts would be silently skipped (they
-    "already exist") and its response schemas would land in the first endpoint's
-    directory.
+    "/v1.0/clients" and "/v1_0/clients" both map to "v1_0_clients_get".
     """
     monkeypatch.chdir(tmp_path)
 
@@ -1755,11 +1731,7 @@ paths:
 def test_run_generate_rejects_identical_id_from_distinct_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Two paths producing the *identical* raw id also collide and must abort.
 
-    ``build_endpoint_id`` maps both "-" and "/" to "_", so "/a-b/x" and "/a/b/x"
-    (same method) yield the same id "a_b_x_get" — not two ids that merely
-    sanitize alike. Keying the guard on the raw id lets this through: without
-    --force the second endpoint's artifacts are silently skipped, and with
-    --force they overwrite the first endpoint's schema.
+    ``build_endpoint_id`` maps "-" and "/" to "_", so "/a-b/x" and "/a/b/x" yield one raw id.
     """
     monkeypatch.chdir(tmp_path)
 

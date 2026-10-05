@@ -98,9 +98,7 @@ def test_orphan_artifact_dirs_ignores_files_and_sorts(tmp_path: Path) -> None:
 def test_orphan_artifact_dirs_ignores_tooling_directories(tmp_path: Path) -> None:
     """__pycache__ and hidden directories are never reported as removed endpoints.
 
-    Importing the generated fixture package (the documented generate -> test
-    workflow) leaves ``api/<spec>/__pycache__`` behind; treating it as an
-    orphan would make the report fail on a healthy tree.
+    Importing the generated fixture package leaves ``api/<spec>/__pycache__`` behind.
     """
     api_spec_dir = tmp_path / "api" / "client"
     (api_spec_dir / "b_get").mkdir(parents=True)

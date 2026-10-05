@@ -1,9 +1,6 @@
 """Tests for the ``PipelineAutonomy`` record — ``config/pipeline_autonomy.py``.
 
-Contract layer: the record is importable from the cell facade, admits exactly
-the ``autonomous`` member, and is ``kw_only`` with ``extra="forbid"``.
-Behavior layer: valid records validate (pydantic lax bool coercion included)
-while structural violations reject.
+Contract: the record admits only ``autonomous`` and is ``kw_only`` with ``extra="forbid"``.
 """
 
 import pytest
@@ -39,8 +36,7 @@ class TestPipelineAutonomyBehavior:
     def test_pipeline_autonomy_coerces_truthy_spellings(self) -> None:
         """Pydantic v2 lax bool coercion accepts the truthy spellings (REPL-pinned).
 
-        PyYAML (YAML 1.1) parses bare ``yes``/``on`` to real booleans, so the
-        coercion path only matters for quoted spellings — it stays valid input.
+        PyYAML (YAML 1.1) parses bare ``yes``/``on`` to real booleans, so only quoted spellings hit the coercion path.
         """
         assert PipelineAutonomy.model_validate({"autonomous": "yes"}).autonomous is True
         assert PipelineAutonomy.model_validate({"autonomous": "on"}).autonomous is True

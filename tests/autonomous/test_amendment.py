@@ -1,8 +1,6 @@
 """Tests for the workflow amendment hook — ``autonomous/amendment.py``.
 
-Contract layer: the hook is importable from the cell facade with the
-``amend_workflow(context: object) -> None`` signature. Behavior layer: the
-identity gate, the autonomy resolution, and the buffered contribution.
+Contract: the facade signature; behavior: the identity gate, autonomy resolution, and buffered contribution.
 """
 
 import inspect

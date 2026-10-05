@@ -151,9 +151,9 @@ specs:
     with caplog.at_level(logging.WARNING):
         run_pull(None)
 
-    # the local-only spec is skipped silently: nothing is pulled ...
+    # Nothing is pulled.
     assert not (tmp_path / ".specs" / "local.yaml").exists()
-    # ... and no warning (or higher) is logged
+    # No warning (or higher) is logged.
     assert not any(record.levelno >= logging.WARNING for record in caplog.records)
 
 
@@ -587,11 +587,8 @@ def test_run_pull_global_ref_as_str_still_works(tmp_path: Path, monkeypatch: pyt
     assert seen["https://example.com/repo2.git"] == "v7"
 
 
-# _effective_ref precedence tests.
-#
-# PYBUGGY_REF is no longer read here — it is bound to ``--ref`` via click's envvar and
-# reaches ``_effective_ref`` through ``global_ref`` (see the pull_cmd envvar tests below).
-# These tests cover the pure precedence: per-spec > global > git.ref > None.
+# _effective_ref precedence tests: per-spec > global > git.ref > None.
+# PYBUGGY_REF is resolved at the click layer (see the pull_cmd envvar tests below).
 
 
 def test_effective_ref_per_spec_wins() -> None:
@@ -625,8 +622,7 @@ def test_effective_ref_none_when_no_ref() -> None:
 def test_effective_ref_ignores_pybuggy_ref_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """_effective_ref no longer reads PYBUGGY_REF (now resolved at the click layer).
 
-    Regression guard for the redesign: setting PYBUGGY_REF must NOT influence
-    ``_effective_ref`` — it falls through to ``git.ref``.
+    Regression guard: PYBUGGY_REF must not influence ``_effective_ref``.
     """
     from goga_tool_pybuggy.commands.pull.pull import _effective_ref
 
@@ -700,10 +696,7 @@ def test_pull_cmd_empty_pybuggy_ref_envvar_is_unset(monkeypatch: pytest.MonkeyPa
 def test_pull_cmd_pybuggy_ref_envvar_used_as_clone_ref(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """PYBUGGY_REF, read via the --ref envvar, becomes the clone ref.
 
-    End-to-end at the click layer: with no ``--ref`` and no configured ``git.ref``, the
-    ``PYBUGGY_REF`` set in the environment is resolved by click's envvar into the
-    ``--ref`` tuple and reaches ``clone_repo`` as the effective ref. Only the git-clone
-    boundary is mocked.
+    End-to-end at the click layer; only the git-clone boundary is mocked.
     """
     from click.testing import CliRunner
     from goga_tool_pybuggy.commands.pull import pull_cmd

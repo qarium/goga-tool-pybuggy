@@ -1,9 +1,4 @@
-"""Configuration cell facade.
-
-Exposes the contract entities declared by the ``config`` cell: the pydantic
-models ``GitEntry``, ``SpecEntry``, ``Config``, ``PipelineAutonomy``, the
-``load_config`` loader, and the ``resolve_autonomy`` resolver.
-"""
+"""Configuration cell facade: contract entities, loader, and resolver."""
 
 from .config import Config
 from .git_entry import GitEntry

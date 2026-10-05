@@ -179,9 +179,7 @@ def test_run_diff_no_drift_against_regenerated_non_finite_values(
 ) -> None:
     """A spec carrying .nan/.inf compares equal against the artifacts generate wrote for it.
 
-    generate renders non-finite floats as ``null`` (strict-JSON artifacts); the
-    spec side normalizes them the same way, so a freshly generated tree does
-    not drift on every run and the printed document stays strict JSON.
+    Both sides render non-finite floats as ``null`` (strict-JSON artifacts).
     """
     _setup_workspace(
         tmp_path,
@@ -459,9 +457,7 @@ def test_run_diff_missing_paths_raises(tmp_path: Path, monkeypatch: pytest.Monke
 def test_run_diff_null_paths_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A spec whose 'paths' key holds no value is likewise invalid, not a crash.
 
-    ``paths:`` with nothing after it parses to None — the key is present, so a
-    key-presence guard lets it through and extract_endpoints then dies on
-    paths.items() with an AttributeError traceback.
+    ``paths:`` with nothing after it parses to None, so a key-presence guard lets it through.
     """
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", "paths:\n")
@@ -479,8 +475,7 @@ def test_run_diff_null_paths_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 def test_run_diff_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
     """A spec document that is not a mapping is invalid, not an AttributeError crash.
 
-    An empty file parses to None and a top-level list/str document never gets a
-    ``paths`` lookup — both must surface through the uniform error channel.
+    An empty file parses to None; a top-level list/str never gets a ``paths`` lookup.
     """
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".specs").mkdir()
@@ -495,9 +490,7 @@ def test_run_diff_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.Mo
 def test_run_diff_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A spec declaring neither an openapi nor a swagger version key is invalid, not a ValueError.
 
-    Such a file has a valid ``paths`` mapping, so the paths guard passes and
-    extract_endpoints raises a bare ValueError from detect_spec_version — it
-    must map to the same click.ClickException channel.
+    The paths guard passes, so extract_endpoints raises a bare ValueError from detect_spec_version.
     """
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".specs").mkdir()
@@ -511,8 +504,7 @@ def test_run_diff_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.Mo
 def test_run_diff_illegal_response_key_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A response key carrying path content is invalid, not a traversal into the artifact read.
 
-    generate rejects the same shape before writing, so a hand-crafted spec must
-    not smuggle an out-of-tree path through the diff side either.
+    generate rejects the same shape; the diff side must not smuggle an out-of-tree path either.
     """
     monkeypatch.chdir(tmp_path)
     _write_spec(
@@ -742,6 +734,5 @@ paths:
     run_diff("client", None)
 
     lines = capsys.readouterr().out.splitlines()
-    # Both endpoints print a document keyed by their RAW id; the directory is
-    # covered, so it is never reported as removed and neither side errors.
+    # Both endpoints print a document keyed by their RAW id; the shared directory is never reported removed.
     assert [next(iter(json.loads(line))) for line in lines] == ["v1.0_clients_get", "v1_0_clients_get"]

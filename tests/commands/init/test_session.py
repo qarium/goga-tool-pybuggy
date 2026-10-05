@@ -1,18 +1,6 @@
 """Tests for the session module — pure builders, participation hooks, session seam.
 
-Covers ``session.py`` in three layers. The pure builders (Task 4):
-``pybuggy_questions`` (the declarative block in survey order — exact ids/defaults,
-one-level nesting, no compact extra-specs record), ``parse_specs`` (strict first
-spec, lenient surveyed extras), ``build_config_data`` (plain serializable payload,
-numeric coercion, ``specs`` last), and ``build_config_amendments`` (the single
-declared-intent amendment). The interactive follow-up (the 2.0.1 hotfix):
-``survey_extra_specs`` — the confirm-gated per-field additional-specs survey the
-declarative engine records cannot express. The participation hooks and the session
-seam (Task 5): ``declare_pybuggy_session`` (moment one — the invited guard, the
-in-order declarations, and the core convention skip), ``amend_pybuggy_config``
-(moment two — the surveyed extras, the buffered amendment, and the plain-data
-config payload), and ``run_session`` (the engine logic construction with pybuggy
-invited, exit code propagated).
+Covers the pure builders, the extra-specs survey, the participation hooks, and the session seam.
 """
 
 import logging
@@ -51,8 +39,7 @@ _ANSWERS = {
     "first_spec": dict(_FIRST_SPEC),
 }
 
-# One surveyed extra-spec mapping — the ``survey_extra_specs`` record shape (the
-# ``first_spec`` child ids), as the interactive follow-up collects it.
+# One surveyed extra-spec mapping — the record shape ``survey_extra_specs`` collects.
 _EXTRA_SPEC = {
     "name": "billing",
     "type": "openapi",
@@ -72,8 +59,7 @@ _SCALAR_MEMBERS = [
 class _ScriptedClick:
     """A ``click.prompt``/``click.confirm`` double answering from two FIFO queues.
 
-    Every consumed entry asserts its prompt text — the double is sequence-strict, so a
-    reordered or unexpected ask fails the test at the exact prompt.
+    Sequence-strict: an unexpected or reordered ask fails the test at the exact prompt.
 
     Attributes:
         confirm_calls: The confirm prompt texts, in ask order.

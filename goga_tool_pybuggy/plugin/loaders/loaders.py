@@ -1,28 +1,6 @@
 """Generic pytest-plugin discovery for the `goga_tool_pybuggy.plugin` cell.
 
 Discovers pytest-plugin modules by trial import and by walking the filesystem.
-It exposes no network or framework surface of its own; it is a leaf cell
-consumed by the parent ``goga_tool_pybuggy.plugin`` cell.
-
-Entities realized in this module:
-
-- ``_module_is_pytest_plugin`` — probe whether a module exposes a pytest-plugin
-  surface (a ``pytest_*`` hook or a wrapped fixture) by trial import, without
-  polluting ``sys.modules``.
-- ``BaseLoader`` — abstract loader contract (``from_config`` factory + ``load``
-  that mutates an accumulator list).
-- ``PythonImportLoader`` — shared name/required fields and ``from_config``
-  parsing for the two concrete loaders.
-- ``PackageLoader`` — walk a package directory and append its pytest-plugin
-  module names into the accumulator.
-- ``ModuleLoader`` — inspect a single module file and append its name into the
-  accumulator when it is a pytest plugin.
-
-The assembly of the ``pytest_plugins`` list (reading the plugin's ``loader``
-config section and driving the loaders) is the parent plugin's responsibility —
-see ``ApiPlugin._load_plugins`` in ``goga_tool_pybuggy/plugin/plugin.py``.
-
-Only the standard library is used — no new runtime dependencies.
 """
 
 import abc
@@ -33,11 +11,7 @@ from dataclasses import dataclass, field
 from importlib import import_module
 from pathlib import Path
 
-# Attribute names by which a pytest fixture self-identifies on a module member.
-# `__pytest_wrapped__` and `_pytestfixturefunction` are the markers named in the
-# contract; `_fixture_function_marker` is the marker carried by the
-# `FixtureFunctionDefinition` that `@pytest.fixture` returns on pytest >= 8, so
-# the probe still recognizes fixtures across the supported pytest range.
+# Attribute names by which a pytest fixture self-identifies; `_fixture_function_marker` covers pytest >= 8.
 PYTEST_OBJ_ATTRS: t.Final = (
     "__pytest_wrapped__",
     "_pytestfixturefunction",
@@ -51,16 +25,7 @@ PYTEST_OBJ_NAME_PREFIXES: t.Final = ("pytest_",)
 def _module_is_pytest_plugin(name: str) -> bool:
     """Probe whether a module is a pytest plugin by trial import.
 
-    A module is treated as a pytest plugin when it exposes a public attribute
-    whose name starts with ``pytest_`` (a hook), or an attribute carrying a
-    pytest-fixture marker such as ``__pytest_wrapped__`` /
-    ``_pytestfixturefunction`` (see ``PYTEST_OBJ_ATTRS``).
-
-    The probe imports the module by its dotted ``name`` and removes it — along
-    with any ancestor packages the import pulled in (e.g. probing ``a.b.c``
-    also imports ``a`` and ``a.b``) — from ``sys.modules`` afterwards, but only
-    the entries that were absent before the probe, so a freshly imported
-    candidate never pollutes ``sys.modules``.
+    The probe removes the imported module and pulled-in ancestors from ``sys.modules``, never pre-existing entries.
 
     Args:
         name: Dotted module name to probe.
@@ -69,15 +34,9 @@ def _module_is_pytest_plugin(name: str) -> bool:
         True when the module exposes a pytest-plugin surface.
 
     Raises:
-        Exception: Any error raised while importing ``name`` (e.g. a
-            ``ModuleNotFoundError`` from a broken candidate) propagates
-            unchanged — the contract does not swallow import failures.
+        Exception: Any error raised while importing ``name`` propagates unchanged.
     """
-    # `importlib.import_module` of a dotted `name` also imports every ancestor
-    # package (probing "a.b.c" pulls in "a" and "a.b"). Record which of those
-    # chain members already existed so the probe removes only the ones it
-    # introduced — honoring the constraint that probing must not pollute
-    # sys.modules.
+    # Record which ancestor packages already existed so cleanup removes only newly imported modules.
     parts = name.split(".")
     chain = [".".join(parts[:i]) for i in range(1, len(parts) + 1)]
     present_before = {candidate for candidate in chain if candidate in sys.modules}
@@ -96,8 +55,7 @@ def _module_is_pytest_plugin(name: str) -> bool:
 
         return False
     finally:
-        # Remove the probed module and any ancestor packages the probe just
-        # imported, but never entries that existed before the probe.
+        # Remove only the modules the probe just imported, never pre-existing entries.
         for candidate in chain:
             if candidate not in present_before and candidate in sys.modules:
                 del sys.modules[candidate]
@@ -106,9 +64,7 @@ def _module_is_pytest_plugin(name: str) -> bool:
 class BaseLoader(abc.ABC):
     """Abstract loader contract.
 
-    A loader discovers pytest-plugin module names from a source (a package
-    directory or a single module file) and appends them into an accumulator
-    list supplied by the caller.
+    Discovers pytest-plugin module names from a source and appends them into a caller-supplied accumulator.
     """
 
     @classmethod
@@ -152,10 +108,6 @@ class PythonImportLoader(BaseLoader):
     def from_config(cls, config: t.Any) -> "PythonImportLoader":
         """Build a loader from a loader-config item.
 
-        A bare dotted name (``str``) yields ``cls(config)`` with the default
-        ``required``; a mapping yields ``cls(name=config["name"],
-        required=config.get("required", True))``.
-
         Args:
             config: A dotted name (``str``) or a mapping with a ``name`` and an
                 optional ``required`` flag.
@@ -183,11 +135,7 @@ class PythonImportLoader(BaseLoader):
 class PackageLoader(PythonImportLoader):
     """Walks a package directory and appends its pytest-plugin module names.
 
-    The package directory is resolved relative to the current working directory:
-    dots in ``name`` map to path separators (``self.name.replace(".", os.sep)``).
-    A subdirectory is walked only when it contains an ``__init__.py``; each
-    ``.py`` file in it is probed via ``_module_is_pytest_plugin`` and appended
-    when it exposes a plugin surface.
+    Resolved relative to the working directory; only subdirectories with an ``__init__.py`` are walked.
     """
 
     def load(self, modules: list[str]) -> None:
@@ -209,9 +157,7 @@ class PackageLoader(PythonImportLoader):
 
         for root, _, files in os.walk(path):
             if "__init__.py" in files:
-                # Only .py files are module candidates: a sibling artifact like
-                # the per-endpoint meta.json must never be trial-imported
-                # (importing "pkg.meta.json" fails on its "pkg.meta" parent).
+                # Only .py files are candidates — importing a sibling like meta.json fails on its parent package.
                 for module in (i.removesuffix(".py") for i in files if i.endswith(".py")):
                     package = root.replace(os.sep, ".")
                     name = f"{package}.{module}"
@@ -224,10 +170,7 @@ class PackageLoader(PythonImportLoader):
 class ModuleLoader(PythonImportLoader):
     """Inspects a single module file and appends its name when it is a plugin.
 
-    The file is resolved relative to the current working directory:
-    ``self.name.replace(".", os.sep) + ".py"``. When the file exists it is
-    probed via ``_module_is_pytest_plugin`` and its dotted ``name`` is appended
-    when it exposes a plugin surface.
+    The file is resolved relative to the working directory as ``name`` with ``.py`` appended.
     """
 
     def load(self, modules: list[str]) -> None:

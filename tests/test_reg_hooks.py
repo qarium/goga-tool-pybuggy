@@ -1,12 +1,6 @@
 """Tests for the root facade callback — the five hook subscriptions (reg_hooks.py).
 
-Covers ``register_hooks`` in two layers. The contract layer: the callback is
-exposed on the package root (the platform import point) and callable with the
-``register_hooks(hooks: object) -> None`` signature. The behavior layer: the
-subscription table itself — exactly five ``hooks.subscribe`` calls in the
-platform order (two statuses registrations, the two onboarding participation
-moments, and the autonomy workflow amendment), with every handler being the
-cell object by identity.
+Covers the facade signature contract and the exact five-entry subscription table in platform order.
 """
 
 from goga_tool_pybuggy import register_hooks

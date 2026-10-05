@@ -1,16 +1,6 @@
 """Contract and logic tests for `goga_tool_pybuggy.api.endpoint`.
 
-Contract tests (``TestEndpoint``) lock the facade/API shape: importability,
-construction, the ``url_path``/``method`` properties, the presence of
-``__call__``/``error``/``_call``, and that ``__call__``/``error`` delegate to
-``_call`` with ``is_negative=False``/``True``.
-
-Logic tests (``TestCallAuth``, ``TestCallConfigAndAutocheck``, ``TestCallKwargs``)
-exercise ``_call``'s call-level auth resolution, ``AssertConfig`` assembly, the
-``use_autocheck`` override, and kwargs handling. The network and the deferred
-``ResponseWrapper`` behavior are mocked at their boundaries (``api.request`` and
-``goga_tool_pybuggy.api.endpoint.ResponseWrapper``); the auth primitives
-(``CombineAuth``/``AuthWrapper``) are exercised for real.
+Boundaries mocked: ``api.request`` and ``ResponseWrapper``; the auth primitives run for real.
 """
 
 from __future__ import annotations
@@ -42,8 +32,7 @@ class User:
 class Dual:
     """Object that is both callable and exposes ``auth(request)``.
 
-    The protocol branch (``auth`` method) must take precedence over the plain
-    callable branch (``__call__``).
+    The protocol branch (``auth`` method) takes precedence over the callable branch.
     """
 
     def __call__(self, request: object) -> object:
@@ -180,9 +169,7 @@ class TestCallAuth:
     def test_call_level_combineauth_added_directly(self) -> None:
         """A CombineAuth passed as call-level auth is added directly (nesting allowed).
 
-        Both ``CombineAuth`` and the stored ``api.auth`` are ``AuthBase``, so the
-        call-level ``CombineAuth`` is appended to the outer chain verbatim (not
-        re-wrapped in an ``AuthWrapper``), after ``api.auth``.
+        The call-level ``CombineAuth`` is appended verbatim after ``api.auth``, not re-wrapped.
         """
         api = Api(base_url="https://x", auth=HeaderAuth("X-Api", "api"))
         ep = Endpoint(api, "/p", method="GET")
@@ -399,9 +386,7 @@ class TestCallConfigAndAutocheck:
     def test_schemas_dir_resolved_from_caller_frame(self) -> None:
         """schemas_dir resolves to the caller module's parent dir joined with 'schemas'.
 
-        ``Endpoint.__init__`` inspects ``stack()[1]`` (the caller frame), reads its
-        ``__file__``, and sets ``schemas_dir`` to that file's parent / 'schemas'.
-        Constructed directly in this test function, that is this test module's dir.
+        ``Endpoint.__init__`` reads the ``stack()[1]`` caller frame's ``__file__``.
         """
         api = Api(base_url="https://x")
         ep = Endpoint(api, "/p", method="GET")
@@ -428,11 +413,7 @@ class TestCallKwargs:
     def test_call_does_not_mutate_caller_kwargs(self) -> None:
         """The caller's kwargs dict is not mutated in place.
 
-        Probes with ``use_autocheck``, which ``_call`` pops from its private copy
-        and never re-adds: if the dict were not copied, the caller's copy would
-        lose the key. This is the exact signal the copy (``dict(kwargs)``) exists
-        to provide; checking only ``auth``/``json`` (popped-then-re-added /
-        untouched) would not detect a dropped copy.
+        Probes with ``use_autocheck``, the one key ``_call`` pops from its copy and never re-adds.
         """
         api = Api(base_url="https://x")
         ep = Endpoint(api, "/p", method="GET")

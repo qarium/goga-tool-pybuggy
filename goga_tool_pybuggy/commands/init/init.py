@@ -1,12 +1,6 @@
 """init command handler — initializes the pybuggy test environment in three modes.
 
-``run_init`` dispatches on the mode resolved from the CLI flags: **bare** (``pybuggy
-init``) guards on ``.goga`` directory existence, then runs the engine-owned onboarding
-session (:func:`run_session`) followed by the pybuggy bootstrap (:func:`run_bootstrap`)
-with confirm gates; **template** (``pybuggy init <tpl> [--ref R]``) scaffolds a copier
-template through the engine first, then runs the session and the bootstrap with
-silent-skip gates; **upgrade** (``pybuggy init --upgrade [--ref R]``) migrates a
-previously scaffolded project through the engine alone — no session, no bootstrap.
+``run_init`` dispatches on the CLI-flag-resolved mode: bare, template, or upgrade.
 """
 
 import importlib.resources
@@ -36,9 +30,7 @@ logger = logging.getLogger(__name__)
 def _walk(directory: Any, discovered: list[tuple[str, str]]) -> None:
     """Recurse into ``directory`` collecting ``.usages/*.md`` files as ``(stem, text)``.
 
-    A directory named ``.usages`` is treated as a leaf: its ``*.md`` files are collected and it is
-    not descended into further. Any other directory is recursed into so future api subcells are
-    picked up without editing this command.
+    A ``.usages`` directory is a leaf; any other directory is recursed into.
     """
     for entry in directory.iterdir():
         if not entry.is_dir():
@@ -61,25 +53,21 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
     return discovered
 
 
-# Hand-authored annotation line per registered pybuggy usage stem (key without the ``pybuggy-``
-# prefix). Unknown stems fall back to a bare backtick reference so future api subcells are still
-# bound to the contract — the DSL requires every connected usage to be referenced in an annotation.
+# Hand-authored annotation line per usage stem; unknown stems fall back to a bare backtick
+# reference — the DSL requires every connected usage to be referenced in an annotation.
 PYBUGGY_ANNOTATIONS: dict[str, str] = {
     "api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
     "asserts": ("Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses."),
 }
 
-# Annotation line for the ``conventions`` usage key — the test-convention slot occupied by
-# ``write_test_convention``. Like ``PYBUGGY_ANNOTATIONS`` above, it is the sole source of the
-# line registered under ``codemanifest.annotations`` (the bootstrap registration step).
+# Annotation line for the ``conventions`` usage key — the sole source registered under ``codemanifest.annotations``.
 _CONVENTION_LINE = "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
 
 
 def _annotation_for(stem: str) -> str:
     """Return the annotation line for a discovered pybuggy usage ``stem``.
 
-    Known stems resolve to a hand-authored description; unknown stems fall back to a bare backtick
-    reference (`` `pybuggy-<stem>` ``) so every connected usage is still bound to the contract.
+    Known stems resolve to a hand-authored description; unknown stems to a bare backtick reference.
     """
     return PYBUGGY_ANNOTATIONS.get(stem, f"`pybuggy-{stem}`")
 
@@ -92,11 +80,7 @@ def _log_registration(
 ) -> None:
     """Log INFO for newly-registered usages/annotations and WARNING for already-present (skipped) ones.
 
-    Extracted from :func:`run_bootstrap` to keep it under the cyclomatic-complexity cap. A usage
-    key counts as added when it appears in the ``added_usage_keys`` list returned by
-    :func:`register_usages`; an annotation key counts as registered when it appears in the
-    ``changed_annotation_keys`` list returned by :func:`register_annotations` (appended or
-    replaced — an identical line is a no-op and logs as skipped).
+    Extracted from :func:`run_bootstrap` to keep it under the cyclomatic-complexity cap.
 
     Args:
         usage_keys: Full mapping of usage key to the usage path (``pybuggy-<stem>`` and ``conventions``).
@@ -121,12 +105,7 @@ def _log_registration(
 def _gate_conftest(cwd: Path, template_mode: bool) -> None:
     """Deliver the root ``conftest.py`` through the mode-dependent gate (bootstrap step 7).
 
-    Extracted from :func:`run_bootstrap` to keep it under the cyclomatic-complexity cap. When
-    ``<cwd>/conftest.py`` does not exist it is written unconditionally; when it exists, template
-    mode silently skips with an INFO log and bare mode asks (``click.confirm``, default ``no``) —
-    declining leaves the file untouched and the bootstrap continues. The decision lives here, in
-    the orchestrator's helper: :func:`write_pybuggy_conftest` itself always writes without any
-    check. A ``click.Abort`` at the confirm propagates to click unswallowed.
+    Absent file → written; existing file → INFO skip in template mode, ``click.confirm`` (default no) in bare mode.
 
     Args:
         cwd: The target project root whose ``conftest.py`` is (re)generated.
@@ -142,29 +121,20 @@ def _gate_conftest(cwd: Path, template_mode: bool) -> None:
         write_pybuggy_conftest(conftest)
 
 
-# The three init modes (the contract fixes the literal strings) — bare onboarding, template
-# scaffolding, and template migration. Module-level constants so each mode value has a single
-# source: resolve_init_mode returns them, run_init dispatches on them.
+# The three init modes (the contract fixes the literal strings).
+# Module-level constants so each mode value has a single source.
 _BARE = "bare"
 _TEMPLATE = "template"
 _UPGRADE = "upgrade"
 
-# Fallback Dockerfile path when the consumer config carries no ``dockerfile`` field (a
-# declined-Dockerfile session leaves the field unset). The bootstrap resolves the actual
-# path from the config first so the install line lands in the project's real Dockerfile;
-# this constant is the default that matches the engine's own prompt default.
+# Fallback Dockerfile path when the config carries no ``dockerfile`` field; matches the engine's prompt default.
 _DOCKERFILE_DEFAULT = Path(".goga") / "Dockerfile"
 
 
 def _resolve_dockerfile_path(config: Path) -> Path:
     """Resolve the project's Dockerfile path from the consumer config.
 
-    Reads the ``dockerfile`` field of the consumer ``.goga/config.yml`` so the install line
-    lands in the project's actual Dockerfile (a custom session answer wins); a missing config,
-    a PyYAML-unparsable document, or a missing/empty/non-string field falls back to
-    ``_DOCKERFILE_DEFAULT`` (``.goga/Dockerfile``). The routine never creates the file, never
-    raises a parse or type error into the bootstrap's wrapped tier, and reads nothing beyond
-    the config.
+    A missing config or a missing/invalid ``dockerfile`` field falls back to ``_DOCKERFILE_DEFAULT``.
 
     Args:
         config: Path to the consumer ``.goga/config.yml``.
@@ -190,12 +160,7 @@ def _resolve_dockerfile_path(config: Path) -> Path:
 def resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> str:
     """Resolve the init mode from the CLI flags — pure validation and mapping.
 
-    Validates the flag combination and maps it to exactly one mode, mirroring the flag rules of
-    the goga init command: ``<tpl>`` and ``--upgrade`` are mutually exclusive, and ``--ref`` is
-    meaningful only with a template source or an upgrade. Invalid combinations raise
-    ``click.ClickException`` (click prints the message and exits 1); valid input never raises.
-    Pure — no TTY, no I/O, no side effects: the empty-string normalization of ``ref``/URL
-    fragments is the scaffold engine's concern, so ``None`` vs ``""`` reaches the engine verbatim.
+    Flag values reach the engine verbatim — empty-string normalization is the engine's concern.
 
     Args:
         tpl: Template source (local path or git URL, optionally with a ``#ref`` fragment) from
@@ -229,20 +194,7 @@ def resolve_init_mode(tpl: str | None, ref: str | None, upgrade: bool) -> str:
 def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
     """Initialize the project in one of the three modes resolved from the CLI flags.
 
-    Mode dispatch with exactly one branch per mode (resolved purely by
-    :func:`resolve_init_mode`): **bare** refuses first when the current directory holds a
-    ``.goga`` directory (``Project already initialized`` on stderr, exit code 1, zero prompts
-    and zero writes), then runs the engine-owned onboarding session (:func:`run_session`) and —
-    only on a zero session code — the pybuggy bootstrap (:func:`run_bootstrap`) with confirm
-    gates; **template** first scaffolds through the engine (``Scaffold().generate(tpl, ref)``)
-    — a non-zero engine code stops the command with no onboarding side effect — then runs the
-    session and the bootstrap in template mode (silent-skip gates); **upgrade** delegates to
-    ``Scaffold().upgrade(ref)`` alone and returns its code without any session or bootstrap
-    side effect.
-
-    The scaffold engine and the session own their error handling: returned non-zero codes are
-    propagated unchanged (never normalized to 1, never wrapped), and the bare guard sits before
-    the session call — a refused or failed run leaves the target directory exactly as it was.
+    The engine's and the session's non-zero codes are propagated unchanged; the bare guard precedes every write.
 
     Args:
         tpl: Template source (local path or git URL, optionally with a ``#ref`` fragment)
@@ -261,10 +213,8 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
     """
     mode = resolve_init_mode(tpl, ref, upgrade)
 
-    # Already-initialized guard — bare mode only, mirroring `goga init`: a repeat invocation
-    # over an initialized project must not update any file, so it refuses before the session
-    # or the bootstrap could write anything. The check is directory existence only — exactly
-    # goga's `Path(".goga").is_dir()`; a `.goga` regular file passes (nothing is initialized).
+    # Already-initialized guard — bare mode only, mirroring `goga init`: refuses before
+    # any session or bootstrap write.
     if mode == _BARE and Path(".goga").is_dir():
         click.echo("Project already initialized", err=True)
         return 1
@@ -289,39 +239,11 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
 def run_bootstrap(template_mode: bool) -> int:
     """Run the 10-step post-session bootstrap with mode-dependent gates.
 
-    The pybuggy-owned delivery of the files the onboarding session does not carry:
-
-    1. Resolve the output root as the current working directory.
-    2. Copy every discovered ``.usages/*.md`` of the installed ``goga_tool_pybuggy.api``
-       package to ``<cwd>/.goga/usages/cooks/pybuggy/<stem>.md`` — an existing destination is
-       kept untouched in template mode (INFO) and overwritten in bare mode.
-    3. Document the absent plugin members of ``<cwd>/.goga/tools/pybuggy/config.yml`` as
-       commented example records via :func:`document_config_examples` — the 1.x option
-       surface the engine's plain serialization does not carry; idempotent, and a no-op
-       when the session wrote no tool config.
-    4. Deliver the ``conventions`` slot (``<cwd>/.goga/usages/conventions.md``)
-       skip-if-exists in BOTH modes; otherwise write the packaged asset.
-    5. Always enforce ``build.review.skip: true`` in ``<cwd>/.goga/config.yml`` via
-       :func:`ensure_review_skip`.
-    6. Resolve the Dockerfile from the consumer config ``dockerfile`` field (fallback
-       ``.goga/Dockerfile``) and append the pybuggy install line via
-       :func:`install_pybuggy` (a no-op when the file is absent).
-    7. Register the usage keys and annotation lines in ``<cwd>/.goga/config.yml`` via
-       :func:`register_usages` / :func:`register_annotations` and log the results
-       (INFO added, WARNING skipped).
-    8. Gate the root ``conftest.py``: absent → write; existing + template mode → INFO skip;
-       existing + bare mode → ``click.confirm`` (default no; declining leaves it untouched).
-    9. Fail with ERROR ``Dockerfile missing after the session`` and exit code 1 when the
-       resolved Dockerfile still does not exist (the declined-Dockerfile session).
-    10. Return 0.
-
-    Steps 2-8 are wrapped: an ``(OSError, YAMLError, ValueError)`` is ERROR-logged and maps
-    to exit code 1 — never a ``click.ClickException``.
+    Steps 2-8 are wrapped: an ``(OSError, YAMLError, ValueError)`` is ERROR-logged and mapped to exit code 1.
 
     Args:
-        template_mode: Whether the bootstrap runs after template scaffolding — existing
-            files are silently skipped with an INFO log instead of an overwrite (usages) or
-            an overwrite confirmation (conftest).
+        template_mode: Whether the bootstrap runs after template scaffolding (silent-skip gates
+            instead of overwrite or confirmation prompts).
 
     Returns:
         0 on success; 1 on a failed step or a missing Dockerfile after the session.
@@ -347,9 +269,7 @@ def run_bootstrap(template_mode: bool) -> int:
         if documented:
             logger.info("tool config examples documented", extra={"count": len(documented)})
 
-        # The conventions slot is delivered skip-if-exists in BOTH modes — existing content is
-        # never overwritten (INFO) and never prompted about. The engine's goga base-convention
-        # download is skipped by the declaration hook, so a fresh session leaves the slot empty.
+        # The conventions slot is delivered skip-if-exists in BOTH modes — never overwritten, never prompted.
         slot = cwd / ".goga" / "usages" / "conventions.md"
 
         if slot.exists():
@@ -377,8 +297,7 @@ def run_bootstrap(template_mode: bool) -> int:
         logger.error("onboarding bootstrap failed", extra={"error": str(e)})
         return 1
 
-    # The mandatory-Dockerfile invariant: pybuggy requires a Dockerfile to carry its install
-    # line, so a session that leaves none (the declined-Dockerfile branch) fails the command.
+    # The mandatory-Dockerfile invariant — a declined-Dockerfile session fails the command.
     if not dockerfile.exists():
         logger.error("Dockerfile missing after the session", extra={"path": str(dockerfile)})
         return 1
@@ -403,11 +322,7 @@ def run_bootstrap(template_mode: bool) -> int:
 def init_cmd(ctx: click.Context, tpl: str | None, ref: str | None, upgrade: bool) -> None:
     """Initialize the project in one of three modes: bare session, template scaffold, or template migration.
 
-    ``pybuggy init`` runs the engine-owned onboarding session followed by the pybuggy
-    bootstrap (confirm gates); ``pybuggy init <tpl> [--ref R]`` scaffolds a copier template
-    first, then runs the session and the bootstrap with silent-skip gates;
-    ``pybuggy init --upgrade [--ref R]`` migrates a previously scaffolded project
-    (no session, no bootstrap).
+    The gates differ by mode: confirm (bare), silent-skip (template), none (upgrade).
 
     Args:
         ctx: Click execution context used to control the process exit code.

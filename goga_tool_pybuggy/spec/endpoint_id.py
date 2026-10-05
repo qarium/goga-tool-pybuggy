@@ -4,16 +4,7 @@
 def build_endpoint_id(method: str, path: str) -> str:
     """Build a stable endpoint identifier from HTTP method and path.
 
-    The identifier is derived by:
-    1. Dropping a single leading "/" from path
-    2. Removing "{" and "}" from the path (keeping parameter names)
-    3. Lowercasing the result
-    4. Replacing every "/" with "_"
-    5. Replacing every "-" with "_" (paths may carry hyphens; the id is not
-       guaranteed to be a valid Python identifier — `generate` sanitizes it
-       further, every non-word character to "_" and a "_" prefix for a leading
-       digit, before naming a fixture or a package directory)
-    6. Appending "_" + method.lower()
+    The id is not guaranteed a valid Python identifier; `generate` sanitizes it further.
 
     Args:
         method: HTTP method (e.g., "GET", "POST", "DELETE").
@@ -44,8 +35,7 @@ def build_endpoint_id(method: str, path: str) -> str:
     # Step 4: Replace every "/" with "_"
     p = p.replace("/", "_")
 
-    # Step 5: Replace every "-" with "_" — the id is consumed as a pytest
-    # fixture name and a package directory, so it must stay a valid identifier.
+    # Step 5: Replace every "-" with "_" — the id must stay a valid identifier.
     p = p.replace("-", "_")
 
     # Step 6: Append "_" + method.lower()

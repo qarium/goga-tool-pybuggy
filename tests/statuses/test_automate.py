@@ -1,8 +1,6 @@
 """Tests for the automate status line — ``statuses/automate.py``.
 
-Contract layer: the routine is importable from the cell facade with the
-``register_automate_statuses(context: object) -> None`` signature. Behavior
-layer: the six literal registration calls in the normative table order.
+Contract: the facade signature; behavior: the six literal registration calls in the normative table order.
 """
 
 import inspect
