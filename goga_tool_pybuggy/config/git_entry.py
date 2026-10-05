@@ -21,6 +21,6 @@ class GitEntry(BaseModel):
 
     model_config = ConfigDict(kw_only=True)
 
-    url: str
-    location: str
+    url: str = ""
+    location: str = ""
     ref: Optional[str] = None

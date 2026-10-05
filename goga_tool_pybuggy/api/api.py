@@ -83,6 +83,7 @@ class Api:
 
     @auth.setter
     def auth(self, value: AuthBase | None) -> None:
+        """Set the default authenticator applied to every request."""
         self._auth = value
 
     @property

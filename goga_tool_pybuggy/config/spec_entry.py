@@ -21,6 +21,6 @@ class SpecEntry(BaseModel):
 
     model_config = ConfigDict(kw_only=True)
 
-    type: Literal["swagger", "openapi"]
-    location: str
+    type: Optional[Literal["swagger", "openapi"]] = None
+    location: str = ""
     git: Optional[GitEntry] = None

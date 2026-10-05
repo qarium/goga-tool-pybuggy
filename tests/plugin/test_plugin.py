@@ -78,16 +78,19 @@ class TestApiPluginContract:
     """Contract tests for `ApiPlugin`."""
 
     def test_api_plugin_importable_from_facade(self):
+        """The ApiPlugin class is re-exported by the plugin cell facade."""
         import goga_tool_pybuggy.plugin as plugin_facade
 
         assert plugin_facade.ApiPlugin is ApiPlugin
 
     def test_api_plugin_importable_from_location(self):
+        """The ApiPlugin class is importable from its defining plugin module."""
         import goga_tool_pybuggy.plugin.plugin as plugin_module
 
         assert plugin_module.ApiPlugin is ApiPlugin
 
     def test_api_plugin_is_class(self):
+        """ApiPlugin is defined as a class."""
         assert isinstance(ApiPlugin, type)
 
     @pytest.mark.parametrize(
@@ -104,6 +107,7 @@ class TestApiPluginContract:
         ],
     )
     def test_api_plugin_has_option_descriptor(self, option):
+        """Every canonical CLI option is declared as a descriptor attribute on ApiPlugin."""
         assert hasattr(ApiPlugin, option)
 
     def test_api_plugin_has_no_body_key_options(self):
@@ -112,9 +116,11 @@ class TestApiPluginContract:
         assert not hasattr(ApiPlugin, "error_key")
 
     def test_api_plugin_has_api_method(self):
+        """The api fixture method is callable on ApiPlugin."""
         assert callable(ApiPlugin.api)
 
     def test_api_plugin_has_collection_modifyitems_hook(self):
+        """The pytest_collection_modifyitems hook is callable on ApiPlugin."""
         assert callable(ApiPlugin.pytest_collection_modifyitems)
 
     def test_api_plugin_has_configure_method(self):
@@ -123,24 +129,28 @@ class TestApiPluginContract:
         assert "pytest.hookimpl" not in str(ApiPlugin.configure.__dict__)
 
     def test_api_plugin_init_accepts_default_retries(self):
+        """The constructor accepts an optional default_retries parameter defaulting to None."""
         sig = inspect.signature(ApiPlugin.__init__)
 
         assert "default_retries" in sig.parameters
         assert sig.parameters["default_retries"].default is None
 
     def test_api_plugin_init_accepts_default_assert_timeout(self):
+        """The constructor accepts an optional default_assert_timeout parameter defaulting to None."""
         sig = inspect.signature(ApiPlugin.__init__)
 
         assert "default_assert_timeout" in sig.parameters
         assert sig.parameters["default_assert_timeout"].default is None
 
     def test_api_plugin_init_accepts_default_assert_delay(self):
+        """The constructor accepts an optional default_assert_delay parameter defaulting to None."""
         sig = inspect.signature(ApiPlugin.__init__)
 
         assert "default_assert_delay" in sig.parameters
         assert sig.parameters["default_assert_delay"].default is None
 
     def test_plugin_config_keys_enum(self):
+        """Each PluginConfigKeys member maps to its canonical snake_case config key."""
         from goga_tool_pybuggy.plugin.plugin import PluginConfigKeys
 
         assert PluginConfigKeys.BASE_URL.value == "base_url"
@@ -184,6 +194,7 @@ class TestApiPluginLogic:
     """
 
     def test_api_fixture_builds_api_from_options(self, tmp_path, monkeypatch):
+        """The api fixture builds Api from env-resolved base_url/timeout and plugin-config assert options."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://x.example")
         monkeypatch.setenv("API_TIMEOUT", "5")
@@ -219,6 +230,7 @@ class TestApiPluginLogic:
         assert result is mock_api.return_value
 
     def test_base_url_required_raises_in_configure(self, tmp_path, monkeypatch):
+        """A base_url resolving from no source raises ValueError during configure()."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BASE_URL", raising=False)
 
@@ -242,6 +254,7 @@ class TestApiPluginLogic:
             plugin.configure()
 
     def test_api_fixture_uses_config_file_base_url(self, tmp_path, monkeypatch):
+        """The api fixture uses base_url and timeout resolved from the config file."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BASE_URL", raising=False)
 
@@ -297,6 +310,7 @@ class TestApiPluginConfigure:
     """
 
     def test_configure_renders_env_placeholder(self, tmp_path, monkeypatch):
+        """The configure() callback renders a base_url placeholder against os.environ variables."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://{{ qa_host }}.svc.example")
         monkeypatch.setenv("qa_host", "dev")
@@ -307,6 +321,7 @@ class TestApiPluginConfigure:
         assert plugin.base_url == "https://dev.svc.example"
 
     def test_configure_renders_cli_option(self, tmp_path, monkeypatch):
+        """The configure() callback renders a typed CLI option into the base_url template."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://{{ env }}.svc.example")
 
@@ -316,6 +331,7 @@ class TestApiPluginConfigure:
         assert plugin.base_url == "https://dev.svc.example"
 
     def test_configure_renders_multiple_cli_options(self, tmp_path, monkeypatch):
+        """The configure() callback renders multiple typed CLI options into the base_url template."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://{{ env }}.svc.example/api/{{ version }}")
 
@@ -434,6 +450,7 @@ class TestBaseUrlCliPrecedence:
         assert plugin.base_url == "https://cli.example"
 
     def test_cli_base_url_overrides_env(self, tmp_path, monkeypatch):
+        """A typed --base-url CLI flag overrides the BASE_URL environment variable."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "https://env.example")
 
@@ -482,6 +499,7 @@ class TestApiPluginJinjaBaseUrl:
     """
 
     def test_configure_renders_jinja_variable(self, tmp_path, monkeypatch):
+        """A Jinja variable in base_url is rendered from the typed CLI options."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", "http://{{ env }}.svc.example/api")
 
@@ -491,6 +509,7 @@ class TestApiPluginJinjaBaseUrl:
         assert plugin.base_url == "http://dev.svc.example/api"
 
     def test_configure_jinja_conditional_url_match(self, tmp_path, monkeypatch):
+        """The conditional Jinja suffix is appended when service_version matches the match_re regex."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", _JINJA_CONDITIONAL_URL)
 
@@ -504,6 +523,7 @@ class TestApiPluginJinjaBaseUrl:
         assert plugin.base_url == "http://x/api/v1-feature-123"
 
     def test_configure_jinja_conditional_url_no_match(self, tmp_path, monkeypatch):
+        """The conditional Jinja suffix is omitted when service_version fails the match_re regex."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setenv("BASE_URL", _JINJA_CONDITIONAL_URL)
 
@@ -608,15 +628,18 @@ class TestApiPluginLoadPlugins:
         (api / "orders" / "get_orders" / "api.py").write_text(_GENERATED_FIXTURE_SOURCE)
 
     def test_load_plugins_is_method_of_api_plugin(self):
+        """The _load_plugins routine is a callable method of ApiPlugin."""
         assert callable(ApiPlugin._load_plugins)
 
     def test_load_plugins_signature(self):
+        """The _load_plugins routine takes exactly the self, context and loaders parameters."""
         sig = inspect.signature(ApiPlugin._load_plugins)
 
         # `self`, `context`, `loaders` (mirrors the contract signature).
         assert list(sig.parameters) == ["self", "context", "loaders"]
 
     def test_load_plugins_assembles_from_config_packages(self, tmp_path, monkeypatch):
+        """The _load_plugins routine assembles pytest_plugins from the configured loader packages."""
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
         self._make_api_tree(tmp_path)
@@ -642,6 +665,7 @@ class TestApiPluginLoadPlugins:
         assert context["pytest_plugins"] == []
 
     def test_load_plugins_dedupes_real_duplicates(self, tmp_path, monkeypatch):
+        """The _load_plugins routine collapses duplicate entries from the walk, config and seed into one."""
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
         self._make_api_tree(tmp_path)
@@ -662,6 +686,7 @@ class TestApiPluginLoadPlugins:
         assert len(context["pytest_plugins"]) == 1
 
     def test_load_plugins_runs_explicit_loaders_and_keeps_seed(self, tmp_path, monkeypatch):
+        """The _load_plugins routine runs explicit loaders while keeping the seeded pytest_plugins entries."""
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
         self._make_api_tree(tmp_path)
@@ -703,6 +728,7 @@ class TestApiPluginRetries:
         return dict(mark.kwargs)
 
     def test_default_retries_stored_on_construct(self, tmp_path, monkeypatch):
+        """A default_retries passed to the constructor is stored on the plugin."""
         monkeypatch.chdir(tmp_path)
 
         plugin = ApiPlugin(context={}, default_retries=4)
@@ -710,6 +736,7 @@ class TestApiPluginRetries:
         assert plugin._default_retries == 4
 
     def test_default_retries_defaults_to_none(self, tmp_path, monkeypatch):
+        """The default_retries option defaults to None when omitted from the constructor."""
         monkeypatch.chdir(tmp_path)
 
         plugin = ApiPlugin(context={})
@@ -717,6 +744,7 @@ class TestApiPluginRetries:
         assert plugin._default_retries is None
 
     def test_retries_adds_flaky_marker_when_positive(self, tmp_path, monkeypatch):
+        """A positive retries config adds a single flaky marker with the matching max_runs to an item."""
         monkeypatch.chdir(tmp_path)
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {"retries": 2}
@@ -729,6 +757,7 @@ class TestApiPluginRetries:
         assert self._mark_kwargs(item.markers[0]) == {"max_runs": 2}
 
     def test_retries_marks_every_unmarked_item(self, tmp_path, monkeypatch):
+        """Every unmarked item in the collection receives a flaky marker with max_runs from retries."""
         monkeypatch.chdir(tmp_path)
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {"retries": 3}
@@ -740,6 +769,7 @@ class TestApiPluginRetries:
         assert all(self._mark_kwargs(i.markers[0]) == {"max_runs": 3} for i in items)
 
     def test_retries_skips_already_marked_items(self, tmp_path, monkeypatch):
+        """Items already marked flaky are skipped while unmarked items still receive the marker."""
         monkeypatch.chdir(tmp_path)
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {"retries": 2}
@@ -752,6 +782,7 @@ class TestApiPluginRetries:
         assert len(fresh.markers) == 1
 
     def test_retries_zero_adds_no_markers(self, tmp_path, monkeypatch):
+        """A zero retries config adds no markers to collected items."""
         monkeypatch.chdir(tmp_path)
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {"retries": 0}
@@ -762,6 +793,7 @@ class TestApiPluginRetries:
         assert item.markers == []
 
     def test_retries_empty_collection_is_noop(self, tmp_path, monkeypatch):
+        """An empty item collection passes through the hook without raising."""
         monkeypatch.chdir(tmp_path)
         plugin = ApiPlugin(context={})
         plugin.plugin_config = {"retries": 5}

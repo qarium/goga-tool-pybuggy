@@ -169,7 +169,7 @@ class ApiPlugin:
 
         Pluginator lifecycle callback at pytest configphase — a missing required ``base_url`` fails before any fixture.
         """
-        logger.debug("rendering base_url template")
+        logger.debug("rendering base_url template", extra={"base_url": self.base_url})
         cli_options = _passed_cli_options(self.pytest_config)
 
         cli_base_url = cli_options.get(_BASE_URL_CLI_KEY)
@@ -189,7 +189,7 @@ class ApiPlugin:
         Yields:
             An :class:`Api` constructed from the resolved options.
         """
-        logger.debug("building api fixture")
+        logger.debug("building api fixture", extra={"base_url": self.base_url})
         api = Api(
             base_url=self.base_url,
             headers=self.headers,

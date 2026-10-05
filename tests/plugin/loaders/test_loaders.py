@@ -51,9 +51,11 @@ class TestModuleIsPytestPluginContract:
     """Contract tests for `_module_is_pytest_plugin`."""
 
     def test_routine_is_callable(self):
+        """The `_module_is_pytest_plugin` routine is callable."""
         assert callable(_module_is_pytest_plugin)
 
     def test_routine_has_expected_signature(self):
+        """The routine takes a single `name: str` parameter and is annotated to return `bool`."""
         sig = inspect.signature(_module_is_pytest_plugin)
 
         params = list(sig.parameters)
@@ -65,6 +67,7 @@ class TestModuleIsPytestPluginContract:
         assert sig.return_annotation is bool
 
     def test_routine_not_in_facade_all(self):
+        """The private routine is not re-exported through the loaders facade `__all__`."""
         from goga_tool_pybuggy.plugin.loaders import __all__ as loaders_all
 
         assert "_module_is_pytest_plugin" not in loaders_all
@@ -74,6 +77,7 @@ class TestModuleIsPytestPluginLogic:
     """Behavioral logic tests for `_module_is_pytest_plugin`."""
 
     def test_module_is_pytest_plugin_detects_fixture_module(self, tmp_path, monkeypatch):
+        """A module defining a pytest fixture is detected as a plugin without lingering in `sys.modules`."""
         monkeypatch.syspath_prepend(tmp_path)
 
         pkg = tmp_path / "pkg"
@@ -87,6 +91,7 @@ class TestModuleIsPytestPluginLogic:
         assert "pkg.mod" not in sys.modules
 
     def test_module_is_pytest_plugin_keeps_preexisting_module(self, tmp_path, monkeypatch):
+        """A module already imported before the probe remains in `sys.modules` afterwards."""
         import importlib
 
         monkeypatch.syspath_prepend(tmp_path)
@@ -104,6 +109,7 @@ class TestModuleIsPytestPluginLogic:
         assert "pkg.mod" in sys.modules
 
     def test_module_is_pytest_plugin_broken_candidate_raises(self, tmp_path, monkeypatch):
+        """A broken candidate module raises `ModuleNotFoundError` and leaves no entry in `sys.modules`."""
         monkeypatch.syspath_prepend(tmp_path)
 
         pkg = tmp_path / "pkg"
@@ -183,12 +189,14 @@ class TestLoadersContract:
     """Contract tests for `PackageLoader` and `ModuleLoader`."""
 
     def test_loaders_importable_from_facade(self):
+        """Both loaders are importable from the `plugin.loaders` facade."""
         from goga_tool_pybuggy.plugin.loaders import ModuleLoader, PackageLoader
 
         assert PackageLoader is not None
         assert ModuleLoader is not None
 
     def test_loaders_importable_from_location(self):
+        """Both loaders are importable from their defining module location."""
         from goga_tool_pybuggy.plugin.loaders.loaders import ModuleLoader, PackageLoader
 
         assert PackageLoader is not None
@@ -196,6 +204,7 @@ class TestLoadersContract:
 
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_loader_is_class_with_api(self, loader_name):
+        """Each loader is a class exposing `from_config`/`load` methods and `name`/`required` fields."""
         from goga_tool_pybuggy.plugin.loaders import loaders
 
         loader_cls = getattr(loaders, loader_name)
@@ -212,6 +221,7 @@ class TestLoadersContract:
 
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_loader_required_defaults_true(self, loader_name):
+        """The `required` field defaults to True on each loader."""
         from goga_tool_pybuggy.plugin.loaders import loaders
 
         loader_cls = getattr(loaders, loader_name)
@@ -222,6 +232,7 @@ class TestLoadersContract:
 
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_loader_from_config_signature(self, loader_name):
+        """The `from_config` classmethod takes a single `config` parameter."""
         from goga_tool_pybuggy.plugin.loaders import loaders
 
         loader_cls = getattr(loaders, loader_name)
@@ -246,6 +257,7 @@ class TestPackageLoaderLogic:
     """Behavioral logic tests for `PackageLoader`."""
 
     def test_package_loader_walks_tree_and_filters(self, tmp_path, monkeypatch):
+        """The package loader walks the package tree and appends only plugin modules to the accumulator."""
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
 
@@ -281,12 +293,14 @@ class TestPackageLoaderLogic:
         assert modules == ["api.orders.get_orders.api"]
 
     def test_package_loader_required_missing_raises_oserror(self, tmp_path, monkeypatch):
+        """A required missing package raises `OSError` during load."""
         monkeypatch.chdir(tmp_path)
 
         with pytest.raises(OSError, match="not found"):
             PackageLoader(name="absent_pkg", required=True).load([])
 
     def test_package_loader_optional_missing_appends_nothing(self, tmp_path, monkeypatch):
+        """An optional missing package appends nothing to the accumulator."""
         monkeypatch.chdir(tmp_path)
 
         modules: list[str] = []
@@ -320,6 +334,7 @@ class TestModuleLoaderLogic:
     """Behavioral logic tests for `ModuleLoader`."""
 
     def test_module_loader_appends_plugin_module(self, tmp_path, monkeypatch):
+        """The module loader appends the plugin module's name to the accumulator."""
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
 
@@ -331,6 +346,7 @@ class TestModuleLoaderLogic:
         assert modules == ["mod"]
 
     def test_module_loader_skips_non_plugin_module(self, tmp_path, monkeypatch):
+        """A module without a pytest surface is skipped by the module loader."""
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
 
@@ -342,12 +358,14 @@ class TestModuleLoaderLogic:
         assert modules == []
 
     def test_module_loader_required_missing_raises_filenotfound(self, tmp_path, monkeypatch):
+        """A required missing module raises `FileNotFoundError` during load."""
         monkeypatch.chdir(tmp_path)
 
         with pytest.raises(FileNotFoundError):
             ModuleLoader(name="absent_mod", required=True).load([])
 
     def test_module_loader_optional_missing_appends_nothing(self, tmp_path, monkeypatch):
+        """An optional missing module appends nothing to the accumulator."""
         monkeypatch.chdir(tmp_path)
 
         modules: list[str] = []
@@ -361,6 +379,7 @@ class TestLoaderFromConfig:
 
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_from_config_str_and_dict_forms(self, loader_name):
+        """The `from_config` builder accepts a plain name string and a `name`/`required` dict."""
         loader_cls = getattr(loaders_module, loader_name)
 
         from_str = loader_cls.from_config("api")
@@ -375,6 +394,7 @@ class TestLoaderFromConfig:
 
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_from_config_dict_required_defaults_true(self, loader_name):
+        """The `from_config` builder defaults `required` to True when the dict omits it."""
         loader_cls = getattr(loaders_module, loader_name)
 
         from_dict = loader_cls.from_config({"name": "api"})

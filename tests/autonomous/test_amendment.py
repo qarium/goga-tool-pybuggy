@@ -9,7 +9,7 @@ import goga_tool_pybuggy.autonomous.amendment as amendment_module
 import pytest
 from goga_tool_pybuggy.autonomous import amend_workflow, build_autonomous_workflow
 
-from tests.autonomous.conftest import _AmendmentView, amendment_identity
+from .conftest import _AmendmentView, amendment_identity
 
 
 class TestAmendWorkflowContract:

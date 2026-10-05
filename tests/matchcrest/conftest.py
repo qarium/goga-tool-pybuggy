@@ -16,13 +16,16 @@ class ValueContext(BaseContext):
 
     @property
     def value(self):
+        """Returns the wrapped value under test."""
         return self._value
 
     @property
     def key(self):
+        """Returns the message label attached to the context."""
         return self._key
 
     def update(self):
+        """A no-op refresh — the wrapped value never changes."""
         pass
 
 

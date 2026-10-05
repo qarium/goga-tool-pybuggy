@@ -121,7 +121,7 @@ def run_list(spec_name: Optional[str], with_status: bool = False) -> None:
     for name, entry in specs.items():
         endpoints = _load_endpoints(entry, cwd)
         if not endpoints:
-            logger.warning(f"no endpoints found in spec: {name}")
+            logger.warning("no endpoints found in spec", extra={"spec": name})
         if not with_status:
             print(render_list(name, entry.location, endpoints))
             continue

@@ -31,14 +31,17 @@ class TestInstallContract:
     """Contract tests for `install`."""
 
     def test_install_importable_from_facade(self):
+        """The `install` hook is importable from the plugin cell facade."""
         from goga_tool_pybuggy.plugin import install as install_direct
 
         assert install_direct is goga_tool_pybuggy.plugin.install
 
     def test_install_is_callable(self):
+        """The `install` hook is callable."""
         assert callable(goga_tool_pybuggy.plugin.install)
 
     def test_install_signature_accepts_kwargs(self):
+        """The `install` signature accepts arbitrary keyword arguments via `**kwargs`."""
         signature = inspect.signature(goga_tool_pybuggy.plugin.install)
 
         var_keyword = [param for param in signature.parameters.values() if param.kind == inspect.Parameter.VAR_KEYWORD]

@@ -26,13 +26,13 @@ class Endpoint(BaseModel):
 
     model_config = ConfigDict(kw_only=True, extra="forbid")
 
-    method: str
-    path: str
-    request: dict[str, Any]
-    response: dict[str, Any]
-    query_params: dict[str, Any]
+    method: str = ""
+    path: str = ""
+    request: dict[str, Any] = {}
+    response: dict[str, Any] = {}
+    query_params: dict[str, Any] = {}
     path_params: dict[str, Any] = {}
-    description: str
+    description: str = ""
 
     @computed_field  # type: ignore[misc]
     @property
