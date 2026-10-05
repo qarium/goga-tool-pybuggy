@@ -3,10 +3,13 @@
 ``run_session`` drives the engine-owned session; the declare/amend hooks and the pure builders feed it.
 """
 
+import importlib.metadata
 import logging
 
 import click
+from goga.config import resolve_project_name
 from goga.onboarding import FileGenerator, InitLogic, Question, QuestionGroup, Questionnaire, ToolParticipation
+from goga.version import host_goga_version, minor_version
 
 from ...config import GitEntry, SpecEntry
 from ...plugin import PluginConfigKeys
@@ -47,17 +50,51 @@ _NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
 # surveyed extras (a ``type`` outside this tuple is always rejected).
 _SPEC_TYPES = ("swagger", "openapi")
 
+# The goga-python image family in age order — the base-image hints the pybuggy block offers.
+# The pybuggy test runtime is pytest, so the python family serves every pybuggy project
+# regardless of the surveyed language; the runtime minor tag completes each name (the
+# platform's per-language hint table is not part of its public facade — a package constant,
+# drifting visibly when a new family member ships).
+_BASE_IMAGE_NAMES: tuple[str, ...] = (
+    "qarium/goga-python-3.10",
+    "qarium/goga-python-3.11",
+    "qarium/goga-python-3.12",
+    "qarium/goga-python-3.13",
+    "qarium/goga-python-3.14",
+)
+
+# The fixed Dockerfile path of every pybuggy-initialized project — matches the engine's own
+# prompt default and the bootstrap's fallback; the path is never asked.
+_DOCKERFILE_PATH = ".goga/Dockerfile"
+
 
 def pybuggy_questions() -> list[Question]:
     """Build the declarative pybuggy question block in survey order.
 
-    Exact ids and order — the answer keys consumed downstream; extra specs go to :func:`survey_extra_specs`.
+    Exact ids and order — the answer keys consumed downstream; the extra specs and the
+    autonomy confirm go to the amend-moment surveys (:func:`survey_extra_specs`,
+    :func:`survey_autonomy`).
 
     Returns:
-        The question records — ``Question`` items plus the single ``first_spec``
-        ``QuestionGroup`` (exactly one nesting level, simple children only).
+        The question records — the two image inputs, ``base_url``, the scalar members, and
+        the single ``first_spec`` ``QuestionGroup`` (exactly one nesting level, simple
+        children only).
     """
-    items: list[Question] = [Question(id="base_url", kind="input", prompt="Base URL (Jinja2 template, required)")]
+    tag = minor_version(host_goga_version())
+    hints = [f"{name}:{tag}" for name in _BASE_IMAGE_NAMES]
+    base_image_prompt = "\n".join(["Base image (FROM)", "Available images:", *[f"  - {hint}" for hint in hints]])
+    project_name = resolve_project_name()
+
+    items: list[Question] = [
+        Question(id="base_image", kind="input", prompt=base_image_prompt, default=hints[-1]),
+        Question(
+            id="image",
+            kind="input",
+            prompt="Built image name",
+            default=f"{project_name}:latest" if project_name is not None else None,
+        ),
+        Question(id="base_url", kind="input", prompt="Base URL (Jinja2 template, required)"),
+    ]
 
     for member in PluginConfigKeys:
         if member in (PluginConfigKeys.BASE_URL, PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER):
@@ -77,15 +114,6 @@ def pybuggy_questions() -> list[Question]:
                 Question(id="git_location", kind="input", default="", prompt="Path inside the repository"),
                 Question(id="git_ref", kind="input", default="", prompt="Git ref (branch/tag; empty — default branch)"),
             ],
-        )
-    )
-
-    items.append(
-        Question(
-            id="autonomous",
-            kind="confirm",
-            default=False,
-            prompt="Run the api.automate pipeline unattended (autonomous mode)?",
         )
     )
 
@@ -143,9 +171,26 @@ def survey_extra_specs() -> list[dict[str, object]]:
     return surveyed
 
 
+def survey_autonomy() -> bool:
+    """Interactively survey the autonomy confirm — the amend-moment follow-up after the specs.
+
+    Asked by the tool once the whole spec survey completed, so the question never interleaves
+    the spec fields; the disabled default keeps existing projects interactive until opted in.
+
+    Returns:
+        The autonomy answer — True enables the unattended api.automate window.
+
+    Raises:
+        click.Abort: Forwarded unchanged from a cancelled prompt; the mediator drops the
+            contribution with a warning.
+    """
+    return click.confirm("Run the api.automate pipeline unattended (autonomous mode)?", default=False)
+
+
 def build_config_data(
     answers: dict[str, object],
     extra_specs: list[dict[str, object]] | None = None,
+    autonomous: bool = False,
 ) -> dict[str, object]:
     """Build the plain serializable tool-config payload from the session answers.
 
@@ -154,10 +199,11 @@ def build_config_data(
     Args:
         answers: The pybuggy answer view (core sections plus the own block under local names).
         extra_specs: The ``survey_extra_specs`` mappings; None when the gate was declined.
+        autonomous: The ``survey_autonomy`` answer; False (also the default) writes no axis.
 
     Returns:
-        The tool-config payload keyed in plugin key order, then ``pipelines`` when the
-        autonomy answer enables it, with ``specs`` last.
+        The tool-config payload keyed in plugin key order, then ``pipelines`` when
+        ``autonomous`` enables it, with ``specs`` last.
 
     Raises:
         ValueError: If a numeric member's answer cannot coerce to its target type (the
@@ -176,7 +222,7 @@ def build_config_data(
 
         data[member.value] = _NUMERIC_MEMBERS[member](value) if member in _NUMERIC_MEMBERS else value
 
-    if answers.get("autonomous"):
+    if autonomous:
         data["pipelines"] = {"api.automate": {"autonomous": True}}
 
     data["specs"] = {name: entry.model_dump(exclude_none=True) for name, entry in specs.items()}
@@ -184,15 +230,51 @@ def build_config_data(
     return data
 
 
-def build_config_amendments() -> dict[str, object]:
-    """Return the tool's declared-intent answer amendments.
+def _pybuggy_version_axis() -> str:
+    """Derive the recorded pybuggy version form — the minor x-range of the installed package.
 
-    Exactly ``{"build.review.skip": True}`` — consumer enforcement is the bootstrap's ``ensure_review_skip``.
+    Mirrors the Dockerfile install pin of ``install_pybuggy`` (the same minor line); a
+    metadata-less source-tree run records ``latest`` — the amend-moment contribution is
+    soft and must never die on unreadable metadata.
+    """
+    try:
+        version = importlib.metadata.version("goga-tool-pybuggy")
+    except importlib.metadata.PackageNotFoundError:
+        return "latest"
+
+    return f"{'.'.join(version.split('.')[:2])}.x"
+
+
+def build_config_amendments(answers: dict[str, object]) -> dict[str, object]:
+    """Return the tool's declared-intent answer amendments derived from the block answers.
+
+    Fixed entries — ``build.review.skip`` true (consumer enforcement is the bootstrap's
+    ``ensure_review_skip``) and the ``tools`` record pinning pybuggy to the installed minor
+    line (merged over any user-collected tools, so pybuggy is always recorded). The
+    Dockerfile pair — the fixed path plus the answered base image (the generator writes the
+    file from exactly this pair) — and the answered built-image name.
+
+    Args:
+        answers: The pybuggy answer view (the block answers under local names).
 
     Returns:
-        The single amendment mapping.
+        The amendment mapping — path → value pairs the platform merges into the answer
+        space before generation.
     """
-    return {"build.review.skip": True}
+    amendments: dict[str, object] = {"build.review.skip": True}
+
+    base_image = answers.get("base_image")
+    if base_image:
+        amendments["docker_image.dockerfile"] = _DOCKERFILE_PATH
+        amendments["docker_image.base_image"] = base_image
+
+    image = answers.get("image")
+    if image:
+        amendments["docker_image.image"] = image
+
+    amendments["tools"] = {"pybuggy": _pybuggy_version_axis()}
+
+    return amendments
 
 
 def _git_entry(url: object, location: object, ref: object) -> GitEntry | None:
@@ -326,7 +408,10 @@ def run_session() -> int:
 def declare_pybuggy_session(context: object) -> None:
     """Declare the pybuggy question block in the session (participation moment one).
 
-    No-op unless invited; the ``convention`` skip keeps the conventions slot for the pybuggy test convention.
+    No-op unless invited; the ``convention`` skip keeps the conventions slot for the pybuggy
+    test convention, and the ``docker_image`` skip removes the engine's Dockerfile gate —
+    the block asks the base image and the built-image name itself, and the Dockerfile is
+    always created through the amendments.
 
     Args:
         context: The ``ToolDeclaration`` proxy delivered by name from the hooks platform.
@@ -338,12 +423,15 @@ def declare_pybuggy_session(context: object) -> None:
         context.declare(item)
 
     context.skip("convention")
+    context.skip("docker_image")
 
 
 def amend_pybuggy_config(context: object) -> None:
     """Amend the session answers and buffer the tool config (participation moment two).
 
-    No-op unless invited; any exception makes the mediator drop the contribution (the session continues).
+    No-op unless invited; the surveys run in order — the extra specs first, the autonomy
+    confirm after them, so the spec survey completes before the autonomy question; any
+    exception makes the mediator drop the contribution (the session continues).
 
     Args:
         context: The ``ToolContribution`` proxy delivered by name from the hooks platform.
@@ -357,8 +445,9 @@ def amend_pybuggy_config(context: object) -> None:
 
     answers = context.answers
     extra_specs = survey_extra_specs()
+    autonomous = survey_autonomy()
 
-    for id, value in build_config_amendments().items():
+    for id, value in build_config_amendments(answers).items():
         context.answer(id, value)
 
-    context.write_config("config.yml", build_config_data(answers, extra_specs))
+    context.write_config("config.yml", build_config_data(answers, extra_specs, autonomous))

@@ -110,12 +110,12 @@ class TestEmitConsumeBridge:
 
     def test_build_config_data_payload_enables_resolve_autonomy(self, tool_config) -> None:
         """The enabling payload enables the resolver; the disabling one writes no axis at all."""
-        enabling = build_config_data({**_ANSWERS, "autonomous": True}, None)
+        enabling = build_config_data(dict(_ANSWERS), None, True)
         tool_config(yaml.safe_dump(enabling))
 
         assert resolve_autonomy("api.automate") is True
 
-        disabling = build_config_data({**_ANSWERS, "autonomous": False}, None)
+        disabling = build_config_data(dict(_ANSWERS), None, False)
 
         assert "pipelines" not in disabling
 

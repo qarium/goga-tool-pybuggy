@@ -6,6 +6,7 @@ The smoke run drives the real engine with only the TTY stubbed; the CLI tests st
 import importlib.metadata
 import importlib.resources
 import logging
+import re
 from pathlib import Path
 
 import click
@@ -16,34 +17,35 @@ from goga_tool_pybuggy.commands.init import init_cmd, run_bootstrap, run_session
 _SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
 _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 
-# Every core gate is declined except Dockerfile creation — its decline is the failed-init branch.
+# Every core gate is declined; no Dockerfile gate exists (the section is skipped, the block asks
+# the image inputs), and the pybuggy tools record is amended regardless of the declined gate.
 _CONFIRM_ANSWERS = {
     "Add codemanifest usages?": False,
     "Add codemanifest annotations?": False,
     "Configure a build agent?": False,
-    "Create Dockerfile?": True,
     "Configure a pipeline agent?": False,
     "Add tools?": False,
     "Add usages records?": False,
-    "Run the api.automate pipeline unattended (autonomous mode)?": False,
     "Add another spec?": [True, False],
+    "Run the api.automate pipeline unattended (autonomous mode)?": False,
 }
 
-# The expected confirm ask order — core gates, the autonomy confirm, then the amend-moment loop.
+# The expected confirm ask order — the core gates, the amend-moment spec loop, then the autonomy
+# confirm closing the survey after the specs.
 _EXPECTED_CONFIRMS = [
     "Add codemanifest usages?",
     "Add codemanifest annotations?",
     "Configure a build agent?",
-    "Create Dockerfile?",
     "Configure a pipeline agent?",
     "Add tools?",
     "Add usages records?",
+    "Add another spec?",
+    "Add another spec?",
     "Run the api.automate pipeline unattended (autonomous mode)?",
-    "Add another spec?",
-    "Add another spec?",
 ]
 
-# Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter.
+# Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter
+# (the FROM prompt keeps its newest-python-family default).
 _PROMPT_ANSWERS = {
     "Language": "python",
     "Built image name": "pybuggy-smoke:latest",
@@ -105,7 +107,9 @@ class TestSessionSmoke:
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         assert config["language"] == "python"
         assert config["image"] == "pybuggy-smoke:latest"
-        assert config["dockerfile"] == ".goga/Dockerfile"
+        assert config["dockerfile"] == ".goga/Dockerfile"  # the amended fixed path
+        assert set(config["tools"]) == {"pybuggy"}  # amended regardless of the declined gate
+        assert re.fullmatch(r"\d+\.\d+\.x", config["tools"]["pybuggy"])
         assert "build" not in config  # the build.review.skip amendment never reaches the config (q2/A)
         assert "codemanifest" not in config  # both gates declined — the offline guarantee
 
@@ -114,16 +118,20 @@ class TestSessionSmoke:
         assert tool_config == _EXPECTED_TOOL_CONFIG
         assert "#" not in tool_config_path.read_text(encoding="utf-8")  # plain engine serialization
 
+        # The Dockerfile always exists — the FROM pair comes from the block answers.
         dockerfile = tmp_path / ".goga" / "Dockerfile"
-        assert dockerfile.read_text(encoding="utf-8").startswith("FROM ")
+        assert re.fullmatch(r"FROM qarium/goga-python-3\.\d+:\d+\.\d+\n", dockerfile.read_text(encoding="utf-8"))
 
         # The conventions slot is the bootstrap's delivery — the session never downloads the base convention.
         assert not (tmp_path / ".goga" / "usages" / "conventions.md").exists()
 
-        # No git origin in the pytest tmp dir, so the built-image ask offers no default.
+        # No git origin in the pytest tmp dir, so the built-image ask offers no default; the FROM
+        # ask defaults to the newest python-family member of the running minor tag, and the
+        # Dockerfile path is never asked at all.
         prompt_defaults = {text: default for text, default, _returned in tty.prompts}
-        assert prompt_defaults["Built image name"] is None
-        assert prompt_defaults["Dockerfile path"] == ".goga/Dockerfile"
+        from_default = prompt_defaults[next(text for text in prompt_defaults if text.startswith("Base image (FROM)"))]
+        assert (prompt_defaults["Built image name"], "Dockerfile path" in prompt_defaults) == (None, False)
+        assert re.fullmatch(r"qarium/goga-python-3\.\d+:\d+\.\d+", from_default)
 
         # The full bare-init composition — the real bootstrap consumes the real session artifacts.
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")

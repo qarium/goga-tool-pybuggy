@@ -1,8 +1,9 @@
 """Tests for the session module — pure builders, participation hooks, session seam.
 
-Covers the pure builders, the extra-specs survey, the participation hooks, and the session seam.
+Covers the pure builders, the image/spec/autonomy surveys, the participation hooks, and the session seam.
 """
 
+import importlib.metadata
 import logging
 
 import goga_tool_pybuggy.commands.init.session as session_module
@@ -17,6 +18,7 @@ from goga_tool_pybuggy.commands.init import (
     parse_specs,
     pybuggy_questions,
     run_session,
+    survey_autonomy,
     survey_extra_specs,
 )
 from goga_tool_pybuggy.config import SpecEntry
@@ -37,6 +39,13 @@ _ANSWERS = {
     "retries": "3",
     "assert_delay": "",
     "first_spec": dict(_FIRST_SPEC),
+}
+
+# The block answer view carrying the image inputs — the source of the Dockerfile amendments.
+_IMAGE_ANSWERS = {
+    **_ANSWERS,
+    "base_image": "qarium/goga-python-3.13:2.0",
+    "image": "shop-api:latest",
 }
 
 # One surveyed extra-spec mapping — the record shape ``survey_extra_specs`` collects.
@@ -130,10 +139,11 @@ class TestSessionBuildersContract:
                 {
                     "answers": dict[str, object],
                     "extra_specs": list[dict[str, object]] | None,
+                    "autonomous": bool,
                     "return": dict[str, object],
                 },
             ),
-            (build_config_amendments, {"return": dict[str, object]}),
+            (build_config_amendments, {"answers": dict[str, object], "return": dict[str, object]}),
             (
                 parse_specs,
                 {
@@ -148,24 +158,23 @@ class TestSessionBuildersContract:
         """Every builder carries its contract signature with typed parameters and return."""
         assert routine.__annotations__ == expected
 
-    def test_pybuggy_questions_last_item_is_autonomy_confirm(self):
-        """The block's final item is the autonomy confirm — id, kind, and the disabled default."""
-        last = pybuggy_questions()[-1]
+    def test_pybuggy_questions_declares_no_autonomy_item(self):
+        """The block carries no autonomy record — the amend-moment survey owns the question."""
+        items = pybuggy_questions()
 
-        assert isinstance(last, Question)
-        assert last.id == "autonomous"
-        assert last.kind == "confirm"
-        assert last.default is False
+        assert "autonomous" not in {item.id for item in items if isinstance(item, Question)}
+        assert all("unattended" not in (item.prompt or "") for item in items if isinstance(item, Question))
 
 
 class TestSessionParticipationContract:
     """Facade exposure and signature surface of the hooks and the session seam."""
 
     def test_facade_exports_participation_routines(self):
-        """The two hooks, the extra-specs survey, and the session seam are importable."""
+        """The two hooks, the two amend-moment surveys, and the session seam are importable."""
         assert callable(declare_pybuggy_session)
         assert callable(amend_pybuggy_config)
         assert callable(survey_extra_specs)
+        assert callable(survey_autonomy)
         assert callable(run_session)
 
     @pytest.mark.parametrize(
@@ -174,6 +183,7 @@ class TestSessionParticipationContract:
             (declare_pybuggy_session, {"context": object, "return": None}),
             (amend_pybuggy_config, {"context": object, "return": None}),
             (survey_extra_specs, {"return": list[dict[str, object]]}),
+            (survey_autonomy, {"return": bool}),
             (run_session, {"return": int}),
         ],
     )
@@ -186,18 +196,22 @@ class TestPybuggyQuestions:
     """The declarative question block — ids, order, defaults, nesting."""
 
     def test_pybuggy_questions_returns_block_in_survey_order(self):
-        """base_url first (required), scalars in declaration order, the first-spec group, the autonomy confirm."""
+        """The image inputs first, base_url, scalars in declaration order, the first-spec group last."""
         items = pybuggy_questions()
 
-        assert len(items) == 9
-        assert items[0].id == "base_url"
-        assert items[0].default is None
+        assert len(items) == 10
+        assert [item.id for item in items[:3]] == ["base_image", "image", "base_url"]
+        assert items[0].prompt.startswith("Base image (FROM)")
+        assert items[0].default is not None
+        assert ":" in items[0].default
+        assert items[1].prompt == "Built image name"
+        assert items[2].default is None
 
-        scalar_items = [item for item in items if isinstance(item, Question)][1:-1]
+        scalar_items = [item for item in items if isinstance(item, Question)][3:]
         assert [item.id for item in scalar_items] == [member.value for member in _SCALAR_MEMBERS]
         assert all(item.default == "" for item in scalar_items)
 
-        group = items[-2]
+        group = items[-1]
         assert isinstance(group, QuestionGroup)
         assert group.id == "first_spec"
         assert group.prompt == "The first spec"
@@ -211,17 +225,18 @@ class TestPybuggyQuestions:
         ]
         assert group.children[1].choices == ["swagger", "openapi"]
 
-    def test_pybuggy_questions_appends_autonomy_confirm_last(self):
-        """The autonomy confirm is the final item — a simple child right after the first-spec group."""
-        items = pybuggy_questions()
+    def test_pybuggy_questions_base_image_hints_follow_runtime_tag(self):
+        """The FROM prompt embeds the python-family hints completed with the running goga minor tag."""
+        from goga.version import host_goga_version, minor_version
 
-        last = items[-1]
-        assert isinstance(last, Question)
-        assert last.id == "autonomous"
-        assert last.kind == "confirm"
-        assert last.default is False
-        assert last.prompt == "Run the api.automate pipeline unattended (autonomous mode)?"
-        assert items[-2].id == "first_spec"
+        items = pybuggy_questions()
+        base_image = items[0]
+        tag = minor_version(host_goga_version())
+
+        hints = [line.strip()[2:] for line in base_image.prompt.splitlines() if line.strip().startswith("- ")]
+        assert hints == [f"{name}:{tag}" for name in session_module._BASE_IMAGE_NAMES]
+        assert hints[0].startswith("qarium/goga-python-3.10:")
+        assert base_image.default == hints[-1]
 
     def test_pybuggy_questions_declares_no_compact_extra_specs(self):
         """The compact one-per-line extra_specs record is gone — the amend-moment survey owns it."""
@@ -345,6 +360,27 @@ class TestSurveyExtraSpecs:
         assert scripted.confirm_calls == ["Add another spec?"] * 3
 
 
+class TestSurveyAutonomy:
+    """The autonomy confirm — the closing question of the amendment moment."""
+
+    def test_survey_autonomy_asks_the_disabled_default_confirm(self, monkeypatch):
+        """The confirm carries the unattended-mode prompt with the disabled default."""
+        scripted = _ScriptedClick(confirms=[False], prompts=[])
+        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
+        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+
+        assert survey_autonomy() is False
+        assert scripted.confirm_calls == ["Run the api.automate pipeline unattended (autonomous mode)?"]
+
+    def test_survey_autonomy_acceptance_enables(self, monkeypatch):
+        """An accepted confirm returns True — the enabling answer of the pipelines axis."""
+        scripted = _ScriptedClick(confirms=[True], prompts=[])
+        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
+        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+
+        assert survey_autonomy() is True
+
+
 class TestParseSpecs:
     """First-spec strictness and surveyed-extra leniency."""
 
@@ -455,8 +491,8 @@ class TestBuildConfigData:
             build_config_data({**_ANSWERS, "timeout": "abc"}, None)
 
     def test_build_config_data_emits_pipelines_axis_on_enabling_answer(self):
-        """An enabling autonomy answer adds the axis entry after the scalar keys — the resolver's exact shape."""
-        data = build_config_data({**_ANSWERS, "autonomous": True}, None)
+        """An enabling autonomy flag adds the axis entry after the scalar keys — the resolver's exact shape."""
+        data = build_config_data(dict(_ANSWERS), None, True)
 
         assert data["pipelines"] == {"api.automate": {"autonomous": True}}
         assert list(data) == ["base_url", "timeout", "retries", "pipelines", "specs"]
@@ -464,13 +500,13 @@ class TestBuildConfigData:
         assert yaml.safe_load(yaml.safe_dump(data)) == data
 
     @pytest.mark.parametrize(
-        "answers",
-        [{**_ANSWERS, "autonomous": False}, dict(_ANSWERS)],
-        ids=["declined-confirm", "absent-key"],
+        ("autonomous", "answers"),
+        [(False, dict(_ANSWERS)), (False, {**_ANSWERS, "autonomous": True})],
+        ids=["declined-confirm", "stale-answer-key-ignored"],
     )
-    def test_build_config_data_disabling_and_absent_answers_emit_no_axis(self, answers):
-        """A falsy or absent autonomy answer emits no pipelines key — the specs still land."""
-        data = build_config_data(answers, None)
+    def test_build_config_data_disabling_answer_and_stale_key_emit_no_axis(self, autonomous, answers):
+        """A false flag emits no pipelines key; an answers-carried autonomous key is never read."""
+        data = build_config_data(answers, None, autonomous)
 
         assert "pipelines" not in data
         assert "specs" in data
@@ -478,57 +514,128 @@ class TestBuildConfigData:
 
 
 class TestBuildConfigAmendments:
-    """The single declared-intent amendment."""
+    """The declared-intent amendments — review skip, the Dockerfile pair, the pybuggy tools record."""
 
-    def test_build_config_amendments_review_skip_declared_intent_only(self):
-        """Exactly one amendment — build.review.skip with a bool True value."""
-        amendments = build_config_amendments()
+    @pytest.fixture
+    def pinned_version_axis(self, monkeypatch):
+        """Pin the installed-version read so the pybuggy tools record is deterministic."""
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
 
-        assert amendments == {"build.review.skip": True}
-        assert len(amendments) == 1
-        assert amendments["build.review.skip"] is True
+    def test_build_config_amendments_carry_all_five_entries(self, pinned_version_axis):
+        """The amendments deliver the review skip, the Dockerfile pair, the image name, and the tools record."""
+        amendments = build_config_amendments(dict(_IMAGE_ANSWERS))
+
+        assert amendments == {
+            "build.review.skip": True,
+            "docker_image.dockerfile": ".goga/Dockerfile",
+            "docker_image.base_image": "qarium/goga-python-3.13:2.0",
+            "docker_image.image": "shop-api:latest",
+            "tools": {"pybuggy": "2.0.x"},
+        }
+        assert list(amendments) == [
+            "build.review.skip",
+            "docker_image.dockerfile",
+            "docker_image.base_image",
+            "docker_image.image",
+            "tools",
+        ]
+
+    def test_build_config_amendments_skip_dockerfile_pair_without_base_image(self, pinned_version_axis):
+        """An absent base-image answer (the unreachable default-less branch) drops the whole pair."""
+        amendments = build_config_amendments({k: v for k, v in _IMAGE_ANSWERS.items() if k != "base_image"})
+
+        assert "docker_image.dockerfile" not in amendments
+        assert "docker_image.base_image" not in amendments
+        assert amendments["docker_image.image"] == "shop-api:latest"
+        assert amendments["tools"] == {"pybuggy": "2.0.x"}
+
+    def test_build_config_amendments_tools_record_falls_back_to_latest(self, monkeypatch):
+        """A metadata-less run records latest — the soft contribution never dies on unreadable metadata."""
+
+        def raise_missing(_name: str) -> str:
+            raise importlib.metadata.PackageNotFoundError("goga-tool-pybuggy")
+
+        monkeypatch.setattr(importlib.metadata, "version", raise_missing)
+
+        amendments = build_config_amendments({})
+
+        assert amendments["tools"] == {"pybuggy": "latest"}
+        assert "docker_image.dockerfile" not in amendments
+
+    def test_amendments_merge_pybuggy_into_user_collected_tools(self, pinned_version_axis):
+        """The platform amend merge keeps the user's tools and forces the pybuggy record."""
+        from goga.onboarding import SessionAnswers
+
+        answers = SessionAnswers(tools=["pybuggy"])
+        answers.record("tools", {"other": "1.x"})
+
+        for path, value in build_config_amendments({}).items():
+            answers.amend(path, value)
+
+        snapshot = answers.snapshot()
+        assert snapshot["tools"] == {"other": "1.x", "pybuggy": "2.0.x"}
+        assert snapshot["build"] == {"review": {"skip": True}}
 
 
 class TestDeclarePybuggySession:
     """Participation moment one — the declaration hook against a recorder context."""
 
-    def test_declare_pybuggy_session_declares_block_and_skips_convention(self, declaration_recorder):
-        """An invited context receives every block item in survey order and the convention skip."""
+    def test_declare_pybuggy_session_declares_block_and_skips_two_sections(self, declaration_recorder):
+        """An invited context receives every block item in survey order and the two section skips."""
         context = declaration_recorder(invited=True)
 
         declare_pybuggy_session(context)
 
         assert [item.id for item in context.declared] == [item.id for item in pybuggy_questions()]
-        assert context.skips == ["convention"]
+        assert context.skips == ["convention", "docker_image"]
 
 
 class TestAmendPybuggyConfig:
     """Participation moment two — the amendment hook against a recorder context."""
 
     def test_amend_pybuggy_config_buffers_surveyed_contribution(self, contribution_recorder, monkeypatch):
-        """The surveyed extras flow into the buffered amendment and the plain-data payload."""
+        """The surveyed extras and autonomy flow into the buffered amendments and the payload."""
         monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [dict(_EXTRA_SPEC)])
-        context = contribution_recorder(invited=True, answers=dict(_ANSWERS))
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: True)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
 
         amend_pybuggy_config(context)
 
-        assert context.amendments == [("build.review.skip", True)]
-        assert context.files == [("config.yml", build_config_data(dict(_ANSWERS), [dict(_EXTRA_SPEC)]))]
+        assert context.amendments == list(build_config_amendments(dict(_IMAGE_ANSWERS)).items())
+        assert context.files == [("config.yml", build_config_data(dict(_IMAGE_ANSWERS), [dict(_EXTRA_SPEC)], True))]
         assert context.files[0][1]["specs"]["billing"]["location"] == "specs/billing.yaml"
+        assert context.files[0][1]["pipelines"] == {"api.automate": {"autonomous": True}}
 
     def test_amend_pybuggy_config_declined_gate_keeps_first_spec(self, contribution_recorder, monkeypatch):
-        """A declined extra-specs gate buffers the first-spec-only payload."""
+        """A declined extra-specs gate buffers the first-spec-only payload with no axis."""
         monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [])
-        context = contribution_recorder(invited=True, answers=dict(_ANSWERS))
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: False)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
 
         amend_pybuggy_config(context)
 
         assert list(context.files[0][1]["specs"]) == ["shop"]
+        assert "pipelines" not in context.files[0][1]
+
+    def test_amend_pybuggy_config_surveys_specs_before_autonomy(self, contribution_recorder, monkeypatch):
+        """The extras survey completes before the autonomy confirm — the question never interleaves specs."""
+        calls: list[str] = []
+        monkeypatch.setattr(session_module, "survey_extra_specs", lambda: calls.append("specs") or [])
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: calls.append("autonomy") or False)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
+
+        amend_pybuggy_config(context)
+
+        assert calls == ["specs", "autonomy"]
 
     def test_amend_pybuggy_config_exception_drops_contribution_upstream(self, contribution_recorder, monkeypatch):
         """A bad numeric answer raises before any write is buffered — the write never happens."""
         monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [])
-        context = contribution_recorder(invited=True, answers={**_ANSWERS, "timeout": "abc"})
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: False)
+        context = contribution_recorder(invited=True, answers={**_IMAGE_ANSWERS, "timeout": "abc"})
 
         with pytest.raises(ValueError, match="could not convert"):
             amend_pybuggy_config(context)
@@ -579,6 +686,11 @@ class TestNoInvitation:
         monkeypatch.setattr(
             session_module,
             "survey_extra_specs",
+            lambda: (_ for _ in ()).throw(AssertionError("an uninvited tool must never survey")),
+        )
+        monkeypatch.setattr(
+            session_module,
+            "survey_autonomy",
             lambda: (_ for _ in ()).throw(AssertionError("an uninvited tool must never survey")),
         )
         declaration = declaration_recorder(invited=False)

@@ -25,15 +25,19 @@ The command (see [CLI — init](cli/init.md)) runs two stages — the engine-own
 onboarding session with pybuggy invited, then the pybuggy bootstrap.
 
 **The onboarding session.** The goga engine asks the core project questions — the
-language (`python`), the optional codemanifest / build-agent / pipeline sections, and
-the Dockerfile (the confirm **"Create Dockerfile?" defaults to No**; answering Yes
-asks for the path, the base image, and the built image name) — followed by the pybuggy
-block: `base_url` (required, a Jinja2 template), the optional scalar plugin keys
-(Enter skips), the first spec (`name`, `type`, `location`, optional git fields), the
-autonomy confirm (**"Run the api.automate pipeline unattended (autonomous mode)?"
+language (`python`), the optional codemanifest / build-agent / pipeline sections, the
+tools, and the usages records — followed by the pybuggy block: the base image (FROM —
+the goga-python family hints, newest as the default) and the built-image name, then
+`base_url` (required, a Jinja2 template), the optional scalar plugin keys
+(Enter skips), and the first spec (`name`, `type`, `location`, optional git fields).
+The Dockerfile itself is never asked about — it is always created at
+`.goga/Dockerfile` from the answered base image. After the block, pybuggy asks its two
+follow-ups itself: the additional specs (`Add another spec?`, a per-field loop), then
+the autonomy confirm (**"Run the api.automate pipeline unattended (autonomous mode)?"
 defaults to No**; Yes writes the `pipelines` axis entry — see
-[Autonomous runs](pipelines/api-automate.md#autonomous-runs)), and `extra_specs` lines
-in the compact `name|type|location|git_url|git_location|git_ref` form. The session writes `.goga/config.yml`, the Dockerfile, and the tool config
+[Autonomous runs](pipelines/api-automate.md#autonomous-runs)). Whatever you answer to
+the core tools question, pybuggy is always recorded in `.goga/config.yml`. The session
+writes `.goga/config.yml`, the Dockerfile, and the tool config
 `.goga/tools/pybuggy/config.yml`:
     ```yaml
     base_url: https://{{ env }}.svc.example/api
@@ -62,9 +66,10 @@ See [Configuration](configuration.md).
 | usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
 | root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
-The command requires a Dockerfile: answering No to the session's "Create Dockerfile?"
-confirm ends `pybuggy init` with a non-zero exit after the session artifacts are
-written (recovery: [CLI — init, the mandatory Dockerfile](cli/init.md)).
+The command requires a Dockerfile — and the session always creates one (the fixed
+`.goga/Dockerfile` path plus the answered base image), so the mandatory-Dockerfile
+check is a safety net, not a question to answer
+(see [CLI — init, the mandatory Dockerfile](cli/init.md)).
 
 This is the **bare** flow: it runs in a fresh project. A repeated invocation (an existing
 `.goga/`) is refused — `Project already initialized`, exit code 1, nothing updated — the
