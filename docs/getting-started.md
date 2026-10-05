@@ -34,23 +34,24 @@ The Dockerfile itself is never asked about — it is always created at
 `.goga/Dockerfile` from the answered base image. After the block, pybuggy asks its two
 follow-ups itself: the additional specs (`Add another spec?`, a per-field loop), then
 the autonomy confirm (**"Run the api.automate pipeline unattended (autonomous mode)?"
-defaults to No**; Yes writes the `pipelines` axis entry — see
+defaults to No**; Yes writes the `pipelines` section entry — see
 [Autonomous runs](pipelines/api-automate.md#autonomous-runs)). Whatever you answer to
 the core tools question, pybuggy is always recorded in `.goga/config.yml`. The session
 writes `.goga/config.yml`, the Dockerfile, and the tool config
 `.goga/tools/pybuggy/config.yml`:
-    ```yaml
-    base_url: https://{{ env }}.svc.example/api
-    timeout: 10.0
-    specs:
-      shop:
-        type: openapi
-        location: .specs/openapi/shop/shop-openapi.yaml
-        git:
-          url: https://git.example.com/specs/shop.git
-          location: openapi/shop-openapi.yaml
-          ref: main
-    ```
+
+```yaml
+base_url: https://{{ env }}.svc.example/api
+timeout: 10.0
+specs:
+  shop:
+    type: openapi
+    location: .specs/openapi/shop/shop-openapi.yaml
+    git:
+      url: https://git.example.com/specs/shop.git
+      location: openapi/shop-openapi.yaml
+      ref: main
+```
 `base_url` is a Jinja2 template rendered against `os.environ` + the CLI options you pass (e.g. `pytest --env=dev`).
 Unanswered keys are dropped — never written empty; `headers`/`loader` are not surveyed (hand-add them when needed).
 See [Configuration](configuration.md).
@@ -60,6 +61,7 @@ See [Configuration](configuration.md).
 | Artifact | Gate |
 |----------|------|
 | `.goga/usages/cooks/pybuggy/api.md`, `asserts.md` — the packaged usages | written (bare overwrites; template skips existing) |
+| commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted (idempotent, comment-only) |
 | `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
 | `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version range is derived from the installed pybuggy version |
