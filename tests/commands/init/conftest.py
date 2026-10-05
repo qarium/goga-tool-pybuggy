@@ -1,11 +1,6 @@
 """Local pytest fixtures for the init-cell tests — the recorder doubles.
 
-The participation doubles mirror the member surface of the engine's onboarding
-contexts (``ToolDeclaration`` / ``ToolContribution``) without reaching into
-engine internals: plain recorders asserting member usage — what the hooks
-declared, amended, and buffered. The composition doubles (the exit-recording
-``click.Context``, the order-logging seam, the scripted TTY) serve the
-integration tests of the CLI chain and the native-session smoke run.
+The doubles mirror the engine's onboarding contexts without reaching into engine internals.
 """
 
 from collections.abc import Callable
@@ -128,9 +123,7 @@ class ExitRecorder:
 class SeamRecorder:
     """A seam double appending its name to a shared call-order log and yielding scripted codes.
 
-    Doubles one ``run_init`` seam (``run_session`` / ``run_bootstrap``) patched at
-    the orchestrator's import point: every call is recorded with its keyword
-    arguments and returns the next scripted exit code.
+    Doubles one ``run_init`` seam patched at the orchestrator's import point.
 
     Attributes:
         calls: The keyword arguments of every call, in call order.
@@ -166,14 +159,7 @@ class SeamRecorder:
 class ScriptedTTY:
     """A scripted TTY double answering the session's prompts from two pinned maps.
 
-    The external boundary of the smoke test — the terminal. Confirms are answered
-    strictly from the scripted map (an unscripted gate is an unexpected ask); a
-    prompt carrying a scripted value returns it, an unscripted prompt accepts its
-    offered default (pressing Enter — the optional scalars and git fields), and an
-    unscripted prompt without a default is an unexpected ask. A scripted value may
-    be a list — the asks of that text then consume it as a FIFO queue (a repeated
-    gate or prompt, e.g. the add-another-spec loop), and an exhausted queue falls
-    back to the unscripted rule of its kind.
+    Unscripted confirms and defaultless prompts are unexpected asks; a list value answers repeated asks FIFO.
 
     Attributes:
         confirms: The ``(text, answer)`` confirm calls, in ask order.

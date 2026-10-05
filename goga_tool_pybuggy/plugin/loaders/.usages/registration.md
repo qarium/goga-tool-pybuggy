@@ -71,4 +71,4 @@ def install(**kwargs):
   module finishes loading.
 - Tolerates a missing `loader` section (no error); the `api/` package is then discovered via the `install()` default
   `loaders`, unless the caller passed `loaders=[]` to disable it.
-- Mutates `context['pytest_plugins']` in place.
+- Writes the deduplicated plugin list back to `context['pytest_plugins']` (same key).

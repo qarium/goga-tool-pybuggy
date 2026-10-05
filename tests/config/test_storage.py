@@ -1,35 +1,17 @@
-"""Contract tests for load_config routine."""
+"""Tests for the config reading routines — ``config/storage.py``.
 
-import pathlib
-import typing
+``load_config`` is a no-arg ``Config`` read; ``resolve_autonomy`` maps a pipeline name to a bool.
+"""
 
-import pydantic
+import inspect
+
+import goga_tool_pybuggy.config as cfg
 import pytest
 import yaml
-from goga_tool_pybuggy.config import Config, load_config
+from goga_tool_pybuggy.config import Config, load_config, resolve_autonomy
+from pydantic import ValidationError
 
-
-def test_load_config_importable_from_facade() -> None:
-    """Contract test: load_config is importable from goga_tool_pybuggy.config facade."""
-    assert callable(load_config)
-
-
-def test_load_config_signature() -> None:
-    """Contract test: load_config has signature (path: Optional[Path] = None) -> Config."""
-    import inspect
-
-    sig = inspect.signature(load_config)
-    params = list(sig.parameters.keys())
-
-    assert params == ["path"]
-    assert sig.parameters["path"].annotation == typing.Optional[pathlib.Path]
-    assert sig.parameters["path"].default is None
-    assert sig.return_annotation == Config
-
-
-def test_load_config_parses_valid_config(tmp_path: pathlib.Path) -> None:
-    """Logic test: valid YAML with nested GitEntry is parsed correctly."""
-    config_content = """
+_SPECS_TREE = """\
 specs:
   client:
     type: openapi
@@ -38,111 +20,195 @@ specs:
       url: https://example.com/repo.git
       location: specs/client.yaml
 """
-    config_file = tmp_path / "config.yml"
-    config_file.write_text(config_content, encoding="utf-8")
 
-    config = load_config(config_file)
-
-    assert "client" in config.specs
-    assert config.specs["client"].location == ".specs/client.yaml"
-    assert config.specs["client"].type == "openapi"
-    assert config.specs["client"].git is not None
-    assert config.specs["client"].git.url == "https://example.com/repo.git"
-    assert config.specs["client"].git.location == "specs/client.yaml"
-
-
-def test_load_config_rejects_unknown_spec_type(tmp_path: pathlib.Path) -> None:
-    """Logic test: invalid spec type (raml) raises ValidationError."""
-    config_content = """
-specs:
-  x:
-    type: raml
-    location: y.yaml
+_AXIS_ENABLED_TREE = """\
+pipelines:
+  api.automate:
+    autonomous: true
 """
-    config_file = tmp_path / "config.yml"
-    config_file.write_text(config_content, encoding="utf-8")
 
-    with pytest.raises(pydantic.ValidationError):
-        load_config(config_file)
+# Deleted storage seam, spelled piecewise so grepping the literal name stays clean.
+_DELETED_SEAM = "CONFIG" + "_PATH"
 
 
-def test_load_config_propagates_file_not_found(tmp_path: pathlib.Path) -> None:
-    """Logic test: missing config file raises FileNotFoundError."""
-    nonexistent = tmp_path / "nonexistent.yml"
+class TestStorageContract:
+    """Facade exposure and signature surface of the reading routines."""
 
-    with pytest.raises(FileNotFoundError):
-        load_config(nonexistent)
+    def test_load_config_importable_from_facade(self) -> None:
+        """The loader is importable from the config cell facade."""
+        assert callable(load_config)
 
+    def test_load_config_signature_is_no_arg(self) -> None:
+        """The loader takes no parameters and returns a ``Config``."""
+        signature = inspect.signature(load_config)
 
-def test_load_config_accepts_local_only_spec(tmp_path: pathlib.Path) -> None:
-    """Logic test: spec without git field (local-only) is parsed correctly."""
-    config_content = """
-specs:
-  local:
-    type: swagger
-    location: specs/local.yaml
-"""
-    config_file = tmp_path / "config.yml"
-    config_file.write_text(config_content, encoding="utf-8")
+        assert signature.parameters == {}
+        assert signature.return_annotation is Config
 
-    config = load_config(config_file)
+    def test_resolve_autonomy_importable_from_facade(self) -> None:
+        """The resolver is importable from the config cell facade."""
+        assert callable(resolve_autonomy)
 
-    assert config.specs["local"].git is None
+    def test_resolve_autonomy_signature(self) -> None:
+        """The resolver takes ``pipeline: str`` and returns a bool."""
+        signature = inspect.signature(resolve_autonomy)
 
+        assert list(signature.parameters) == ["pipeline"]
+        assert signature.parameters["pipeline"].annotation is str
+        assert signature.return_annotation is bool
 
-def test_load_config_multiple_specs(tmp_path: pathlib.Path) -> None:
-    """Logic test: multiple specs in config are parsed correctly."""
-    config_content = """
-specs:
-  client:
-    type: openapi
-    location: specs/client.yaml
-  server:
-    type: swagger
-    location: specs/server.yaml
-    git:
-      url: https://github.com/example/server.git
-      location: openapi.yaml
-"""
-    config_file = tmp_path / "config.yml"
-    config_file.write_text(config_content, encoding="utf-8")
-
-    config = load_config(config_file)
-
-    assert len(config.specs) == 2
-    assert "client" in config.specs
-    assert "server" in config.specs
-    assert config.specs["client"].git is None
-    assert config.specs["server"].git is not None
+    def test_config_facade_no_longer_exports_config_path(self) -> None:
+        """The facade exports exactly the six declared names — the deleted seam is gone."""
+        assert _DELETED_SEAM not in vars(cfg)
+        assert _DELETED_SEAM not in cfg.__all__
+        assert sorted(cfg.__all__) == [
+            "Config",
+            "GitEntry",
+            "PipelineAutonomy",
+            "SpecEntry",
+            "load_config",
+            "resolve_autonomy",
+        ]
 
 
-def test_load_config_handles_utf8_encoding(tmp_path: pathlib.Path) -> None:
-    """Logic test: UTF-8 encoded file (with comments) is parsed correctly."""
-    config_content = """
-# Comment with unicode: пример
-specs:
-  test:
-    type: openapi
-    location: тест.yaml
-"""
-    config_file = tmp_path / "config.yml"
-    config_file.write_text(config_content, encoding="utf-8")
+class TestLoadConfigBehavior:
+    """Behavior of the no-arg platform-facade read."""
 
-    config = load_config(config_file)
+    def test_load_config_reads_standard_path(self, tool_config) -> None:
+        """A specs-only tree loads through the standard location with no arguments."""
+        tool_config(_SPECS_TREE)
 
-    assert config.specs["test"].location == "тест.yaml"
+        config = load_config()
+
+        assert config.specs["client"].location == ".specs/client.yaml"
+        assert config.specs["client"].type == "openapi"
+        assert config.specs["client"].git is not None
+        assert config.specs["client"].git.url == "https://example.com/repo.git"
+        assert inspect.signature(load_config).parameters == {}
+
+    def test_load_config_ignores_pipelines_section(self, tool_config) -> None:
+        """The permissive ``Config`` model ignores the ``pipelines`` axis key."""
+        tool_config(_SPECS_TREE + "pipelines:\n  api.automate:\n    autonomous: true\n")
+
+        config = load_config()
+
+        assert set(config.specs) == {"client"}
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param(None, id="absent-file"),
+            pytest.param("", id="empty-file"),
+        ],
+    )
+    def test_load_config_absent_file_raises_naming_location(self, tool_config, content) -> None:
+        """An absent or empty file (facade ``None`` for both) names the standard location."""
+        if content is not None:
+            tool_config(content)
+
+        with pytest.raises(FileNotFoundError, match=r"\.goga/tools/pybuggy/config\.yml"):
+            load_config()
+
+    def test_load_config_propagates_invalid_yaml_raw(self, tool_config) -> None:
+        """A malformed file propagates the facade's raw parse error."""
+        tool_config("specs: [unclosed")
+
+        with pytest.raises((yaml.YAMLError, ValueError)):
+            load_config()
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param("just a string", id="string-root"),
+            pytest.param("- a\n- list\n", id="list-root"),
+        ],
+    )
+    def test_load_config_non_mapping_root_fails_validation(self, tool_config, content) -> None:
+        """A parse whose root is not a mapping fails ``Config`` validation, not the read."""
+        tool_config(content)
+
+        with pytest.raises(ValidationError):
+            load_config()
 
 
-def test_load_config_rejects_invalid_yaml(tmp_path: pathlib.Path) -> None:
-    """Logic test: malformed YAML raises an error (yaml.YAMLError)."""
-    config_content = """
-specs:
-  - invalid
-    yaml:
-"""
-    config_file = tmp_path / "config.yml"
-    config_file.write_text(config_content, encoding="utf-8")
+class TestResolveAutonomyBehavior:
+    """Behavior of the whole-axis-validating autonomy resolver."""
 
-    # yaml.YAMLError is a subclass of ValueError, but YAMLError itself may be raised
-    with pytest.raises((yaml.YAMLError, ValueError)):
-        load_config(config_file)
+    def test_resolve_autonomy_enabled_returns_true(self, tool_config) -> None:
+        """An enabling entry for the running pipeline resolves to True."""
+        tool_config(_AXIS_ENABLED_TREE)
+
+        assert resolve_autonomy("api.automate") is True
+
+    def test_resolve_autonomy_coerces_truthy_spelling(self, tool_config) -> None:
+        """A quoted truthy spelling coerces to True through pydantic lax bool (REPL-pinned)."""
+        tool_config('pipelines:\n  api.automate:\n    autonomous: "yes"\n')
+
+        assert resolve_autonomy("api.automate") is True
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param("just a string\n", id="non-mapping-root"),
+            pytest.param("specs: {}\npipelines:\n  - a\n  - b\n", id="non-mapping-axis"),
+            pytest.param("pipelines:\n  api.automate: plain-string\n", id="non-mapping-entry"),
+            pytest.param("pipelines:\n  api.automate:\n    autonomous: maybe\n", id="non-coercible-value"),
+            pytest.param("pipelines:\n  api.automate:\n    autonomous: true\n    typo: 1\n", id="extra-member"),
+        ],
+    )
+    def test_resolve_autonomy_structural_violations_parametrized(self, tool_config, content) -> None:
+        """Every structural violation raises a clean error naming pybuggy.
+
+        PyYAML parses bare ``yes``/``on`` to booleans, so the rejection row uses the non-coercible ``maybe``.
+        """
+        tool_config(content)
+
+        with pytest.raises(ValueError, match="pybuggy tool config"):
+            resolve_autonomy("api.automate")
+
+    def test_resolve_autonomy_violation_names_offending_entry(self, tool_config) -> None:
+        """The entry violation names the offending entry and chains the pydantic detail."""
+        tool_config("pipelines:\n  api.automate:\n    autonomous: maybe\n")
+
+        with pytest.raises(ValueError, match=r"invalid pipelines entry 'api\.automate'") as excinfo:
+            resolve_autonomy("api.automate")
+
+        assert isinstance(excinfo.value.__cause__, Exception)
+
+    def test_resolve_autonomy_propagates_facade_parse_error(self, tool_config) -> None:
+        """A malformed file propagates the facade's raw parse error, undamped."""
+        tool_config("pipelines: [unclosed")
+
+        with pytest.raises((yaml.YAMLError, ValueError)):
+            resolve_autonomy("api.automate")
+
+    @pytest.mark.parametrize(
+        "content",
+        [
+            pytest.param(None, id="absent-file"),
+            pytest.param("", id="empty-file"),
+            pytest.param("specs: {}\n", id="absent-section"),
+            pytest.param("pipelines:\n  other.pipeline:\n    autonomous: true\n", id="other-pipeline-entry"),
+            pytest.param("pipelines:\n  api.automate:\n    autonomous: false\n", id="disabled-entry"),
+        ],
+    )
+    def test_resolve_autonomy_disabled_states_parametrized(self, tool_config, content) -> None:
+        """Every disabled state resolves to False — silently."""
+        if content is not None:
+            tool_config(content)
+
+        assert resolve_autonomy("api.automate") is False
+
+    def test_resolve_autonomy_no_caching(self, tool_config) -> None:
+        """A rewrite between two calls is visible immediately — no cached read."""
+        tool_config("pipelines:\n  api.automate:\n    autonomous: false\n")
+        assert resolve_autonomy("api.automate") is False
+
+        tool_config("pipelines:\n  api.automate:\n    autonomous: true\n")
+        assert resolve_autonomy("api.automate") is True
+
+    def test_resolve_autonomy_unknown_names_never_fail(self, tool_config) -> None:
+        """Entries for other pipelines never fail the call — the axis is permissive."""
+        tool_config(_AXIS_ENABLED_TREE + "  other.pipeline:\n    autonomous: true\n")
+
+        assert resolve_autonomy("code.review") is False

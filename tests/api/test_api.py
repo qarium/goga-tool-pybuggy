@@ -1,12 +1,6 @@
 """Contract and logic tests for `goga_tool_pybuggy.api.api`.
 
-Contract tests (``TestApi``) lock the facade/API shape: importability,
-construction, the set of stored-field properties, the removed
-``data_key``/``error_key`` parameters, the read/write ``auth`` property, and the
-``request`` signature. Logic tests (``TestApiProperties``) cover the property
-values and defaults. ``request`` serialization behavior (pydantic dump,
-``:name`` substitution, headers/cookies merge, auth precedence, verb dispatch)
-is asserted in ``tests/api/test_api_request.py``.
+``request`` serialization behavior is asserted in ``tests/api/test_api_request.py``.
 """
 
 from __future__ import annotations
@@ -154,10 +148,7 @@ class TestApiProperties:
 class TestApiAdapter:
     """Contract + behavior tests for the resq adapter plumbing.
 
-    ``Api`` owns the adapter: it validates the name (sync-only — ``"requests"``),
-    builds the default session with it, and resolves per-request sessions via
-    ``_get_session``. The async ``"httpx"`` adapter is rejected until an async
-    stack lands.
+    ``Api`` validates the adapter name (sync-only) and resolves per-request sessions via ``_get_session``.
     """
 
     def test_adapter_defaults_to_requests(self) -> None:
@@ -211,8 +202,7 @@ class TestApiAdapter:
     def test_get_session_builds_and_caches_override(self) -> None:
         """_get_session builds (once) and caches a session for a non-default adapter.
 
-        Validation is bypassed and resq.Session is patched so an otherwise-forbidden
-        adapter name can exercise the build+cache path structurally.
+        Validation is bypassed and ``resq.Session`` is patched to reach the build+cache path.
         """
         api = Api(base_url="https://x", timeout=5.0)
         fake_session = mock.Mock()
@@ -233,11 +223,7 @@ class TestApiAdapter:
 class TestApiClose:
     """Contract + behavior tests for `Api.close()`.
 
-    `close()` delegates to the composed `resq.Session`'s public `close()`. In
-    sync mode (the only mode pybuggy uses — `adapter="requests"`) that close is
-    a no-op by resq's design: the held `requests.Session` is released by garbage
-    collection. These tests pin that contract: `close` is callable, delegates to
-    the public `resq.Session.close()`, and is idempotent.
+    In sync mode the delegated close is a no-op by resq's design; ``close`` is idempotent.
     """
 
     def test_close_is_callable_method(self) -> None:

@@ -4,6 +4,7 @@ Imports:
       - GitEntry
     Usages:
       - configuration
+      - autonomy
     From: goga_tool_pybuggy/config
   - Types:
       - PluginConfigKeys
@@ -38,14 +39,16 @@ Annotations: |
 
   Order of actions: resolve the mode, apply the bare guard, run the scaffold engine in template and upgrade modes,
   run the onboarding session, close with the pybuggy bootstrap. The session is engine-owned: the core questions and
-  the pybuggy block are surveyed by the engine, the core convention section is skipped (the pybuggy session never
-  offers the goga base-convention download — the `conventions` slot is the bootstrap's delivery), and the additional
-  specs are surveyed by the tool itself at the amendment moment — a confirm-gated repeated group is beyond the
-  declarative engine records. The tool config file and the config amendments are committed through the participation
-  mechanism; an existing .goga/config.yml ends the session immediately and is never rewritten. The bootstrap owns
-  the pybuggy files the session does not carry: the packaged usages copy, the tool-config example documentation,
-  the `conventions` slot, the build.review.skip enforcement, the Dockerfile install line, the usage and annotation
-  registrations, and the root conftest. Use relative imports inside the cell.
+  the pybuggy block are surveyed by the engine, two core sections are skipped (the pybuggy session never offers the
+  goga base-convention download — the `conventions` slot is the bootstrap's delivery; and the engine's Dockerfile
+  gate never appears — a pybuggy project always carries a Dockerfile, the block asks the base image and the
+  built-image name itself, and the amendments deliver the fixed path). The additional specs and the autonomy confirm
+  are surveyed by the tool itself at the amendment moment — specs first, autonomy after them — a confirm-gated
+  repeated group is beyond the declarative engine records. The tool config file and the config amendments are
+  committed through the participation mechanism; an existing .goga/config.yml ends the session immediately and is
+  never rewritten. The bootstrap owns the pybuggy files the session does not carry: the packaged usages copy, the
+  tool-config example documentation, the `conventions` slot, the build.review.skip enforcement, the Dockerfile
+  install line, the usage and annotation registrations, and the root conftest. Use relative imports inside the cell.
 
 ---
 
@@ -206,8 +209,8 @@ Annotations: |
   location: session.py
   annotations: |
     Declaration moment of the participation contract: declare the pybuggy question block on the session context so the
-    engine surveys it after the core questions, under a heading with the tool identity, and skip the core convention
-    section.
+    engine surveys it after the core questions, under a heading with the tool identity, and skip two core sections —
+    the base convention and the docker image decision.
 
     `context`: the declaration surface delivered by the platform.
 
@@ -216,11 +219,13 @@ Annotations: |
     2. Declare every item of `pybuggy_questions` on the context.
     3. Skip the core convention section — a pybuggy session never offers the goga base-convention download; the
        `conventions` slot is delivered by the bootstrap with the packaged pybuggy test convention.
+    4. Skip the core docker_image section — the engine's "Create Dockerfile?" gate never appears: the block asks the
+       base image and the built-image name itself, and the amendments always deliver the Dockerfile.
 
     Requirements:
     - The no-invitation branch calls nothing — the contract rule of the moment.
     - Local question names are unique among siblings; the engine qualifies them with the tool identity.
-    - The skip no-ops with an engine warning when the section is already absent (an existing conventions file).
+    - Each skip no-ops with an engine warning when the section is already absent (an existing conventions file).
 
     Constraints:
     - Do not survey, prompt, or read answers — the engine asks the declared records itself.
@@ -231,8 +236,8 @@ Annotations: |
 "amend_pybuggy_config(context: object)":
   location: session.py
   annotations: |
-    Amendment moment of the participation contract: survey the additional specs, read the isolated answer view, and
-    buffer the pybuggy contribution — the config amendments and the tool config file.
+    Amendment moment of the participation contract: survey the additional specs and then the autonomy confirm, read
+    the isolated answer view, and buffer the pybuggy contribution — the config amendments and the tool config file.
 
     `context`: the amendment surface delivered by the platform.
 
@@ -241,8 +246,10 @@ Annotations: |
     2. Read the answer view from the context (the survey never touches it — the two reads are
        independent).
     3. Survey the additional specs via `survey_extra_specs` (the confirm-gated per-field follow-up).
-    4. Buffer every entry of `build_config_amendments` as a config amendment.
-    5. Buffer the tool config file with `build_config_data`.
+    4. Survey the autonomy confirm via `survey_autonomy` — after the spec survey, so the autonomy question never
+       interleaves the spec fields.
+    5. Buffer every entry of `build_config_amendments` as a config amendment.
+    6. Buffer the tool config file with `build_config_data`.
 
     Requirements:
     - The answer view carries the core answers plus this tool's own answers under local names.
@@ -253,36 +260,46 @@ Annotations: |
     - Do not write files directly — the engine serializes and writes the buffered config.
     - Do not read another tool's answers — they are never visible.
 
-    Use `survey_extra_specs`, `build_config_amendments`, `build_config_data`. Use `goga-onboarding-hooks` for the
-    member contract and the failure behavior. Use `goga-onboarding-generator` for the buffered file serialization.
+    Use `survey_extra_specs`, `survey_autonomy`, `build_config_amendments`, `build_config_data`.
+    Use `goga-onboarding-hooks` for the member contract and the failure behavior. Use `goga-onboarding-generator`
+    for the buffered file serialization.
 
 "pybuggy_questions() -> items:list[Question]":
   location: session.py
   annotations: |
-    Build the declarative pybuggy question block — the survey of the tool configuration, asked by the engine.
+    Build the declarative pybuggy question block — the image survey and the survey of the tool configuration, asked
+    by the engine.
 
     `items`: the question records of the block, in survey order.
 
     Algorithm:
-    1. Declare base_url as a required input — a Jinja2 template string.
-    2. Declare every scalar member of `PluginConfigKeys` except BASE_URL, HEADERS, and LOADER as an optional input,
-       each prompt stating what the field is for (BASE_URL is the required base_url input of step 1).
-    3. Declare the first-spec group: name (input), type (choice swagger|openapi), location (input), and the optional
+    1. Declare base_image as an input — the FROM of the always-created Dockerfile; the prompt embeds the goga-python
+       family hints completed with the runtime minor tag, the newest member is the default.
+    2. Declare image as an input — the built-image name; the default is "{project}:latest" from the git-derived
+       project name, and the input is required when the name is not derivable.
+    3. Declare base_url as a required input — a Jinja2 template string.
+    4. Declare every scalar member of `PluginConfigKeys` except BASE_URL, HEADERS, and LOADER as an optional input,
+       each prompt stating what the field is for (BASE_URL is the required base_url input of step 3).
+    5. Declare the first-spec group: name (input), type (choice swagger|openapi), location (input), and the optional
        git fields (input; an empty git url means no git source).
 
     Requirements:
     - The block holds exactly one nesting level — groups carry simple children only.
+    - base_image always carries an answer (its default); image carries one through the default or a required input.
     - base_url is required and its answer is a Jinja2 template; the remaining scalars are optional.
     - The first-spec group makes at least one spec structurally unavoidable: its answer is always recorded.
 
     Constraints:
     - Do not survey HEADERS or LOADER — the bootstrap documents them as commented example records in the tool config.
+    - Do not declare a Dockerfile-path question — the path is the fixed constant delivered by `build_config_amendments`.
+    - Do not declare an autonomy question — the autonomy confirm is surveyed by `survey_autonomy` at the amendment
+      moment, after the spec survey.
     - Do not declare a compact additional-specs record — the additional specs are surveyed by `survey_extra_specs` at
       the amendment moment (a confirm-gated repeated group is beyond the declarative records).
     - Do not duplicate plugin key names — iterate `PluginConfigKeys`.
 
     Use `goga-onboarding-questions` for the record kinds and the nesting rule. Use `PluginConfigKeys` for the scalar
-    key set. Use `conventions` for type hints and testing.
+    key set. Use `autonomy` for the axis the amend-moment answer gates. Use `conventions` for type hints and testing.
 
 "survey_extra_specs() -> specs:list[dict[str, object]]":
   location: session.py
@@ -310,55 +327,92 @@ Annotations: |
 
     Use `conventions` for logging-free TTY practices and testing.
 
-"build_config_data(answers: dict[str, object], extra_specs: list[dict[str, object]] | None) -> data:dict[str, object]":
+"survey_autonomy() -> autonomous:bool":
   location: session.py
   annotations: |
-    Pure mapping of the tool answer view into the tool config file payload: the specs mapping and the answered scalar
-    keys.
+    Interactively survey the autonomy confirm — the closing question of the amendment moment, asked by the tool after
+    `survey_extra_specs` completed, so the autonomy question never interleaves the spec fields.
+
+    `autonomous`: the autonomy answer — true enables the unattended api.automate window.
+
+    Algorithm:
+    1. Ask "Run the api.automate pipeline unattended (autonomous mode)?" as a confirm (default no) and return the
+       answer.
+
+    Requirements:
+    - The prompt text is identical to the former block question; the disabled default keeps existing projects
+      interactive until opted in.
+
+    Constraints:
+    - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole contribution
+      with a warning (the session continues).
+
+    Use `autonomy` for the axis the answer gates. Use `conventions` for logging-free TTY practices and testing.
+
+"build_config_data(answers: dict[str, object], extra_specs: list[dict[str, object]] | None, autonomous: bool) -> data:dict[str, object]":
+  location: session.py
+  annotations: |
+    Pure mapping of the tool answer view into the tool config file payload: the specs mapping, the answered scalar
+    keys, and the conditional pipelines axis entry.
 
     `answers`: the tool answer view — the block answers under local names.
     `extra_specs`: the `survey_extra_specs` mappings; None when the gate was declined.
+    `autonomous`: the `survey_autonomy` answer; false writes no axis entry.
     `data`: the serializable payload of .goga/tools/pybuggy/config.yml.
 
     Algorithm:
     1. Build the specs mapping via `parse_specs` from the first-spec group answer and the surveyed extra specs.
     2. Collect the answered scalar keys from the `PluginConfigKeys` members, dropping unanswered ones.
-    3. Return the payload: the specs mapping plus the active scalar keys.
+    3. Read `autonomous`; when it enables autonomy, add the pipelines axis entry — the api.automate record with
+       autonomous true.
+    4. Return the payload: the specs mapping plus the active scalar keys and, when enabled, the axis entry.
 
     Requirements:
     - The payload satisfies the config schema (see `configuration`): a specs mapping whose entries carry the required
       fields; the scalar plugin keys are ignored on loading.
+    - The axis entry matches the pipelines contract (see `autonomy`); the entry is absent on a disabling answer —
+      existing projects stay untouched until the user opts in.
     - The payload is plain serializable data — the engine writes the YAML.
 
     Constraints:
     - Do not prompt or touch the filesystem — pure.
-    - Do not emit commented records — the engine serializes plain data; the commented examples of the absent members
-      are added by `document_config_examples` in the bootstrap.
+    - Do not emit commented records — the commented examples of the absent members are added by
+      `document_config_examples` in the bootstrap.
 
     Use `parse_specs`. Use `PluginConfigKeys` for the scalar key set. Use `configuration` for schema compatibility.
-    Use `conventions` for type hints and testing.
+    Use `autonomy` for the axis shape. Use `conventions` for type hints and testing.
 
-"build_config_amendments() -> amendments:dict[str, object]":
+"build_config_amendments(answers: dict[str, object]) -> amendments:dict[str, object]":
   location: session.py
   annotations: |
-    Pure mapping into the buffered config amendments of the consumer .goga/config.yml.
+    Pure mapping into the buffered config amendments of the consumer .goga/config.yml, derived from the block answers.
 
-    `amendments`: the amendment paths and values.
+    `answers`: the tool answer view — the block answers under local names (the image inputs).
+    `amendments`: the amendment paths and values, in amend order.
 
     Algorithm:
     1. Amend build.review.skip to true — the review pass is skipped in pybuggy-initialized projects.
+    2. Amend the Dockerfile pair from the answered image inputs: the fixed .goga/Dockerfile path and the answered
+       base_image (the generator writes the Dockerfile from exactly this pair); the answered image name lands as
+       docker_image.image.
+    3. Amend tools with the pybuggy record pinned to the installed minor x-range — the platform merge folds it into
+       any user-collected tools, so pybuggy is always recorded; a metadata-less run records latest.
 
     Requirements:
     - The amendments are path→value pairs the platform merges into the answer space before generation.
+    - The Dockerfile always exists after a pybuggy session — the pair is delivered whenever the block answered the
+      base image (its default guarantees the answer).
     - The build.review.skip amendment is the tool's declared intent in the session answer space: the engine
       config mapper emits only agent/env for the build block, so the flag reaches the consumer config through
       `ensure_review_skip` of the bootstrap — the single enforcement point.
+    - The pybuggy tools record overrides a user-typed pybuggy entry — the installed minor line is authoritative.
 
     Constraints:
-    - Do not amend keys outside the named path.
+    - Do not amend keys outside the named paths.
     - Do not write the config file — amendments are buffered on the context.
 
-    Use `goga-onboarding-hooks` for the amendment semantics. Use `conventions` for type hints and testing.
+    Use `goga-onboarding-hooks` for the amendment semantics and the merge behavior. Use `conventions` for type hints
+    and testing.
 
 "parse_specs(spec_answers: dict[str, object], extra_specs: list[dict[str, object]] | None) -> specs:dict[str, SpecEntry]":
   location: session.py
@@ -503,7 +557,7 @@ Annotations: |
 
     `config_path`: path to the consumer .goga/config.yml.
     `usage_keys`: mapping of usage key to the relative path of the usage file to register (pybuggy-<stem> →
-    .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
+      .goga/usages/cooks/pybuggy/<stem>.md; conventions → .goga/usages/conventions.md).
     `added_keys`: the keys actually added (pre-existing keys skipped).
 
     Algorithm:

@@ -2,36 +2,40 @@
 
 ## Explicit scope governance
 
-Approval covers only what was clearly confirmed and explicitly approved: single-item emphasis in an approval reply is treated as a mandate for that item alone and resolved with one short, option-scoped follow-up question before implementation. A fix is confined to the explicitly approved minimal set of spec-level value edits, leaving keys, annotations, signatures, footers, and runtime code untouched, and is confirmed through the project's standard validation gates plus the full regression suite rather than by widening the change. Once scope is settled, discovered drift outside it is left untouched and flagged as a recommended follow-up in the final report rather than silently absorbed into the change.
+Approval covers only what was clearly confirmed and explicitly approved: single-item emphasis in an approval reply is treated as a mandate for that item alone and resolved with one short, option-scoped follow-up question before implementation. Once the scope is approved, remediation is complete and single-pass: when every review finding is fixable within the design artifact itself and no governing contract is violated, all findings — including minor test-gap findings — are applied in one pass, the affected chains are then re-verified against the live stack, nothing is deferred or recorded as skipped, and the contracts stay unchanged; edits remain confined to the explicitly approved minimal set of spec-level value edits, leaving keys, annotations, signatures, footers, and runtime code untouched, with confirmation through the project's standard validation gates plus the full regression suite rather than by widening the change. When a proposed remedy is rejected as too aggressive, the rework removes only the confirmed defect and preserves the legitimate interactions entangled with it — collapsing a flawed prompt into total silent automation with zero remaining questions is over-correction, not a fix. Once scope is settled, discovered drift outside it is left untouched and flagged as a recommended follow-up in the final report rather than silently absorbed into the change.
 
-## Config-rename reference reconciliation
+## Confirm-gated imperative interaction flows
 
-Renaming a usage group or dependency in the project config physically relocates the synced usage files but never rewrites the manifest references to them, so the manifest path entries must always be updated by hand after such a rename.
+Within the project's init command, artifacts that are structural invariants of the bootstrap are never surfaced as yes/no gates, since declining could only guarantee a later failure; the flow asks only for values that are genuinely configurable — such as the base image version and the build image name — and the artifact is always produced from those answers. Scope-wide confirmations, such as the autonomy flag, are asked only after the specification survey has fully completed, meaning after the first entry plus the entire "add another entry?" cycle; asking them inside the cycle because of declaration order is the defect being corrected, and the resulting configuration key and its contract stay unchanged. Fixed fields stay as declarative survey records, while any confirm-gated, branched, or repeated prompting — inexpressible in the engine's flat, one-level question model — is implemented as imperative code invoked from the amendment-time participation hook, with its results fed into the config payload; encoding such flows as static question trees is rejected because they flatten into plain sequential records. When such a flow collects repeating multi-field records, each record is gated behind a confirm prompt, then every field is asked individually in the same order as the primary record (required fields re-asked until valid, trailing optional fields skippable), looping back to the gate until declined; compressing repeated records into a single hand-typed delimited line is rejected.
 
 ## Honest contract surface
 
 Contract declarations and usage documentation must describe only what the engine actually consumes and enforces: drop declarations that can never execute, narrow signatures to live parameters, name the real enforcement point when the engine silently discards a declared value, and document the gap for flows that bypass the tooling entirely, so no reader is promised a delivery that never happens.
 
-## Confirm-gated imperative interaction flows
+## Documentation–code consistency
 
-Fixed fields stay as declarative survey records, while any confirm-gated, branched, or repeated prompting — inexpressible in the engine's flat, one-level question model — is implemented as imperative code invoked from the amendment-time participation hook, with its results fed into the config payload; encoding such flows as static question trees is rejected because they flatten into plain sequential records. When such a flow collects repeating multi-field records, each record is gated behind a confirm prompt, then every field is asked individually in the same order as the primary record (required fields re-asked until valid, trailing optional fields skippable), looping back to the gate until declined; compressing repeated records into a single hand-typed delimited line is rejected.
+Factual statements in design documents must match the code they describe: dependency lists must exclude modules the code never calls, exception-handling claims must reflect the actual catch tuples and exception inheritance, and module layouts must include every constant the code reads; a consistency fix must remain purely textual and never smuggle in a behavioral change. Whenever a cell's behavior changes, three surfaces move in lockstep: the cell manifest, the cell-level usage files, and the public docs. Because stale fragments of old behavior hide in unexpected documents, a repository-wide text search for strings naming the old behavior is mandatory afterward; reviewing only the touched files is insufficient.
 
 ## Explicit failure-branch decisions
 
 When a redesign silently changes product behavior, most notably an optional-component decline that ends in an error exit while leaving partially initialized state that the re-entry guard then refuses, the branch must be owned as a deliberate, documented design decision: recorded in the design's environment and edge-case sections, presented as a normal outcome in usage documentation, noted in migration notes when it diverges from the previous major version, and covered by a negative test variant; it must never be left implicit or softened into a warning that defers the breakage to a later, mysterious failure.
 
-## Documentation–code consistency
+## Pinned interaction scripts
 
-Factual statements in design documents must match the code they describe: dependency lists must exclude modules the code never calls, exception-handling claims must reflect the actual catch tuples and exception inheritance, and module layouts must include every constant the code reads; a consistency fix must remain purely textual and never smuggle in a behavioral change.
+Executable validation steps described in design documents must pin the exact scripted answer map for interactive flows: which prompts lack a default and require an explicit value, which confirmations default to declining, and which gates must be declined to keep the run offline and deterministic; a vague "accept the defaults" instruction is invalid because defaults silently depend on the environment.
 
-## Exclusive output-slot ownership
+## Implicit tool registration
 
-Each generated output slot has exactly one writer: when the generic engine writer would fill a slot first and thereby defeat a component's skip-if-exists gate, the session declares that slot skipped so the engine never writes it and the owning component's packaged asset lands instead; relying on the gate to win a double-writer race is rejected.
+The project's own runtime tool is always recorded in the generated configuration no matter how the optional-tools question is answered; that question exists solely for adding other tools, so manually typed duplicates of the implicit entry are overridden while user-entered additional tools are preserved.
 
 ## Post-hoc comment restoration for generated configs
 
 Config serialized through a data-only buffer cannot carry documentation comments, so commented examples for absent or optional members are re-inserted after writing by the owning side: idempotently via marker detection, in canonical key order anchored before the next active key, never touching active entries, and a no-op when the file is absent; emitting plain serialized data and dropping the examples is rejected.
 
-## Pinned interaction scripts
+## Config-rename reference reconciliation
 
-Executable validation steps described in design documents must pin the exact scripted answer map for interactive flows: which prompts lack a default and require an explicit value, which confirmations default to declining, and which gates must be declined to keep the run offline and deterministic; a vague "accept the defaults" instruction is invalid because defaults silently depend on the environment.
+Renaming a usage group or dependency in the project config physically relocates the synced usage files but never rewrites the manifest references to them, so the manifest path entries must always be updated by hand after such a rename.
+
+## Exclusive output-slot ownership
+
+Each generated output slot has exactly one writer: when the generic engine writer would fill a slot first and thereby defeat a component's skip-if-exists gate, the session declares that slot skipped so the engine never writes it and the owning component's packaged asset lands instead; relying on the gate to win a double-writer race is rejected.

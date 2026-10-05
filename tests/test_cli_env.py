@@ -31,8 +31,7 @@ def test_main_has_env_file_option() -> None:
 
     env_file_param = next((p for p in main.params if p.name == "env_file"), None)
     assert env_file_param is not None
-    # The eager callback must actually be registered on the option — not merely exist in
-    # the module — otherwise env loading silently never fires through click's dispatch.
+    # The callback must be wired on the option itself, or env loading never fires.
     assert env_file_param.callback is cli._load_env_callback
 
 
@@ -92,11 +91,7 @@ def test_env_file_option_must_precede_subcommand(monkeypatch: pytest.MonkeyPatch
 def test_main_env_file_applied_before_subcommand(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Driving main through click applies --env-file before the subcommand runs.
 
-    Positive coverage of the click dispatch boundary (the eager callback firing in a real
-    ``runner.invoke``): ``PYBUGGY_REF`` from the .env lands in ``os.environ`` before the
-    ``pull`` subcommand's handler runs. Without ``callback=_load_env_callback`` wired on
-    the option, this fails (env never loads) — the one-line regression the direct-call
-    tests cannot catch.
+    Regression for the ``callback`` wiring: without it the .env never loads through real click dispatch.
     """
     from goga_tool_pybuggy import main
 
@@ -126,26 +121,20 @@ def test_main_env_file_applied_before_subcommand(tmp_path: Path, monkeypatch: py
 def test_load_env_then_run_pull_env_coupling(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """load_env writes PYBUGGY_REF to os.environ, then click's --ref envvar feeds run_pull.
 
-    Proves the feature's foundation — the loose ``os.environ`` bridge between the ROOT
-    cell (``load_env`` applies the ``.env`` with ``override=False`` via the eager
-    ``--env-file`` callback) and the pull cell (``pull_cmd``'s ``--ref`` reads
-    ``PYBUGGY_REF`` via click's envvar) with no ``Imports`` edge between them. Driven
-    through the CLI so the eager callback and the envvar both fire; only the git-clone
-    boundary is mocked.
+    Bridges ``load_env`` to ``pull_cmd`` via ``os.environ`` with no ``Imports`` edge; only the git clone is mocked.
     """
     from unittest.mock import patch
 
     from click.testing import CliRunner
     from goga_tool_pybuggy import main
 
-    config_path_attr = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
-
     env_file = tmp_path / ".env"
     env_file.write_text("PYBUGGY_REF=v2\n")
     monkeypatch.delenv("PYBUGGY_REF", raising=False)
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
 specs:
@@ -157,14 +146,12 @@ specs:
       location: specs/client.yaml
 """
     )
-    monkeypatch.setattr(config_path_attr, config_path)
 
     clone_root = tmp_path / "clone"
     (clone_root / "specs").mkdir(parents=True)
     (clone_root / "specs" / "client.yaml").write_text("spec content")
 
-    # ROOT side: the eager --env-file callback applies the .env to os.environ;
-    # pull side: pull_cmd's --ref envvar reads PYBUGGY_REF and feeds run_pull.
+    # The eager callback applies the .env; pull_cmd's --ref envvar reads PYBUGGY_REF from it.
     with patch("goga_tool_pybuggy.commands.pull.pull.clone_repo") as mock_clone:
         mock_clone.return_value.__enter__.return_value = str(clone_root)
         result = CliRunner().invoke(main, ["--env-file", str(env_file), "endpoint", "pull"])

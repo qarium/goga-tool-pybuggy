@@ -7,19 +7,12 @@ from .endpoint import Endpoint
 
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
 
-# A response key as allowed by both specifications: a three-digit code, `default`,
-# or a code range wildcard (`2XX`). Response keys become artifact filenames
-# (`schemas/<status_code>.json` in generate), so anything outside this shape —
-# in particular a key carrying `..`/`/` — is rejected instead of written.
-# Anchored with `\Z`, not `$` — `$` also matches just before a trailing newline,
-# so a key written as `"200\n"` would pass validation and become a filename
-# carrying an embedded newline.
+# Allowed response keys: 3-digit code, `default`, or `2XX` wildcard — keys become artifact filenames.
+# Anchored with `\Z`, not `$` — `$` also matches just before a trailing newline.
 _RESPONSE_KEY_RE = re.compile(r"^(?:[0-9]{3}|default|[1-5]XX)\Z", re.IGNORECASE)
 
 # Whitelist of inlined type fields used to filter Swagger 2.0 query and path params.
-# `x-nullable` is intentionally included so the Swagger nullable keyword reaches
-# `_normalize_nullable`; without it the keyword is dropped before normalization
-# and the parameter's nullability is silently lost (review fix).
+# `x-nullable` is kept so the Swagger nullable keyword reaches `_normalize_nullable`.
 _TYPE_FIELDS = (
     "type",
     "format",
@@ -30,22 +23,15 @@ _TYPE_FIELDS = (
     "x-nullable",
 )
 
-# JSON-Schema keywords whose value is a {property-name: schema} map rather than a
-# schema fragment. When recursing, ``_normalize_nullable`` treats these as
-# containers, not schemas — so a property literally named ``nullable`` /
-# ``x-nullable`` is not mistaken for the nullability keyword and dropped.
+# Keywords whose value is a {property-name: schema} map, not a schema itself;
+# a property named ``nullable`` must not be mistaken for the nullability keyword.
 _PROPERTY_MAP_KEYS = ("properties", "patternProperties")
 
 
 def detect_spec_version(spec: dict[str, Any]) -> str:
     """Classify a parsed spec by its content as ``"swagger"`` or ``"openapi"``.
 
-    The format is determined from the spec's **content** — the presence of a
-    top-level ``swagger`` key (Swagger 2.0) or ``openapi`` key (OpenAPI 3.x) —
-    independently of any declarative config type field. A spec declaring neither
-    top-level key contradicts both specifications and is invalid.
-
-    Pure function — no I/O, no parsing.
+    Determined from the spec's content, not from any declarative config type field.
 
     Args:
         spec: the dereferenced spec dict (output of ``load_spec``).
@@ -68,21 +54,15 @@ def detect_spec_version(spec: dict[str, Any]) -> str:
 def _extract_request(operation: dict[str, Any], version: str) -> dict[str, Any]:
     """Extract the request-body schema from an operation in a format-aware way.
 
-    OpenAPI 3.x reads the schema from ``requestBody.content.application/json``;
-    Swagger 2.0 reads it from the ``in: body`` parameter's root ``schema``.
-
     Args:
         operation: a single operation dict (``paths[path][method]``).
         version: the detected spec version (``"openapi"`` or ``"swagger"``).
 
     Returns:
-        The resolved request schema, or ``{}`` when absent or explicitly null
-        (a ``schema: null`` fragment has no usable schema and degrades to ``{}``).
+        The resolved request schema, or ``{}`` when absent or explicitly null.
     """
     if version == "openapi":
-        # Every level degrades on a null value the same way — `requestBody:`,
-        # `content:` or `application/json:` with no body parses to None, and a
-        # `.get` chain on it would raise before reaching the `or {}` fallback.
+        # Each level may parse to None, so every `.get` is guarded by `or {}`.
         body = operation.get("requestBody") or {}
         content = body.get("content") or {}
         json_content = content.get("application/json") or {}
@@ -99,11 +79,7 @@ def _extract_request(operation: dict[str, Any], version: str) -> dict[str, Any]:
 def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any]:
     """Extract response schemas from an operation in a format-aware way.
 
-    OpenAPI 3.x unwraps ``content.application/json.schema``; Swagger 2.0 reads
-    ``schema`` directly (no ``content`` wrapper). A response key outside the
-    shapes both specifications allow (three digits, ``default``, a ``2XX`` range
-    wildcard) raises — the key becomes an artifact filename downstream, so a
-    spec carrying ``../``-style content must not reach any write path.
+    An illegal response key raises — keys become artifact filenames downstream.
 
     Args:
         operation: a single operation dict (``paths[path][method]``).
@@ -116,8 +92,7 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
     Raises:
         ValueError: If a response key is not a legal status key.
     """
-    # `responses:` with no value parses to None — an operation without declared
-    # responses, not a crash on the validation loop below.
+    # `responses:` with no value parses to None — treated as no declared responses.
     responses = operation.get("responses") or {}
     for code in responses:
         if not _RESPONSE_KEY_RE.match(str(code)):
@@ -125,10 +100,8 @@ def _extract_responses(operation: dict[str, Any], version: str) -> dict[str, Any
                 f"invalid response status key {code!r} "
                 f"(expected a 3-digit code, 'default' or a range wildcard like '2XX')"
             )
-    # Keys are stringified: an unquoted YAML `200:` parses to the int 200, and
-    # the validated key must also be the returned key — `Endpoint.response` is
-    # `dict[str, Any]`, so an int key would fail model construction with an
-    # unrelated message after this check already accepted it.
+    # Keys are stringified: an unquoted YAML `200:` parses to int, and an int
+    # key would fail `Endpoint.response` model construction.
     if version == "openapi":
         return {
             str(code): ((resp or {}).get("content") or {}).get("application/json", {}).get("schema") or {}
@@ -143,10 +116,6 @@ def _extract_params(
     location: Literal["query", "path"],
 ) -> dict[str, Any]:
     """Extract parameter schemas for one ``in`` location in a format-aware way.
-
-    OpenAPI 3.x reads each parameter's nested ``schema``; Swagger 2.0 reads the
-    inlined type fields, filtered by ``_TYPE_FIELDS`` (which keeps
-    ``x-nullable`` so it reaches ``_normalize_nullable``).
 
     Args:
         all_params: merged path-item + operation parameters.
@@ -177,17 +146,7 @@ def _extract_params(
 def _normalize_nullable(node: Any) -> Any:
     """Rewrite OpenAPI/Swagger nullability into JSON-Schema union types.
 
-    ``nullable`` (OpenAPI 3.0) and ``x-nullable`` (Swagger 2.0) are extensions,
-    not part of JSON Schema; the ``jsonschema`` validator used at runtime ignores
-    both, so a schema fragment with ``{"type": "object", "nullable": true}``
-    rejects a ``null`` value. This rewrites every nullable fragment to the
-    JSON-Schema equivalent — ``{"type": [<types...>, "null"]}`` — and drops the
-    originating key, recursing through ``properties``, ``items``,
-    ``additionalProperties`` and the ``anyOf``/``oneOf``/``allOf`` composition
-    arrays. Non-container fragments are returned unchanged.
-
-    Applied at the spec → internal JSON-Schema boundary so every consumer of
-    ``Endpoint`` (generate, info, list, …) sees one consistent schema shape.
+    The ``jsonschema`` validator ignores ``nullable``/``x-nullable``, hence the rewrite.
 
     Args:
         node: a resolved schema fragment (dict / list / scalar).
@@ -199,17 +158,13 @@ def _normalize_nullable(node: Any) -> Any:
         result = {}
         for key, value in node.items():
             if key in _PROPERTY_MAP_KEYS and isinstance(value, dict):
-                # `properties`/`patternProperties` map property names to their
-                # schemas; the container is NOT itself a schema fragment. Recurse
-                # into each property's schema without popping on the container, so
-                # a property literally named "nullable"/"x-nullable" survives.
+                # `properties`/`patternProperties` hold {name: schema} maps, not
+                # schemas; recurse per property so a property named "nullable" survives.
                 result[key] = {name: _normalize_nullable(schema) for name, schema in value.items()}
             else:
                 result[key] = _normalize_nullable(value)
 
-        # Both originating keys are dropped unconditionally; the union is formed
-        # when either is literally ``True``. A `false` value drops the key
-        # without forming a union.
+        # Both keys are dropped unconditionally; the union forms only when either is ``True``.
         nullable_val = result.pop("nullable", None)
         x_nullable_val = result.pop("x-nullable", None)
         if nullable_val is True or x_nullable_val is True:
@@ -236,17 +191,7 @@ def _normalize_nullable(node: Any) -> Any:
 def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
     """Extract endpoint information from an OpenAPI or Swagger spec dictionary.
 
-    Detects the spec format via :func:`detect_spec_version` and routes field
-    extraction accordingly, then normalizes every extracted schema to the
-    JSON-Schema union nullable form. Iterates ``spec["paths"]``, extracting
-    operations for each HTTP method; path-item parameters are inherited by all
-    operations.
-
-    Both query parameters (``in: query``) and URL path variables (``in: path``)
-    are extracted from the merged path-item + operation parameter list. Path
-    variables are keyed by their declared parameter name and land in
-    ``Endpoint.path_params``; the path template is trusted — declared variables
-    are never cross-validated against the ``{name}`` segments of the path.
+    Declared path variables are never cross-validated against the path's ``{name}`` segments.
 
     Args:
         spec: Parsed OpenAPI/Swagger spec dict with resolved $ref (from swax).
@@ -275,9 +220,8 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
         if not isinstance(path_item, dict):
             continue
 
-        # Get shared parameters from path-item (inherited by all operations).
-        # `parameters:` with no value parses to None — normalize to no params
-        # rather than crashing on the unpack below (mirrors the entry guards).
+        # Shared path-item parameters, inherited by all operations.
+        # `parameters:` with no value parses to None — treat as no params.
         shared_params = path_item.get("parameters") or []
 
         for method in HTTP_METHODS:
@@ -288,7 +232,7 @@ def extract_endpoints(spec: dict[str, Any]) -> list[Endpoint]:
             # Merge shared params with operation params
             all_params = [*shared_params, *(operation.get("parameters") or [])]
 
-            # Route field extraction by the detected version, then normalize
+            # Route field extraction by the detected version.
             request = _normalize_nullable(_extract_request(operation, version))
             response = {
                 code: _normalize_nullable(schema) for code, schema in _extract_responses(operation, version).items()

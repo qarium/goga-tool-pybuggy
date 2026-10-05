@@ -1,10 +1,6 @@
 """Response-wrapper layer of the `goga_tool_pybuggy.api` cell.
 
-``ResponseWrapper`` is a context manager over a raw ``resq.http.Response`` that
-lazily exposes an :class:`Expect` dispatcher (from the `asserts` sub-cell) and
-runs the auto-check once on first access. The static check configuration
-(expected_status/schemas_dir) is carried by an :class:`AssertConfig` value;
-``is_negative`` and ``use_autocheck`` are runtime flags.
+``ResponseWrapper`` wraps a raw response and lazily exposes an :class:`Expect` (auto-check runs once).
 """
 
 from __future__ import annotations
@@ -22,14 +18,11 @@ if TYPE_CHECKING:
 class ResponseWrapper:
     """Context manager wrapping a ``resq.http.Response``.
 
-    Delegates response-level checks to a lazily built :class:`Expect`. On first
-    access of ``expect``, when ``use_autocheck`` is True, the auto-check runs
-    exactly once (memoized).
+    Delegates response-level checks to a lazily built :class:`Expect`.
 
     Args:
         response: the raw ``resq.http.Response`` being wrapped.
-        config: the static check configuration — expected_status/
-            schemas_dir (each optional; ``None`` skips that check).
+        config: the static check configuration (expected_status/schemas_dir; ``None`` skips that check).
         use_autocheck: when True, the auto-check runs once on first access.
         is_negative: selects the negative auto-check path.
     """
@@ -57,11 +50,7 @@ class ResponseWrapper:
     def expect(self) -> Expect:
         """The response-level check dispatcher.
 
-        Built lazily on first access; when ``use_autocheck`` is True, the
-        auto-check runs exactly once at that point. When
-        ``config.assert_response_class`` is set, the configured ``Expect``
-        subclass is loaded (it must subclass ``Expect``); otherwise the
-        built-in ``Expect`` is used.
+        Built lazily; a configured ``assert_response_class`` must subclass ``Expect``.
         """
         if self._expect is None:
             response_cls = Expect

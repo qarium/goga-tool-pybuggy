@@ -1,12 +1,6 @@
 """Post-session bootstrap writers — the files the onboarding session does not carry.
 
-Six pure writers with round-trip guarantees: the test-convention slot
-(``write_test_convention``), the ``build.review.skip`` enforcement
-(``ensure_review_skip``), the version-derived Dockerfile install line
-(``install_pybuggy``), the codemanifest registrations (``register_usages`` /
-``register_annotations``), and the root ``conftest.py``
-(``write_pybuggy_conftest``). They are orchestrated by
-:func:`goga_tool_pybuggy.commands.init.run_bootstrap`.
+Six pure writers orchestrated by :func:`goga_tool_pybuggy.commands.init.run_bootstrap`.
 """
 
 import importlib.metadata
@@ -71,20 +65,14 @@ def _ensure_scalar(parent: CommentedMap, key: str) -> str:
     raise ValueError(f"{key!r} is not a scalar and cannot be extended")
 
 
-# Fixed root conftest.py template of the target project: the sole source of the emitted
-# text, hardcoded verbatim — no parameterization, no placeholders, no version resolution.
-# load_dotenv() must run before the plugin import/install because the plugin options
-# resolve from os.environ, so .env has to be loaded first; the argumentless load_dotenv()
-# keeps override=False, letting CI/operator-exported variables win.
+# Fixed root conftest.py template — hardcoded verbatim, no parameterization.
+# load_dotenv() precedes plugin.install() and keeps override=False (exported variables win).
 _CONFTEST_TEMPLATE = (
     "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
 )
 
-# Commented example records for the plugin members the session never captures — the exact
-# 1.x texts. The engine writes only the answered plain data, so the ``headers``/``loader``
-# complex members and the unanswered optional scalars are documented as ``# ``-prefixed
-# example records instead of active keys (``Config`` ignores extra scalars): ruamel emits
-# every line of a before-comment with the ``# `` prefix, reproducing the 1.x layout.
+# Commented example records for plugin members the session never captures (1.x texts).
+# Ruamel writes each before-comment line with the ``# `` prefix, matching the 1.x layout.
 _HEADERS_BLOCK = "headers: example (skipped complex member)\n  X-Example: value\n  default request headers dict"
 _LOADER_BLOCK = "loader: example (skipped complex member)\n  packages:\n    - api\n  modules: []"
 
@@ -92,12 +80,7 @@ _LOADER_BLOCK = "loader: example (skipped complex member)\n  packages:\n    - ap
 def write_test_convention(path: Path) -> None:
     """Occupy the consumer's ``conventions`` slot with the packaged pybuggy test convention.
 
-    Pure writer: reads the packaged asset
-    ``importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md"``
-    (never the cwd checkout, never the network — the ``/`` traversal keeps Python 3.10
-    compatibility), creates the parent directory tree, and always overwrites ``path``.
-    No TTY, no existence check, no logging — the delivery decision and its logging live
-    in the bootstrap orchestrator.
+    Pure writer — reads the packaged asset (never the cwd checkout or the network) and always overwrites ``path``.
 
     Args:
         path: Destination convention slot path (``<cwd>/.goga/usages/conventions.md``).
@@ -118,8 +101,7 @@ def write_test_convention(path: Path) -> None:
 def _example_record(member: PluginConfigKeys) -> str:
     """Return the commented example record text of one plugin member.
 
-    The complex ``HEADERS``/``LOADER`` members resolve to their multi-line example blocks;
-    every scalar member resolves to its ``(skipped optional scalar)`` record — the 1.x texts.
+    Complex members resolve to their example blocks; scalars to the ``(skipped optional scalar)`` record.
 
     Args:
         member: The plugin config key to document.
@@ -139,14 +121,7 @@ def _example_record(member: PluginConfigKeys) -> str:
 def document_config_examples(config_path: Path) -> list[str]:
     """Document the absent plugin members of the tool config as commented example records.
 
-    Round-trip edit of ``.goga/tools/pybuggy/config.yml``: for every ``PluginConfigKeys``
-    member that is absent as an active key and whose record marker is not already in the
-    file text, the 1.x example record (``_example_record``) is added — pinned, in plugin
-    key order, before the next active key via the ruamel before-comment (``specs`` is the
-    terminal anchor), so the commented records sit exactly where the keys would appear.
-    Idempotent by marker detection: a repeat run over its own output adds nothing, and a
-    member the user activated (uncommented) keeps its active key undisturbed. Active keys
-    are never modified — only comments are added.
+    Idempotent comment-only edit: records are pinned in plugin key order, and active keys are never modified.
 
     Args:
         config_path: Path to the tool config file (``<cwd>/.goga/tools/pybuggy/config.yml``).
@@ -198,13 +173,7 @@ def document_config_examples(config_path: Path) -> list[str]:
 def ensure_review_skip(config_path: Path) -> bool:
     """Ensure ``build.review.skip: true`` in the consumer ``.goga/config.yml``.
 
-    Round-trip edits the file with ``ruamel.yaml`` (``preserve_quotes=True``) so comments,
-    key order, quotes, anchors, and block-scalars are preserved. The nested ``build``/
-    ``review`` mappings are created when missing (each level via ``_ensure_map``; a
-    present non-mapping level raises ``ValueError`` — user data is never overwritten).
-    Idempotent: when ``skip`` already holds ``True`` the file is not written at all. Any
-    other ``build`` content (e.g. ``task_executor``) is preserved verbatim; a present
-    ``skip: false`` is corrected to ``true``.
+    Idempotent round-trip edit — comments, key order, and unrelated ``build`` content are preserved.
 
     Args:
         config_path: Path to the consumer ``.goga/config.yml``.
@@ -245,16 +214,7 @@ def ensure_review_skip(config_path: Path) -> bool:
 def install_pybuggy(dockerfile_path: Path) -> str | None:
     """Append the pybuggy-install ``RUN`` line, derived from the installed package version.
 
-    The line is derived dynamically — ``version =
-    importlib.metadata.version("goga-tool-pybuggy")`` → ``minor =
-    ".".join(version.split(".")[:2])`` → ``RUN goga install pybuggy -v {minor}.x`` (the
-    minor x-range is a valid ``goga install`` version form, ``N.M.x`` → ``~=N.M.0``; a
-    dev/pre tail like ``1.1.1.dev4+gabc`` still yields ``1.1.x``). A missing distribution
-    metadata (a metadata-less source-tree run) raises ``ValueError`` — the bootstrap's
-    wrapped tier turns it into a clean ERROR and exit 1 instead of a raw traceback. A
-    no-op when ``dockerfile_path`` does not exist (the file is never created here) or the
-    line is already present; otherwise a trailing newline is ensured, the line appended,
-    and the file written — only the install line is ever appended.
+    The version comes from the installed ``goga-tool-pybuggy`` distribution; only the install line is ever appended.
 
     Args:
         dockerfile_path: Path to the project Dockerfile (resolved from the consumer
@@ -298,12 +258,7 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
 def register_usages(config_path: Path, usage_keys: dict[str, str]) -> list[str]:
     """Register ``usage_keys`` in the consumer ``.goga/config.yml`` under ``codemanifest.usages``.
 
-    Round-trip edits the file with ``ruamel.yaml`` so comments, key order, quotes, and
-    block-scalars are preserved. Existing keys (including user-defined ones outside this
-    tool) are never overwritten, which makes the run idempotent. A minimal file carrying
-    the ``codemanifest.usages`` block is created when no file exists; the ruamel
-    ``load → None`` gotcha (empty file) is handled by starting from an empty
-    ``CommentedMap``.
+    Idempotent round-trip edit — existing keys (including user-defined ones) are never overwritten.
 
     Args:
         config_path: Path to the consumer ``.goga/config.yml``.
@@ -348,12 +303,7 @@ def register_usages(config_path: Path, usage_keys: dict[str, str]) -> list[str]:
 def register_annotations(config_path: Path, annotation_lines: dict[str, str]) -> list[str]:
     """Round-trip edit ``codemanifest.annotations`` by backtick reference.
 
-    Each entry maps a usage key to one annotation line. For every key the first existing
-    line carrying its backtick reference (`` `key` ``) is located: an identical line is a
-    no-op, a differing one is replaced in place (migrating legacy text instead of
-    duplicating it), and a missing reference is appended. Lines without a registered
-    reference are preserved verbatim. The value is written back as a
-    ``LiteralScalarString`` (literal block scalar ``|``), created when absent.
+    The first line carrying a key's backtick reference is replaced in place or appended; other lines are preserved.
 
     Args:
         config_path: Path to the consumer ``.goga/config.yml``.
@@ -412,10 +362,7 @@ def register_annotations(config_path: Path, annotation_lines: dict[str, str]) ->
 def write_pybuggy_conftest(path: Path) -> None:
     """Emit the target project's root ``conftest.py`` from the fixed ``_CONFTEST_TEMPLATE``.
 
-    Pure, TTY-free, deterministic writer wiring the pybuggy plugin into the consumer's
-    pytest run. No existence check and no overwrite confirmation — ``path`` is always
-    (over)written on every call; the overwrite gate lives in the bootstrap orchestrator.
-    Nothing is logged.
+    Always (over)writes ``path`` — the overwrite gate lives in the bootstrap orchestrator.
 
     Args:
         path: Destination conftest path (``<cwd>/conftest.py``); the parent directory is

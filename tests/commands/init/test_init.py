@@ -1,14 +1,6 @@
 """Tests for the init module — CLI surface, mode resolution, three-mode orchestrator, bootstrap.
 
-Covers ``init.py`` in the goga 2.0 shape: the contract surface (facade names, the Click
-wrapper's bound parameters, the handler signatures), the carried-over pure
-``resolve_init_mode`` flag table, the rewired ``run_init`` orchestrator (Task 6) — bare guard
-on ``.goga`` directory existence, engine scaffold codes propagated as-is, the session seam
-propagated unchanged with the bootstrap skipped on failure — and ``run_bootstrap`` (Task 7):
-the 10-step post-session delivery with mode-dependent gates, the config-resolved Dockerfile
-path, the tool-config example documentation, the ERROR-and-return-1 failure tier, and the
-mandatory-Dockerfile invariant. The wrapper is driven through a fake ``ctx`` (M-R2.6 — no
-CliRunner).
+The wrapper is driven through a fake ``ctx`` (M-R2.6 — no CliRunner).
 """
 
 import importlib.metadata
@@ -22,9 +14,7 @@ import yaml
 from goga_tool_pybuggy.commands.init import init as init_module
 from goga_tool_pybuggy.commands.init import init_cmd, resolve_init_mode, run_bootstrap, run_init
 
-# The seams run_init dispatches through, patched at the import point (M-R2.8): the session
-# seam and the bootstrap seam live in init.py's namespace; the scaffold engine is reached
-# through init.py's Scaffold constructor.
+# The seams run_init dispatches through, patched at the import point (M-R2.8).
 _SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
 _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 
@@ -210,9 +200,7 @@ class TestInitContract:
     def test_init_cmd_binds_surface_and_propagates_exit(self, monkeypatch):
         """The wrapper binds tpl/--ref/--upgrade and propagates run_init's code via ctx.exit.
 
-        The bound-parameter surface is introspected on the built command (click consumes
-        ``__click_params__`` while assembling it); the body is driven directly with a fake
-        ctx through the pass-context seam (M-R2.6 — no CliRunner).
+        The body is driven with a fake ctx through the pass-context seam (M-R2.6 — no CliRunner).
         """
         by_name = {param.name: param for param in init_cmd.params}
 

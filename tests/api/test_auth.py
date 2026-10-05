@@ -1,8 +1,6 @@
 """Contract and logic tests for `goga_tool_pybuggy.api.auth`.
 
-Pure-logic tests (no mocks): the auth primitives operate on stub
-``PreparedRequest``-like objects (the ``stub_request`` fixture) and on real
-``HeaderAuth`` ``AuthBase`` instances shared from ``tests/api/conftest.py``.
+Pure-logic tests (no mocks) over the shared ``stub_request`` and ``HeaderAuth`` fixtures.
 """
 
 from __future__ import annotations

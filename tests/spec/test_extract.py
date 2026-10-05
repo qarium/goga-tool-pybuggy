@@ -15,8 +15,7 @@ def test_detect_spec_version_import_from_facade() -> None:
     from goga_tool_pybuggy.spec import detect_spec_version as facade
     from goga_tool_pybuggy.spec.extract import detect_spec_version as source_routine
 
-    # The facade symbol must be the exact routine defined in extract.py
-    # (compared against the source module's object, not a second facade binding).
+    # Must be the exact routine from extract.py, not a second facade binding.
     assert facade is source_routine
 
     # Re-export obligation: declared in the facade __all__.
@@ -245,11 +244,7 @@ def test_extract_endpoints_with_description() -> None:
 def test_extract_endpoints_rewrites_openapi_nullable_to_jsonschema_union() -> None:
     """Test extract_endpoints rewrites OpenAPI 3.0 nullable: true into JSON-Schema union types.
 
-    Nullability is normalized at the OpenAPI → JSON-Schema boundary so every command
-    (generate, info, …) sees one consistent shape — the jsonschema validator used at
-    runtime ignores the OpenAPI ``nullable`` keyword. Each nullable fragment becomes
-    ``type: [<types...>, "null"]`` with ``nullable`` dropped, recursing into nested
-    request/response/query schemas (incl. array items).
+    Each nullable fragment becomes ``type: [<types...>, "null"]`` with the key dropped, recursing into schemas.
     """
     spec = {
         "openapi": "3.0.0",
@@ -317,12 +312,7 @@ def test_extract_endpoints_rewrites_openapi_nullable_to_jsonschema_union() -> No
 def test_extract_endpoints_normalizes_nullable_without_type_via_anyof() -> None:
     """Test extract_endpoints normalizes a nullable schema that has no ``type``.
 
-    When ``nullable: true`` appears on a fragment without a ``type`` (a valid
-    OpenAPI 3.0 form, e.g. a schema built purely from composition), the normalizer
-    cannot form a ``type`` union and falls back to expressing nullability as an
-    ``anyOf`` branch. This covers both fallback sub-cases: an existing ``anyOf``
-    (appends ``{"type": "null"}``) and a bare nullable (synthesizes
-    ``[{"type": "null"}]``).
+    Without a ``type`` to union with, nullability falls back to an ``anyOf`` branch (appended or synthesized).
     """
     spec = {
         "openapi": "3.0.0",
@@ -523,9 +513,7 @@ def test_extract_endpoints_swagger_query_inlined_fields() -> None:
 def test_extract_endpoints_rewrites_swagger_x_nullable_to_jsonschema_union() -> None:
     """Test Swagger x-nullable: true is normalized to a JSON-Schema union (review-fix regression).
 
-    ``x-nullable`` must survive ``_TYPE_FIELDS`` filtering on the Swagger query
-    param and reach ``_normalize_nullable`` on every extracted schema, becoming a
-    ``type`` union including ``"null"`` with the originating key dropped.
+    ``x-nullable`` must survive ``_TYPE_FIELDS`` filtering and reach ``_normalize_nullable`` on every schema.
     """
     spec = {
         "swagger": "2.0",
@@ -664,11 +652,7 @@ def test_extract_endpoints_swagger_inherits_shared_path_item_parameters() -> Non
 def test_extract_endpoints_path_params_equivalent_across_formats() -> None:
     """Equivalent Swagger 2.0 and OpenAPI 3.x operations yield the same path_params.
 
-    The format-equivalence contract invariant extended to the new field: both
-    dialects declare the same ``GET /orders/{id}`` with a path ``id`` (string)
-    and a query ``verbose`` (boolean); extraction routes by the detected version
-    (nested ``schema`` for OpenAPI, ``_TYPE_FIELDS``-filtered inlined fields for
-    Swagger) yet reduces to the same normalized shape on ``Endpoint``.
+    Extraction routes by detected version yet reduces both dialects to the same normalized ``Endpoint`` shape.
     """
     swagger_spec = {
         "swagger": "2.0",
@@ -800,8 +784,7 @@ def test_extract_endpoints_skips_non_dict_param_entries() -> None:
 def test_extract_endpoints_skips_non_dict_body_param_entries_swagger() -> None:
     """Malformed non-dict entries in a Swagger body-parameter list are skipped too.
 
-    ``_extract_request`` walks the same ``parameters`` list as ``_extract_params``;
-    a null entry must not raise AttributeError there either.
+    ``_extract_request`` walks the same ``parameters`` list; a null entry must not raise AttributeError there either.
     """
     spec = {
         "swagger": "2.0",
@@ -895,9 +878,7 @@ def test_extract_endpoints_path_params_no_path_params_yields_empty() -> None:
 def test_extract_endpoints_path_param_nullable_normalized_both_formats(spec: dict) -> None:
     """Nullable path variables normalize to the JSON-Schema union form in both formats.
 
-    ``nullable`` (OpenAPI) and ``x-nullable`` (Swagger, kept alive by
-    ``_TYPE_FIELDS``) both reach ``_normalize_nullable`` on the path location and
-    become a ``type`` union including ``"null"`` with the originating key dropped.
+    ``nullable`` (OpenAPI) and ``x-nullable`` (Swagger) both become a ``type`` union with the originating key dropped.
     """
     endpoints = extract_endpoints(spec)
 
@@ -926,9 +907,7 @@ def test_extract_endpoints_does_not_validate_path_template() -> None:
 def test_extract_endpoints_openapi_path_param_null_schema_degrades_to_empty() -> None:
     """An OpenAPI path param with an explicit ``schema: null`` degrades to ``{}``.
 
-    ``Endpoint.path_params`` values feed ``json.dumps`` in meta.json; storing
-    ``None`` would break serialization, so the null schema coerces to an empty
-    mapping exactly like the query location.
+    ``path_params`` values feed ``json.dumps`` in meta.json, so a null schema coerces to an empty mapping.
     """
     spec = {
         "openapi": "3.0.0",
@@ -953,11 +932,7 @@ def test_extract_endpoints_openapi_path_param_null_schema_degrades_to_empty() ->
 def test_extract_endpoints_equivalent_operations_same_normalized_shape() -> None:
     """Equivalent Swagger 2.0 and OpenAPI 3.x operations yield the same Endpoint shape.
 
-    The format-equivalence contract invariant: ``extract_endpoints`` routes by the
-    detected version, but both formats reduce to the same normalized JSON-Schema
-    shape (no nullable here, so normalization is a no-op). One GET + one POST are
-    declared on the same path so the result order is fixed by ``HTTP_METHODS``
-    (``get`` before ``post``).
+    Both formats reduce to the same normalized shape; result order is fixed by ``HTTP_METHODS``.
     """
     swagger_spec = {
         "swagger": "2.0",
@@ -1056,8 +1031,7 @@ def test_extract_endpoints_equivalent_operations_same_normalized_shape() -> None
 def test_extract_endpoints_invalid_spec_raises_value_error() -> None:
     """extract_endpoints propagates ValueError from detect_spec_version without swallowing.
 
-    A spec with paths but no top-level version key is invalid; the version error
-    must surface unchanged (Constraints bullet 3 — no swallowing).
+    A spec with paths but no version key is invalid; the version error must surface unchanged.
     """
     with pytest.raises(ValueError, match="declares neither"):
         extract_endpoints({"paths": {"/x": {"get": {"responses": {}}}}})
@@ -1066,9 +1040,7 @@ def test_extract_endpoints_invalid_spec_raises_value_error() -> None:
 def test_extract_endpoints_swagger_empty_paths_returns_empty_list() -> None:
     """A valid Swagger spec with no paths returns an empty list (no ValueError).
 
-    Path-lessness is ``extract_endpoints``' concern, not the version detector's:
-    a Swagger spec with a top-level ``swagger`` key but no ``paths`` detects the
-    version normally and yields no endpoints.
+    Path-lessness is ``extract_endpoints``' concern, not the version detector's.
     """
     assert extract_endpoints({"swagger": "2.0", "info": {"title": "T", "version": "1"}}) == []
 
@@ -1079,8 +1051,7 @@ def test_extract_endpoints_swagger_empty_paths_returns_empty_list() -> None:
 def test_extract_endpoints_explicit_null_schema_degrades_to_empty() -> None:
     """An explicit ``schema: null`` degrades to ``{}`` instead of crashing.
 
-    ``Endpoint.request`` is a non-optional dict, so a null schema must not reach
-    it; the same coercion applies to response schemas and OpenAPI query schemas.
+    ``Endpoint.request`` is a non-optional dict; the same coercion covers response and query schemas.
     """
     swagger_spec = {
         "swagger": "2.0",
@@ -1138,8 +1109,7 @@ def test_extract_endpoints_skips_query_param_without_name() -> None:
 def test_extract_endpoints_operation_param_overrides_shared_same_name() -> None:
     """When path-item and operation share a query-param name, the operation-level schema wins.
 
-    Operation parameters are merged after shared path-item parameters, so the
-    last occurrence wins in the resulting dict.
+    Operation parameters merge after shared path-item parameters, so the last occurrence wins.
     """
     spec = {
         "swagger": "2.0",
@@ -1181,9 +1151,7 @@ def test_extract_endpoints_openapi_query_null_schema_degrades_to_empty() -> None
 def test_extract_endpoints_swagger_query_array_items_preserved() -> None:
     """A Swagger array query param keeps its ``items`` element (pinned via _TYPE_FIELDS).
 
-    ``items`` is part of the canonical ``_TYPE_FIELDS`` whitelist. Without a test
-    pinning it, a future edit dropping ``items`` would silently strip the item
-    schema from every array-typed Swagger query param.
+    ``items`` is whitelisted in ``_TYPE_FIELDS``; dropping it would strip array item schemas.
     """
     spec = {
         "swagger": "2.0",
@@ -1206,8 +1174,6 @@ def test_extract_endpoints_swagger_excludes_formdata_and_file_params() -> None:
     """Swagger ``in: formData``/file/body params never reach ``query_params``.
 
     CODEMANIFEST constraint: "Do not extract formData or file-upload parameters."
-    Only ``in: query`` params are extracted; formData (Swagger's POST body vehicle),
-    file-upload and body params must be excluded so form fields don't pollute query.
     """
     spec = {
         "swagger": "2.0",
@@ -1235,10 +1201,7 @@ def test_extract_endpoints_swagger_excludes_formdata_and_file_params() -> None:
 def test_extract_endpoints_swagger_x_nullable_without_type_uses_anyof_fallback() -> None:
     """A type-less Swagger fragment with ``x-nullable: true`` synthesizes an anyOf.
 
-    Mirrors the OpenAPI ``nullable``-without-``type`` fallback on the Swagger entry
-    path: when ``x-nullable: true`` reaches ``_normalize_nullable`` on a fragment
-    with no ``type``, nullability is expressed as a synthesized ``anyOf`` branch
-    (no ``type`` to host the union).
+    Mirrors the OpenAPI type-less fallback: no ``type`` to host the union, so nullability becomes an ``anyOf`` branch.
     """
     spec = {
         "swagger": "2.0",
@@ -1276,14 +1239,7 @@ def test_extract_endpoints_swagger_x_nullable_without_type_uses_anyof_fallback()
 def test_extract_endpoints_preserves_property_named_nullable() -> None:
     """A property literally named ``nullable``/``x-nullable`` is not dropped.
 
-    Regression: ``_normalize_nullable`` pops the ``nullable``/``x-nullable``
-    keys from every dict it visits. A JSON-Schema ``properties`` map is keyed by
-    property *name*, not by keyword, so a property literally named
-    ``nullable``/``x-nullable`` was mistaken for the nullability keyword and
-    silently deleted (data corruption). The fix treats ``properties``/
-    ``patternProperties`` as containers and recurses into each property's schema
-    without popping on the container. This pins the fix end-to-end for both
-    formats and for boolean-schema properties.
+    Regression: ``properties`` maps are keyed by name, not keyword; containers are recursed without popping.
     """
     spec = {
         "swagger": "2.0",
@@ -1301,8 +1257,7 @@ def test_extract_endpoints_preserves_property_named_nullable() -> None:
                                     # property whose NAME collides with the keyword
                                     "nullable": {"type": "integer"},
                                     "x-nullable": {"type": "boolean"},
-                                    # a property name collision whose own schema is
-                                    # the boolean `true` (must not corrupt the map)
+                                    # a name collision whose schema is boolean `true` (must not corrupt the map)
                                     "flag": True,
                                 },
                             },
@@ -1333,9 +1288,7 @@ def test_extract_endpoints_preserves_property_named_nullable() -> None:
 def test_extract_endpoints_rejects_illegal_response_status_key() -> None:
     """A response key outside the legal shapes raises ValueError, not a file write.
 
-    Response keys become artifact filenames (``schemas/<status_code>.json`` in
-    generate), so a key carrying path content — ``../..`` — must never reach a
-    write path. Both formats validate the key set before any extraction.
+    Response keys become artifact filenames, so path content like ``../..`` must never reach a write path.
     """
     openapi_spec = {
         "openapi": "3.0.0",
@@ -1355,10 +1308,7 @@ def test_extract_endpoints_rejects_illegal_response_status_key() -> None:
 def test_extract_endpoints_rejects_response_status_key_with_trailing_newline() -> None:
     """A key carrying a trailing newline is illegal — `$` alone would let it through.
 
-    A YAML double-quoted key like ``"200\\n"`` survives ``re.match`` with a
-    ``$`` anchor (``$`` also matches just before a trailing newline), and the
-    key becomes a ``schemas/<code>.json`` filename with an embedded newline.
-    The anchor is ``\\Z``, so the key is rejected like any other illegal shape.
+    ``$`` also matches just before a trailing newline; the anchor is ``\\Z``, so such keys are rejected.
     """
     spec = {
         "openapi": "3.0.0",
@@ -1372,10 +1322,7 @@ def test_extract_endpoints_rejects_response_status_key_with_trailing_newline() -
 def test_extract_endpoints_stringifies_non_string_response_status_keys() -> None:
     """An unquoted YAML `200:` parses to the int 200 and is returned keyed by its string form.
 
-    Validation reads ``str(code)``, so an int key passes the legality check;
-    the returned mapping must carry the same stringified key, or
-    ``Endpoint.response: dict[str, Any]`` would reject the spec with an
-    unrelated pydantic message after this layer already accepted it.
+    The returned mapping must carry the stringified key, or ``Endpoint.response`` would reject it later.
     """
     spec = {
         "openapi": "3.0.0",
@@ -1466,8 +1413,7 @@ def test_extract_endpoints_null_response_entry_swagger_degrades_to_empty_schema(
 def test_extract_endpoints_null_operation_parameters_swagger_normalized() -> None:
     """A null operation-level `parameters:` in a Swagger spec means no parameters.
 
-    The Swagger branch of `_extract_request` reads the field itself to find the
-    `in: body` parameter — a raw None there would raise TypeError.
+    The Swagger branch of `_extract_request` reads the field itself; a raw None would raise TypeError.
     """
     spec = {
         "swagger": "2.0",

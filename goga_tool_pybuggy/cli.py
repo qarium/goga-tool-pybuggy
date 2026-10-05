@@ -14,16 +14,15 @@ from .env import load_env
 def _load_env_callback(ctx: click.Context, _param: click.Parameter, value: str | None) -> str | None:
     """Eager-callback: load .env into os.environ and store EnvContext on ctx.obj.
 
-    Fires before any subcommand is chosen (``is_eager=True``), so the env file is
-    applied to ``os.environ`` (``override=False``) before the command runs.
+    Fires before any subcommand is chosen (``is_eager=True``).
 
     Args:
-        ctx: the click context; its ``obj`` is set to the returned ``EnvContext``.
-        _param: the option parameter (unused).
-        value: the ``--env-file`` value (explicit path) or ``None`` for the implicit ``.env``.
+        ctx: context whose ``obj`` receives the ``EnvContext``.
+        _param: unused option parameter.
+        value: ``--env-file`` path, or ``None`` for the implicit ``.env``.
 
     Returns:
-        The option value unchanged (env loading is the only side effect).
+        The option value unchanged.
     """
     ctx.obj = load_env(value)
     return value

@@ -1,9 +1,4 @@
-"""Handler and Click wrapper for the endpoint diff command.
-
-run_diff reports, per compared unit, the drift between the endpoint contract
-taken from the current spec and the previously generated artifacts; diff_cmd
-binds the CLI options and delegates to run_diff.
-"""
+"""Handler and Click wrapper for the endpoint diff command."""
 
 import json
 from pathlib import Path
@@ -24,12 +19,7 @@ def _collect_specs(
 ) -> tuple[list[tuple[str, list[Endpoint], list[Endpoint]]], set[str]]:
     """Phase 1 — parse, extract and filter the selected specs without printing anything.
 
-    For each spec (config order): load and validate it (``paths`` required), extract
-    endpoints, and — when ``endpoint_filter`` is set — keep only endpoints whose id is
-    in the filter. A spec with no operations is NOT silently skipped (unlike generate):
-    it simply contributes no per-endpoint documents, while its artifact directories are
-    still reported as removed. Returns the per-spec endpoint lists plus the set of
-    endpoint ids that matched the filter.
+    A spec with no operations is not skipped (unlike generate): its artifact dirs are still reported as removed.
 
     Args:
         specs: selected spec entries (name -> SpecEntry).
@@ -50,20 +40,14 @@ def _collect_specs(
     for name, entry in specs.items():
         spec = load_spec(cwd / entry.location)
 
-        # Validate spec has the required structure — the key alone is not
-        # enough: `paths:` with no value parses to None, which would crash
-        # extract_endpoints on paths.items(). An empty file parses to None and
-        # a top-level list/str document is equally not a spec mapping.
+        # The key alone is not enough: a null `paths:` or non-mapping document would crash extract_endpoints.
         if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
             raise click.ClickException(f"invalid spec file (missing 'paths'): {entry.location}")
 
         try:
             endpoints = extract_endpoints(spec)
         except ValueError as error:
-            # extract_endpoints raises ValueError on a spec declaring neither
-            # an openapi nor a swagger version key — an invalid spec file, not
-            # a traceback (pydantic ValidationError is a ValueError subclass
-            # and maps to the same channel).
+            # ValueError marks an invalid spec file — not a traceback; pydantic ValidationError is a subclass.
             raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
         kept = [e for e in endpoints if endpoint_filter is None or e.id in endpoint_filter]
         matched_ids |= {e.id for e in kept}
@@ -74,12 +58,7 @@ def _collect_specs(
 def _print_comparison(unit: str, generated_side: dict, spec_side: dict) -> None:
     """Compare the two sides of one unit and print its JSON document.
 
-    The comparison direction is fixed — t1 is the generated side, t2 the spec
-    side (the spec is the current truth) — and strict: no order-insensitive or
-    type-group relaxations. The document is printed for every compared unit,
-    with an empty diff value when there is no drift. ``to_json`` is the only
-    JSON-native conversion of the result: the mappings of ``to_dict`` hold
-    set-like values that ``json.dumps`` cannot serialize.
+    Direction is fixed — t1 generated, t2 spec (the current truth) — and the comparison is strict.
 
     Args:
         unit: Identifier key of the compared unit — the raw endpoint id for
@@ -95,25 +74,13 @@ def _print_comparison(unit: str, generated_side: dict, spec_side: dict) -> None:
 def run_diff(spec_name: Optional[str], endpoint_ids: Optional[list[str]] = None) -> None:
     """Report per-endpoint drift between the current spec and the generated artifacts.
 
-    Loads the config from the fixed config path and, for each (optionally filtered)
-    spec, parses the spec file, extracts endpoints, optionally filters them by id,
-    and prints one JSON document per compared unit: spec-side endpoints keyed by the
-    raw endpoint id (an empty diff value when there is no drift) and removed artifact
-    directories keyed by their sanitized segment. The endpoint-id filter narrows only
-    the spec side — removed-side discovery always scans the whole ``api/<spec>/`` tree
-    of every selected spec.
-
-    Two phases — collect/validate (no output) then print — so an unknown endpoint id
-    raises before anything is printed. The command is read-only and drift is a result,
-    not a failure: a completed run returns without raising.
+    Read-only: unknown ids raise before any output; the endpoint-id filter narrows only the spec side.
 
     Args:
         spec_name: Optional spec filter; when set compare only that spec, otherwise
             compare all specs.
-        endpoint_ids: Optional endpoint-id filter keyed on the raw ``Endpoint`` id;
-            when set compare only endpoints whose id is in the list. ``None`` or empty
-            compares every endpoint of the selected specs. Every requested id must
-            match at least one selected spec, otherwise nothing is printed.
+        endpoint_ids: Optional filter keyed on the raw ``Endpoint`` id; ``None`` or empty
+            compares every endpoint of the selected specs.
 
     Raises:
         click.ClickException: If spec_name is set but not found in config specs; a

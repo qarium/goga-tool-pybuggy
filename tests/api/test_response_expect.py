@@ -1,9 +1,6 @@
 """Tests for ``goga_tool_pybuggy.api.asserts.expect`` and ``goga_tool_pybuggy.api.response``.
 
-Covers the response-level ``Expect`` checks (matchcrest-backed), the
-``ResponseWrapper.expect`` lazy build + memoized autocheck, and the autocheck
-positive/negative paths with their skip conditions. The network is not involved:
-a ``FakeResponse`` stands in for ``resq.http.Response``.
+A ``FakeResponse`` stands in for ``resq.http.Response``; the network is not involved.
 """
 
 from __future__ import annotations
@@ -321,6 +318,6 @@ class TestResponseWrapperWiring:
         _ = wrapper.expect
         _ = wrapper.expect
 
-        # flip the status so a second autocheck would now fail; it must not re-run
+        # flip the status so a re-run autocheck would now fail
         response.status_code = 500
         _ = wrapper.expect  # no raise; autocheck did not re-run

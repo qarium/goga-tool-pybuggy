@@ -54,11 +54,11 @@ rendered value is stored back onto the `base_url` option for the `api` fixture t
 
 ```yaml
 # .goga/tools/pybuggy/config.yml
-base_url: "https://{{ env }}.svc.example/api/{{ version }}"
+base_url: "https://{{ env }}.svc.example/api/{{ api_version }}"
 ```
 
 ```bash
-pytest --env=dev --version=1.2   # -> https://dev.svc.example/api/1.2
+pytest --env=dev --api-version=1.2   # -> https://dev.svc.example/api/1.2
 ```
 
 Context sources:
@@ -66,15 +66,16 @@ Context sources:
 - **CLI options** — only the ones the user actually typed (detected via
   `config.invocation_params.args`); values are taken from `config.option`.
 
-Placeholders fed from the CLI (e.g. `{{ env }}`, `{{ version }}`) require the consumer to
+Placeholders fed from the CLI (e.g. `{{ env }}`, `{{ api_version }}`) require the consumer to
 register the matching options via `pytest_addoption` in `conftest.py` — pytest rejects
-unregistered options:
+unregistered options, and reserved names (pytest already registers `--version` itself)
+raise a duplicate-option error:
 
 ```python
 # conftest.py
 def pytest_addoption(parser):
     parser.addoption("--env", action="store", default=None)
-    parser.addoption("--version", action="store", default=None)
+    parser.addoption("--api-version", action="store", default=None)
 ```
 
 `--base-url` itself needs no registration — the plugin registers it. Its value (also a template) participates

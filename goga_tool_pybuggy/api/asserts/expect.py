@@ -1,25 +1,6 @@
 """Response-level assert dispatcher of the `goga_tool_pybuggy.api.asserts` cell.
 
-``Expect`` is the two-level assert entry point:
-
-- **response-level** methods (``has_status_code``/``has_header``/``json_*``/
-  ``jsonschema_*``) — matchcrest matchers over a :class:`ResponseContext`;
-- **field-level** dispatch via ``Expect.__call__(search)`` → :class:`AssertField`
-  (dotted-path or jsonpath search through the body, always resolved from the
-  response-body root).
-
-The check configuration (expected_status/schemas_dir/timeout/delay/
-assert_field_class/assert_response_class) is carried by an :class:`AssertConfig`
-value; ``is_negative`` is a runtime flag selecting the negative auto-check path.
-Every check is a matchcrest ``assert_that`` returning ``self``
-for chaining.
-
-Polling: the ``timeout``/``delay`` from ``AssertConfig`` are the baseline —
-``_create_matcher`` injects them into every matcher, and matchcrest retries
-(re-fetching the response via ``BaseContext.update`` → ``response.reload()``)
-until the assertion passes or the timeout elapses. Each check method also
-accepts ``timeout``/``delay`` kwargs that override the baseline for that one
-assertion.
+``Expect`` runs response-level matchcrest checks and field-level dispatch via ``__call__(search)``.
 """
 
 from __future__ import annotations
@@ -63,20 +44,11 @@ def _search_is_jsonpath(search: str) -> bool:
 class Expect(BaseAssert):
     """Dispatcher of response-level checks and field-level assert entry.
 
-    Response-level checks are matchcrest assertions over a ``ResponseContext``
-    and return ``self`` for fluent chaining. Calling the dispatcher
-    (``expect('data.items')``) returns an :class:`AssertField` for field-level
-    checks — the search always resolves from the root of the response body.
-
-    This is also the default response-level assert class: when
-    ``AssertConfig.assert_response_class`` is set, ``ResponseWrapper`` loads that
-    subclass instead (it must subclass ``Expect``).
+    Response-level checks return ``self`` for chaining; ``__call__(search)`` dispatches field-level checks.
 
     Args:
         response: the raw ``resq.http.Response`` under inspection.
-        config: the static check configuration — expected_status/
-            schemas_dir/timeout/delay/assert_field_class/assert_response_class
-            (each optional; ``None`` skips/disables that check).
+        config: the static check configuration (see :class:`AssertConfig`).
         is_negative: selects the negative auto-check path.
     """
 
@@ -130,19 +102,14 @@ class Expect(BaseAssert):
     ) -> Expect:
         """Assert a header is present, and — when ``value`` is given — matches it.
 
-        Without ``value``: assert a header named ``key`` exists (optionally
-        filtered by ``contains``/``startswith``/``endswith`` and counted).
-        With ``value``: assert that header's value matches (equals by default,
-        or ``contains``/``startswith``/``endswith``).
+        Without ``value`` asserts existence; with ``value`` asserts its value (equals by default).
         """
         context = self._response_context("headers")
 
         if count is not None and value is not None:
             raise ValueError('Invalid parameters combination, "count" can be used without "value" only.')
 
-        # matchcrest's by-value matcher compares ``k.lower() == self.key`` and the
-        # by-key matcher lowercases its expected value internally, so a lowercase
-        # key works for both — let callers pass any-case header names.
+        # matchcrest's header matchers compare lowercased keys, so any-case header names work.
         lookup_key = key.lower()
 
         if value is None:
@@ -262,10 +229,7 @@ class Expect(BaseAssert):
     ) -> AssertField:
         """Start a field-level assert at ``search`` (dotted path or jsonpath).
 
-        When ``AssertConfig.assert_field_class`` is set, the configured
-        ``AssertField`` subclass is loaded (it must subclass ``AssertField``);
-        otherwise the built-in ``AssertField`` is used. The config baseline
-        ``timeout``/``delay`` are forwarded so the field's checks poll too.
+        When ``AssertConfig.assert_field_class`` is set, that subclass is loaded instead.
 
         Args:
             search: a dotted path (``a.b.c``), a jsonpath (``$.a.b[*]``), or None

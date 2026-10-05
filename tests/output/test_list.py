@@ -32,8 +32,7 @@ def test_render_list_signature():
 
 def test_render_list_format():
     """Logic test: render_list produces correct format with endpoints."""
-    # Create two endpoints with known ids
-    # clients_profile_delete and clients_startup_get
+    # Two endpoints with known ids (clients_profile_delete, clients_startup_get).
     ep1 = Endpoint(
         method="delete",
         path="/clients/profile",
@@ -108,8 +107,6 @@ def test_render_list_sorts_by_id():
         description="",
     )
 
-    # ids should be: z_get, a_get, m_post
-    # sorted order: a_get, m_post, z_get
     result = render_list(
         name="test",
         location="test.yaml",
@@ -118,7 +115,6 @@ def test_render_list_sorts_by_id():
 
     lines = result.split("\n")
     assert lines[0] == "test (test.yaml)"
-    # Should be sorted by id
     assert "* a_get -> [GET] /a" in lines[1]
     assert "* m_post -> [POST] /m" in lines[2]
     assert "* z_get -> [GET] /z" in lines[3]

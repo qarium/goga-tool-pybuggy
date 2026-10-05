@@ -1,22 +1,6 @@
 """Integration tests for the `goga_tool_pybuggy.plugin` cell (end-to-end).
 
-Mirrors the source layout (``tests/plugin/test_integration.py``). Covers the
-cross-cell and end-to-end acceptance scenarios from the design's Test Stack
-Trace:
-
-- the wiring chain (``install`` -> ``ApiPlugin`` ->
-  ``install_pytest_plugins`` + ``_load_plugins``); and
-- the full ``goga_tool_pybuggy.plugin.install()`` enablement run as a real pytest subprocess
-  (hook injection, ``--base-url`` CLI registration, recursive generated-fixture
-  loading, and the ``api`` fixture resolving into a working ``Api``).
-
-Environment notes (the plugin under test is unchanged against the real packages):
-
-- ``goga_tool_pybuggy`` is not pip-installed here — it imports only off its source root —
-  so the subprocess is given the source root via ``PYTHONPATH``.
-- the env ships an empty ``resq`` stub (no ``Session``); constructing an ``Api``
-  performs no network I/O, so the generated project's ``conftest.py`` provides a
-  minimal ``Session`` stand-in (the real ``resq`` provides one).
+Covers the wiring chain and a real pytest subprocess run (source root via ``PYTHONPATH``; conftest shims ``resq``).
 """
 
 import os
@@ -32,9 +16,7 @@ from goga_tool_pybuggy.plugin import install
 # Source root that makes `goga_tool_pybuggy` importable in the subprocess.
 _PROJECT_ROOT = str(pathlib.Path(goga_tool_pybuggy.__file__).resolve().parent.parent)
 
-# A `@pytest.fixture` so the trial-import probe recognizes the module as a pytest
-# plugin. Used for the in-process wiring test where the body is never invoked, so
-# it carries no Api/Endpoint dependency.
+# Fixture-only module for the in-process wiring test (the body is never invoked).
 _PLUGIN_MODULE_SOURCE = """\
 import pytest
 
@@ -44,8 +26,7 @@ def get_orders():
     return 1
 """
 
-# The canonical generated-fixture module from `enable.md`: `get_orders` depends
-# on the `api` fixture and returns an `Endpoint`.
+# The canonical generated-fixture module from `enable.md`: `get_orders` returns an `Endpoint`.
 _GENERATED_FIXTURE_SOURCE = """\
 import pytest
 
@@ -57,9 +38,7 @@ def get_orders(api: Api) -> Endpoint:
     return Endpoint(api, "/orders", method="GET")
 """
 
-# conftest.py for the end-to-end subprocess project — enables the plugin exactly
-# as documented in `enable.md` (an explicit `install()` call; there is no
-# import-time auto-wiring), plus the `resq` env shim described above.
+# conftest.py for the subprocess project: an explicit `install()` call plus the `resq` shim.
 _CONFTEST_SOURCE = """\
 import resq
 
@@ -82,10 +61,7 @@ import goga_tool_pybuggy.plugin
 goga_tool_pybuggy.plugin.install()
 """
 
-# A consumer test: uses the discovered `get_orders` fixture (exercising the full
-# recursive-loading + `api`-fixture chain) and asserts the `--base-url` CLI option
-# was registered by the plugin's `pytest_addoption` hook and that a typed
-# `--base-url` overrides the config-file base_url.
+# Consumer test: resolves the discovered fixture and checks `--base-url` registration/override.
 _TEST_SOURCE = """\
 def test_get_orders_fixture_resolves(get_orders):
     # Resolving the generated fixture proves recursive pytest_plugins loading
@@ -131,8 +107,7 @@ class TestPluginIntegration:
     """Cross-cell integration: the import-time wiring chain."""
 
     def test_install_wires_hooks_into_namespace(self, tmp_path, monkeypatch):
-        # The api/ tree makes _load_plugins (goga_tool_pybuggy.plugin -> goga_tool_pybuggy.plugin.loaders)
-        # discover a real generated-fixture module into the namespace.
+        # The api/ tree lets _load_plugins discover a real generated-fixture module.
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
         _make_api_tree(tmp_path).write_text(_PLUGIN_MODULE_SOURCE)
@@ -143,8 +118,7 @@ class TestPluginIntegration:
         # install_pytest_plugins injected the pytest hooks into the namespace.
         assert callable(namespace.pytest_addoption)
         assert callable(namespace.pytest_configure)
-        # _load_plugins populated pytest_plugins synchronously from the api/ tree
-        # (cross-entity: install -> ApiPlugin -> install_pytest_plugins + _load_plugins).
+        # _load_plugins populated pytest_plugins synchronously from the api/ tree.
         assert "pytest_plugins" in namespace.__dict__
         assert namespace.pytest_plugins == ["api.orders.get_orders.api"]
 
@@ -187,9 +161,7 @@ class TestPluginEndToEnd:
 
         output = result.stdout + result.stderr
         assert result.returncode == 0, output
-        # The generated fixture was collected & resolved (recursive loading),
-        # the --base-url option was registered, and the typed --base-url
-        # overrode the config-file base_url.
+        # The fixture resolved, --base-url was registered, and the typed value overrode the config.
         assert "test_get_orders_fixture_resolves" in output
         assert "test_base_url_option_registered" in output
         assert "test_base_url_cli_overrides_config" in output

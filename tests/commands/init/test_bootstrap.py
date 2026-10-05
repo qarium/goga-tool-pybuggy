@@ -1,13 +1,6 @@
 """Tests for the seven bootstrap writers — contract surface, round-trip guarantees, deltas.
 
-Covers the relocation from the 1.x ``init.py`` (four writers carried over verbatim:
-``write_test_convention``, ``register_usages``, ``register_annotations``,
-``write_pybuggy_conftest``), the two migration deltas: ``ensure_review_skip``
-(renamed from ``ensure_review_executor_skip``, key path ``build.review_executor.skip``
-→ ``build.review.skip``) and ``install_pybuggy`` (dynamic minor x-range install line,
-with the clean metadata-missing error), and the 2.0.1 restoration
-``document_config_examples`` — the commented example records for the absent plugin
-members of the tool config, re-delivered after the engine's plain serialization.
+Covers the writers relocated from the 1.x ``init.py``, the two migration deltas, and the 2.0.1 restoration.
 """
 
 import importlib.metadata
@@ -32,8 +25,7 @@ _EXPECTED_CONFTEST = (
     "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
 )
 
-# The commented record lines of the 1.x option surface — the exact texts the documentation
-# step re-delivers for absent members (complex blocks first line, scalars single line).
+# The exact first lines the documentation step re-delivers for absent complex members.
 _HEADERS_FIRST_LINE = "headers: example (skipped complex member)"
 _LOADER_FIRST_LINE = "loader: example (skipped complex member)"
 
