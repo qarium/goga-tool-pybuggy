@@ -1,18 +1,6 @@
 """Search contexts for `goga_tool_pybuggy.api` asserts.
 
-Each context is a matchcrest ``BaseContext``: matchers read the value under test
-from ``value`` and use ``key`` only as a label in mismatch messages.
-
-pybuggy-specific constraints:
-
-- wraps a ``resq.http.Response``;
-- field paths always resolve from the root of the response body — there is no
-  configurable root key, so a search must spell out the full path;
-- pybuggy ships plain classes (no reporting layer), but polling is supported:
-  ``update()`` re-fetches the response in place via
-  ``resq.http.Response.reload()`` so matchcrest's retry loop observes fresh data;
-- ``resq.http.Response`` has no ``.request``, so the response-level ``key`` is
-  derived from the response URL rather than ``[method] path_url``.
+Field paths always resolve from the response-body root; ``update()`` re-fetches the response for polling.
 """
 
 from __future__ import annotations
@@ -48,9 +36,7 @@ class SearchItem:
 class BaseContext(_BaseContext):
     """Base context holding a response and a search history.
 
-    Calling a context (``ctx(search=..., index=..., hook=...)``) returns a new
-    context with the step appended to the history — enabling fluent drill-down
-    on an ``AssertField``.
+    Calling a context appends one search step and returns a new context.
 
     Args:
         response: the raw ``resq.http.Response`` under inspection.
@@ -105,10 +91,7 @@ class BaseContext(_BaseContext):
     def update(self) -> None:
         """Re-fetch the response for the next polling attempt.
 
-        Delegates to ``resq.http.Response.reload()``, which re-executes the
-        stored request recipe in place (same object, refreshed ``_underlying``)
-        so every cached read observes the new data. Called by matchcrest's
-        retry loop between attempts.
+        Delegates to ``resq.http.Response.reload()``; called by matchcrest's retry loop.
         """
         self._response.reload()
 
@@ -116,8 +99,7 @@ class BaseContext(_BaseContext):
 class ResponseContext(BaseContext):
     """Context for response-level checks, keyed by a fixed search token.
 
-    ``value`` resolves one of ``status`` / ``json`` / ``headers`` from the
-    response; ``key`` is the response URL (a label for messages).
+    ``value`` resolves ``status``/``json``/``headers``; ``key`` is the response URL.
     """
 
     @property
@@ -144,8 +126,7 @@ class ResponseContext(BaseContext):
 class JsonFieldContext(BaseContext):
     """Field context resolving a dotted path (``a.b.c``) against the body root.
 
-    Each history step drills by dotted keys from the response-body root, then
-    optional ``index``, then optional ``hook``.
+    Each step drills by dotted keys, then optional ``index``, then optional ``hook``.
     """
 
     @property
@@ -176,9 +157,7 @@ class JsonFieldContext(BaseContext):
 class JsonPathFieldContext(BaseContext):
     """Field context resolving a jsonpath (``$.a.b[*]``) against the body root.
 
-    Uses ``jsonpath_ng.ext``; the first match is taken (or the full list when the
-    expression contains a slice/``*``). Falls back to dotted-style ``index`` and
-    ``hook`` post-processing shared with :class:`JsonFieldContext`.
+    Uses ``jsonpath_ng.ext``; takes the first match, or the full list for a slice/``*`` expression.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:

@@ -1,17 +1,6 @@
 """Callable route over an ``Api`` for the `goga_tool_pybuggy.api` cell.
 
-``Endpoint`` binds an ``Api`` client, an HTTP verb, a route path, and an optional
-adapter override into a callable that issues a single request per call and
-returns a ``ResponseWrapper``.
-
-``__call__`` (positive path) and ``error`` (negative path) both delegate to
-``_call``, the shared internal routine. ``_call`` resolves a call-level
-authenticator, combining it with the stored ``Api`` auth via ``CombineAuth`` /
-``AuthWrapper`` in the precedence order ``AuthBase`` → ``Auth`` protocol →
-callable → ``TypeError``. It copies the caller's kwargs without mutating them,
-pops the call-level ``auth``/``use_autocheck``, injects the effective adapter
-(this ``Endpoint``'s override falling back to the ``Api`` default), issues the
-request through ``api.request``, and wraps the raw response.
+``Endpoint`` binds an ``Api``, verb, path, and adapter override into a one-request-per-call callable.
 """
 
 from __future__ import annotations
@@ -40,8 +29,7 @@ class Endpoint:
         method: HTTP verb forwarded to ``Api.request``.
         expected_status: expected success status code; an Enum is normalized to its value.
         use_autocheck: whether the lazy auto-check fires on first ``expect``.
-        adapter: per-endpoint resq adapter override forwarded to ``api.request``;
-            ``None`` falls back to the ``Api``-level default adapter.
+        adapter: per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default.
     """
 
     def __init__(  # noqa: PLR0913, PLR0917
@@ -102,10 +90,7 @@ class Endpoint:
     def _resolve_call_auth(self, call_auth: Any) -> CombineAuth:
         """Build a ``CombineAuth`` from ``api.auth`` plus the call-level auth.
 
-        ``api.auth`` is added first (yields on conflict); the call-level auth is
-        added in precedence order: ``AuthBase`` directly, an ``Auth`` protocol
-        object's bound ``auth`` method wrapped in ``AuthWrapper``, or a plain
-        callable wrapped in ``AuthWrapper``. Anything else raises ``TypeError``.
+        ``api.auth`` is added first; the call-level auth is added in ``AuthBase`` → ``Auth`` → callable precedence.
 
         Args:
             call_auth: the call-level authenticator supplied to the call.
@@ -132,15 +117,11 @@ class Endpoint:
     def _call(self, is_negative: bool, **kwargs: Any) -> ResponseWrapper:
         """Shared internal call routine for ``__call__`` and ``error``.
 
-        Resolves the call-level auth, injects the effective adapter, issues the
-        request via ``api.request``, and wraps the raw response. The caller's
-        kwargs dict is never mutated: a copy is made and
-        ``auth``/``use_autocheck`` are popped from it.
+        The caller's kwargs dict is never mutated; ``auth``/``use_autocheck`` are popped from a copy.
 
         Args:
             is_negative: selects the negative ``ResponseWrapper`` path.
-            **kwargs: call-level request arguments and the optional call-level
-                ``auth``/``use_autocheck``.
+            **kwargs: call-level request arguments and the optional ``auth``/``use_autocheck``.
 
         Returns:
             The ``ResponseWrapper`` over the raw response.

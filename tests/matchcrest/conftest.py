@@ -7,8 +7,7 @@ from goga_tool_pybuggy.matchcrest.matchers import BaseContext
 class ValueContext(BaseContext):
     """Concrete ``BaseContext`` wrapping a plain value, for matcher tests.
 
-    The matchers read the value under test from ``item.value`` and use ``item.key``
-    only as a label in messages. ``update()`` is a no-op retry hook.
+    Matchers read the value under test from ``item.value``; ``item.key`` is a message label; ``update()`` is a no-op.
     """
 
     def __init__(self, value, key="src"):

@@ -72,9 +72,7 @@ def test_build_endpoint_id_path_without_parameters() -> None:
 def test_build_endpoint_id_normalizes_hyphens() -> None:
     """Hyphens in the path are normalized to underscores so the id stays a valid identifier.
 
-    The id is consumed as a pytest fixture name and as a package directory by
-    `generate`; a surviving hyphen would render the generated module syntactically
-    invalid and abort generation (ruff exit 2).
+    `generate` uses the id as a fixture name and package directory; a surviving hyphen aborts generation (ruff exit 2).
     """
     assert build_endpoint_id("POST", "/payment-details/{id}") == "payment_details_id_post"
     assert "-" not in build_endpoint_id("GET", "/a-b/c-d")

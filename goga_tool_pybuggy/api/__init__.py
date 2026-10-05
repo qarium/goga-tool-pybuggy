@@ -1,23 +1,6 @@
 """`goga_tool_pybuggy.api` cell facade.
 
-Exposes the contract entities of the runtime HTTP cell:
-
-- ``Api`` — HTTP client composing a ``resq.Session``; holds auth/headers/cookies
-  and the assert settings, and injects them into each request.
-- ``Endpoint`` — callable route over an ``Api``; ``__call__`` (positive) and
-  ``error`` (negative) issue a single request per call and return a
-  ``ResponseWrapper``.
-- ``ResponseWrapper`` — context manager over the raw response.
-- ``Expect`` — two-level assert dispatcher: response-level checks
-  (``has_status_code``/``has_header``/``json_*``/``jsonschema_*``) and a callable
-  field-level entry (``expect('data.items') -> AssertField``).
-- ``AssertField`` — field-level assert over a resolved body value (matchcrest
-  matchers); produced by ``Expect.__call__``, re-exported for type-hinting.
-- ``Auth`` — structural ``Protocol`` for type-hinting per-call authenticators.
-
-``CombineAuth`` and ``AuthWrapper`` are internal to the cell (used by
-``Endpoint._call`` to combine a call-level authenticator with the stored
-``Api`` auth) and are deliberately not re-exported here.
+``CombineAuth`` and ``AuthWrapper`` are internal to the cell and are not re-exported.
 """
 
 from .api import Api

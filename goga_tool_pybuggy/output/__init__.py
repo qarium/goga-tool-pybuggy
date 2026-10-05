@@ -1,8 +1,6 @@
 """Output cell — formatting routines for endpoint display.
 
-This cell provides pure functions that render endpoint data into text
-(list format), JSON (info format), and comparison-result JSON documents
-(diff format) for CLI consumption.
+Pure functions render endpoints as list text, info JSON, and diff JSON.
 """
 
 from .diff import render_diff

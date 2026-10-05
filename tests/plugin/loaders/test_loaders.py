@@ -1,12 +1,6 @@
 """Tests for the `goga_tool_pybuggy.plugin.loaders` discovery cell.
 
-Mirrors the source layout (`tests/plugin/loaders/test_loaders.py`). Covers the
-contract surface (importability + signatures) and the behavioral logic of every
-entity of the loaders cell.
-
-The loaders mutate a caller-supplied accumulator list (`load(modules) -> None`)
-rather than returning a list — every behavioral test drives an accumulator and
-asserts its contents after the call.
+Loaders mutate a caller-supplied accumulator (`load(modules) -> None`) rather than returning a list.
 """
 
 import inspect
@@ -28,15 +22,13 @@ def thing():
 
 BROKEN_MODULE_SOURCE = "import does_not_exist_module\n"
 
-# A module exposing only a public ``pytest_*`` hook (no fixture marker). The
-# probe's ``attr.startswith("pytest_")`` branch should detect it.
+# A module exposing only a public ``pytest_*`` hook (no fixture marker).
 HOOK_MODULE_SOURCE = """
 def pytest_collection_modifyitems(items):
     ...
 """
 
-# A module exposing only an underscore-prefixed (private) name. The public-name
-# guard (``not attr.startswith("_")``) should exclude it.
+# A module exposing only an underscore-prefixed (private) hook name.
 PRIVATE_HOOK_MODULE_SOURCE = """
 def _pytest_collection_modifyitems(items):
     ...
@@ -125,8 +117,7 @@ class TestModuleIsPytestPluginLogic:
         assert "pkg.broken" not in sys.modules
 
     def test_module_is_pytest_plugin_detects_hook_module(self, tmp_path, monkeypatch):
-        # A module exposing only a public ``pytest_*`` hook (no fixture marker) is
-        # detected via the ``attr.startswith("pytest_")`` branch.
+        # A public ``pytest_*`` hook alone is detected by the ``startswith("pytest_")`` branch.
         monkeypatch.syspath_prepend(tmp_path)
 
         pkg = tmp_path / "pkg"
@@ -140,10 +131,7 @@ class TestModuleIsPytestPluginLogic:
         assert "pkg.hook" not in sys.modules
 
     def test_module_is_pytest_plugin_cleans_up_parent_packages(self, tmp_path, monkeypatch):
-        # `importlib.import_module("pkg.sub.mod")` also inserts the ancestor
-        # packages "pkg" and "pkg.sub" into sys.modules. The probe must remove
-        # those too (CODEMANIFEST: probing a module must not pollute
-        # sys.modules), not just the leaf module.
+        # Probing must not pollute sys.modules: the ancestor packages are removed too, not just the leaf.
         monkeypatch.syspath_prepend(tmp_path)
 
         pkg = tmp_path / "pkg"
@@ -163,8 +151,7 @@ class TestModuleIsPytestPluginLogic:
         assert "pkg" not in sys.modules
 
     def test_module_is_pytest_plugin_ignores_private_hook(self, tmp_path, monkeypatch):
-        # A module exposing only an underscore-prefixed name is excluded by the
-        # public-name guard, so it is not treated as a plugin.
+        # An underscore-prefixed name is excluded by the public-name guard.
         monkeypatch.syspath_prepend(tmp_path)
 
         pkg = tmp_path / "pkg"
@@ -178,8 +165,7 @@ class TestModuleIsPytestPluginLogic:
         assert "pkg.priv" not in sys.modules
 
 
-# Source for a generated-fixture module (carries a `pytest_*`-style fixture so the
-# probe recognizes it as a pytest plugin).
+# Source for a generated-fixture module (its `pytest_*` fixture is recognized by the probe).
 GENERATED_FIXTURE_SOURCE = """
 import pytest
 
@@ -277,9 +263,7 @@ class TestPackageLoaderLogic:
         assert modules == ["api.orders.get_orders.api"]
 
     def test_package_loader_skips_non_python_files(self, tmp_path, monkeypatch):
-        # A non-.py file next to api.py in a walked package (e.g. the
-        # per-endpoint meta.json input contract) must not be probed: importing
-        # "pkg.meta.json" raises ModuleNotFoundError for its "pkg.meta" parent.
+        # A non-.py file (e.g. the per-endpoint meta.json) must not be probed: importing it raises ModuleNotFoundError.
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
 
@@ -311,8 +295,7 @@ class TestPackageLoaderLogic:
         assert modules == []
 
     def test_package_loader_skips_non_package_subdirs(self, tmp_path, monkeypatch):
-        # A subdirectory WITHOUT __init__.py is pruned by the ``dirs[:]`` filter,
-        # so the fixture .py it contains is never probed/discovered.
+        # A subdirectory without __init__.py is pruned, so the .py files it holds are never probed.
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
 

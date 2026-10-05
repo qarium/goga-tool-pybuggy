@@ -1,46 +1,6 @@
 """pybuggy pytest-plugin cell.
 
-This cell turns pybuggy into a pytest plugin so a consumer enables it with a
-single ``pytest_plugins = ["goga_tool_pybuggy.plugin"]`` line in ``conftest.py``. It is
-built on the ``pluginator`` framework and provides:
-
-- the function-scope ``api`` fixture that constructs an :class:`Api` from the
-  plugin's resolved options; and
-- the :func:`install` entry point (defined in the package ``__init__.py``) that
-  wires the plugin into pytest at import time and synchronously registers the
-  discovered generated-fixture modules via the ``loaders`` sub-cell.
-
-Entities realized in this module:
-
-- ``PluginConfigKeys`` — the yaml config-file keys for the ``ApiPlugin``
-  options (an implementation-hint enum, co-located here).
-- ``ApiPlugin`` — pluginator plugin class exposing the configurable options
-  (``base_url``/``headers``/``timeout`` for the ``api`` fixture, plus
-  ``retries`` for test-run flaky reruns, and ``assert_timeout``/``assert_delay``/
-  ``assert_field_class``/``assert_response_class`` for assert polling and
-  pluggable assert classes) and the ``api`` fixture.
-
-Only the minimal fixture profile (``base_url``, ``headers``, ``timeout``) plus
-the assert-polling/pluggable-class options (``assert_timeout``/``assert_delay``/
-``assert_field_class``/``assert_response_class``) is fed to ``Api`` — no auth,
-no cookies. The
-fixture yields the ``Api`` and closes it afterwards (``Api.close()``, delegating to
-the underlying resq.Session's public close()). ``retries`` is orthogonal to the
-``api`` fixture: when resolved to a
-positive int, the ``pytest_collection_modifyitems`` hook stamps every collected
-item without an existing flaky marker with ``pytest.mark.flaky(max_runs=retries)``.
-Option resolution is lazy: options resolve on first access, not at import — and
-``base_url`` renders eagerly, once in the pluginator ``configure()`` lifecycle
-hook at pytest configphase, so a missing required ``base_url`` surfaces there
-(before any fixture runs); the remaining options surface on fixture invocation.
-``base_url`` is a Jinja2 template string rendered against the full environment
-plus the CLI options the user actually passed, and the rendered value
-is stored back on ``self.base_url`` and consumed by the ``api`` fixture (no
-rendering inside the fixture). Rendering uses Jinja2 (``StrictUndefined``; unknown
-variables raise) with a ``match_re`` test for conditional URL assembly; a plain URL
-without placeholders renders to itself, and any literal whitespace in the rendered
-value is removed so a multi-line template yields one clean URL. The renderer lives in
-the ``render`` sub-cell (``render_base_url``).
+Built on ``pluginator``: provides the function-scope ``api`` fixture and the ``install`` entry point.
 """
 
 import logging
@@ -64,10 +24,7 @@ logger = logging.getLogger(__name__)
 class PluginConfigKeys(str, Enum):
     """Config-file keys for the ``ApiPlugin`` options.
 
-    Implementation-hint enum (not a contract type): each member's value is the
-    yaml key read via the pluginator ``plugin_config_key`` resolution step.
-    ``LOADER`` is the exception — it is not an option but the section
-    ``_load_plugins`` reads to discover generated-fixture modules.
+    Implementation-hint enum; ``LOADER`` is not an option but the fixture-discovery section.
     """
 
     BASE_URL = "base_url"
@@ -81,29 +38,20 @@ class PluginConfigKeys(str, Enum):
     ASSERT_RESPONSE_CLASS = "assert_response_class"
 
 
-# A CLI token that declares an option the user typed: ``--key``, ``-k``,
-# ``--key=value``. Captures the option name (letters/digits/underscore/dash).
+# A typed CLI option token (``--key``, ``-k``, ``--key=value``); captures the option name.
 _PLACEHOLDER_SOURCE_PATTERN = re.compile(r"^--?([A-Za-z_][\w-]*)(?:=(.*))?$")
 
-# Normalized CLI token name of the ``--base-url`` flag (dashes -> underscores).
-# Matches both the pytest option ``dest`` and the option name, so a typed
-# ``--base-url`` is recognizable in ``_passed_cli_options`` output.
+# Normalized ``--base-url`` flag name, matching the keys of ``_passed_cli_options`` output.
 _BASE_URL_CLI_KEY: t.Final[str] = "base_url"
 
 
 def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
     """Collect the CLI options the user actually typed, keyed by normalized name.
 
-    Only options present in ``config.invocation_params.args`` (the raw CLI tokens)
-    are considered — the full ``config.option`` namespace is intentionally NOT
-    used, since it carries 150+ internal/plugin options that must not leak into
-    the template. Names are normalized (``-`` -> ``_``); ``None`` values are
-    dropped so an unset option does not overwrite a matching env entry.
+    Raw ``invocation_params.args`` tokens only — the full ``config.option`` namespace must not leak into templates.
 
     Args:
-        config: the pytest ``Config`` (``self.pytest_config``), exposing
-            ``invocation_params.args`` (raw token list) and ``option`` (the
-            resolved option namespace).
+        config: The pytest ``Config`` exposing ``invocation_params.args`` and ``option``.
 
     Returns:
         A name -> value mapping of the options the user passed on the CLI.
@@ -124,43 +72,20 @@ def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
 
 @define.plugin("pybuggy", config=defaults.CONFIG_FILE)
 class ApiPlugin:
-    """pluginator plugin exposing the Api options and the ``api`` fixture.
+    """Pluginator plugin exposing the Api options and the ``api`` fixture.
 
-    Options are lazy ``PluginOption`` descriptors: values resolve on access
-    through ``plugin_config_key -> env_var -> command_line -> required/
-    nullable``. ``__init__`` overrides the mixed-in ``BasePlugin.__init__`` to
-    accept the install ``context`` and optional explicit ``loaders``, and to
-    synchronously register discovered generated fixtures.
+    Lazy options resolve via ``plugin_config_key -> env_var -> command_line -> default_from``.
 
     Attributes:
-        plugin_config: anchor declaration; ``BasePlugin`` supplies the parsed
-            yaml dict.
-        base_url: service base URL as a Jinja2 template string (required;
-            ``BASE_URL`` env / ``--base-url`` CLI). Rendered once in
-            ``configure()`` against the environment + passed CLI options and stored
-            back on ``self.base_url``; a plain URL without placeholders renders to
-            itself. When ``--base-url`` is actually typed on the CLI, its value is
-            applied with top precedence — overriding the plugin config and
-            ``BASE_URL`` (see ``configure()``).
-        headers: default request headers (default ``{}``).
-        timeout: request timeout in seconds (nullable; ``API_TIMEOUT`` env /
-            ``--api-timeout`` CLI).
-        retries: flaky rerun count for the test run (default ``0``/no reruns;
-            ``--retries`` CLI). When positive, ``pytest_collection_modifyitems``
-            stamps unmarked items with ``pytest.mark.flaky(max_runs=retries)``.
-        assert_timeout: baseline assert-polling timeout in seconds (nullable;
-            ``assert_timeout`` config key / ``--api-assert-timeout`` CLI).
-            Forwarded to ``Api`` → ``AssertConfig``; drives matchcrest's retry
-            loop on each assertion.
-        assert_delay: seconds between assert-polling attempts (nullable;
-            ``assert_delay`` config key / ``--api-assert-delay`` CLI). Forwarded
-            to ``Api`` → ``AssertConfig``.
-        assert_field_class: dotted ``module:Class`` path of a custom
-            ``AssertField`` subclass (nullable; ``assert_field_class`` config
-            key). Forwarded to ``Api`` → ``AssertConfig``.
-        assert_response_class: dotted ``module:Class`` path of a custom
-            ``Expect`` subclass (nullable; ``assert_response_class`` config
-            key). Forwarded to ``Api`` → ``AssertConfig``.
+        plugin_config: Anchor declaration; ``BasePlugin`` supplies the parsed yaml dict.
+        base_url: Required base-URL Jinja2 template (``BASE_URL`` env / ``--base-url``), rendered in ``configure()``.
+        headers: Default request headers (default ``{}``).
+        timeout: Request timeout in seconds (nullable; ``API_TIMEOUT`` env / ``--api-timeout`` CLI).
+        retries: Flaky rerun count (default ``0``; ``--retries``); when positive, unmarked items get a ``flaky`` marker.
+        assert_timeout: Baseline assert-polling timeout in seconds (nullable; ``--api-assert-timeout``).
+        assert_delay: Seconds between assert-polling attempts (nullable; ``--api-assert-delay``).
+        assert_field_class: Dotted ``module:Class`` path of a custom ``AssertField`` subclass (nullable).
+        assert_response_class: Dotted ``module:Class`` path of a custom ``Expect`` subclass (nullable).
     """
 
     plugin_config: dict
@@ -222,28 +147,14 @@ class ApiPlugin:
     ) -> None:
         """Initialize the plugin and synchronously register generated fixtures.
 
-        After ``BasePlugin.__init__`` resolves the config file, ``_load_plugins``
-        assembles the ``pytest_plugins`` list from the ``loader`` config section
-        and the explicit ``loaders`` into ``context`` (the plugin module
-        namespace), so pytest loads the discovered fixture modules recursively.
+        ``_load_plugins`` assembles ``pytest_plugins`` from the ``loader`` config section plus the explicit ``loaders``.
 
         Args:
-            context: The namespace dict the plugin installs its hooks into
-                (typically the plugin module globals); its ``pytest_plugins``
-                key is populated here.
-            loaders: Explicit loaders (e.g. ``PackageLoader('api')``) in addition
-                to those declared in the ``loader`` config section. Defaults to
-                none.
-            default_retries: Default flaky rerun count for the ``retries`` option
-                when neither the config key nor ``--retries`` CLI is set.
-                Defaults to none (the option then resolves to ``0``/no reruns).
-            default_assert_timeout: Default baseline assert-polling timeout for
-                the ``assert_timeout`` option when neither the config key nor
-                ``--api-assert-timeout`` CLI is set. Defaults to none (no
-                polling unless configured).
-            default_assert_delay: Default baseline assert-polling delay for the
-                ``assert_delay`` option when neither the config key nor
-                ``--api-assert-delay`` CLI is set. Defaults to none.
+            context: Namespace dict the plugin installs into; its ``pytest_plugins`` key is populated here.
+            loaders: Explicit loaders in addition to the ``loader`` config section; defaults to none.
+            default_retries: Default flaky rerun count when unset via config or ``--retries``.
+            default_assert_timeout: Default assert-polling timeout when unset via config or ``--api-assert-timeout``.
+            default_assert_delay: Default assert-polling delay when unset via config or ``--api-assert-delay``.
         """
         super().__init__()
 
@@ -256,26 +167,7 @@ class ApiPlugin:
     def configure(self) -> None:
         """Render ``base_url`` once against the full environment and passed CLI options.
 
-        Builds the template context from ``os.environ`` (the full environment)
-        plus the CLI options the user actually typed (filtered via
-        ``config.invocation_params.args``), then renders ``self.base_url`` exactly
-        once with Jinja2 (``StrictUndefined``; the ``match_re`` test registered)
-        and stores the result back on ``self.base_url`` for the ``api`` fixture to
-        consume. A plain URL without placeholders renders to itself; any literal
-        whitespace in the rendered value is removed so a multi-line template
-        yields one clean URL.
-
-        When the user typed ``--base-url``, its value is applied first, with top
-        precedence over the plugin config and ``BASE_URL``: the pluginator
-        chain resolves the config before the CLI, so the typed CLI value is
-        re-applied here to make the CLI authoritative for ``base_url``. The CLI
-        value is itself a Jinja2 template and renders against the same context.
-
-        This is a pluginator lifecycle callback: pluginator discovers a no-arg
-        ``configure`` method and calls it from the injected ``pytest_configure``
-        after ``init_pytest_config`` + ``install``, when ``self.pytest_config``
-        and the resolved ``self.base_url`` are both available. It is NOT a
-        ``@pytest.hookimpl``.
+        Pluginator lifecycle callback at pytest configphase — a missing required ``base_url`` fails before any fixture.
         """
         logger.debug("rendering base_url template")
         cli_options = _passed_cli_options(self.pytest_config)
@@ -292,11 +184,7 @@ class ApiPlugin:
     def api(self) -> t.Iterator[Api]:
         """Build an :class:`Api` from the resolved plugin options and tear it down.
 
-        Minimal profile only: ``base_url``/``headers``/``timeout`` — no auth,
-        no cookies. Yields the ``Api`` for the test, then closes it afterwards
-        via ``Api.close()`` (delegating to the underlying resq.Session's public
-        close()). ``base_url`` is the value rendered once in ``configure()``
-        (stored back on ``self.base_url``).
+        Minimal profile — ``base_url``/``headers``/``timeout`` plus the assert options; no auth, no cookies.
 
         Yields:
             An :class:`Api` constructed from the resolved options.
@@ -318,14 +206,7 @@ class ApiPlugin:
     def pytest_collection_modifyitems(self, items: list[pytest.Item]) -> None:
         """Stamp collected items with a flaky rerun marker when ``retries > 0``.
 
-        When the resolved ``retries`` option is a positive int, every collected
-        item that does not already carry a flaky max-runs gets
-        ``pytest.mark.flaky(max_runs=retries)`` so the configured rerun count
-        applies uniformly across the suite. Items already marked by the ``flaky``
-        plugin (``_flaky_max_runs`` attribute) are
-        left untouched to avoid double-marking. The ``flaky`` package is NOT
-        disabled here — the marker is the contract surface and takes effect when
-        ``flaky`` is installed in the consumer suite.
+        Items already marked by ``flaky`` (``_flaky_max_runs``) are left untouched to avoid double-marking.
 
         Args:
             items: The collected pytest items to mark.
@@ -338,17 +219,11 @@ class ApiPlugin:
     def _load_plugins(self, context: dict, loaders: list[BaseLoader]) -> None:
         """Assemble the recursive ``pytest_plugins`` list from the config + loaders.
 
-        Reads the ``loader`` section of ``plugin_config`` (defaulting to an empty
-        section when absent), builds ``PackageLoader``/``ModuleLoader`` from its
-        ``packages``/``modules`` items, prepends the explicit ``loaders``, drives
-        each loader to append discovered dotted names into the accumulator, and
-        writes the deduplicated result back into ``context["pytest_plugins"]``.
+        Existing ``context["pytest_plugins"]`` entries seed the accumulator; the deduplicated result is written back.
 
         Args:
-            context: The namespace dict whose ``pytest_plugins`` key is read for
-                a starting list and written with the result.
-            loaders: Explicit loaders to run in addition to those from the
-                ``loader`` config section.
+            context: Namespace dict whose ``pytest_plugins`` key seeds the list and receives the result.
+            loaders: Explicit loaders in addition to those from the ``loader`` config section.
         """
         config_loader = self.plugin_config.get(PluginConfigKeys.LOADER, {})
 

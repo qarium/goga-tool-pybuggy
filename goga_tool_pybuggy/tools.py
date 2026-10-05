@@ -13,23 +13,18 @@ def retries(
 ) -> Callable[..., Any]:
     """Build a flaky decorator that reruns a test with configurable pass/delay.
 
-    Wraps the flaky library to rerun a test function up to ``max_runs`` times,
-    requiring ``min_passes`` successes, with an optional ``delay`` slept between
-    reruns. Exposed on the package facade for consumer test suites.
+    Wraps the flaky library; exposed on the package facade.
 
     Args:
-        max_runs: Maximum number of test runs (required, positive int).
-        min_passes: Minimum successful runs required for the test to pass; when
-            None, flaky derives its own default.
-        delay: Seconds to sleep between reruns; when None, reruns run
-            immediately and no rerun filter is applied.
+        max_runs: maximum number of test runs (positive int).
+        min_passes: successes required to pass; None lets flaky derive its default.
+        delay: seconds to sleep between reruns; None reruns immediately.
 
     Returns:
         The flaky decorator to apply to a test function.
 
     Constraints:
-        The rerun filter always returns True, so reruns are unconditional up to
-        ``max_runs``.
+        The rerun filter always returns True — reruns are unconditional up to ``max_runs``.
     """
 
     def _rerun_filter(*_, **__):

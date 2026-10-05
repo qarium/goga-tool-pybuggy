@@ -91,9 +91,7 @@ def test_spec_contract_normalizes_dates_to_iso() -> None:
 def test_spec_contract_non_serializable_value_raises_type_error() -> None:
     """A value the serializer cannot handle re-raises TypeError with json.dumps' message.
 
-    Dates are the only non-JSON-native type a resolved spec is expected to carry;
-    anything else (a set, bytes) is a programming error and must surface as
-    TypeError rather than being silently coerced.
+    Dates are the only non-JSON-native type a resolved spec is expected to carry.
     """
     with pytest.raises(TypeError, match="set is not JSON serializable"):
         spec_contract(_endpoint(request={"properties": {"tags": {"example": {1, 2}}}}))
@@ -143,8 +141,7 @@ def test_artifact_contract_corrupt_meta_raises(tmp_path: Path) -> None:
 def test_artifact_contract_non_object_meta_raises(tmp_path: Path, payload: str) -> None:
     """A meta.json holding valid non-object JSON is corrupt — ClickException, not TypeError.
 
-    ``json.loads`` accepts any JSON document, but key lookups on a null/list/
-    scalar raise ``TypeError``, which must not escape as a traceback.
+    ``json.loads`` accepts any document, but key lookups on null/list/scalar raise ``TypeError``.
     """
     seg_dir = tmp_path / "api" / "client" / "seg"
     seg_dir.mkdir(parents=True)
@@ -168,9 +165,7 @@ def test_artifact_contract_corrupt_schema_raises(tmp_path: Path) -> None:
 def test_artifact_contract_non_utf8_meta_raises(tmp_path: Path) -> None:
     """A non-UTF-8 meta.json is unreadable — ClickException, not a raw UnicodeDecodeError.
 
-    ``UnicodeDecodeError`` is a ``ValueError`` outside the plain OSError family,
-    so without it in the caught tuple the decode error escapes as a traceback
-    instead of the documented CLI error.
+    ``UnicodeDecodeError`` is a ``ValueError`` outside the plain OSError family.
     """
     seg_dir = tmp_path / "api" / "client" / "seg"
     seg_dir.mkdir(parents=True)

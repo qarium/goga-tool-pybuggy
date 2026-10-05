@@ -1,0 +1,112 @@
+Imports:
+  - Types:
+      - resolve_autonomy
+    Usages:
+      - autonomy
+    From: goga_tool_pybuggy/config
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  goga-pipeline-hooks: .goga/usages/github/goga/pipeline/registering-hooks.md
+  goga-workflow-document: .goga/usages/github/goga/pipeline/workflow/parse-workflow.md
+  goga-compile-flow: .goga/usages/github/goga/pipeline/compiler/compile-flow.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `goga-pipeline-hooks` for the amendment moment: the view reads, the contribute
+  buffer, and the failure behavior.
+  Use `goga-workflow-document` for the instruction vocabulary of the contributed document.
+  Use `goga-compile-flow` for the compiled effects of the directives and the stage-body
+  key translation.
+
+  The cell owns the autonomous-run contribution: when the running pipeline is
+  pybuggy:api.automate (the installer's namespaced form of the package's api.automate.yml,
+  delivered as the PipelineIdentity name) and autonomy is enabled in the tool config, it
+  contributes the fixed auto-approval window and the build stage; every other run stays
+  silent. Autonomy ends at commit-changes — the acceptance stage stays interactive. The
+  stage window and the build entry are compile-time constants of the package. Use relative
+  imports inside the cell.
+
+---
+
+"amend_workflow(context: object)":
+  location: amendment.py
+  annotations: |
+    Contribute the autonomous workflow amendment when the run qualifies for autonomy.
+
+    `context`: the amendment view delivered by the platform — the identity of the running
+    pipeline and the contribute buffer.
+
+    Algorithm:
+    1. Read the identity of the running pipeline from `context` — a platform
+       PipelineIdentity; the gate reads its discovered name attribute.
+    2. When the discovered name is not pybuggy:api.automate, return without
+       contributing — a silent no-op.
+    3. Resolve autonomy for the pipelines-axis key api.automate via
+       `resolve_autonomy` (the axis vocabulary is the tool's own — the key the
+       init confirm writes — while the run identity is namespaced by the
+       installer).
+    4. When autonomy is disabled, return without contributing — a silent no-op.
+    5. When autonomy is enabled, build the contribution via `build_autonomous_workflow`
+       and buffer it through `context`.
+
+    Requirements:
+    - The no-op branch contributes nothing and raises nothing.
+    - Any error raised here propagates — the platform stops the command with a clean error
+      naming pybuggy and discards the whole contribution.
+
+    Constraints:
+    - Do not catch errors to force the no-op branch — autonomy never disables silently.
+    - Do not read or alter the authored workflow — merge precedence belongs to the platform.
+    - Do not touch stage prompts, skills, or the acceptance stage.
+
+    Use `goga-pipeline-hooks` for the view contract and the contribute semantics.
+    Use `autonomy` for the resolver consumption pattern.
+    Use `conventions` for logging and testing.
+
+"build_autonomous_workflow() -> document: WorkflowDocument":
+  location: workflow.py
+  annotations: |
+    Build the declarative autonomy contribution from the package compile-time constants.
+
+    `document`: the platform WorkflowDocument — the auto-approval window and
+    the build stage — built exactly as the equivalent authored workflow-file
+    would parse.
+
+    Algorithm:
+    1. Build the stages mapping: each stage of the fixed window — review-testcases,
+       create-testcases, code-design, design-review, coding-plan, plan-review,
+       commit-changes — carries the auto-approval directive.
+    2. Build the extend entry for the build stage: positioned after commit-changes, the
+       body carrying the build title, the script that runs the goga build of the topic's
+       plan.md, the after-script cleanup of the .ralphex scratch tree, and the eight-hour
+       timeout.
+    3. Return the document.
+
+    Requirements:
+    - The window and the build entry are compile-time constants of the package.
+    - The document is a real platform WorkflowDocument (WorkflowStage /
+      WorkflowExtendStage values) — the delivery reads it by attribute and the
+      merge walks the typed fields; a plain mapping fails the checkpoint.
+    - The document uses only the WorkflowDocument instruction vocabulary.
+    - Deterministic and pure — identical output on every call.
+
+    Constraints:
+    - Do not emit per-stage prompt or description directives and do not modify stage
+      skills — autonomy is purely the workflow-level instruction.
+    - Do not emit directives for the acceptance stage — it stays interactive and
+      manually launched.
+    - No platform facade calls and no I/O; the platform models are imported at
+      call time (the package must import without goga).
+
+    Use `goga-workflow-document` for the accepted document structure and the extend-entry
+    keys.
+    Use `goga-compile-flow` for the compiled effects of the directives.
+    Use `conventions` for type hints and testing.
+
+---
+
+Author: Goga
+CreatedAt: 02/10/26
+Description: |
+  Autonomy contribution cell — the autonomous workflow amendment of a qualifying run.

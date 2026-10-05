@@ -37,21 +37,15 @@ _FORCE_HELP = "Overwrite existing response schema files, meta.json, api.py and _
 # Matches an OpenAPI path parameter "{name}" (name kept verbatim, incl. case).
 _PATH_PARAM_RE = re.compile(r"\{([^}]*)\}")
 
-# Characters of an endpoint id that cannot appear in a Python identifier.
-# build_endpoint_id normalizes "/" and "-" but not other punctuation (e.g. the
-# dot in "/v1.0/clients"); the fixture name is embedded as source text and the
-# endpoint directory becomes a package-name segment, so any leftover character
-# is replaced with "_" to keep the generated module importable.
+# build_endpoint_id normalizes "/" and "-" but not other punctuation (e.g. the dot in
+# "/v1.0/clients"); leftover characters become "_" so the generated module stays importable.
 _NON_IDENT_RE = re.compile(r"\W")
 
 
 def _safe_identifier(text: str) -> str:
     """Make ``text`` usable as a Python identifier segment (package dir or def name).
 
-    Replaces every non-word character with ``_`` and prefixes ``_`` when the
-    result would start with a digit (``2fa_verify_get`` is not importable as a
-    package name). Applied identically to the endpoint directory name and the
-    fixture name derivation, so the two can never disagree.
+    Applied identically to the endpoint directory name and the fixture name, so the two never disagree.
 
     Args:
         text: Lowercased identifier candidate (typically an endpoint id).
@@ -66,30 +60,16 @@ def _safe_identifier(text: str) -> str:
 def _json_default(obj: object) -> object:
     """Serialize non-JSON-native objects carried in resolved specs.
 
-    swax/Prance convert YAML date-like values (e.g. ``example: 2020-01-01``
-    under ``format: date``/``date-time``) into ``datetime.date``/
-    ``datetime.datetime`` objects, which ``json.dumps`` cannot encode by
-    default — a schema carrying one would abort the artifact write with a raw
-    ``TypeError`` after earlier files are already on disk. This renders them
-    as ISO 8601 strings (same convention as ``output.render_info``).
-    ``datetime.datetime`` is a subclass of ``date``, so a single ``date``
-    check covers both.
-
-    YAML also yields non-finite floats (``.nan``/``.inf``), which ``json.dumps``
-    encodes as the bare tokens ``NaN``/``Infinity`` — invalid strict JSON that
-    other parsers reject. They are rendered as ``null`` instead, the value a
-    JSON consumer reads for an unspecified number.
+    Dates render as ISO 8601 strings, the same convention as ``output.render_info``.
 
     Args:
         obj: Object that ``json.dumps`` could not encode natively.
 
     Returns:
-        ISO 8601 string for date/datetime values, ``None`` for non-finite
-        floats.
+        ISO 8601 string for date/datetime values.
 
     Raises:
-        TypeError: For any type this serializer does not handle, re-raised so
-            ``json.dumps`` reports it with its standard message.
+        TypeError: For any unhandled type, so ``json.dumps`` reports it with its standard message.
     """
     if isinstance(obj, date):
         return obj.isoformat()
@@ -100,11 +80,7 @@ def _json_default(obj: object) -> object:
 def _json_native(value: Any) -> Any:
     """Normalize a resolved spec value to strict-JSON-native form.
 
-    Recurses through the mappings, lists and scalars a resolved schema can
-    carry. Non-finite floats (YAML ``.nan``/``.inf``) become ``None``: floats
-    are JSON-serializable natively, so ``json.dumps(default=...)`` is never
-    consulted for them — the tokens ``NaN``/``Infinity`` it would emit are not
-    valid strict JSON. Every other value passes through untouched.
+    Non-finite floats become ``None`` — ``json.dumps`` would emit the invalid tokens ``NaN``/``Infinity``.
 
     Args:
         value: A resolved schema fragment (mapping, list or scalar).
@@ -149,10 +125,7 @@ def _find_ruff() -> str:
 def _apply_ruff(source: str) -> str:
     """Align a Python source string with ruff: sort imports then format.
 
-    Runs ``ruff check --fix --select I`` (isort-equivalent import ordering) then
-    ``ruff format`` (black-equivalent formatting), both via stdin/stdout with the
-    project line-length and target version. Deterministic: identical input yields
-    identical output — no timestamps or environment-dependent state.
+    Deterministic: identical input yields identical output — no timestamps or environment-dependent state.
 
     Args:
         source: Python source text to align.
@@ -182,9 +155,7 @@ def _apply_ruff(source: str) -> str:
             text=True,
         )
     except subprocess.CalledProcessError as error:
-        # Map the raw subprocess failure to the documented CLI error, carrying
-        # ruff's own diagnostics (a syntax error in the assembled source shows
-        # up here with the offending line).
+        # Map the subprocess failure to the CLI error, carrying ruff's own diagnostics.
         raise click.ClickException(f"ruff failed: {error.stderr or error}") from error
     return formatted.stdout
 
@@ -192,9 +163,7 @@ def _apply_ruff(source: str) -> str:
 def _strip_generator_header(source: str) -> str:
     """Drop the leading ``# generated by datamodel-codegen`` comment header.
 
-    datamodel-code-generator prepends a two-line comment header even with
-    ``disable_timestamp=True``; remove every leading comment/blank line so only the
-    imports and model classes remain.
+    The header appears even with ``disable_timestamp=True``; every leading comment/blank line is removed.
 
     Args:
         source: Raw module text produced by ``datamodel_code_generator.generate``.
@@ -212,11 +181,7 @@ def _strip_generator_header(source: str) -> str:
 def _collect_request_properties(request: dict) -> dict | None:
     """Return sanitized property schemas for model generation, or None to skip models.
 
-    datamodel-code-generator raises on property fragments that are neither a dict
-    nor a boolean (e.g. a stray ``int``/``str``/``list``/``None``). Such fragments
-    are replaced by the boolean ``True`` schema (JSON-Schema "any type") to preserve
-    the never-raise contract of ``render_api_module``. Returns ``None`` when the
-    request has no usable properties (no body, or empty/non-dict ``properties``).
+    Non-dict/non-bool fragments become ``True`` (any-type schema) so rendering never raises.
 
     Args:
         request: Resolved JSON-Schema of the request body.
@@ -233,11 +198,7 @@ def _collect_request_properties(request: dict) -> dict | None:
 def _render_request_models(request: dict, properties: dict) -> str:
     """Render pydantic model classes for an endpoint request body via datamodel-code-generator.
 
-    Generates a ``Request`` model (plus any nested object/array models) from the
-    resolved request-body JSON-Schema, then strips the generator header. No disk
-    I/O — the schema is fed as a JSON string (dates rendered via
-    ``_json_default``, same convention as the schema/meta.json writes) and the
-    module text is returned.
+    No disk I/O — the schema is fed to the generator as a JSON string and the module text returned.
 
     Args:
         request: Resolved JSON-Schema of the request body (may carry ``type``,
@@ -269,11 +230,7 @@ def _render_request_models(request: dict, properties: dict) -> str:
 def _write_package_markers(bottom: Path, top: Path, force: bool) -> None:
     """Write an empty ``__init__.py`` in every directory from ``bottom`` up to (including) ``top``.
 
-    Makes the generated ``api/<name>/<id>/`` tree an importable Python package by dropping an
-    empty ``__init__.py`` marker in each directory on the path to the fixture ``api.py``. A marker
-    is created when absent; with ``force`` an existing marker is overwritten — mirroring the
-    skip/overwrite semantics of the schema and ``api.py`` files so ``--force`` regenerates the
-    whole artifact tree uniformly.
+    Marker skip/overwrite follows ``force``, mirroring the schema and ``api.py`` semantics.
 
     Args:
         bottom: deepest directory on the package path (the per-endpoint ``api`` dir).
@@ -310,13 +267,7 @@ def _convert_route(path: str) -> str:
 def render_api_module(endpoint: Endpoint) -> str:
     """Render the full source text of an ``api.py`` module for a single endpoint.
 
-    Emits text referencing ``goga_tool_pybuggy.api`` without importing it. Builds a
-    deterministic module with a pytest fixture and, when the endpoint has a request
-    body with properties, a pydantic ``Request`` model (plus any nested models)
-    generated by datamodel-code-generator. The request models and the assembled
-    module are aligned through ruff (import sorting + formatting), so the returned
-    text is already lint/formatted. Identical ``Endpoint`` input always yields
-    identical module text.
+    The text is ruff-aligned and deterministic: identical ``Endpoint`` input yields identical output.
 
     Args:
         endpoint: Endpoint to render the ``api.py`` module for.
@@ -324,24 +275,17 @@ def render_api_module(endpoint: Endpoint) -> str:
     Returns:
         Full source text of the ``api.py`` module (trailing newline included).
     """
-    # Normalize to lowercase: the contract documents ``method`` as lowercased, and
-    # ``endpoint.id`` always lowercases it when appending the ``_<method>`` suffix,
-    # so this keeps fixture-name derivation correct regardless of input case.
+    # endpoint.id lowercases the method in its ``_<method>`` suffix, so normalize here too.
     method = endpoint.method.lower()
 
-    # 1. Fixture name: <method>_<id with the trailing "_<method>" removed>.
-    #    Sanitized via _safe_identifier — the same normalization _write_artifacts
-    #    applies to the endpoint directory, so the fixture name and the package
-    #    it lives in can never disagree (a non-identifier character such as the
-    #    dot in "/v1.0/clients" would otherwise render an unimportable module).
+    # 1. Fixture name: <method>_<id with the trailing "_<method>" removed>, sanitized
+    #    via _safe_identifier like the directory name, so the two can never disagree.
     fixture_name = _safe_identifier(f"{method}_{endpoint.id.removesuffix('_' + method)}")
 
     # 2. Route: rewrite each {param} as :param (preserve case)
     route = _convert_route(endpoint.path)
 
-    # repr() keeps the literal valid Python for any route content — a path key
-    # may legally carry a quote (e.g. "/o'brien/{id}"), which a plain
-    # single-quoted f-string interpolation would turn into broken source.
+    # repr() keeps the literal valid Python — a path key may legally carry a quote.
     fixture_block = (
         "@pytest.fixture(scope='function')\n"
         f"def {fixture_name}(api: Api) -> Endpoint:\n"
@@ -366,10 +310,7 @@ def _collect_specs(
 ) -> tuple[list[tuple[str, list[Endpoint]]], set[str]]:
     """Phase 1 — parse, extract and filter the selected specs without writing to disk.
 
-    For each spec: load and validate it (``paths`` required), extract endpoints, silently skip a
-    spec with no operations (pre-filter check), and — when ``endpoint_filter`` is set — keep only
-    endpoints whose id is in the filter. Returns the per-spec endpoint lists to generate and the
-    set of endpoint ids that matched the filter.
+    A spec with no operations is silently skipped (pre-filter, so not an empty filter result).
 
     Args:
         specs: selected spec entries (name -> SpecEntry).
@@ -389,21 +330,14 @@ def _collect_specs(
     for name, entry in specs.items():
         spec = load_spec(cwd / entry.location)
 
-        # Validate spec has the required structure — the key alone is not
-        # enough: an empty spec file parses to None, `paths:` with no value
-        # parses to None, and a top-level list/str document is equally not a
-        # spec mapping; all three would crash extract_endpoints.
+        # The key alone is not enough: a null `paths:` or non-mapping document would crash extract_endpoints.
         if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
             raise click.ClickException(f"spec has no paths: {entry.location}")
 
         try:
             endpoints = extract_endpoints(spec)
         except ValueError as error:
-            # extract_endpoints raises ValueError on an invalid spec — a spec
-            # declaring no version key, or a response key outside the shapes
-            # the specifications allow (such a key becomes an artifact
-            # filename, so it must not reach any write path). Pydantic
-            # ValidationError is a ValueError subclass and maps here too.
+            # ValueError marks an invalid spec (no version key, illegal response key); ValidationError is a subclass.
             raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
 
         # No endpoints: skip artifact creation for this spec silently (pre-filter check,
@@ -424,10 +358,7 @@ def _collect_specs(
 def _endpoint_meta(endpoint: Endpoint) -> dict[str, Any]:
     """Build the per-endpoint ``meta.json`` input-contract payload.
 
-    Always returns the same three keys in a fixed order — ``parameters`` (query
-    parameter schemas), ``request_body`` (the request-body schema) and ``vars``
-    (URL path-variable schemas) — taking the schemas exactly as extracted, with
-    no re-normalization. No key is ever omitted, regardless of endpoint shape.
+    All three keys are always present, exactly as extracted, with no re-normalization.
 
     Args:
         endpoint: Endpoint whose input contract is described.
@@ -459,9 +390,7 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
     """
     for name, endpoints in to_generate:
         for endpoint in endpoints:
-            # Sanitized id — used for both the directory and (via render_api_module)
-            # the fixture name, so the module is importable under the path it is
-            # written to and the two can never disagree.
+            # One sanitized id drives both the directory and the fixture name, so the two never disagree.
             safe_id = _safe_identifier(endpoint.id)
             endpoint_dir = cwd / "api" / name / safe_id
             schemas_dir = endpoint_dir / "schemas"
@@ -500,22 +429,14 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
 def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[list[str]] = None) -> None:
     """Scaffold api/ response-schema files, meta.json contracts, api.py fixture modules and empty tests/ directories.
 
-    Loads the config from the fixed config path and, for each (optionally filtered) spec, parses the
-    spec file, extracts endpoints, optionally filters them by id, and writes response schemas, a
-    ``meta.json`` input contract, an ``api.py`` pytest-fixture module and empty test directories under
-    the current working directory.
-
-    Two phases — collect/validate (no disk writes) then write — so an unknown endpoint id raises
-    before any artifact is written.
+    Two phases — collect (no disk writes) then write — so unknown ids raise before any artifact is written.
 
     Args:
         spec_name: Optional spec filter; when set generate only that spec, otherwise generate all specs.
         force: When false, existing schema, meta.json and api.py files are skipped silently; when
             true, overwritten.
-        endpoint_ids: Optional endpoint-id filter (as produced by ``build_endpoint_id``); when set,
-            generate only endpoints whose id is in the list. ``None`` or empty generates every endpoint
-            of the selected specs. Every requested id must match at least one selected spec, otherwise
-            no artifacts are written.
+        endpoint_ids: Optional filter (as produced by ``build_endpoint_id``); ``None`` or empty
+            generates every endpoint of the selected specs.
 
     Raises:
         click.ClickException: If spec_name is set but not found in config specs; a selected spec has
@@ -548,10 +469,7 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
         if missing:
             raise click.ClickException(f"endpoint not found: {', '.join(missing)}")
 
-    # Step 5.5: Reject sanitized-id collisions before any write — endpoints
-    # sharing a directory would silently mix their schemas and skip the second
-    # endpoint's api.py/meta.json (they "already exist"), or under --force the
-    # second would overwrite the first's artifacts.
+    # Step 5.5: Reject sanitized-id collisions before any write; colliding endpoints would mix artifacts.
     for name, endpoints in to_generate:
         owners: dict[str, tuple[str, str]] = {}
         for endpoint in endpoints:

@@ -43,7 +43,8 @@ object (`Expect` or `AssertField`) for chaining.
 Universal kwargs:
 
 - `reason: str = ""` — the error message prefix (applied on every check).
-- `any: bool = False` — controls element iteration; it takes effect **only** together
+- `any: bool = False` — accepted by `AssertField` check methods only (response-level
+  `Expect` methods take just `reason`/`timeout`/`delay`); it takes effect **only** together
   with `in_array=True` (a field-level flag set on field entry or on drill-down). Under
   `in_array=True` there are two modes: `any=False` (default) requires a match for **all**
   list elements; `any=True` accepts **at least one** matching element. Passing `any=True`
@@ -269,12 +270,17 @@ These methods are **context managers**: they yield the resolved value and verify
 block raises (or does not raise) an exception. They do not accept `any`.
 
 ```python
-with response.expect("missing").raise_exc(KeyError):
-    ...  # field access inside the block must raise KeyError
+with response.expect("missing").raise_exc(AssertionError):
+    ...  # a missing path raises AssertionError when the value is resolved at entry
 
 with response.expect("ok").not_raise_exc() as value:
     assert value == "abc"
 ```
+
+The value is resolved when the context manager is entered; a missing or invalid path
+raises `AssertionError` at entry (not `KeyError` — the raw lookup is converted, see the
+search resolution rules above). Exceptions raised by the block body are verified the same
+way when the block exits.
 
 ---
 
@@ -345,8 +351,10 @@ response.expect("data")(hook=lambda items: _mock_body(items, test_id_a, "/api/sh
 until success or `timeout` expiry; between attempts matchcrest re-fetches the response
 via `resq.http.Response.reload()` (an in-place replay of the same request) and pauses for
 `delay`. Per-call `timeout`/`delay` kwargs override the baseline for a single check;
-`None` (the default) means one attempt without polling. `AssertConfig`
-(`timeout`/`delay`) is the source of the baseline.
+`None` (the default) falls back to the `AssertConfig` baseline — a check polls only when
+the effective timeout is not `None`, and runs one attempt when both the per-call value
+and the baseline are `None`. `AssertConfig` (`timeout`/`delay`) is the source of the
+baseline.
 
 ## Pluggable classes
 

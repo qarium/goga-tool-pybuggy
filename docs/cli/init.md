@@ -54,10 +54,25 @@ command propagates them without wrapping.
 `pybuggy init` and a native `goga init -t pybuggy` run the **same** engine session
 (`goga.onboarding`, goga ≥ 2.0.1) with pybuggy invited: the engine asks the core goga
 questions — the language, the optional codemanifest / build-agent / pipeline sections,
-the Dockerfile — and then the pybuggy block under a heading with the tool name.
-pybuggy never prompts on its own: it declares its questions through the
-`declare_session` hook and the engine asks them; the `amend_config` hook contributes
-the tool config file.
+the tools, the usages records — and then the pybuggy block under a heading with the
+tool name. pybuggy prompts on its own only at the amendment moment (the extra specs
+and the autonomy confirm, below); everything else is asked by the engine from the
+declared records.
+
+Two core sections are skipped by pybuggy:
+
+- the **base convention** — the pybuggy session never offers the goga
+  base-convention download; the `conventions` slot is the bootstrap's delivery;
+- the **docker image decision** — the engine's "Create Dockerfile?" confirm never
+  appears: a pybuggy project always carries a Dockerfile. The pybuggy block asks the
+  two image questions itself (the base image FROM and the built-image name — see
+  below), the path is fixed at `.goga/Dockerfile`, and the amendments deliver the
+  file.
+
+The `tools` core question stays: whatever the user answers (or declines), pybuggy
+amends the recorded tools with its own entry — `pybuggy: <installed-minor>.x`, the
+same minor x-range the Dockerfile install line pins — so pybuggy is always recorded
+in `.goga/config.yml`; tools the user added are kept.
 
 Session semantics that shape the modes:
 
@@ -71,20 +86,22 @@ Session semantics that shape the modes:
   pybuggy and continues; the session still returns 0.
 
 Through the session pybuggy delivers the tool config file
-`.goga/tools/pybuggy/config.yml` and buffers the `build.review.skip: true` amendment —
-the tool's declared intent in the session answer space. The engine's config mapper
-does not carry that flag into the generated `.goga/config.yml`; the bootstrap enforces
-it afterwards. Consequence: a native `goga init -t pybuggy` session (without the
-pybuggy CLI) runs no bootstrap and sets no flag — add `build.review.skip: true` and
-the pybuggy-owned files by hand, or run the pybuggy CLI (see `MIGRATION.md` at the
-repository root).
+`.goga/tools/pybuggy/config.yml` and buffers the config amendments — the tool's
+declared intent in the session answer space: `build.review.skip: true` (the engine's
+config mapper does not carry that flag into the generated `.goga/config.yml`; the
+bootstrap enforces it afterwards), the Dockerfile pair (the fixed `.goga/Dockerfile`
+path plus the answered FROM — the engine's generator writes the Dockerfile from
+exactly this pair — and the answered built-image name), and the `tools` record above.
+Consequence: a native `goga init -t pybuggy` session (without the pybuggy CLI) runs
+no bootstrap and sets no flag — add `build.review.skip: true` and the pybuggy-owned
+files by hand, or run the pybuggy CLI (see `MIGRATION.md` at the repository root).
 
 ## What the command does
 
 Two stages in bare and template modes; upgrade mode skips both.
 
 **Stage 1 — the onboarding session** (see above). Writes `.goga/config.yml`, the
-Dockerfile (when the "Create Dockerfile?" confirm is answered Yes), and
+Dockerfile (always — created from the answered base image), and
 `.goga/tools/pybuggy/config.yml`. A non-zero session exit stops the command — the
 bootstrap is skipped, the code is propagated unchanged.
 
@@ -106,19 +123,27 @@ path is resolved from the consumer config `dockerfile` field so the line lands i
 project's actual Dockerfile (a custom session answer wins).
 
 **The mandatory Dockerfile.** A Dockerfile missing after the session fails the
-command with a non-zero exit — pybuggy requires one to carry its install line. This
-includes the decline branch: the session's core confirm "Create Dockerfile?" defaults
-to No, and answering No leaves no Dockerfile at all — the command then completes the
-bootstrap steps and fails (the session artifacts stay written). Recovery: create the
-Dockerfile at the config `dockerfile` path (default `.goga/Dockerfile`) and re-run the
-registrations by hand, or remove `.goga` and re-run — a repeat bare `pybuggy init` is
-refused by the already-initialized guard.
+command with a non-zero exit — pybuggy requires one to carry its install line. The
+session always creates the Dockerfile (the amendments deliver the fixed path and the
+answered FROM), so the missing-file branch is an unreachable safety net of the
+invariant, not a declinable outcome of the survey. If you deleted the file after the
+session, create it at the config `dockerfile` path (default `.goga/Dockerfile`) with a
+`FROM <base image>` line and re-run the registrations by hand, or remove `.goga` and
+re-run — a repeat bare `pybuggy init` is refused by the already-initialized guard.
 
 ## Interactive tool-config survey
 
-The pybuggy block of the session builds `.goga/tools/pybuggy/config.yml`. What is
-asked (by the engine):
+The pybuggy block of the session asks the image questions and builds
+`.goga/tools/pybuggy/config.yml`. What is asked, in order:
 
+- The **base image** (`base_image`) — the FROM of the always-created Dockerfile. The
+  prompt lists the goga-python image family hints of the running goga minor line
+  (`qarium/goga-python-3.10` … `qarium/goga-python-3.14`, each tagged with the minor
+  line); the newest member is the default. The pybuggy test runtime is pytest, so the
+  python family serves every pybuggy project.
+- The **built-image name** (`image`) — the name the project image is built and tagged
+  with. Default `{project}:latest` derived from the git origin; a required input when
+  no origin is configured.
 - `base_url` — **required** (empty input is re-asked). A Jinja2 URL template — a plain
   URL is a valid template that renders to itself.
 - The optional scalar plugin keys, one input each, skippable with Enter: `timeout`,
@@ -130,15 +155,28 @@ asked (by the engine):
   `git_ref`. A git block is attached only when both `git_url` and `git_location` are
   non-empty; an empty `git_ref` means the default branch. The first spec is validated
   strictly, so at least one spec always lands in the config.
-- `extra_specs` — optional. Additional specs, one per line, in the compact form:
 
-  ```
-  name|type|location|git_url|git_location|git_ref
+Two follow-ups are asked by pybuggy itself at the amendment moment, **after** the
+block:
+
+- The **additional specs** (`Add another spec?`, default No) — a confirm-gated
+  per-field loop mirroring the first-spec prompts: `name` / `type` / `location`
+  (required, re-asked when empty) and the optional git fields. Any number of extras;
+  a decline ends the survey.
+- The **autonomy confirm**, asked last — after the spec survey completed, so the
+  question never interleaves the spec fields: `Run the api.automate pipeline unattended
+  (autonomous mode)?` — default No. Answering Yes is the one way the session writes a
+  `pipelines` axis entry into the tool config:
+
+  ```yaml
+  pipelines:
+    api.automate:
+      autonomous: true
   ```
 
-  A line carrying fewer than the three required fields (name, type, location) is
-  malformed — it is skipped with a warning; the rest of the contribution is
-  unaffected. A name colliding with an earlier spec keeps the earlier spec and warns.
+  The default (or declined) answer writes nothing — the entry is dropped like any
+  unanswered key, and the project's `api.automate` runs stay fully interactive (see
+  [Autonomous runs](../pipelines/api-automate.md#autonomous-runs)).
 
 `headers` and `loader` are **never surveyed**, and the tool config is written as plain
 YAML carrying only the answered values (unanswered keys are dropped, never written
