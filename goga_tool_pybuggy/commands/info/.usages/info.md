@@ -37,7 +37,7 @@ The positional variadic argument `endpoint-ids` restricts the output to a subset
 ids (`Endpoint.id` is a string such as `clients_startup_get`):
 
     pybuggy endpoint info clients_startup_get health_get
-    pybuggy endpoint info -s client clients_startup_get   # the option precedes the positional ids
+    pybuggy endpoint info --spec client clients_startup_get   # the option precedes the positional ids
 
 The command selects endpoints only among the selected specs (`--spec` or all):
 

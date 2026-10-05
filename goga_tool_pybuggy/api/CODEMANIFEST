@@ -238,6 +238,10 @@ Annotations: |
       `request`: the PreparedRequest being signed.
       `signed`: the signed PreparedRequest.
 
+->Expect: {}
+
+->AssertField: {}
+
 ---
 
 Author: Goga

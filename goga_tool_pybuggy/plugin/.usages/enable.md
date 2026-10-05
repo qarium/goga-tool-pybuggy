@@ -42,7 +42,7 @@ discovery, or `install(loaders=[])` to disable it.
   config file.
 - **`base_url` template** — `base_url` is a Jinja2 template rendered once in the pluginator `configure()`
   hook against `os.environ` + the CLI options the user actually passed. Placeholders that should be fed
-  from the CLI (e.g. `{{ env }}`, `{{ version }}`) require the consumer to register those options via
+  from the CLI (e.g. `{{ env }}`, `{{ api_version }}`) require the consumer to register those options via
   `pytest_addoption` in `conftest.py`, since pytest rejects unregistered flags:
   ```python
   # conftest.py

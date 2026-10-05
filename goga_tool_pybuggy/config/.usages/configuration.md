@@ -26,7 +26,7 @@ for name, entry in config.specs.items():
 ```
 
 - `name` (the dict key) is used by consumers for output and for the `--spec` filter.
-- `entry.git` can be `None` — the consumer treats such a spec as local and skips it with a WARNING.
+- `entry.git` can be `None` — the consumer treats such a spec as local and skips it silently.
 - `git.ref` is the default ref for cloning; the consumer can override it with the `--ref` option (priority order: `--ref` > `git.ref` > default branch).
 
 ## Preconditions

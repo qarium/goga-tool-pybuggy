@@ -24,7 +24,9 @@ enabled = resolve_autonomy("api.automate")  # bool
 ```
 
 - The whole axis is validated on every call; a structural violation (a non-mapping file root, a non-mapping `pipelines` or entry, a record not matching the entry shape) raises a clean error naming pybuggy — call it from the amendment moment so the failure surfaces as the platform's clean stop.
-- Unknown pipeline names are ignored — entries for other pipelines never fail the call.
+- Unknown pipeline names are ignored, but every entry in the axis is validated — a
+  malformed record for **any** pipeline (not just the requested one) raises the clean
+  error above.
 - No caching: each call obtains a fresh raw parse.
 
 ## Preconditions

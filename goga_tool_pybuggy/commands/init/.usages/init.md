@@ -90,6 +90,9 @@ exits.
 
 ## Programmatic usage (tests/scripts)
 
-`run_init` is the testable entry point: it takes the three CLI values and returns an exit code, never raising.
+`run_init` is the testable entry point: it takes the three CLI values and returns an exit
+code. It raises `click.ClickException` on an invalid flag combination (`<tpl>` with
+`--upgrade`, or `--ref` without either) — at the CLI boundary click prints the message
+and exits 1.
 `run_session` and `run_bootstrap` are the seams behind it — stub them with monkeypatch to avoid the TTY and the
 filesystem. `resolve_init_mode` is pure and safe to call directly.
