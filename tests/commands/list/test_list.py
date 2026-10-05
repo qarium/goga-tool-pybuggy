@@ -460,7 +460,7 @@ def test_run_list_status_mode_empty_spec_no_lines_prints_no_block(
         run_list(None, with_status=True)
 
     assert capsys.readouterr().out == ""
-    assert any("no endpoints found in spec: empty" in record.message for record in caplog.records)
+    assert any(record.message == "no endpoints found in spec" and record.spec == "empty" for record in caplog.records)
 
 
 def test_run_list_status_mode_empty_spec_with_orphan_prints_removed_only(

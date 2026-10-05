@@ -11,9 +11,9 @@ class Config(BaseModel):
     Spec names (dict keys) surface in ``list``/``info`` command output.
 
     Attributes:
-        specs: Mapping of spec name to spec entry; empty mapping by default.
+        specs: Mapping of spec name to spec entry; required, empty dict allowed.
     """
 
     model_config = ConfigDict(kw_only=True)
 
-    specs: dict[str, SpecEntry] = {}
+    specs: dict[str, SpecEntry]
