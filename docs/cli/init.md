@@ -94,7 +94,7 @@ path plus the answered FROM — the engine's generator writes the Dockerfile fro
 exactly this pair — and the answered built-image name), and the `tools` record above.
 Consequence: a native `goga init -t pybuggy` session (without the pybuggy CLI) runs
 no bootstrap and sets no flag — add `build.review.skip: true` and the pybuggy-owned
-files by hand, or run the pybuggy CLI (see `MIGRATION.md` at the repository root).
+files by hand, or run the pybuggy CLI.
 
 ## What the command does
 

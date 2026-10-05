@@ -7,10 +7,14 @@ docs/pipelines/index.md:
   - goga_tool_pybuggy
 docs/pipelines/api-automate.md:
   - goga_tool_pybuggy
+  - goga_tool_pybuggy/autonomous
+  - goga_tool_pybuggy/statuses
 docs/pipelines/api-fix.md:
   - goga_tool_pybuggy
+  - goga_tool_pybuggy/statuses
 docs/pipelines/workflows.md:
   - goga_tool_pybuggy
+  - goga_tool_pybuggy/autonomous
 docs/cli/init.md:
   - goga_tool_pybuggy/commands/init
   - goga_tool_pybuggy/config

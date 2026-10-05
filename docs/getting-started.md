@@ -77,8 +77,7 @@ same guard `goga init` applies. The command also scaffolds a project from a
 copier-compatible template (`init <tpl> [--ref <git-ref>]`) and upgrades a scaffolded
 project (`init --upgrade`) — see [CLI — init](cli/init.md). A native
 `goga init -t pybuggy` runs the same session without the bootstrap — the flag and the
-pybuggy-owned files land only through the pybuggy CLI (see `MIGRATION.md` at the
-repository root).
+pybuggy-owned files land only through the pybuggy CLI.
 
 ## 3. Run the pipeline: `goga pipeline pybuggy:api.automate`
 
