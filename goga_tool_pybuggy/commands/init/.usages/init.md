@@ -1,4 +1,4 @@
-# goga_tool_pybuggy.commands.init — goga project initialization (bare, template, upgrade) and bootstrap of the consumer's pybuggy environment
+# goga_tool_pybuggy.commands.init — goga project initialization and pybuggy bootstrap
 
 ## Domain
 
@@ -8,11 +8,12 @@ directory where it is invoked. It operates in three modes selected by the CLI ar
 - **bare** (`pybuggy init`) — interactive onboarding of a fresh project; refused (exit 1) when `.goga/` already
   exists — the same already-initialized guard `goga init` applies;
 - **template** (`pybuggy init <tpl> [--ref <git-ref>]`) — scaffold a copier-compatible template project first, then
-  run the onboarding with silent-skip gates;
+  run the onboarding session and the pybuggy bootstrap with skip-if-exists gates;
 - **upgrade** (`pybuggy init --upgrade [--ref <git-ref>]`) — migrate a previously scaffolded project to a newer
   template version; no onboarding.
 
-The audience is the integrator wiring pybuggy into their project (`goga install pybuggy`), and the consumer's goga agent.
+The audience is the integrator wiring pybuggy into their project (`goga install pybuggy`), and the consumer's goga
+agent.
 
 ## CLI surface
 
@@ -26,136 +27,85 @@ The audience is the integrator wiring pybuggy into their project (`goga install 
 Flag rules (mirroring `goga init`): `<tpl>` and `--upgrade` are mutually exclusive; `--ref` requires `<tpl>` or
 `--upgrade`. Violations print an error message and exit with code 1.
 
-The command stays interactive: the goga questionnaire (bare/template onboarding without an existing `.goga/config.yml`)
-and the copier TUI (template questions) require a TTY.
+The command stays interactive: the onboarding session (the core goga questions plus the pybuggy block) and the
+copier TUI (template questions) require a TTY.
 
-## Template mode
+## The onboarding session
 
-Scaffolding runs first (`goga.scaffold` engine, copier underneath): the template is rendered into the current working
-directory; only `project_name` is injected programmatically — the remaining template questions are asked
-interactively. A failed scaffold stops the command with the engine's exit code — no onboarding side effects are
-applied.
+`pybuggy init` and a native `goga init -t pybuggy` run the **same** engine session with pybuggy invited. The engine
+asks the core goga questions and then the pybuggy block under a heading with the tool name. The engine asks
+everything the declarative records can express; the pybuggy-owned asks are the amendment-moment follow-ups —
+`Add another spec?` with its per-field loop, then the autonomy confirm `Run the api.automate pipeline unattended?` —
+run by the amendment hook right after the engine survey, specs first and autonomy last (a confirm-gated repeated
+group is beyond the declarative records, and the autonomy question must not interleave the spec fields).
 
-After a successful scaffold the onboarding pipeline runs with **silent-skip gates**: a file that already exists
-(`.goga/config.yml`, `.goga/tools/pybuggy/config.yml`, `conftest.py`, the conventions slot, the copied usages) is left
-untouched with an INFO log and no interactive confirmation; a missing file is created through the normal flow —
-including the interactive goga questionnaire when the template brought no `.goga/config.yml`.
+The session skips two core sections:
 
-Idempotent augmentations of existing files always run — they are additive and are the only way pybuggy integrates
-itself into an arbitrary template:
+- the **base convention** — a pybuggy session never offers the goga language-convention download, because the engine
+  would land it in `.goga/usages/conventions.md` first and the bootstrap's skip-if-exists gate would keep the wrong
+  convention. The `conventions` slot is the bootstrap's delivery and always carries the packaged pybuggy test
+  convention in a fresh project.
+- the **docker image decision** — the engine's `Create Dockerfile?` gate never appears: a pybuggy project always
+  carries a Dockerfile. The pybuggy block asks the base image (FROM — the goga-python family hints of the running
+  minor tag, newest as the default) and the built-image name (`{project}:latest` from the git origin when
+  derivable, a required input otherwise); the fixed path is always `.goga/Dockerfile`.
 
-- `build.review_executor.skip: true` in `.goga/config.yml` (round-trip, comments preserved);
-- the `RUN goga install pybuggy -v 1.0.x` line in `.goga/Dockerfile` (a natural no-op when the Dockerfile is absent);
-- the pybuggy usage keys and annotation lines registered in `.goga/config.yml`.
+Session semantics that shape the modes:
+
+- An existing `.goga/config.yml` ends the session immediately — no questions, no tool events, no artifacts.
+  Whoever created the config first wins; it is never rewritten.
+- In bare mode this case is unreachable through the CLI: the already-initialized guard refuses first.
+- In template mode it is the expected path when the template brings its own `.goga/config.yml`: the session returns
+  at once and only the bootstrap below runs.
+- A failing tool contribution is soft: the engine discards it with a warning naming pybuggy and continues; the
+  session still returns 0. This includes a Ctrl-C at the additional-spec or autonomy prompts.
+
+Through the session pybuggy delivers two things: its questions (the image inputs, the tool configuration survey, the
+surveyed additional specs, the autonomy confirm) and its tool config file `.goga/tools/pybuggy/config.yml`. It also
+buffers the config amendments — the tool's declared intent in the session answer space:
+
+- `build.review.skip: true` — the engine's config mapper does not carry that flag into the generated
+  `.goga/config.yml`; the `pybuggy init` bootstrap enforces it afterwards (`ensure_review_skip`);
+- the Dockerfile pair — the fixed `.goga/Dockerfile` path plus the answered FROM (the engine's generator writes the
+  Dockerfile from exactly this pair) and the answered built-image name;
+- the `tools` record `pybuggy: <installed-minor>.x` — merged over whatever the core tools question collected, so
+  pybuggy is always recorded in `.goga/config.yml` whatever the answer to `Add tools?` was.
+
+Consequence: a native `goga init -t pybuggy` session (without the pybuggy CLI) runs no bootstrap and sets no flag —
+add `build.review.skip: true` by hand or run the bootstrap programmatically.
+
+## The pybuggy bootstrap
+
+After the session (bare and template modes only), the command delivers the files the session does not carry:
+
+| Artifact | Gate |
+|---|---|
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages | template: skip existing (INFO); bare: overwrite |
+| commented example records for the absent members of `.goga/tools/pybuggy/config.yml` | added when the file exists, idempotent |
+| `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
+| `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
+| the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |
+| the pybuggy usage keys and annotation lines in `.goga/config.yml` | always registered, idempotent |
+| `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
+
+A Dockerfile missing after the session fails the command with a non-zero exit — pybuggy requires one to carry its
+install line. The session always creates the Dockerfile (the amendments deliver the fixed path and the answered
+FROM), so the missing-file branch is the unreachable safety net of the mandatory-Dockerfile invariant, not a
+declinable outcome of the survey.
 
 ## Upgrade mode
 
 Only the template migration runs (copier run_update via the `.goga/scaffold.yml` state file); no onboarding prompts
-appear, nothing else is written. The state file is persisted by the template itself (the answers-file entry) — a
-template without one leaves `--upgrade` unusable: the engine reports the missing state file with a non-zero exit.
-Engine preconditions (a clean git repository, a git-trackable template, a non-decreasing version) surface as non-zero
-exits; the command propagates them without wrapping.
-
-## The conventions slot — skip-if-exists
-
-The file `.goga/usages/conventions.md` is created from the package asset **only when absent** — in every mode. An
-existing file (brought by a template or created/modified by any earlier run) is left untouched with an INFO log. The
-registration of the `conventions` usage key and the annotation line is idempotent and always runs.
-
-## Bare mode
-
-- **Already-initialized guard (goga init parity).** When the working directory holds a `.goga` directory, the command
-  refuses up front: `Project already initialized` on stderr, exit code 1 — no prompts, and not a single file is read
-  for update, refreshed, or overwritten. A repeated invocation therefore never updates files (the earlier
-  confirm-gated re-creation of the configs/conftest and the silent refresh of the copied usages are gone). To re-run
-  onboarding, delete `.goga/` first.
-- In a fresh directory the goga project initializes in-process via the `goga` package (the language is fixed to
-  `python`; the Dockerfile is mandatory: `FROM {base}` + the appended `RUN goga install pybuggy -v 1.0.x` line; no
-  base-convention download — initialization is offline).
-- The tool config `.goga/tools/pybuggy/config.yml` is built interactively. The prompted keys: base_url (required, a
-  Jinja2 template), the optional scalars (timeout, retries, assert_timeout, assert_delay, assert_field_class,
-  assert_response_class), and at least one spec (name, type swagger|openapi, location, optional git block).
-  headers/loader are written as commented examples, not prompted.
-- The packaged consumer usages (`api.md`, `asserts.md`, and any future sub-cell usages) are copied to
-  `.goga/usages/cooks/pybuggy/` and registered in `.goga/config.yml` (keys `pybuggy-api`, `pybuggy-asserts`, ...);
-  annotation lines are registered by backtick reference. Idempotent: existing keys are skipped, a matched annotation
-  line is replaced, an unmatched one is appended, foreign lines are preserved.
-- The root `conftest.py` is created from a fixed template (`load_dotenv()` then `plugin.install()`). A `conftest.py`
-  that predates onboarding (a project without `.goga/`) is overwritten only on confirmation (default `no`) — the one
-  confirmation still reachable in bare mode.
-
-## Entry point
-
-- Console command (top-level, not under `endpoint`): `pybuggy init [<tpl>] [--ref <git-ref>] [--upgrade]`
-- Module run: `python -m goga_tool_pybuggy init [<tpl>] [--ref <git-ref>] [--upgrade]`
-- Programmatic facade import:
-      from goga_tool_pybuggy.commands.init import run_init, run_onboarding, resolve_init_mode, run_goga_init, init_cmd, register_usages, register_annotations, ensure_review_executor_skip, write_test_convention
-
-## Exit codes
-
-- `0` — success.
-- `1` — invalid flag combination (`<tpl>` with `--upgrade`; `--ref` without `<tpl>`/`--upgrade`); project already
-  initialized (bare invocation over an existing `.goga/` — the goga-parity refusal, zero writes); goga-init
-  canceled/failed.
-- The scaffold engine's non-zero code — propagated unchanged (a failed scaffold or migration); a failed scaffold
-  leaves no onboarding side effects.
-- Usages bootstrap errors (incl. convention delivery) and conftest write errors → `click.ClickException`
-  (non-zero exit).
+appear, nothing else is written. A template without a persisted answers-file entry leaves `--upgrade` unusable: the
+engine reports the missing state file with a non-zero exit, which the command propagates without wrapping. Engine
+preconditions (a clean git repository, a git-trackable template, a non-decreasing version) surface as non-zero
+exits.
 
 ## Programmatic usage (tests/scripts)
 
-`run_init(tpl, ref, upgrade)` uses cwd as the output root and **returns an exit code (int)**; the flags mirror the CLI.
-In bare mode an existing `.goga/` directory returns `1` (the already-initialized refusal — no prompt, no write;
-template and upgrade modes are never guarded):
-
-      import pytest
-      from goga_tool_pybuggy.commands.init import run_init
-
-      def test_bare_onboarding(tmp_path, monkeypatch):
-          monkeypatch.chdir(tmp_path)
-          monkeypatch.setattr('goga_tool_pybuggy.commands.init.init.run_goga_init', lambda: 0)
-          monkeypatch.setattr('goga_tool_pybuggy.commands.init.init.build_pybuggy_config', lambda: 0)
-          assert run_init(tpl=None, ref=None, upgrade=False) == 0    # bare mode — no flags
-          assert (tmp_path / '.goga/usages/conventions.md').exists()
-          assert (tmp_path / 'conftest.py').exists()
-
-          assert run_init(tpl=None, ref=None, upgrade=False) == 1    # repeat run — refused, files untouched
-
-      def test_failed_scaffold_stops_onboarding(tmp_path, monkeypatch):
-          monkeypatch.chdir(tmp_path)
-          monkeypatch.setattr('goga_tool_pybuggy.commands.init.init.Scaffold', StubScaffold)  # generate -> 1
-          assert run_init(tpl='https://host/repo.git', ref=None, upgrade=False) == 1
-          assert not (tmp_path / '.goga/usages/conventions.md').exists()      # no onboarding side effects
-
-The mode resolution is pure and directly testable via `resolve_init_mode` (returns `bare` / `template` / `upgrade`;
-raises `click.ClickException` on an invalid combination). The onboarding pipeline is isolated in
-`run_onboarding(template_mode)` — the gate semantics (silent skip vs confirmation) are testable without stubbing the
-scaffold engine:
-
-      def test_conventions_skip_if_exists(tmp_path, monkeypatch):
-          monkeypatch.chdir(tmp_path)
-          (tmp_path / '.goga/usages/conventions.md').write_text('template convention')
-          monkeypatch.setattr('goga_tool_pybuggy.commands.init.init.run_goga_init', lambda: 0)
-          monkeypatch.setattr('goga_tool_pybuggy.commands.init.init.build_pybuggy_config', lambda: 0)
-          assert run_onboarding(template_mode=True) == 0
-          assert (tmp_path / '.goga/usages/conventions.md').read_text() == 'template convention'  # untouched
-
-The scaffold engine is stubbed with `monkeypatch` at the import point (`Scaffold`) — tests never invoke real copier,
-the network, or a TTY. For direct usages registration without discovery/copying — `register_usages`; for annotation
-lines — `register_annotations` (round-trip, idempotent by backtick reference, returns `changed_keys`); for enforcing
-`build.review_executor.skip: true` on an arbitrary config — `ensure_review_executor_skip`; the convention write — the
-pure `write_test_convention` (always overwrites the given path; whether it runs is the orchestrator's decision).
-
-## Preconditions and side effects
-
-- Requires the installed `goga` package (a pybuggy dependency) — onboarding and the scaffold engine.
-- Bare onboarding requires an absent `.goga/` directory — an initialized project is refused (exit 1, no writes).
-- Writes to `<cwd>/.goga/` (config, the Dockerfile install line, usages, the tool config) and `<cwd>/conftest.py`; the
-  scaffold engine renders template files into `<cwd>` and may persist `.goga/scaffold.yml` (template-owned; must not
-  be git-ignored in a scaffolded project).
-- The `conventions` slot is created only when absent, in every mode.
-- Reads usages and the convention asset from the **installed** `goga_tool_pybuggy` package (`importlib.resources`),
-  not from cwd.
-- No network calls in bare onboarding; template/upgrade modes reach the template source (a git URL) through the
-  engine.
-- Copies only the `api` cell usages; internal development cells (`config`/`spec`/`output`/...) are not copied.
+`run_init` is the testable entry point: it takes the three CLI values and returns an exit
+code. It raises `click.ClickException` on an invalid flag combination (`<tpl>` with
+`--upgrade`, or `--ref` without either) — at the CLI boundary click prints the message
+and exits 1.
+`run_session` and `run_bootstrap` are the seams behind it — stub them with monkeypatch to avoid the TTY and the
+filesystem. `resolve_init_mode` is pure and safe to call directly.

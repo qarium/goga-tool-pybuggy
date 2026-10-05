@@ -1,301 +1,233 @@
-"""Integration tests for the init command composition.
+"""Integration tests — the native-session smoke end-to-end and the CLI composition.
 
-End-to-end scenarios through the full chain ``init_cmd`` (Click wrapper) →
-``run_init`` (handler) → ``run_goga_init`` / ``register_usages`` / discovery,
-plus the top-level command registration in ``goga_tool_pybuggy.cli``. They complement —
-and do not replace — the contract and logic tests in ``test_init.py``.
+The smoke run drives the real engine with only the TTY stubbed; the CLI tests stub the engine seams.
 """
 
+import importlib.metadata
 import importlib.resources
+import logging
+import re
 from pathlib import Path
-from unittest import mock
 
 import click
-import click.testing
-import pytest
 import yaml
-from goga_tool_pybuggy.commands.init import build_pybuggy_config, init_cmd, write_pybuggy_config
-from goga_tool_pybuggy.config import GitEntry, SpecEntry, load_config
+from goga_tool_pybuggy.commands.init import init_cmd, run_bootstrap, run_session
 
-# Fixed conftest template (single source: the write_pybuggy_conftest CODEMANIFEST annotation).
-EXPECTED_CONFTEST = (
-    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
-)
+# The seams of the CLI chain, patched at the orchestrator's import point (M-R2.8).
+_SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
+_BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 
-# The packaged test-convention asset, read through the same importlib.resources channel the
-# routine under test uses (symmetric source — never a cwd checkout).
-_ASSET_TEXT = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(encoding="utf-8")
+# Every core gate is declined; no Dockerfile gate exists (the section is skipped, the block asks
+# the image inputs), and the pybuggy tools record is amended regardless of the declined gate.
+_CONFIRM_ANSWERS = {
+    "Add codemanifest usages?": False,
+    "Add codemanifest annotations?": False,
+    "Configure a build agent?": False,
+    "Configure a pipeline agent?": False,
+    "Add tools?": False,
+    "Add usages records?": False,
+    "Add another spec?": [True, False],
+    "Run the api.automate pipeline unattended (autonomous mode)?": False,
+}
 
-# Content anchor: without it every _ASSET_TEXT equality below compares the asset to itself, so an
-# emptied or wrongly-committed file would pass. The full-text pin lives in test_init.py.
-assert _ASSET_TEXT.startswith("# Testing Convention: pytest Configuration, Logging, Allure")
+# The expected confirm ask order — the core gates, the amend-moment spec loop, then the autonomy
+# confirm closing the survey after the specs.
+_EXPECTED_CONFIRMS = [
+    "Add codemanifest usages?",
+    "Add codemanifest annotations?",
+    "Configure a build agent?",
+    "Configure a pipeline agent?",
+    "Add tools?",
+    "Add usages records?",
+    "Add another spec?",
+    "Add another spec?",
+    "Run the api.automate pipeline unattended (autonomous mode)?",
+]
 
-# End-to-end through the Click wrapper ---------------------------------------
+# Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter
+# (the FROM prompt keeps its newest-python-family default).
+_PROMPT_ANSWERS = {
+    "Language": "python",
+    "Built image name": "pybuggy-smoke:latest",
+    "Base URL (Jinja2 template, required)": "https://{{ HOST }}/api",
+    "Spec name": ["shop", "billing"],
+    "Spec type": ["swagger", "openapi"],
+    "Spec location (path from project root)": ["specs/shop.yaml", "specs/billing.yaml"],
+}
 
-
-def test_init_cmd_end_to_end_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """init_cmd drives the full chain on a fresh project: goga init then usages registered."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, [])
-
-    assert result.exit_code == 0
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/asserts.md").exists()
-
-    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    usages = cfg["codemanifest"]["usages"]
-    assert "pybuggy-api" in usages
-    assert "pybuggy-asserts" in usages
-    assert "conventions" in usages
-    assert (tmp_path / ".goga/usages/conventions.md").exists()
-
-
-def test_init_cmd_end_to_end_occupies_conventions_slot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """init_cmd delivers the conventions slot: packaged asset written and the key registered."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, [])
-
-    assert result.exit_code == 0
-    conventions = tmp_path / ".goga" / "usages" / "conventions.md"
-    assert conventions.exists()
-    assert conventions.read_text(encoding="utf-8") == _ASSET_TEXT
-
-    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    usages = cfg["codemanifest"]["usages"]
-    assert {"conventions", "pybuggy-api", "pybuggy-asserts"} <= set(usages)
+# The plain payload the engine must serialize verbatim into the tool config.
+_EXPECTED_TOOL_CONFIG = {
+    "base_url": "https://{{ HOST }}/api",
+    "specs": {
+        "shop": {"type": "swagger", "location": "specs/shop.yaml"},
+        "billing": {"type": "openapi", "location": "specs/billing.yaml"},
+    },
+}
 
 
-def test_init_cmd_end_to_end_writes_conftest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """init_cmd writes the root conftest.py verbatim; absent file means no confirm is asked."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+def _write_minimal_specs(root: Path) -> None:
+    """Write the two minimal spec files the surveyed answers point at.
 
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, [])
-
-    assert result.exit_code == 0
-    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
-
-
-def test_init_cmd_propagates_goga_cancel_without_writing_usages(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A goga-init cancel is propagated by the wrapper; no usages are written."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
-
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, [])
-
-    assert result.exit_code == 1
-    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-
-
-def test_init_cmd_maps_bootstrap_failure_to_nonzero_exit(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A bootstrap file-write failure surfaces as a non-zero exit through the wrapper (fresh cwd)."""
-    monkeypatch.chdir(tmp_path)  # no .goga/ — the bare already-initialized guard does not fire
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    runner = click.testing.CliRunner()
-    with mock.patch("goga_tool_pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")):
-        result = runner.invoke(init_cmd, [])
-
-    assert result.exit_code != 0
-
-
-def test_init_cmd_repeat_invocation_refuses_with_stderr_message(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A second CLI invocation over the onboarded project exits 1 with the goga-parity message.
-
-    The first invocation bootstraps the project (register_usages creates .goga/); the second
-    must refuse like `goga init` — "Project already initialized" on stderr, exit 1 — leaving
-    every artifact from run #1 byte-identical.
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
     """
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    runner = click.testing.CliRunner()
-    first = runner.invoke(init_cmd, [])
-    assert first.exit_code == 0
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-    artifacts_before = {path: path.read_bytes() for path in sorted((tmp_path / ".goga").rglob("*")) if path.is_file()}
-    artifacts_before[tmp_path / "conftest.py"] = (tmp_path / "conftest.py").read_bytes()
-
-    second = runner.invoke(init_cmd, [])
-
-    assert second.exit_code == 1
-    assert "Project already initialized" in second.stderr
-    artifacts_after = {path: path.read_bytes() for path in sorted((tmp_path / ".goga").rglob("*")) if path.is_file()}
-    artifacts_after[tmp_path / "conftest.py"] = (tmp_path / "conftest.py").read_bytes()
-    assert artifacts_after == artifacts_before  # nothing updated on the refused repeat run
-
-
-def test_init_cmd_end_to_end_template_mode_scaffolds_then_skips_existing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Template mode through the real CLI parsing: engine scaffolded, then template-mode onboarding."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    generate_calls: list[tuple[str, str | None]] = []
-
-    class StubScaffold:
-        """Recording engine stand-in: no copier, no network, no TTY."""
-
-        def generate(self, template_input: str, ref_override: str | None) -> int:
-            generate_calls.append((template_input, ref_override))
-            return 0
-
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Scaffold", StubScaffold)
-
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, ["https://host/repo.git#v1", "--ref", "v9"])
-
-    assert result.exit_code == 0
-    # The wrapper forwards the parsed surface verbatim to the engine.
-    assert generate_calls == [("https://host/repo.git#v1", "v9")]
-
-    # Onboarding ran in template mode and delivered every absent artifact.
-    assert (tmp_path / ".goga/usages/conventions.md").exists()
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-    assert (tmp_path / "conftest.py").exists()
-
-    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
-    assert cfg["build"]["review_executor"]["skip"] is True
-
-
-def test_init_cmd_rejects_tpl_with_upgrade_without_side_effects(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The `<tpl> --upgrade` combination exits 1 with the message printed and nothing written."""
-    monkeypatch.chdir(tmp_path)
-    engine = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Scaffold", engine)
-
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, ["tpl", "--upgrade"])
-
-    assert result.exit_code == 1
-    assert "mutually exclusive" in result.output
-    assert not (tmp_path / ".goga").exists()
-    assert not (tmp_path / "conftest.py").exists()
-    engine.assert_not_called()  # flag validation fails before the engine is ever built
-
-
-# Top-level command registration --------------------------------------------
-
-
-def test_init_cmd_registered_top_level_on_main() -> None:
-    """init_cmd is registered under the name 'init' on the pybuggy main group."""
-    from goga_tool_pybuggy.cli import main
-
-    assert "init" in main.commands
-    assert main.commands["init"] is init_cmd
-
-
-# Cross-cell (init ↔ config) and full-chain (interactive → emit → validate) ----
-
-
-def test_write_pybuggy_config_emits_config_cell_validates_with_git(tmp_path: Path) -> None:
-    """write_pybuggy_config emits a document the config cell validates, including a git source.
-
-    Cross-cell Interface↔Interface contract: the init emitter produces a YAML document whose
-    ``specs`` section round-trips through ``load_config`` → ``Config`` exactly, including a
-    ``GitEntry`` source (the strictest ``SpecEntry`` form), while the scalar plugin keys stay as
-    extra keys ignored by ``Config`` (``extra="ignore"``). The destination parent tree is created.
-    """
-    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    scalar_values = {
-        "base_url": "https://{{ host }}/api",
-        "timeout": "30",
-        # retries / assert_* left out -> None (skipped commented records)
-    }
-    specs = {
-        "api": SpecEntry(
-            type="openapi",
-            location="specs/api.yaml",
-            git=GitEntry(url="https://example.com/specs.git", location="api.yaml", ref="main"),
-        )
-    }
-
-    write_pybuggy_config(config, scalar_values, specs)
-
-    cfg = load_config(config)
-
-    api = cfg.specs["api"]
-    assert api.type == "openapi"
-    assert api.location == "specs/api.yaml"
-    assert api.git is not None
-    assert api.git.url == "https://example.com/specs.git"
-    assert api.git.location == "api.yaml"
-    assert api.git.ref == "main"
-
-    # scalar plugin keys are emitted into the file but not surfaced on Config (extra="ignore").
-    raw = yaml.safe_load(config.read_text())
-    assert {"base_url", "timeout"} <= set(raw)
-    assert not hasattr(cfg, "base_url")
-    assert not hasattr(cfg, "timeout")
-
-
-def test_build_pybuggy_config_full_chain_validates(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Real build_pybuggy_config with a stubbed TTY emits a config that validates end-to-end.
-
-    Full chain interactive → emission → validation: the testable-seam, driven by scripted
-    ``click.prompt``/``click.confirm`` answers, writes the canonical config path; no file exists
-    beforehand so the overwrite confirmation is skipped, and the git source is confirmed so the full
-    ``SpecEntry``/``GitEntry`` form is exercised. ``load_config`` then validates the emitted file.
-    """
-    monkeypatch.chdir(tmp_path)
-    # config file absent -> overwrite confirm skipped; git confirm answered 'yes'.
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))
-    monkeypatch.setattr(
-        click,
-        "prompt",
-        mock.Mock(
-            side_effect=[
-                "https://{{ host }}/api",  # base_url (required)
-                "30",  # timeout
-                "",  # retries -> None
-                "",  # assert_timeout -> None
-                "",  # assert_delay -> None
-                "",  # assert_field_class -> None
-                "",  # assert_response_class -> None
-                "api",  # first spec name (required)
-                "openapi",  # type (click.Choice)
-                "specs/api.yaml",  # location (required)
-                # git source confirmed 'yes':
-                "https://example.com/specs.git",  # git url
-                "api.yaml",  # git location
-                "main",  # git ref (optional)
-                "",  # second spec name (empty to finish) -> break
-            ]
-        ),
+    specs = root / "specs"
+    specs.mkdir()
+    (specs / "shop.yaml").write_text(
+        "openapi: 3.0.0\ninfo: {title: shop, version: '1.0'}\npaths: {}\n", encoding="utf-8"
+    )
+    (specs / "billing.yaml").write_text(
+        "openapi: 3.0.0\ninfo: {title: billing, version: '1.0'}\npaths: {}\n", encoding="utf-8"
     )
 
-    assert build_pybuggy_config() == 0
 
-    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    assert config.exists()
+class TestSessionSmoke:
+    """The native-session path — real engine, real registry, real hooks, scripted TTY."""
 
-    cfg = load_config(config)
-    api = cfg.specs["api"]
-    assert api.type == "openapi"
-    assert api.location == "specs/api.yaml"
-    assert api.git is not None
-    assert api.git.url == "https://example.com/specs.git"
-    assert api.git.location == "api.yaml"
-    assert api.git.ref == "main"
+    def test_session_smoke_end_to_end_with_prompt_stubs(self, tmp_path, monkeypatch, capsys, caplog, scripted_tty):
+        """The engine session surveys core + pybuggy block and writes every artifact.
+
+        The real ``register_hooks`` run for both participation moments; the run stays offline.
+        """
+        monkeypatch.chdir(tmp_path)
+        _write_minimal_specs(tmp_path)
+        tty = scripted_tty(confirms=_CONFIRM_ANSWERS, prompts=_PROMPT_ANSWERS)
+        monkeypatch.setattr(click, "confirm", tty.confirm)
+        monkeypatch.setattr(click, "prompt", tty.prompt)
+
+        with caplog.at_level(logging.INFO):
+            code = run_session()
+
+        captured = capsys.readouterr()
+        assert code == 0
+        assert [text for text, _answer in tty.confirms] == _EXPECTED_CONFIRMS
+        assert "created .goga/tools/pybuggy/config.yml (tool: pybuggy)" in captured.out
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["language"] == "python"
+        assert config["image"] == "pybuggy-smoke:latest"
+        assert config["dockerfile"] == ".goga/Dockerfile"  # the amended fixed path
+        assert set(config["tools"]) == {"pybuggy"}  # amended regardless of the declined gate
+        assert re.fullmatch(r"\d+\.\d+\.x", config["tools"]["pybuggy"])
+        assert "build" not in config  # the build.review.skip amendment never reaches the config (q2/A)
+        assert "codemanifest" not in config  # both gates declined — the offline guarantee
+
+        tool_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        tool_config = yaml.safe_load(tool_config_path.read_text("utf-8"))
+        assert tool_config == _EXPECTED_TOOL_CONFIG
+        assert "#" not in tool_config_path.read_text(encoding="utf-8")  # plain engine serialization
+
+        # The Dockerfile always exists — the FROM pair comes from the block answers.
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        assert re.fullmatch(r"FROM qarium/goga-python-3\.\d+:\d+\.\d+\n", dockerfile.read_text(encoding="utf-8"))
+
+        # The conventions slot is the bootstrap's delivery — the session never downloads the base convention.
+        assert not (tmp_path / ".goga" / "usages" / "conventions.md").exists()
+
+        # No git origin in the pytest tmp dir, so the built-image ask offers no default; the FROM
+        # ask defaults to the newest python-family member of the running minor tag, and the
+        # Dockerfile path is never asked at all.
+        prompt_defaults = {text: default for text, default, _returned in tty.prompts}
+        from_default = prompt_defaults[next(text for text in prompt_defaults if text.startswith("Base image (FROM)"))]
+        assert (prompt_defaults["Built image name"], "Dockerfile path" in prompt_defaults) == (None, False)
+        assert re.fullmatch(r"qarium/goga-python-3\.\d+:\d+\.\d+", from_default)
+
+        # The full bare-init composition — the real bootstrap consumes the real session artifacts.
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
+
+        packaged_convention = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(
+            encoding="utf-8"
+        )
+        assert (tmp_path / ".goga" / "usages" / "conventions.md").read_text(encoding="utf-8") == packaged_convention
+
+        tool_config_text = tool_config_path.read_text(encoding="utf-8")
+        assert yaml.safe_load(tool_config_text) == _EXPECTED_TOOL_CONFIG  # active keys untouched
+        assert "# headers: example (skipped complex member)" in tool_config_text
+        assert "# timeout: (skipped optional scalar)" in tool_config_text
+        assert "# loader: example (skipped complex member)" in tool_config_text
+        assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
+
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert "`pybuggy-api`" in config["codemanifest"]["annotations"]
+        assert (
+            (tmp_path / ".goga" / "Dockerfile")
+            .read_text(encoding="utf-8")
+            .endswith("RUN goga install pybuggy -v 2.0.x\n")
+        )
+        assert (tmp_path / "conftest.py").exists()
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+    def test_session_smoke_autonomy_confirm_accepted_writes_axis(self, tmp_path, monkeypatch, caplog, scripted_tty):
+        """Answering the autonomy confirm True lands the ``pipelines`` axis in the written config.
+
+        Accepting the confirm distinguishes a recorded False from a lost answer key.
+        """
+        monkeypatch.chdir(tmp_path)
+        _write_minimal_specs(tmp_path)
+        tty = scripted_tty(
+            confirms={**_CONFIRM_ANSWERS, "Run the api.automate pipeline unattended (autonomous mode)?": True},
+            prompts=_PROMPT_ANSWERS,
+        )
+        monkeypatch.setattr(click, "confirm", tty.confirm)
+        monkeypatch.setattr(click, "prompt", tty.prompt)
+
+        with caplog.at_level(logging.INFO):
+            code = run_session()
+
+        assert code == 0
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+        tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").read_text("utf-8"))
+        assert tool_config["pipelines"] == {"api.automate": {"autonomous": True}}
+
+
+class TestCliComposition:
+    """The CLI chain — wrapper through orchestrator to the two seams, seams stubbed."""
+
+    def test_cli_bare_init_runs_wrapper_through_session_and_bootstrap(
+        self, tmp_path, monkeypatch, exit_recorder, seam_recorder
+    ):
+        """``init_cmd.callback`` drives the real ``run_init`` into session-then-bootstrap.
+
+        Composition test — the wrapper and orchestrator are real, only the two seams are stubbed.
+        """
+        monkeypatch.chdir(tmp_path)
+        order: list[str] = []
+        session = seam_recorder("session", order, [0])
+        bootstrap = seam_recorder("bootstrap", order, [0])
+        monkeypatch.setattr(_SESSION_SEAM, session)
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, bootstrap)
+        ctx = exit_recorder()
+        monkeypatch.setattr("click.decorators.get_current_context", lambda: ctx)  # the pass-context seam (M-R2.6)
+
+        init_cmd.callback(None, None, False)
+
+        assert order == ["session", "bootstrap"]
+        assert session.calls == [{}]
+        assert bootstrap.calls == [{"template_mode": False}]
+        assert ctx.exit_codes == [0]
+
+    def test_cli_composition_propagates_bootstrap_failure_exit(
+        self, tmp_path, monkeypatch, exit_recorder, seam_recorder
+    ):
+        """A bootstrap failure code reaches ``ctx.exit`` through the whole chain unchanged.
+
+        The farthest seam's non-zero code is never normalized to 1 across the layers.
+        """
+        monkeypatch.chdir(tmp_path)
+        order: list[str] = []
+        monkeypatch.setattr(_SESSION_SEAM, seam_recorder("session", order, [0]))
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, seam_recorder("bootstrap", order, [2]))
+        ctx = exit_recorder()
+        monkeypatch.setattr("click.decorators.get_current_context", lambda: ctx)
+
+        init_cmd.callback(None, None, False)
+
+        assert order == ["session", "bootstrap"]
+        assert ctx.exit_codes == [2]

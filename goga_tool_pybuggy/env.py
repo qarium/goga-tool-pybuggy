@@ -9,9 +9,9 @@ from pydantic import BaseModel, ConfigDict
 
 
 class EnvContext(BaseModel):
-    """Context object carrying the resolved env-file path and loaded key→value pairs.
+    """Resolved env-file path and loaded key→value pairs.
 
-    Stored on click ctx.obj by main(); pure data carrier.
+    Stored on click ctx.obj by main().
     """
 
     model_config = ConfigDict(kw_only=True)

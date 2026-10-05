@@ -1,0 +1,48 @@
+# CLI Command: schema
+
+## Purpose
+
+CLI wrapper for the schema command. Delegates business logic to `goga/schema`. Outputs a JSON tree of project CODEMANIFEST cells. Extended cells may carry a `tools` area contributed by installed tool packages.
+
+## Syntax
+
+```
+goga schema [cells...] [--max-depth N] [--depends-on PATH]
+```
+
+## Arguments
+
+| Argument | Type | Description |
+|----------|------|-------------|
+| `cells` | list[str] | Paths to cells for filtering (optional) |
+
+## Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--max-depth` | int | None | Nesting depth limit |
+| `--depends-on` | list[str] | None | Filter cells by dependency (repeatable) |
+
+## Exit code
+
+- 0 — success
+- 1 — AST parsing errors found
+- 1 — hard failure of the cell-amendment checkpoint: a failing or
+  structurally malformed tool contribution (the message names the tool,
+  the action, and the cell path) or a tool package import failure (the
+  message names the package); nothing is printed to stdout
+
+## Examples
+
+```bash
+goga schema
+goga schema goga/config goga/ast --max-depth 2
+goga schema --depends-on goga/ast
+```
+
+## Validation failures
+
+A vetoing or crashing tool hook fails the command: nothing is printed
+to stdout, one merged error lists every violation (tool, hook,
+reason) on stderr, exit code 1. With no subscriptions the output is
+byte-for-byte the plain schema.

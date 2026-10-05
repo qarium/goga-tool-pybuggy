@@ -1,9 +1,4 @@
-"""Contract tests for render_info routine.
-
-These tests verify the contract compliance of render_info:
-- Importable from goga_tool_pybuggy.output facade
-- Correct signature (endpoints: list[Endpoint]) -> str
-"""
+"""Contract tests for render_info (facade import + signature)."""
 
 import pytest
 from goga_tool_pybuggy.output import render_info
@@ -136,9 +131,7 @@ def test_render_info_ensure_ascii_false() -> None:
 def test_render_info_serializes_date_and_datetime() -> None:
     """date/datetime carried in resolved specs render as ISO 8601 strings.
 
-    swax/Prance convert YAML date examples into ``datetime.date``/
-    ``datetime.datetime``; render_info must serialize them instead of raising
-    ``TypeError: Object of type datetime is not JSON serializable``.
+    swax/Prance turn YAML date examples into date objects that must serialize.
     """
     import json
     from datetime import date, datetime, timezone
@@ -169,8 +162,7 @@ def test_render_info_serializes_date_and_datetime() -> None:
 def test_render_info_unknown_type_still_raises_typeerror() -> None:
     """Non-JSON-native values other than date/datetime still raise TypeError.
 
-    The serializer must not silently swallow unexpected types; it re-raises so
-    genuine encoding bugs stay visible.
+    Unexpected types are re-raised so encoding bugs stay visible.
     """
 
     class _Opaque:

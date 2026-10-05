@@ -1,10 +1,6 @@
 """Tests for `retries` in the root `pybuggy` cell.
 
-Mirrors the source layout (``tests/test_tools.py``). Covers the contract surface of
-the ``retries`` decorator-factory: it forwards ``max_runs``/``min_passes`` to flaky,
-gates the rerun filter on ``delay``, and the filter sleeps ``delay`` and unconditionally
-allows a rerun. The flaky library and ``time.sleep`` are external boundaries and are
-mocked at the import point.
+Covers the ``retries`` contract: forwarding to flaky and the ``delay``-gated rerun filter; boundaries are mocked.
 """
 
 from unittest import mock

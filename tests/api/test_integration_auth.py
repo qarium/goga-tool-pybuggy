@@ -1,16 +1,6 @@
 """Integration tests for end-to-end call-level auth combining through ``_call``.
 
-These tests verify that the real (unmocked) auth primitives
-(``CombineAuth`` / ``AuthWrapper``) compose correctly through ``Endpoint._call``:
-``_call`` builds a ``CombineAuth`` from ``api.auth`` plus a call-level
-authenticator, and applying that ``CombineAuth`` to a stub ``PreparedRequest``
-signs it with both auths in the correct precedence (call-level applied last, so
-it wins on a conflicting header).
-
-Only the external boundaries are mocked: ``api.request`` (to capture the sent
-``auth`` without a network call) and ``ResponseWrapper`` (so the deferred
-response-wrapper behavior is not exercised — only the ``is_negative`` wiring
-through ``__call__`` / ``error`` is asserted).
+Only ``api.request`` and ``ResponseWrapper`` are mocked; the auth primitives run for real.
 """
 
 from __future__ import annotations
@@ -36,8 +26,7 @@ class User:
 class ConflictUser:
     """``Auth``-protocol object writing a header also written by ``api.auth``.
 
-    Since the call-level auth is applied after ``api.auth`` in the chain, the
-    call-level value must win on the shared header.
+    The call-level auth is applied after ``api.auth``, so its value wins on the shared header.
     """
 
     def auth(self, request: object) -> object:
@@ -52,9 +41,7 @@ class TestCallLevelAuthIntegration:
     def test_call_level_auth_combines_api_auth_and_protocol_end_to_end(self) -> None:
         """``_call`` merges ``api.auth`` (AuthBase) with an ``Auth``-protocol call.
 
-        Applying the captured ``CombineAuth`` to a stub request signs it with the
-        stored ``api.auth`` (X-Api) and the call-level protocol auth (X-Token);
-        on a shared header the call-level auth (applied last) wins.
+        Applying the captured ``CombineAuth`` signs with both; on a shared header the call-level auth wins.
         """
         api = Api(base_url="https://x", auth=HeaderAuth("X-Api", "1"))
         ep = Endpoint(api, "/p", method="GET")
@@ -85,9 +72,7 @@ class TestCallLevelAuthIntegration:
     def test_call_and_error_wire_is_negative_through_call(self) -> None:
         """``__call__`` wires ``is_negative=False``; ``error`` wires ``True``.
 
-        Asserted via the mocked ``ResponseWrapper`` constructor's positional
-        ``is_negative`` argument (index 3, after response and the AssertConfig),
-        confirming the ``_call`` delegation.
+        Asserted via the mocked ``ResponseWrapper`` constructor's positional ``is_negative`` (index 3).
         """
         api = Api(base_url="https://x")
         ep = Endpoint(api, "/p", method="GET")

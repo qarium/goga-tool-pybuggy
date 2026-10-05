@@ -1,14 +1,6 @@
 """Asserts subpackage of `goga_tool_pybuggy.api`.
 
-Exposes the two assert dispatchers, their static configuration, and the
-pluggable-class loader: ``AssertConfig`` carries the static check configuration
-(expected_status/schemas_dir/timeout/delay/assert_field_class/
-assert_response_class); ``Expect`` is the response-level dispatcher (and the
-field-level entry via ``__call__``); ``AssertField`` is the field-level assert;
-``load_assert_class`` imports a custom assert class by dotted path (used by
-``ResponseWrapper`` for ``assert_response_class``). The search contexts
-(BaseContext/JsonFieldContext/JsonPathFieldContext/ResponseContext/SearchItem)
-and ``BaseAssert`` are internal to the cell.
+Exposes ``AssertConfig``, ``Expect``, ``AssertField`` and ``load_assert_class``; the search contexts are internal.
 """
 
 from .base import load_assert_class

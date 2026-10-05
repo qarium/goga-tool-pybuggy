@@ -1,33 +1,46 @@
-"""Commands/init cell facade."""
+"""Commands/init cell facade — the 20 init-cell routines across init, session, and bootstrap."""
 
-from .init import (
-    build_pybuggy_config,
-    ensure_review_executor_skip,
-    init_cmd,
+from .bootstrap import (
+    document_config_examples,
+    ensure_review_skip,
     install_pybuggy,
     register_annotations,
     register_usages,
-    resolve_init_mode,
-    run_goga_init,
-    run_init,
-    run_onboarding,
-    write_pybuggy_config,
     write_pybuggy_conftest,
     write_test_convention,
 )
+from .init import init_cmd, resolve_init_mode, run_bootstrap, run_init
+from .session import (
+    amend_pybuggy_config,
+    build_config_amendments,
+    build_config_data,
+    declare_pybuggy_session,
+    parse_specs,
+    pybuggy_questions,
+    run_session,
+    survey_autonomy,
+    survey_extra_specs,
+)
 
 __all__ = [
-    "build_pybuggy_config",
-    "ensure_review_executor_skip",
+    "amend_pybuggy_config",
+    "build_config_amendments",
+    "build_config_data",
+    "declare_pybuggy_session",
+    "document_config_examples",
+    "ensure_review_skip",
     "init_cmd",
     "install_pybuggy",
+    "parse_specs",
+    "pybuggy_questions",
     "register_annotations",
     "register_usages",
     "resolve_init_mode",
-    "run_goga_init",
+    "run_bootstrap",
     "run_init",
-    "run_onboarding",
-    "write_pybuggy_config",
+    "run_session",
+    "survey_autonomy",
+    "survey_extra_specs",
     "write_pybuggy_conftest",
     "write_test_convention",
 ]

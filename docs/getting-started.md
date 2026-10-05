@@ -21,18 +21,24 @@ Run in the target project root:
 goga tool pybuggy init
 ```
 
-The command (see [CLI — init](cli/init.md)):
+The command (see [CLI — init](cli/init.md)) runs two stages — the engine-owned
+onboarding session with pybuggy invited, then the pybuggy bootstrap.
 
-1. Interactively initializes the goga project — creates `.goga/config.yml`
-   (language fixed to `python`) and the mandatory `.goga/Dockerfile` with
-   `RUN goga install pybuggy -v 1.0.x`.
-2. Delivers the `conventions` slot — creates `.goga/usages/conventions.md` with the
-   pybuggy test convention when the file is absent; an existing file is left untouched.
-3. Sets `build.review_executor.skip: true` in `.goga/config.yml` (idempotent).
-4. Registers the usage keys `pybuggy-api` / `pybuggy-asserts` in
-   `codemanifest.usages` (idempotent; user-defined keys are never overwritten).
-5. Interactively builds `.goga/tools/pybuggy/config.yml` — plugin options plus the
-   `specs` section (at least one spec is required):
+**The onboarding session.** The goga engine asks the core project questions — the
+language (`python`), the optional codemanifest / build-agent / pipeline sections, the
+tools, and the usages records — followed by the pybuggy block: the base image (FROM —
+the goga-python family hints, newest as the default) and the built-image name, then
+`base_url` (required, a Jinja2 template), the optional scalar plugin keys
+(Enter skips), and the first spec (`name`, `type`, `location`, optional git fields).
+The Dockerfile itself is never asked about — it is always created at
+`.goga/Dockerfile` from the answered base image. After the block, pybuggy asks its two
+follow-ups itself: the additional specs (`Add another spec?`, a per-field loop), then
+the autonomy confirm (**"Run the api.automate pipeline unattended (autonomous mode)?"
+defaults to No**; Yes writes the `pipelines` axis entry — see
+[Autonomous runs](pipelines/api-automate.md#autonomous-runs)). Whatever you answer to
+the core tools question, pybuggy is always recorded in `.goga/config.yml`. The session
+writes `.goga/config.yml`, the Dockerfile, and the tool config
+`.goga/tools/pybuggy/config.yml`:
     ```yaml
     base_url: https://{{ env }}.svc.example/api
     timeout: 10.0
@@ -45,24 +51,34 @@ The command (see [CLI — init](cli/init.md)):
           location: openapi/shop-openapi.yaml
           ref: main
     ```
-   `base_url` is a Jinja2 template rendered against `os.environ` + the CLI options you pass (e.g. `pytest --env=dev`).
-   See [Configuration](configuration.md).
+`base_url` is a Jinja2 template rendered against `os.environ` + the CLI options you pass (e.g. `pytest --env=dev`).
+Unanswered keys are dropped — never written empty; `headers`/`loader` are not surveyed (hand-add them when needed).
+See [Configuration](configuration.md).
 
-6. Generates the root `conftest.py`:
-   ```python
-   from dotenv import load_dotenv
+**The pybuggy bootstrap.** The files the session does not carry:
 
-   load_dotenv()
+| Artifact | Gate |
+|----------|------|
+| `.goga/usages/cooks/pybuggy/api.md`, `asserts.md` — the packaged usages | written (bare overwrites; template skips existing) |
+| `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
+| `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
+| `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version range is derived from the installed pybuggy version |
+| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
+| root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
-   from goga_tool_pybuggy import plugin
+The command requires a Dockerfile — and the session always creates one (the fixed
+`.goga/Dockerfile` path plus the answered base image), so the mandatory-Dockerfile
+check is a safety net, not a question to answer
+(see [CLI — init, the mandatory Dockerfile](cli/init.md)).
 
-   plugin.install()
-   ```
 This is the **bare** flow: it runs in a fresh project. A repeated invocation (an existing
 `.goga/`) is refused — `Project already initialized`, exit code 1, nothing updated — the
 same guard `goga init` applies. The command also scaffolds a project from a
 copier-compatible template (`init <tpl> [--ref <git-ref>]`) and upgrades a scaffolded
-project (`init --upgrade`) — see [CLI — init](cli/init.md).
+project (`init --upgrade`) — see [CLI — init](cli/init.md). A native
+`goga init -t pybuggy` runs the same session without the bootstrap — the flag and the
+pybuggy-owned files land only through the pybuggy CLI (see `MIGRATION.md` at the
+repository root).
 
 ## 3. Run the pipeline: `goga pipeline pybuggy:api.automate`
 
@@ -75,7 +91,8 @@ This is the primary way to create tests with pybuggy. The pipeline:
 - asks for the **testing subject** and collects detailed requirements from your
   description and the service spec — the topic is the current git branch;
 - walks the whole chain — requirements → test cases → test cells → test code → review →
-  acceptance — involving you at every communication stage;
+  acceptance — involving you at every communication stage in the default interactive
+  mode (see [Autonomous runs](pipelines/api-automate.md#autonomous-runs));
 - scaffolds the `api/` fixtures and materializes the tests into `tests/<spec>/<id>/`;
 - commits nothing without your confirmation; failures found at acceptance are triaged
   with you and recorded in the topic's `bugs.md` (the `goga history` tree).

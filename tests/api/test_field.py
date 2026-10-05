@@ -1,10 +1,6 @@
 """Tests for ``goga_tool_pybuggy.api.asserts.field.AssertField``.
 
-Covers the field-level assert entry produced by ``Expect.__call__``: dotted and
-jsonpath search against the body root, drill-down (``index``/``hook``),
-``in_array`` element-wise mode, a representative set of matchcrest matchers,
-the ``value`` property, and the ``raise_exc``/``not_raise_exc`` context
-managers. A ``FakeResponse`` stands in for ``resq.http.Response``.
+A ``FakeResponse`` stands in for ``resq.http.Response``.
 """
 
 from __future__ import annotations

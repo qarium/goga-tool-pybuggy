@@ -1,2718 +1,682 @@
-"""Contract and logic tests for run_init / register_usages / init_cmd handler."""
+"""Tests for the init module — CLI surface, mode resolution, three-mode orchestrator, bootstrap.
 
+The wrapper is driven through a fake ``ctx`` (M-R2.6 — no CliRunner).
+"""
+
+import importlib.metadata
 import importlib.resources
 import logging
-import typing
 from pathlib import Path
-from typing import ClassVar
-from unittest import mock
 
 import click
-import click.testing
 import pytest
 import yaml
-from goga_tool_pybuggy.commands.init import (
-    build_pybuggy_config,
-    ensure_review_executor_skip,
-    init_cmd,
-    install_pybuggy,
-    register_annotations,
-    register_usages,
-    resolve_init_mode,
-    run_goga_init,
-    run_init,
-    run_onboarding,
-    write_pybuggy_config,
-    write_pybuggy_conftest,
-)
-from goga_tool_pybuggy.commands.init.init import _CONVENTION_LINE
-from goga_tool_pybuggy.config import GitEntry, SpecEntry
-from ruamel.yaml import YAMLError
+from goga_tool_pybuggy.commands.init import init as init_module
+from goga_tool_pybuggy.commands.init import init_cmd, resolve_init_mode, run_bootstrap, run_init
 
-# The fixed root conftest.py template the init command wires into the consumer's pytest run
-# (the single source is the CODEMANIFEST annotation of write_pybuggy_conftest).
-EXPECTED_CONFTEST = (
+# The seams run_init dispatches through, patched at the import point (M-R2.8).
+_SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
+_BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
+
+_EXPECTED_CONFTEST = (
     "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
 )
 
-_USAGE_KEYS = {
-    "pybuggy-api": ".goga/usages/cooks/pybuggy/api.md",
-    "pybuggy-asserts": ".goga/usages/cooks/pybuggy/asserts.md",
+_API_PACKAGE = importlib.resources.files("goga_tool_pybuggy.api")
+_PACKAGED_USAGES = {
+    "api": (_API_PACKAGE / ".usages" / "api.md").read_text(encoding="utf-8"),
+    "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
 }
 
-_ANNOTATION_LINES = {
-    "pybuggy-api": "`pybuggy-api` — runtime facade of goga_tool_pybuggy.api for executing HTTP requests.",
-    "pybuggy-asserts": "`pybuggy-asserts` — full assert layer of goga_tool_pybuggy.api.asserts built on matchcrest.",
-}
-
-# The packaged test-convention asset, read through the same importlib.resources channel the
-# routine under test uses (symmetric source — never a cwd checkout).
-_ASSET_TEXT = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(encoding="utf-8")
+# The install line expected under the patched package version "2.0.3" (minor x-range derivation).
+_INSTALL_LINE = "RUN goga install pybuggy -v 2.0.x"
 
 
-def test_asset_text_is_the_packaged_test_convention() -> None:
-    """The packaged asset carries a non-empty test convention anchored by its known heading.
+class _FakeCtx:
+    """A ``click.Context`` double recording ``ctx.exit`` calls for the wrapper test.
 
-    Guards the asset itself (an emptied or wrongly-committed file would otherwise pass every
-    symmetric-channel equality assertion below) without pinning the full text.
+    Attributes:
+        exit_codes: The codes passed to ``exit``, in call order.
     """
-    assert _ASSET_TEXT.strip()
-    assert _ASSET_TEXT.startswith("# Testing Convention: pytest Configuration, Logging, Allure")
 
+    def __init__(self) -> None:
+        """Build a recorder with no recorded exits."""
+        self.exit_codes: list[int] = []
 
-# Contract tests ---------------------------------------------------------------
+    def exit(self, code: int = 0) -> None:
+        """Record one ``ctx.exit`` invocation.
 
+        Args:
+            code: The exit code the wrapper propagates.
+        """
+        self.exit_codes.append(code)
 
-def test_run_init_importable_from_facade() -> None:
-    """run_init should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import run_init as imported
 
-    assert imported is run_init
+class _RunInitRecorder:
+    """A ``run_init`` double recording the parsed surface and yielding a scripted code.
 
-
-def test_register_usages_importable_from_facade() -> None:
-    """register_usages should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import register_usages as imported
-
-    assert imported is register_usages
-
-
-def test_init_cmd_binds_tpl_ref_upgrade_surface() -> None:
-    """init_cmd binds the CLI surface: optional positional <tpl>, --ref option, --upgrade flag."""
-    assert init_cmd.name == "init"
-    assert {p.name for p in init_cmd.params} == {"tpl", "ref", "upgrade"}
-
-    by_name = {p.name: p for p in init_cmd.params}
-    assert isinstance(by_name["tpl"], click.Argument)
-    assert by_name["tpl"].required is False
-    assert isinstance(by_name["upgrade"], click.Option)
-    assert by_name["upgrade"].is_flag is True
-
-
-def test_init_cmd_propagates_exit_code_via_ctx(monkeypatch: pytest.MonkeyPatch) -> None:
-    """init_cmd propagates run_init's exit code through ctx.exit via the Click context."""
-    run_init_stub = mock.Mock(return_value=2)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_init", run_init_stub)
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, [])
-
-    assert result.exit_code == 2
-    # [] parses to (None, None, False) — the wrapper forwards the parsed surface verbatim.
-    run_init_stub.assert_called_once_with(None, None, False)
-
-
-def test_init_cmd_forwards_upgrade_flag_to_run_init(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The wrapper forwards a lone --upgrade through the parsed surface as (None, None, True)."""
-    run_init_stub = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_init", run_init_stub)
-    runner = click.testing.CliRunner()
-    result = runner.invoke(init_cmd, ["--upgrade"])
-
-    assert result.exit_code == 0
-    run_init_stub.assert_called_once_with(None, None, True)
-
-
-def test_run_init_signature() -> None:
-    """run_init has signature (tpl, ref, upgrade) and returns an exit code (int)."""
-    params = run_init.__code__.co_varnames[: run_init.__code__.co_argcount]
-
-    assert params == ("tpl", "ref", "upgrade")
-    assert typing.get_type_hints(run_init)["return"] is int
-
-
-def test_run_onboarding_importable_from_facade() -> None:
-    """run_onboarding should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import run_onboarding as imported
-
-    assert imported is run_onboarding
-
-
-def test_run_onboarding_is_public_in_facade() -> None:
-    """run_onboarding is exposed on the facade __all__ (public contract)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "run_onboarding" in facade_all
-
-
-def test_run_onboarding_signature() -> None:
-    """run_onboarding has signature (template_mode) and returns an exit code (int)."""
-    from goga_tool_pybuggy.commands.init import run_onboarding
-
-    params = run_onboarding.__code__.co_varnames[: run_onboarding.__code__.co_argcount]
-
-    assert params == ("template_mode",)
-    assert typing.get_type_hints(run_onboarding)["return"] is int
-
-
-def test_resolve_init_mode_importable_from_facade() -> None:
-    """resolve_init_mode should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import resolve_init_mode as imported
-
-    assert imported is resolve_init_mode
-
-
-def test_resolve_init_mode_is_public_in_facade() -> None:
-    """resolve_init_mode is exposed on the facade __all__ (public contract)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "resolve_init_mode" in facade_all
-
-
-def test_resolve_init_mode_signature() -> None:
-    """resolve_init_mode has signature (tpl, ref, upgrade) and returns str."""
-    params = resolve_init_mode.__code__.co_varnames[: resolve_init_mode.__code__.co_argcount]
-
-    assert params == ("tpl", "ref", "upgrade")
-    assert typing.get_type_hints(resolve_init_mode)["return"] is str
-
-
-def test_register_usages_signature() -> None:
-    """register_usages has signature (config_path, usage_keys)."""
-    params = register_usages.__code__.co_varnames[: register_usages.__code__.co_argcount]
-
-    assert params == ("config_path", "usage_keys")
-
-
-def test_register_annotations_importable_from_facade() -> None:
-    """register_annotations should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import register_annotations as imported
-
-    assert imported is register_annotations
-
-
-def test_register_annotations_is_public_in_facade() -> None:
-    """register_annotations is exposed on the facade __all__ (public contract)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "register_annotations" in facade_all
-
-
-def test_register_annotations_signature() -> None:
-    """register_annotations has signature (config_path, annotation_lines)."""
-    params = register_annotations.__code__.co_varnames[: register_annotations.__code__.co_argcount]
-
-    assert params == ("config_path", "annotation_lines")
-
-
-def test_ensure_review_executor_skip_importable_from_facade() -> None:
-    """ensure_review_executor_skip should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import ensure_review_executor_skip as imported
-
-    assert imported is ensure_review_executor_skip
-
-
-def test_ensure_review_executor_skip_is_public_in_facade() -> None:
-    """ensure_review_executor_skip is exposed on the facade __all__ (public contract)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "ensure_review_executor_skip" in facade_all
-
-
-def test_ensure_review_executor_skip_signature() -> None:
-    """ensure_review_executor_skip has signature (config_path)."""
-    params = ensure_review_executor_skip.__code__.co_varnames[: ensure_review_executor_skip.__code__.co_argcount]
-
-    assert params == ("config_path",)
-
-
-def test_write_pybuggy_conftest_importable_from_facade() -> None:
-    """write_pybuggy_conftest should be importable from the goga_tool_pybuggy.commands.init facade."""
-    assert callable(write_pybuggy_conftest) is True
-
-
-def test_write_pybuggy_conftest_is_public_in_facade() -> None:
-    """write_pybuggy_conftest is exposed on the facade __all__ (public contract)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "write_pybuggy_conftest" in facade_all
-
-
-def test_write_pybuggy_conftest_signature() -> None:
-    """write_pybuggy_conftest has signature (path)."""
-    params = write_pybuggy_conftest.__code__.co_varnames[: write_pybuggy_conftest.__code__.co_argcount]
-
-    assert params == ("path",)
-
-
-def test_write_test_convention_is_callable_with_single_path_parameter() -> None:
-    """write_test_convention exists, is callable, and takes exactly one parameter (path)."""
-    from goga_tool_pybuggy.commands.init.init import write_test_convention
-
-    assert callable(write_test_convention) is True
-    params = write_test_convention.__code__.co_varnames[: write_test_convention.__code__.co_argcount]
-
-    assert params == ("path",)
-
-
-def test_write_test_convention_importable_and_public_in_facade() -> None:
-    """write_test_convention is importable from the facade and listed in __all__ (public contract)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-    from goga_tool_pybuggy.commands.init import write_test_convention as imported
-
-    assert callable(imported) is True
-    assert "write_test_convention" in facade_all
-    params = imported.__code__.co_varnames[: imported.__code__.co_argcount]
-    assert params == ("path",)
-
-
-def test_convention_line_matches_contract_text() -> None:
-    """_CONVENTION_LINE is the contract annotation line for the conventions usage key, verbatim."""
-    from goga_tool_pybuggy.commands.init.init import _CONVENTION_LINE
-
-    assert _CONVENTION_LINE == "Use `conventions` for test code: pytest configuration, logging, and Allure reporting."
-    assert not _CONVENTION_LINE.endswith("\n")
-
-
-# Logic tests ------------------------------------------------------------------
-
-
-def test_run_init_in_fresh_project_calls_goga_init_then_registers(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """In a fresh project run_init calls run_goga_init, then discovers/copies/registers usages+annotations."""
-    monkeypatch.chdir(tmp_path)
-    run_goga_init_stub = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_stub)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    assert run_init(None, None, False) == 0
-
-    assert run_goga_init_stub.call_count == 1
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/asserts.md").exists()
-
-    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    assert set(cfg["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
-    assert cfg["codemanifest"]["usages"]["pybuggy-api"].endswith("api.md")
-
-    from goga_tool_pybuggy.commands.init.init import PYBUGGY_ANNOTATIONS
-
-    annotations = cfg["codemanifest"]["annotations"]
-    assert PYBUGGY_ANNOTATIONS["api"] in annotations
-    assert PYBUGGY_ANNOTATIONS["asserts"] in annotations
-    assert _CONVENTION_LINE in annotations
-
-
-def test_run_init_occupies_conventions_slot_in_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """In a fresh project run_init delivers the slot, key, and annotation line end-to-end (steps 6-9)."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    assert run_init(None, None, False) == 0
-
-    assert (tmp_path / ".goga/usages/conventions.md").read_text(encoding="utf-8") == _ASSET_TEXT
-    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    assert set(cfg["codemanifest"]["usages"]) == {"conventions", "pybuggy-api", "pybuggy-asserts"}
-    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
-    assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
-
-
-def test_run_init_ensures_review_executor_skip_in_fresh_project(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Step 7: a fresh run leaves build.review_executor.skip: true in the consumer .goga/config.yml."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    assert run_init(None, None, False) == 0
-
-    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    assert cfg["build"]["review_executor"]["skip"] is True
-
-
-def test_run_onboarding_template_mode_migrates_review_executor_skip_into_existing_config(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A template-brought config (no goga recreate) still migrates the flag into the build block.
-
-    Via the CLI an existing .goga/config.yml is reachable only in template mode now — the bare
-    already-initialized guard refuses an initialized project up front.
+    Attributes:
+        calls: The ``(tpl, ref, upgrade)`` argument tuples, in call order.
+        return_code: The exit code every call yields.
     """
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text(
-        "build:\n"
-        "  task_executor:\n"
-        "    agent: claude\n"
-        "codemanifest:\n"
-        "  usages:\n"
-        "    conventions: .goga/usages/conventions.md\n"
+
+    def __init__(self, return_code: int) -> None:
+        """Build a recorder yielding the given exit code on every call.
+
+        Args:
+            return_code: The exit code to return.
+        """
+        self.calls: list[tuple[str | None, str | None, bool]] = []
+        self.return_code = return_code
+
+    def __call__(self, tpl: str | None, ref: str | None, upgrade: bool) -> int:
+        """Record one handler call and return the scripted code.
+
+        Args:
+            tpl: The parsed positional template source.
+            ref: The parsed ``--ref`` override.
+            upgrade: The parsed ``--upgrade`` flag.
+
+        Returns:
+            The scripted exit code.
+        """
+        self.calls.append((tpl, ref, upgrade))
+        return self.return_code
+
+
+class _ScaffoldRecorder:
+    """A ``Scaffold`` double recording ``generate``/``upgrade`` calls and their codes.
+
+    Attributes:
+        generate_returns: Exit codes ``generate`` yields, one per call.
+        upgrade_returns: Exit codes ``upgrade`` yields, one per call.
+        generate_calls: The ``(template_input, ref_override)`` pairs, in call order.
+        upgrade_calls: The ``(ref_override,)`` pairs, in call order.
+    """
+
+    def __init__(self, generate_returns: list[int] | None = None, upgrade_returns: list[int] | None = None) -> None:
+        """Build a recorder with the scripted exit codes (one per allowed call).
+
+        Args:
+            generate_returns: Exit codes for successive ``generate`` calls.
+            upgrade_returns: Exit codes for successive ``upgrade`` calls.
+        """
+        self.generate_returns = generate_returns if generate_returns is not None else [0]
+        self.upgrade_returns = upgrade_returns if upgrade_returns is not None else [0]
+        self.generate_calls: list[tuple[str | None, str | None]] = []
+        self.upgrade_calls: list[tuple[str | None]] = []
+
+    def generate(self, template_input: str | None, ref_override: str | None) -> int:
+        """Record one scaffold generation and return the scripted code.
+
+        Args:
+            template_input: The raw template source (positional ``<tpl>``).
+            ref_override: The ``--ref`` override, or ``None``.
+
+        Returns:
+            The next scripted exit code.
+        """
+        self.generate_calls.append((template_input, ref_override))
+        return self.generate_returns[len(self.generate_calls) - 1]
+
+    def upgrade(self, ref_override: str | None = None) -> int:
+        """Record one scaffold migration and return the scripted code.
+
+        Args:
+            ref_override: The ``--ref`` override, or ``None``.
+
+        Returns:
+            The next scripted exit code.
+        """
+        self.upgrade_calls.append((ref_override,))
+        return self.upgrade_returns[len(self.upgrade_calls) - 1]
+
+
+class _SeamLog:
+    """A call recorder for the session/bootstrap seams, tracking call order.
+
+    Attributes:
+        calls: The keyword arguments of every call, in call order.
+    """
+
+    def __init__(self, name: str, log: list[str], return_codes: list[int]) -> None:
+        """Build a seam recorder appending its name to the shared order log.
+
+        Args:
+            name: The seam label appended on every call.
+            log: The shared call-order log across all seams of a test.
+            return_codes: Exit codes yielded, one per allowed call.
+        """
+        self._name = name
+        self._log = log
+        self._return_codes = return_codes
+        self.calls: list[dict[str, object]] = []
+
+    def __call__(self, **kwargs: object) -> int:
+        """Record one seam call with its kwargs and return the scripted code.
+
+        Args:
+            kwargs: The seam's keyword arguments (``template_mode`` for the bootstrap).
+
+        Returns:
+            The next scripted exit code.
+        """
+        self._log.append(self._name)
+        self.calls.append(dict(kwargs))
+        return self._return_codes[len(self.calls) - 1]
+
+
+class TestInitContract:
+    """Facade exposure, Click wrapper surface, and handler signatures."""
+
+    def test_facade_exports_init_routines(self):
+        """The wrapper, the orchestrator, the mode resolver, and the bootstrap are on the cell facade."""
+        assert callable(init_cmd)
+        assert callable(run_init)
+        assert callable(resolve_init_mode)
+        assert callable(run_bootstrap)
+
+    def test_resolve_dockerfile_helper_present_in_module(self):
+        """The private Dockerfile-resolution helper lives in the init module."""
+        assert callable(init_module._resolve_dockerfile_path)
+
+    def test_annotation_for_unknown_stem_falls_back_to_bare_backtick(self):
+        """A discovered stem outside the hand-authored table still gets a binding backtick reference."""
+        assert init_module._annotation_for("future-stem") == "`pybuggy-future-stem`"
+        assert init_module._annotation_for("api").startswith("Use `pybuggy-api`")
+
+    @pytest.mark.parametrize(
+        ("routine", "expected"),
+        [
+            (run_init, {"tpl": str | None, "ref": str | None, "upgrade": bool, "return": int}),
+            (resolve_init_mode, {"tpl": str | None, "ref": str | None, "upgrade": bool, "return": str}),
+            (run_bootstrap, {"template_mode": bool, "return": int}),
+        ],
     )
-    monkeypatch.chdir(tmp_path)
-    _stub_seams(monkeypatch)
+    def test_handler_signature_matches_contract(self, routine, expected):
+        """Every handler carries its contract signature with typed parameters and return."""
+        assert routine.__annotations__ == expected
 
-    assert run_onboarding(template_mode=True) == 0
+    def test_init_cmd_binds_surface_and_propagates_exit(self, monkeypatch):
+        """The wrapper binds tpl/--ref/--upgrade and propagates run_init's code via ctx.exit.
 
-    cfg = yaml.safe_load(config.read_text())
-    assert cfg["build"]["task_executor"]["agent"] == "claude"  # existing build content preserved
-    assert cfg["build"]["review_executor"]["skip"] is True
+        The body is driven with a fake ctx through the pass-context seam (M-R2.6 — no CliRunner).
+        """
+        by_name = {param.name: param for param in init_cmd.params}
+
+        assert init_cmd.name == "init"
+        assert set(by_name) == {"tpl", "ref", "upgrade"}
+        assert isinstance(by_name["tpl"], click.Argument)
+        assert by_name["tpl"].required is False
+        assert isinstance(by_name["upgrade"], click.Option)
+        assert by_name["upgrade"].is_flag is True
+        assert by_name["upgrade"].opts == ["--upgrade"]
+        assert isinstance(by_name["ref"], click.Option)
+        assert by_name["ref"].opts == ["--ref"]
+
+        recorder = _RunInitRecorder(return_code=3)
+        monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_init", recorder)
+        ctx = _FakeCtx()
+        monkeypatch.setattr("click.decorators.get_current_context", lambda: ctx)
+
+        init_cmd.callback(None, None, False)
+
+        assert recorder.calls == [(None, None, False)]
+        assert ctx.exit_codes == [3]
 
 
-def test_run_init_does_not_ensure_flag_when_goga_init_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A non-zero run_goga_init code returns before the bootstrap block: the flag is not ensured."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+class TestResolveInitMode:
+    """The carried-over pure flag table — mapping and nothing else."""
 
-    assert run_init(None, None, False) == 1
-    assert not (tmp_path / ".goga/config.yml").exists()
-
-
-def test_run_onboarding_template_mode_leaves_divergent_conventions_key_untouched(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A template-carried `conventions` key pointing elsewhere is skipped (register_usages never
-    overwrites), while the slot file and the annotation line still migrate to the package version.
-
-    Pins the skip-existing contract for the residual case where a config (now only reachable in
-    template mode via the CLI — bare is refused by the already-initialized guard) records a
-    user-typed `conventions` key with a custom path: the key (a user-defined entry, per the
-    CODEMANIFEST requirement "existing keys are never overwritten") is left as-is and logs as
-    skipped; the package-owned slot file and the annotation line are still delivered.
-    """
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text(
-        "codemanifest:\n"
-        "  usages:\n"
-        "    conventions: docs/my-own-convention.md\n"
-        "  annotations: |\n"
-        "    Use `conventions` for code writing rules and testing.\n"
+    @pytest.mark.parametrize(
+        ("tpl", "ref", "upgrade", "expected"),
+        [
+            (None, None, False, "bare"),
+            ("tpl", None, False, "template"),
+            ("tpl", "v2", False, "template"),
+            (None, "v2", True, "upgrade"),
+            (None, None, True, "upgrade"),
+        ],
     )
-    monkeypatch.chdir(tmp_path)
-    _stub_seams(monkeypatch)
-
-    assert run_onboarding(template_mode=True) == 0
-
-    # The slot file is delivered unconditionally regardless of where the key points.
-    assert (tmp_path / ".goga/usages/conventions.md").read_text(encoding="utf-8") == _ASSET_TEXT
-    cfg = yaml.safe_load(config.read_text())
-    # skip-existing: the user-defined key value is preserved verbatim (never overwritten)…
-    assert cfg["codemanifest"]["usages"]["conventions"] == "docs/my-own-convention.md"
-    # …while the annotation line still migrates to the package convention.
-    assert _CONVENTION_LINE in cfg["codemanifest"]["annotations"]
-    assert "code writing rules" not in cfg["codemanifest"]["annotations"]
+    def test_resolve_init_mode_table(self, tpl, ref, upgrade, expected):
+        """Every valid flag combination maps to exactly one mode."""
+        assert resolve_init_mode(tpl, ref, upgrade) == expected
 
 
-def test_run_init_logs_registered_and_skipped_keys(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A fresh run logs INFO for every registered usage/annotation key (added or changed)."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+class TestRunInit:
+    """The three-mode orchestrator — guard, scaffold delegation, session seam, bootstrap last."""
 
-    with caplog.at_level(logging.INFO):
-        assert run_init(None, None, False) == 0
-
-    info_keys = {r.message for r in caplog.records if r.message == "usage registered"}
-    assert info_keys
-    assert {r.message for r in caplog.records if r.message == "annotation registered"}
-    assert not [r for r in caplog.records if "skipped" in r.message]  # fresh project: nothing skipped
-
-
-def test_run_onboarding_template_mode_rerun_logs_skipped_keys(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A template-mode rerun logs WARNING 'already registered, skipped' for every key.
-
-    A repeat bare run_init is refused by the already-initialized guard, so the idempotent-rerun
-    logging lives in template mode (a re-scaffold over a registered project). Pins the `changed`
-    (vs `added`) plumbing of _log_registration: on an idempotent rerun nothing was added and no
-    annotation line changed, so every key must log as skipped — swapping the INFO/WARNING
-    conditions or dropping the changed_annotation_keys threading fails this test.
-    """
-    monkeypatch.chdir(tmp_path)
-    _stub_seams(monkeypatch)
-    assert run_onboarding(template_mode=True) == 0  # first run registers everything
-
-    with caplog.at_level(logging.WARNING):
-        assert run_onboarding(template_mode=True) == 0
-
-    warn_messages = [r.message for r in caplog.records if r.levelno == logging.WARNING]
-    assert "usage already registered, skipped" in warn_messages
-    assert "annotation already registered, skipped" in warn_messages
-
-
-def test_run_init_returns_goga_code_and_skips_slot_delivery(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A failing goga-init returns its code before the bootstrap block: slot/usages/conftest untouched."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    assert run_init(None, None, False) == 1
-    assert not (tmp_path / ".goga/usages/conventions.md").exists()
-    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-    assert not (tmp_path / "conftest.py").exists()
-
-
-def test_run_init_maps_convention_delivery_failure_to_click_exception(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A slot-delivery failure is mapped to click.ClickException inside the bootstrap error zone."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(
-        "goga_tool_pybuggy.commands.init.init.write_test_convention",
-        mock.Mock(side_effect=OSError("disk full")),
+    @pytest.mark.parametrize(
+        ("mode_args", "message"),
+        [
+            (("t", None, True), "mutually exclusive"),
+            ((None, "v2", False), "--ref requires"),
+        ],
     )
+    def test_run_init_invalid_flag_combinations_raise(self, tmp_path, monkeypatch, mode_args, message):
+        """An invalid flag combination raises ClickException with its message before any side effect."""
+        monkeypatch.chdir(tmp_path)
 
-    with pytest.raises(click.ClickException) as excinfo:
-        run_init(None, None, False)
+        with pytest.raises(click.ClickException, match=message):
+            run_init(*mode_args)
 
-    assert "disk full" in str(excinfo.value)
-    assert not (tmp_path / "conftest.py").exists()
+    def test_run_init_bare_runs_session_then_bootstrap(self, tmp_path, monkeypatch):
+        """Bare mode over a fresh directory runs the session first, then the bootstrap with template_mode False."""
+        monkeypatch.chdir(tmp_path)
+        order: list[str] = []
+        session = _SeamLog("session", order, [0])
+        bootstrap = _SeamLog("bootstrap", order, [0])
+        monkeypatch.setattr(_SESSION_SEAM, session)
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, bootstrap)
 
+        code = run_init(None, None, False)
 
-def test_run_init_generates_root_conftest_in_fresh_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Step 11: in a fresh project run_init writes <cwd>/conftest.py with the fixed template."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
+        assert code == 0
+        assert order == ["session", "bootstrap"]
+        assert session.calls == [{}]
+        assert bootstrap.calls == [{"template_mode": False}]
 
-    assert run_init(None, None, False) == 0
-    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
+    def test_run_init_template_passes_template_mode(self, tmp_path, monkeypatch):
+        """Template mode scaffolds first, then flags the bootstrap with template_mode True."""
+        monkeypatch.chdir(tmp_path)
+        scaffold = _ScaffoldRecorder()
+        monkeypatch.setattr(init_module, "Scaffold", lambda: scaffold)
+        order: list[str] = []
+        session = _SeamLog("session", order, [0])
+        bootstrap = _SeamLog("bootstrap", order, [0])
+        monkeypatch.setattr(_SESSION_SEAM, session)
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, bootstrap)
 
+        code = run_init("https://t.git#v1", None, False)
 
-def test_run_init_overwrites_conftest_on_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """When <cwd>/conftest.py exists and the user confirms, run_init overwrites it with the template."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    (tmp_path / "conftest.py").write_text("# custom\n")
-    # no .goga configs exist -> the conftest gate is the only confirm point
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))
+        assert code == 0
+        assert scaffold.generate_calls == [("https://t.git#v1", None)]
+        assert order == ["session", "bootstrap"]
+        assert bootstrap.calls == [{"template_mode": True}]
 
-    assert run_init(None, None, False) == 0
-    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == EXPECTED_CONFTEST
+    def test_run_init_bare_guard_refuses_initialized_project(self, tmp_path, monkeypatch, capsys):
+        """Bare mode over an existing .goga directory refuses with stderr text and zero side effects."""
+        monkeypatch.chdir(tmp_path)
+        goga = tmp_path / ".goga"
+        goga.mkdir()
+        (goga / "config.yml").write_text("language: python\n", encoding="utf-8")
+        before = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
 
+        def _fail(*args: object, **kwargs: object) -> int:
+            raise AssertionError("refused run must not reach the seams")
 
-def test_run_init_skips_conftest_overwrite_on_decline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """Declining the conftest overwrite skips the step: INFO logged, file left untouched, exit 0."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    (tmp_path / "conftest.py").write_text("# my custom conftest\n")
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
+        monkeypatch.setattr(_SESSION_SEAM, _fail)
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, _fail)
+        monkeypatch.setattr(init_module, "Scaffold", _fail)
 
-    with caplog.at_level(logging.INFO):
-        assert run_init(None, None, False) == 0
+        code = run_init(None, None, False)
 
-    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == "# my custom conftest\n"
-    assert any("conftest overwrite declined" in r.message for r in caplog.records)
-    # the documented gate contract: prompt text + default=no (Enter must NOT overwrite)
-    click.confirm.assert_called_once_with("conftest.py exists — overwrite it?", default=False)
+        assert code == 1
+        assert "Project already initialized" in capsys.readouterr().err
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == before
 
+    def test_run_init_guard_checks_directory_existence_only(self, tmp_path, monkeypatch):
+        """A .goga regular file passes the guard — the recorders run and the stubbed code returns."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".goga").write_text("not a directory\n", encoding="utf-8")
+        order: list[str] = []
+        session = _SeamLog("session", order, [0])
+        bootstrap = _SeamLog("bootstrap", order, [6])
+        monkeypatch.setattr(_SESSION_SEAM, session)
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, bootstrap)
 
-def test_run_init_maps_conftest_write_failure_to_click_exception(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A conftest write failure is ERROR-logged and mapped to click.ClickException (non-zero exit)."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(
-        "goga_tool_pybuggy.commands.init.init.write_pybuggy_conftest",
-        mock.Mock(side_effect=OSError("disk full")),
+        assert run_init(None, None, False) == 6
+        assert order == ["session", "bootstrap"]
+
+    @pytest.mark.parametrize(
+        ("mode_args", "failing_seam", "expected_code"),
+        [
+            pytest.param(("https://t.git#v1", None, False), "scaffold", 3, id="scaffold-generate-returns-3"),
+            pytest.param((None, None, False), "session", 4, id="session-returns-4"),
+            pytest.param((None, None, True), "upgrade", 5, id="upgrade-returns-5"),
+        ],
     )
-
-    with caplog.at_level(logging.ERROR), pytest.raises(click.ClickException) as excinfo:
-        run_init(None, None, False)
-
-    assert "disk full" in str(excinfo.value)
-    assert any("conftest write failed" in r.message for r in caplog.records)
-
-
-def test_run_init_does_not_write_conftest_when_goga_init_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A non-zero run_goga_init code returns before step 11: no conftest, no usages bootstrapped."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    assert run_init(None, None, False) == 1
-    assert not (tmp_path / "conftest.py").exists()
-    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-
-
-def test_run_init_does_not_write_conftest_when_config_build_fails(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A non-zero build_pybuggy_config code returns before step 11: no conftest is written."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
-
-    assert run_init(None, None, False) == 1
-    assert not (tmp_path / "conftest.py").exists()
-
-
-def test_run_init_does_not_write_conftest_when_bootstrap_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A bootstrap ClickException returns before step 11: no conftest is written."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    # fail the bootstrap block via a vector that leaves the real filesystem writable, so the
-    # conftest-absence assertion below is not vacuous
-    monkeypatch.setattr(
-        "goga_tool_pybuggy.commands.init.init.register_usages",
-        mock.Mock(side_effect=ValueError("bad usage key")),
-    )
-
-    with pytest.raises(click.ClickException):
-        run_init(None, None, False)
-
-    assert not (tmp_path / "conftest.py").exists()
-
-
-def test_run_init_repeat_run_refuses_and_preserves_conftest(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A repeat bare run is refused (exit 1): the conftest written by run #1 stays untouched.
-
-    Run #1 bootstraps the project (register_usages creates .goga/), so run #2 trips the
-    already-initialized guard before any gate — the old confirm dance is gone.
-    """
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    confirm = mock.Mock(return_value=False)
-    monkeypatch.setattr(click, "confirm", confirm)
-
-    assert run_init(None, None, False) == 0
-    after_first = (tmp_path / "conftest.py").read_text(encoding="utf-8")
-    assert after_first == EXPECTED_CONFTEST
-
-    assert run_init(None, None, False) == 1  # .goga/ from run #1 → guard refuses
-    assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == after_first
-    assert confirm.call_count == 0  # run #2 never reached a gate
-
-
-def test_run_init_propagates_abort_on_conftest_confirm(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A Ctrl-C at the conftest gate propagates as click.Abort (not swallowed by the OSError handler)."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    (tmp_path / "conftest.py").write_text("# custom\n")
-    # the stubbed steps 2-3 never confirm, so the Abort can only come from the conftest gate
-    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=click.Abort()))
-
-    with pytest.raises(click.Abort):
-        run_init(None, None, False)
-
-
-def test_run_init_recursive_discovery_picks_subcell(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_init should discover the asserts subcell of api recursively."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    run_init(None, None, False)
-
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/asserts.md").exists()
-
-
-def test_run_init_bare_refuses_initialized_project_without_side_effects(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A repeat bare invocation over an existing .goga/ refuses: stderr message, exit 1, zero side effects.
-
-    goga init parity: the guard fires before any prompt or write — run_goga_init,
-    build_pybuggy_config, and click.confirm are never called, and every existing file stays
-    byte-identical (no usages refresh, no config augmentation, no conftest overwrite).
-    """
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
-    usage = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md"
-    usage.parent.mkdir(parents=True, exist_ok=True)
-    usage.write_text("locally edited api usage", encoding="utf-8")
-    conftest = tmp_path / "conftest.py"
-    conftest.write_text("# custom conftest\n", encoding="utf-8")
-    before = {p: p.read_bytes() for p in (config, usage, conftest)}
-    monkeypatch.chdir(tmp_path)
-    goga_spy = mock.Mock(return_value=0)
-    build_spy = mock.Mock(return_value=0)
-    confirm = mock.Mock(return_value=False)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", goga_spy)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
-    monkeypatch.setattr(click, "confirm", confirm)
-
-    assert run_init(None, None, False) == 1
-
-    assert "Project already initialized" in capsys.readouterr().err
-    assert goga_spy.call_count == 0
-    assert build_spy.call_count == 0
-    assert confirm.call_count == 0
-    assert {p: p.read_bytes() for p in (config, usage, conftest)} == before  # nothing updated
-
-
-def test_run_init_bare_guard_checks_directory_existence_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A `.goga` regular file does not trip the guard (is_dir parity with goga init).
-
-    The flow proceeds into onboarding (run_goga_init is reached); the bootstrap then fails
-    creating `.goga/...` children under a regular file, mapping the OSError to
-    ClickException — the same degenerate-state behavior goga's guard produces.
-    """
-    (tmp_path / ".goga").write_text("not a directory\n")
-    monkeypatch.chdir(tmp_path)
-    goga_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", goga_spy)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    with pytest.raises(click.ClickException):
-        run_init(None, None, False)
-
-    assert goga_spy.call_count == 1  # guard passed: `.goga` exists but is not a directory
-
-
-def test_run_init_propagates_goga_cancel_without_registering(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A non-zero run_goga_init exit code is returned without registering any usages."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 1)
-    register_spy = mock.Mock(wraps=register_usages)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.register_usages", register_spy)
-
-    assert run_init(None, None, False) == 1
-
-    assert register_spy.call_count == 0
-    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-
-
-def test_run_init_second_bare_run_refuses_with_no_config_diff(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A second bare run refuses (the .goga/ created by run #1 trips the guard) and writes nothing.
-
-    The onboarding of run #1 itself creates .goga/config.yml (register_usages), so the repeat
-    invocation cannot update files: exit 1 and a byte-identical config.
-    """
-    config = tmp_path / ".goga" / "config.yml"
-    monkeypatch.chdir(tmp_path)
-    run_goga_init_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    assert run_init(None, None, False) == 0  # fresh cwd → onboarding creates the config
-    before = config.read_text()
-
-    assert run_init(None, None, False) == 1  # refused
-
-    assert run_goga_init_spy.call_count == 1  # called only by the fresh run #1
-    assert config.read_text() == before
-
-
-def test_run_onboarding_bare_mode_recreates_goga_config_on_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Seam contract: bare mode with an existing .goga/config.yml re-runs run_goga_init on confirm.
-
-    Through run_init this branch is unreachable (the bare already-initialized guard refuses an
-    existing .goga/ up front); the onboarding pipeline itself keeps the documented gate for
-    direct programmatic callers.
-    """
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
-    monkeypatch.chdir(tmp_path)
-    run_goga_init_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_spy)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))  # accept goga recreate
-
-    assert run_onboarding(template_mode=False) == 0
-
-    assert run_goga_init_spy.call_count == 1
-
-
-def test_run_onboarding_bare_mode_rebuilds_pybuggy_config_on_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Seam contract: bare mode rebuilds an existing tool config only on an explicit confirm."""
-    (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
-    (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    build_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
-    # decline goga recreate, accept pybuggy rebuild
-    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, True]))
-
-    assert run_onboarding(template_mode=False) == 0
-
-    assert build_spy.call_count == 1
-
-
-def test_run_onboarding_bare_mode_skips_pybuggy_rebuild_on_decline(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Seam contract: declining the rebuild skips build_pybuggy_config; the pipeline continues."""
-    (tmp_path / ".goga" / "tools" / "pybuggy").mkdir(parents=True)
-    (tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").write_text("base_url: stale\n")
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    build_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_spy)
-    # decline both recreates
-    monkeypatch.setattr(click, "confirm", mock.Mock(side_effect=[False, False]))
-
-    assert run_onboarding(template_mode=False) == 0
-
-    assert build_spy.call_count == 0
-
-
-def test_run_init_maps_bootstrap_failure_to_click_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A file-write failure inside the bootstrap maps to click.ClickException (fresh cwd)."""
-    monkeypatch.chdir(tmp_path)  # no .goga/ — the bare guard does not fire
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 0)
-
-    with (
-        mock.patch("goga_tool_pybuggy.commands.init.init.Path.write_text", side_effect=OSError("denied")),
-        pytest.raises(click.ClickException),
+    def test_run_init_propagates_engine_and_session_codes(
+        self, tmp_path, monkeypatch, mode_args, failing_seam, expected_code
     ):
-        run_init(None, None, False)
-
-
-def test_run_init_propagates_config_build_failure_without_registering(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A non-zero build_pybuggy_config exit code is returned without registering any usages.
-
-    Step 3 short-circuits run_init on a non-zero config-build code: no usages are discovered/copied and
-    register_usages is never called (scenario C — early return before the discovery block).
-    """
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", lambda: 0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", lambda: 1)
-    register_spy = mock.Mock(wraps=register_usages)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.register_usages", register_spy)
-
-    assert run_init(None, None, False) == 1
-
-    assert register_spy.call_count == 0
-    assert not (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-
-
-# run_onboarding logic tests ---------------------------------------------------
-
-
-def _stub_seams(monkeypatch: pytest.MonkeyPatch) -> tuple[mock.Mock, mock.Mock]:
-    """Stub the interactive seams (run_goga_init, build_pybuggy_config) with recording mocks.
-
-    Both stubs return 0 without touching the filesystem, so the absent-file gate branches are
-    exercised while the pipeline stays TTY-free and deterministic.
-    """
-    run_goga_init_stub = mock.Mock(return_value=0)
-    build_stub = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", run_goga_init_stub)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", build_stub)
-
-    return run_goga_init_stub, build_stub
-
-
-def test_run_onboarding_template_mode_creates_missing_files(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Template mode over an empty cwd takes every gate's absent-branch and lands all artifacts."""
-    monkeypatch.chdir(tmp_path)
-    goga_stub, build_stub = _stub_seams(monkeypatch)
-
-    assert run_onboarding(template_mode=True) == 0
-
-    assert goga_stub.call_count == 1  # .goga/config.yml absent → full goga questionnaire seam
-    assert build_stub.call_count == 1
-    assert (tmp_path / ".goga/config.yml").exists()
-    assert (tmp_path / ".goga/usages/conventions.md").exists()
-    assert (tmp_path / ".goga/usages/cooks/pybuggy/api.md").exists()
-    assert (tmp_path / "conftest.py").exists()
-
-    cfg = yaml.safe_load((tmp_path / ".goga/config.yml").read_text())
-    assert cfg["build"]["review_executor"]["skip"] is True
-    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
-    assert "pybuggy-api" in cfg["codemanifest"]["usages"]
-
-
-def test_run_onboarding_template_mode_augments_template_brought_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Template mode never prompts: template-brought configs/Dockerfile are augmented, not rebuilt."""
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text("# template comment\nbuild:\n  task_executor:\n    agent: claude\n")
-    tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    tool_config.parent.mkdir(parents=True)
-    tool_config.write_text("base_url: https://template.example\n")
-    dockerfile = tmp_path / ".goga" / "Dockerfile"
-    dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    goga_stub, build_stub = _stub_seams(monkeypatch)
-
-    assert run_onboarding(template_mode=True) == 0
-
-    assert goga_stub.call_count == 0
-    assert build_stub.call_count == 0
-
-    text = dockerfile.read_text(encoding="utf-8")
-    assert "FROM python:3.12" in text
-    assert "RUN goga install pybuggy -v 1.0.x" in text
-
-    raw = config.read_text()
-    assert "# template comment" in raw  # round-trip preserved the template's comment
-    cfg = yaml.safe_load(raw)
-    assert cfg["build"]["review_executor"]["skip"] is True
-    assert cfg["build"]["task_executor"] == {"agent": "claude"}  # foreign build content preserved
-
-
-def test_run_onboarding_dockerfile_augmentation_failure_maps_to_click_exception(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """An OSError from install_pybuggy inside the bootstrap is ERROR-logged and mapped."""
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text("build:\n  task_executor:\n    agent: claude\n")
-    monkeypatch.chdir(tmp_path)
-    _stub_seams(monkeypatch)
-    monkeypatch.setattr(
-        "goga_tool_pybuggy.commands.init.init.install_pybuggy",
-        mock.Mock(side_effect=OSError("disk full")),
-    )
-
-    with caplog.at_level(logging.ERROR), pytest.raises(click.ClickException) as excinfo:
-        run_onboarding(template_mode=True)
-
-    assert "disk full" in str(excinfo.value)
-    assert any(r.message == "onboarding bootstrap failed" for r in caplog.records)
-
-
-def test_run_onboarding_template_mode_skips_existing_files_with_info(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
-) -> None:
-    """A template that brought every file: zero prompts, zero overwrites, augmentations only.
-
-    The pre-created config already carries the full pybuggy registration set (usage keys,
-    annotation lines, skip flag), so the always-run augmentations are idempotent no-ops and the
-    file stays byte-identical — proving the skips, not the augmentations, own every byte.
-    """
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text(
-        "build:\n"
-        "  review_executor:\n"
-        "    skip: true\n"
-        "codemanifest:\n"
-        "  usages:\n"
-        "    pybuggy-api: .goga/usages/cooks/pybuggy/api.md\n"
-        "    pybuggy-asserts: .goga/usages/cooks/pybuggy/asserts.md\n"
-        "    conventions: .goga/usages/conventions.md\n"
-        "  annotations: |\n"
-        "    Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses.\n"
-        "    Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses.\n"
-        "    Use `conventions` for test code: pytest configuration, logging, and Allure reporting.\n"
-    )
-    config_before = config.read_text()
-    tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    tool_config.parent.mkdir(parents=True)
-    tool_config.write_text("base_url: https://template.example\n")
-    api_usage = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md"
-    api_usage.parent.mkdir(parents=True)
-    api_usage.write_text("template api text", encoding="utf-8")
-    slot = tmp_path / ".goga" / "usages" / "conventions.md"
-    slot.write_text("template convention", encoding="utf-8")
-    conftest = tmp_path / "conftest.py"
-    conftest.write_text("template conftest", encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    goga_stub, build_stub = _stub_seams(monkeypatch)
-    confirm = mock.Mock(return_value=False)
-    monkeypatch.setattr(click, "confirm", confirm)
-
-    with caplog.at_level(logging.INFO):
-        assert run_onboarding(template_mode=True) == 0
-
-    assert goga_stub.call_count == 0
-    assert build_stub.call_count == 0
-    assert confirm.call_count == 0  # template mode never prompts
-    assert api_usage.read_text(encoding="utf-8") == "template api text"
-    assert slot.read_text(encoding="utf-8") == "template convention"
-    assert conftest.read_text(encoding="utf-8") == "template conftest"
-    assert config.read_text() == config_before  # idempotent augmentations: no diff
-
-    assert any(r.message == "existing file kept untouched" for r in caplog.records)
-    cfg = yaml.safe_load(config.read_text())
-    assert cfg["build"]["review_executor"]["skip"] is True  # augmentation still applied
-
-
-def test_run_onboarding_conventions_slot_skip_if_exists_in_bare_mode(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Bare mode keeps an existing conventions slot (skip-if-exists) but still registers it."""
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text(
-        "codemanifest:\n"
-        "  usages:\n"
-        "    conventions: .goga/usages/conventions.md\n"
-        "  annotations: |\n"
-        "    Use `conventions` for code writing rules and testing.\n"
-    )
-    slot = tmp_path / ".goga" / "usages" / "conventions.md"
-    slot.parent.mkdir(parents=True)
-    slot.write_text("custom convention", encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    _stub_seams(monkeypatch)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # decline every recreate
-
-    assert run_onboarding(template_mode=False) == 0
-
-    assert slot.read_text(encoding="utf-8") == "custom convention"  # kept, never overwritten
-    cfg = yaml.safe_load(config.read_text())
-    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
-    assert "`conventions`" in cfg["codemanifest"]["annotations"]
-    assert "code writing rules" not in cfg["codemanifest"]["annotations"]  # legacy line replaced
-
-
-def test_run_onboarding_bare_mode_overwrites_existing_usages(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Bare mode re-copies discovered usages over local edits (the bare/template asymmetry)."""
-    config = tmp_path / ".goga" / "config.yml"
-    config.parent.mkdir(parents=True)
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md\n")
-    api_usage = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md"
-    api_usage.parent.mkdir(parents=True)
-    api_usage.write_text("stale local text", encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    _stub_seams(monkeypatch)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
-
-    assert run_onboarding(template_mode=False) == 0
-
-    packaged = (importlib.resources.files("goga_tool_pybuggy.api") / ".usages" / "api.md").read_text(encoding="utf-8")
-    text = api_usage.read_text(encoding="utf-8")
-    assert text != "stale local text"
-    assert text == packaged  # bare semantics: the installed package usage text wins
-
-
-def test_run_onboarding_dockerfile_absent_is_noop(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A run without any Dockerfile succeeds and creates none (install_pybuggy no-ops)."""
-    monkeypatch.chdir(tmp_path)
-    _stub_seams(monkeypatch)
-
-    assert run_onboarding(template_mode=True) == 0
-
-    assert not (tmp_path / ".goga/Dockerfile").exists()
-
-
-def test_run_onboarding_fresh_bare_run_appends_install_line_once(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The always-run step 7 appends the install line exactly once on a fresh bare run.
-
-    The goga seam stub writes config + a FROM-only Dockerfile WITHOUT appending the install line
-    itself — the append must come from the always-run onboarding augmentation, exactly once.
-    """
-    dockerfile = tmp_path / ".goga" / "Dockerfile"
-    goga_config = tmp_path / ".goga" / "config.yml"
-
-    def _goga_init_writes_files() -> int:
-        dockerfile.parent.mkdir(parents=True, exist_ok=True)
-        dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
-        goga_config.parent.mkdir(parents=True, exist_ok=True)
-        goga_config.write_text("language: python\n", encoding="utf-8")
-        return 0
-
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", _goga_init_writes_files)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.build_pybuggy_config", mock.Mock(return_value=0))
-
-    assert run_onboarding(template_mode=False) == 0
-
-    text = dockerfile.read_text(encoding="utf-8")
-    assert text == "FROM python:3.12\nRUN goga install pybuggy -v 1.0.x\n"
-    assert text.count("RUN goga install pybuggy") == 1
-
-
-# resolve_init_mode logic tests ------------------------------------------------
-
-
-def test_resolve_init_mode_returns_bare_for_no_flags() -> None:
-    """No flags resolve to the bare mode (the default — the backwards-compatibility carrier).
-
-    Rules 1-2 pass (no invalid combination), then upgrade is False and tpl is None, so the
-    mapping returns bare.
-    """
-    assert resolve_init_mode(tpl=None, ref=None, upgrade=False) == "bare"
-
-
-def test_resolve_init_mode_returns_template_for_tpl() -> None:
-    """A positional template source resolves to the template mode."""
-    assert resolve_init_mode("https://host/repo.git", None, False) == "template"
-
-
-def test_resolve_init_mode_returns_upgrade_for_upgrade_flag() -> None:
-    """The --upgrade flag alone resolves to the upgrade mode."""
-    assert resolve_init_mode(None, None, True) == "upgrade"
-
-
-@pytest.mark.parametrize(
-    ("tpl", "ref", "upgrade", "expected"),
-    [
-        ("https://host/repo.git", "v2", False, "template"),
-        (None, "v2", True, "upgrade"),
-    ],
-)
-def test_resolve_init_mode_accepts_ref_with_tpl_and_with_upgrade(
-    tpl: str | None, ref: str | None, upgrade: bool, expected: str
-) -> None:
-    """--ref is valid with <tpl> (ref beats the URL fragment in the engine) and with --upgrade."""
-    assert resolve_init_mode(tpl, ref, upgrade) == expected
-
-
-def test_resolve_init_mode_rejects_tpl_with_upgrade() -> None:
-    """<tpl> combined with --upgrade raises ClickException (rule 1 — mutually exclusive)."""
-    with pytest.raises(click.ClickException) as excinfo:
-        resolve_init_mode("https://host/repo.git", None, True)
-
-    assert "mutually exclusive" in str(excinfo.value)
-
-
-def test_resolve_init_mode_rejects_ref_without_tpl_and_upgrade() -> None:
-    """--ref without <tpl> and without --upgrade raises ClickException (rule 2 — placement)."""
-    with pytest.raises(click.ClickException) as excinfo:
-        resolve_init_mode(None, "v2", False)
-
-    assert "--ref requires" in str(excinfo.value)
-
-
-def test_resolve_init_mode_empty_string_is_a_given_value_not_an_absence() -> None:
-    """Empty strings count as given values — None vs "" reaches the engine verbatim.
-
-    click delivers "" (not None) for `init ""` / `init --ref ""`; pinning the None-checks here
-    guards against a truthiness "simplification" that would silently turn both into bare
-    onboarding.
-    """
-    assert resolve_init_mode("", None, False) == "template"
-
-    with pytest.raises(click.ClickException, match="--ref requires"):
-        resolve_init_mode(None, "", False)
-
-
-def test_resolve_init_mode_valid_input_never_prompts() -> None:
-    """The routine is pure (TTY-free): no click.confirm/click.prompt on the valid paths."""
-    with (
-        mock.patch.object(click, "confirm") as confirm_mock,
-        mock.patch.object(click, "prompt") as prompt_mock,
-    ):
-        assert resolve_init_mode(None, None, False) == "bare"
-        assert resolve_init_mode("https://host/repo.git", "v2", False) == "template"
-        assert resolve_init_mode(None, "v2", True) == "upgrade"
-
-    assert confirm_mock.call_count == 0
-    assert prompt_mock.call_count == 0
-
-
-# run_init mode-dispatch logic tests --------------------------------------------
-
-
-def _stub_scaffold(monkeypatch: pytest.MonkeyPatch, generate_rc: int = 0, upgrade_rc: int = 0) -> type:
-    """Install a recording Scaffold stand-in on init.py (no copier, no network, no TTY).
-
-    The class records every construction and every engine call; ``generate_rc``/``upgrade_rc``
-    fix the engine exit codes the stub returns, so both the zero-code and non-zero-code
-    dispatch branches are drivable.
-    """
-
-    class StubScaffold:
-        constructed = False
-        generate_calls: ClassVar[list[tuple[str | None, str | None]]] = []
-        upgrade_calls: ClassVar[list[tuple[str | None]]] = []
-
-        def __init__(self) -> None:
-            StubScaffold.constructed = True
-
-        def generate(self, template_input: str, ref_override: str | None) -> int:
-            StubScaffold.generate_calls.append((template_input, ref_override))
-            return generate_rc
-
-        def upgrade(self, ref_override: str | None = None) -> int:
-            StubScaffold.upgrade_calls.append((ref_override,))
-            return upgrade_rc
-
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Scaffold", StubScaffold)
-
-    return StubScaffold
-
-
-def _stub_onboarding(monkeypatch: pytest.MonkeyPatch, rc: int = 0) -> list[tuple[bool]]:
-    """Stub run_onboarding with a call recorder returning ``rc``; returns the recorded calls."""
-    calls: list[tuple[bool]] = []
-
-    def recorder(template_mode: bool) -> int:
-        calls.append((template_mode,))
-        return rc
-
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_onboarding", recorder)
-
-    return calls
-
-
-def test_stub_scaffold_mirrors_real_engine_call_surface() -> None:
-    """The real goga Scaffold accepts exactly the calls run_init makes (stub parity guard).
-
-    Every template/upgrade test drives a hand-written Scaffold stand-in whose generate/upgrade
-    signatures were copied from the engine; this pins the version-pinned goga engine itself to that
-    surface — default construction, two positional generate args, one positional (or omitted)
-    upgrade arg — so a goga update that shifts it fails here instead of at runtime.
-    """
-    import inspect
-
-    from goga.scaffold import Scaffold
-
-    engine = Scaffold()  # default construction — side-effect-free (stores dst_path/answers_file)
-    generate = inspect.signature(Scaffold.generate)
-    generate.bind(engine, "https://host/repo.git", "v9")  # run_init: Scaffold().generate(tpl, ref)
-    upgrade = inspect.signature(Scaffold.upgrade)
-    upgrade.bind(engine, "v2")  # run_init: Scaffold().upgrade(ref)
-    upgrade.bind(engine)  # the ref is optional on the engine surface
-
-
-def test_run_init_bare_delegates_to_onboarding_bare(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Bare input dispatches straight to onboarding with template_mode=False; the engine is never built."""
-    monkeypatch.chdir(tmp_path)
-    stub = _stub_scaffold(monkeypatch)
-    onboarding_calls = _stub_onboarding(monkeypatch, rc=7)
-
-    assert run_init(None, None, False) == 7
-
-    assert onboarding_calls == [(False,)]
-    assert stub.constructed is False  # bare mode never touches the scaffold engine
-
-
-def test_run_init_template_scaffolds_then_onboards_template_mode(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Template input scaffolds through the engine (tpl, ref verbatim), then onboards in template mode."""
-    monkeypatch.chdir(tmp_path)
-    stub = _stub_scaffold(monkeypatch, generate_rc=0)
-    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
-
-    assert run_init("https://host/repo.git#v1", "v9", False) == 0
-
-    assert stub.generate_calls == [("https://host/repo.git#v1", "v9")]
-    assert onboarding_calls == [(True,)]
-
-
-def test_run_init_template_mode_not_guarded_by_existing_goga(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Template mode ignores the already-initialized guard — a template may bring its own .goga/.
-
-    The guard mirrors `goga init` and guards BARE onboarding only; scaffolded onboarding runs
-    with its silent-skip gates even when .goga/ already exists.
-    """
-    (tmp_path / ".goga").mkdir()
-    monkeypatch.chdir(tmp_path)
-    _stub_scaffold(monkeypatch, generate_rc=0)
-    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
-
-    assert run_init("https://host/repo.git", None, False) == 0
-
-    assert onboarding_calls == [(True,)]
-
-
-def test_run_init_upgrade_runs_migration_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Upgrade input runs only the engine migration: no onboarding, no slot delivery."""
-    scaffold_state = tmp_path / ".goga" / "scaffold.yml"
-    scaffold_state.parent.mkdir(parents=True)
-    scaffold_state.write_text("# scaffold state\n")
-    monkeypatch.chdir(tmp_path)
-    stub = _stub_scaffold(monkeypatch, upgrade_rc=4)
-    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
-
-    assert run_init(None, "v2", True) == 4
-
-    assert stub.upgrade_calls == [("v2",)]
-    assert onboarding_calls == []
-    assert not (tmp_path / ".goga/usages/conventions.md").exists()
-
-
-def test_run_init_upgrade_success_skips_onboarding_entirely(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A successful migration (rc 0) still never onboards — the zero-code branch is guarded too.
-
-    The failing-code variants cannot catch a refactor that mirrors the template branch (capture
-    the code, return early only on non-zero, fall through to onboarding): a zero rc must return
-    0 with no onboarding side effect.
-    """
-    scaffold_state = tmp_path / ".goga" / "scaffold.yml"
-    scaffold_state.parent.mkdir(parents=True)
-    scaffold_state.write_text("# scaffold state\n")
-    monkeypatch.chdir(tmp_path)
-    _stub_scaffold(monkeypatch, upgrade_rc=0)
-    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
-
-    assert run_init(None, None, True) == 0
-
-    assert onboarding_calls == []
-    assert not (tmp_path / ".goga/usages/conventions.md").exists()
-    assert not (tmp_path / "conftest.py").exists()
-
-
-def test_run_init_failed_scaffold_stops_onboarding_without_side_effects(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A non-zero engine code returns before onboarding: no seam runs, the directory is untouched."""
-    monkeypatch.chdir(tmp_path)
-    _stub_scaffold(monkeypatch, generate_rc=1)
-    onboarding_calls = _stub_onboarding(monkeypatch, rc=0)
-    goga_spy = mock.Mock(return_value=0)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.run_goga_init", goga_spy)
-    before = sorted(p.name for p in tmp_path.iterdir())
-
-    assert run_init("https://host/repo.git", None, False) == 1
-
-    assert onboarding_calls == []
-    assert goga_spy.call_count == 0
-    assert sorted(p.name for p in tmp_path.iterdir()) == before  # no .goga/, no conftest.py
-
-
-def test_run_init_propagates_engine_code_unchanged(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Engine exit codes are propagated verbatim — never normalized to 1."""
-    monkeypatch.chdir(tmp_path)
-    _stub_scaffold(monkeypatch, generate_rc=3, upgrade_rc=5)
-    _stub_onboarding(monkeypatch, rc=0)
-
-    assert run_init("tpl", None, False) == 3
-    assert run_init(None, None, True) == 5
-
-
-# run_goga_init contract tests ------------------------------------------------
-
-
-def test_run_goga_init_importable_from_facade() -> None:
-    """run_goga_init should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import run_goga_init as imported
-
-    assert imported is run_goga_init
-
-
-def test_run_goga_init_is_public_in_facade() -> None:
-    """run_goga_init is exposed on the facade __all__ (public test seam)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "run_goga_init" in facade_all
-
-
-def test_run_goga_init_signature() -> None:
-    """run_goga_init takes no parameters and returns an exit code."""
-    assert run_goga_init.__code__.co_argcount == 0
-
-
-# run_goga_init logic tests ----------------------------------------------------
-
-
-def _stub_questionnaire(monkeypatch: pytest.MonkeyPatch) -> mock.Mock:
-    """Install a mocked Questionnaire on init.py and return its instance.
-
-    The per-field ``ask_*`` methods return deterministic values; ``ask_image_name`` records its call
-    so it doubles as a spy for the language argument.
-    """
-    questionnaire = mock.Mock()
-    # ask_base_convention is deliberately NOT stubbed — the flow never calls it (offline init).
-    questionnaire.ask_codemanifest_usages.return_value = {"my-usage": "src"}
-    questionnaire.ask_codemanifest_annotations.return_value = "annotations"
-    questionnaire.ask_agent.return_value = "coder"
-    questionnaire.ask_image_name.return_value = "python-image:latest"
-    questionnaire.ask_base_image.return_value = "qarium/goga-python-3.12:1.1"
-    # ask_image (pre-built pull, no-Dockerfile case) and ask_dockerfile_path are intentionally NOT
-    # used — run_goga_init splits the image (name + FROM baseline) and hardcodes the mandatory path.
-    questionnaire.ask_env.return_value = {"KEY": "v"}
-    questionnaire.ask_pipeline_agent.return_value = "pcoder"
-    questionnaire.ask_pipeline_env.return_value = {"PKEY": "pv"}
-
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.Questionnaire", mock.Mock(return_value=questionnaire))
-
-    return questionnaire
-
-
-def test_run_goga_init_hardcodes_python_and_calls_image_prompts(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """run_goga_init hardcodes language='python', skips ask_language, splits the image via name + base prompts."""
-    questionnaire = _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-
-    assert run_goga_init() == 0
-
-    questionnaire.ask_language.assert_not_called()
-    # Dockerfile is mandatory → built-image NAME + FROM baseline, NOT the pre-built-pull ask_image.
-    questionnaire.ask_image_name.assert_called_once_with("python")
-    questionnaire.ask_base_image.assert_called_once_with("python")
-    questionnaire.ask_image.assert_not_called()
-    generator.generate.assert_called_once()
-    answers = generator.generate.call_args.args[0]
-    assert answers.goga_config.language == "python"
-
-
-def test_run_goga_init_assembles_goga_config_answers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_goga_init assembles GogaConfigAnswers from the per-field answers and feeds InitAnswers.
-
-    ``dockerfile_path`` is the hardcoded mandatory path (``_DOCKERFILE_PATH``), not the return
-    value of goga's optional ``ask_dockerfile_path`` (which is never called).
-    """
-    from goga_tool_pybuggy.commands.init.init import _DOCKERFILE_PATH
-
-    questionnaire = _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-    config_spy = mock.Mock(name="GogaConfigAnswers")
-    answers_spy = mock.Mock(name="InitAnswers")
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.GogaConfigAnswers", config_spy)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.InitAnswers", answers_spy)
-
-    assert run_goga_init() == 0
-
-    config_spy.assert_called_once_with(
-        language="python",
-        agent=questionnaire.ask_agent.return_value,
-        image=questionnaire.ask_image_name.return_value,
-        dockerfile_base_image=questionnaire.ask_base_image.return_value,
-        pipeline_agent=questionnaire.ask_pipeline_agent.return_value,
-        pipeline_env=questionnaire.ask_pipeline_env.return_value,
-        env=questionnaire.ask_env.return_value,
-        dockerfile_path=_DOCKERFILE_PATH,
-        codemanifest_usages=questionnaire.ask_codemanifest_usages.return_value,
-        codemanifest_annotations=questionnaire.ask_codemanifest_annotations.return_value,
-    )
-    answers_spy.assert_called_once_with(goga_config=config_spy.return_value)
-    generator.generate.assert_called_once_with(answers_spy.return_value)
-
-
-def test_run_goga_init_hardcodes_mandatory_dockerfile_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_goga_init makes the Dockerfile mandatory.
-
-    The Dockerfile path is the hardcoded ``_DOCKERFILE_PATH`` (never ``None``, so ``FileGenerator``
-    always creates the Dockerfile and always emits the top-level ``dockerfile`` config field), and
-    goga's optional ``ask_dockerfile_path`` is never called.
-    """
-    from goga_tool_pybuggy.commands.init.init import _DOCKERFILE_PATH
-
-    questionnaire = _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-
-    assert run_goga_init() == 0
-
-    questionnaire.ask_dockerfile_path.assert_not_called()
-    answers = generator.generate.call_args.args[0]
-    assert answers.goga_config.dockerfile_path == _DOCKERFILE_PATH
-    assert answers.goga_config.dockerfile_path is not None
-
-
-def test_run_goga_init_returns_1_on_abort(monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_goga_init returns 1 (without raising) when generation is aborted by the user."""
-    _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    generator.generate.side_effect = click.Abort()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-
-    assert run_goga_init() == 1
-
-
-def test_run_goga_init_returns_1_on_generation_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_goga_init logs and echoes a generation failure, then returns 1 (never raises)."""
-    _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    generator.generate.side_effect = RuntimeError("boom")
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-    logger = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.logger", logger)
-    echo = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.click.echo", echo)
-
-    assert run_goga_init() == 1
-
-    logger.error.assert_called_once()
-    echo.assert_called_once()
-    assert "boom" in echo.call_args.args[0]
-
-
-def test_run_goga_init_returns_1_on_abort_during_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_goga_init returns 1 (never raises) when the user cancels during a prompt."""
-    questionnaire = _stub_questionnaire(monkeypatch)
-    questionnaire.ask_agent.side_effect = click.Abort()  # user cancels mid-flow
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock())
-
-    assert run_goga_init() == 1
-
-
-def test_run_goga_init_collects_codemanifest_fields_without_prefill(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The codemanifest fields are collected without a prefill from ask_base_convention (offline)."""
-    questionnaire = _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-
-    assert run_goga_init() == 0
-
-    # Offline init: the base-convention question is never asked, so no download prefill is threaded.
-    questionnaire.ask_base_convention.assert_not_called()
-    questionnaire.ask_codemanifest_usages.assert_called_once_with()
-    questionnaire.ask_codemanifest_annotations.assert_called_once_with()
-    answers = generator.generate.call_args.args[0]
-    assert answers.goga_config.codemanifest_usages == {"my-usage": "src"}
-
-
-def test_run_goga_init_offline_answers_carry_no_conventions_key(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Answers assembled by the offline flow carry no `conventions` key, so goga downloads nothing."""
-    _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-
-    assert run_goga_init() == 0
-
-    answers = generator.generate.call_args.args[0]
-    assert answers.goga_config.codemanifest_usages == {"my-usage": "src"}
-    assert "conventions" not in answers.goga_config.codemanifest_usages
-    generator.generate.assert_called_once()
-
-
-def test_run_goga_init_threads_answers_into_downstream_prompts(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Each collected answer threads into the downstream prompt (agent, pipeline_agent)."""
-    questionnaire = _stub_questionnaire(monkeypatch)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock())
-
-    assert run_goga_init() == 0
-
-    questionnaire.ask_base_convention.assert_not_called()
-    questionnaire.ask_codemanifest_usages.assert_called_once_with()
-    questionnaire.ask_codemanifest_annotations.assert_called_once_with()
-    agent = questionnaire.ask_agent.return_value
-    questionnaire.ask_env.assert_called_once_with(agent)
-    # ask_pipeline_agent takes NO args in this goga version (it does not inherit the build agent).
-    questionnaire.ask_pipeline_agent.assert_called_once_with()
-    questionnaire.ask_pipeline_env.assert_called_once_with(questionnaire.ask_pipeline_agent.return_value)
-
-
-def test_run_goga_init_calls_install_pybuggy_after_generate(monkeypatch: pytest.MonkeyPatch) -> None:
-    """run_goga_init pins the running pybuggy version by calling install_pybuggy after generate."""
-    from goga_tool_pybuggy.commands.init.init import _DOCKERFILE_PATH
-
-    _stub_questionnaire(monkeypatch)
-    generator = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.FileGenerator", mock.Mock(return_value=generator))
-    install_spy = mock.Mock(return_value=None)
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.install_pybuggy", install_spy)
-
-    assert run_goga_init() == 0
-
-    generator.generate.assert_called_once()
-    install_spy.assert_called_once_with(Path(_DOCKERFILE_PATH))
-
-
-# install_pybuggy contract tests ---------------------------------------------
-
-
-def test_install_pybuggy_importable_from_facade() -> None:
-    """install_pybuggy should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import install_pybuggy as imported
-
-    assert imported is install_pybuggy
-
-
-def test_install_pybuggy_is_public_in_facade() -> None:
-    """install_pybuggy is exposed on the facade __all__ (public test seam)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "install_pybuggy" in facade_all
-
-
-def test_install_pybuggy_signature() -> None:
-    """install_pybuggy takes only a dockerfile path (the install line is hardcoded, no version override)."""
-    import inspect
-
-    sig = inspect.signature(install_pybuggy)
-
-    assert list(sig.parameters) == ["dockerfile_path"]
-
-
-# install_pybuggy logic tests ------------------------------------------------
-
-
-def test_install_pybuggy_appends_hardcoded_line(tmp_path: Path) -> None:
-    """install_pybuggy appends the hardcoded `RUN goga install pybuggy -v 1.0.x` line to the Dockerfile."""
-    dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM qarium/goga-python-3.12:1.1\n", encoding="utf-8")
-
-    returned = install_pybuggy(dockerfile)
-
-    expected = "RUN goga install pybuggy -v 1.0.x\n"
-    assert returned == expected
-
-    text = dockerfile.read_text(encoding="utf-8")
-    assert text.startswith("FROM qarium/goga-python-3.12:1.1\n")
-    assert text.endswith(expected)
-
-
-def test_install_pybuggy_noop_when_file_absent(tmp_path: Path) -> None:
-    """install_pybuggy is a no-op (None, nothing written) when the Dockerfile does not exist."""
-    dockerfile = tmp_path / "Dockerfile"
-
-    assert install_pybuggy(dockerfile) is None
-    assert not dockerfile.exists()
-
-
-def test_install_pybuggy_is_idempotent(tmp_path: Path) -> None:
-    """install_pybuggy appends the line once even when called repeatedly on the same file."""
-    dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM image:tag\n", encoding="utf-8")
-
-    first = install_pybuggy(dockerfile)
-    second = install_pybuggy(dockerfile)
-
-    assert first is not None
-    assert second is None
-    assert dockerfile.read_text(encoding="utf-8").count("goga install") == 1
-
-
-def test_install_pybuggy_ensures_newline_separator(tmp_path: Path) -> None:
-    """install_pybuggy inserts a newline before the RUN line when the file lacks a trailing one."""
-    dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text("FROM image:tag", encoding="utf-8")  # no trailing newline
-
-    install_pybuggy(dockerfile)
-
-    assert dockerfile.read_text(encoding="utf-8") == "FROM image:tag\nRUN goga install pybuggy -v 1.0.x\n"
-
-
-def test_register_usages_creates_block_when_file_absent(tmp_path: Path) -> None:
-    """register_usages creates a minimal config carrying the codemanifest.usages block."""
-    config = tmp_path / "config.yml"
-
-    added = register_usages(config, {"pybuggy-api": ".goga/usages/cooks/pybuggy/api.md"})
-
-    assert added == ["pybuggy-api"]
-    cfg = yaml.safe_load(config.read_text())
-    assert cfg == {"codemanifest": {"usages": {"pybuggy-api": ".goga/usages/cooks/pybuggy/api.md"}}}
-
-
-def test_register_usages_empty_existing_file_creates_block(tmp_path: Path) -> None:
-    """register_usages treats an empty file as an empty document and creates the usages block."""
-    config = tmp_path / "config.yml"
-    config.write_text("")
-
-    added = register_usages(config, {"pybuggy-api": ".goga/usages/cooks/pybuggy/api.md"})
-
-    assert added == ["pybuggy-api"]
-    cfg = yaml.safe_load(config.read_text())
-    assert cfg == {"codemanifest": {"usages": {"pybuggy-api": ".goga/usages/cooks/pybuggy/api.md"}}}
-
-
-def test_register_usages_merges_skipping_existing_keys(tmp_path: Path) -> None:
-    """register_usages preserves existing keys/comments and only adds missing ones."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md  # пользовательский\n")
-
-    added = register_usages(config, {"pybuggy-api": ".goga/usages/cooks/pybuggy/api.md"})
-
-    assert added == ["pybuggy-api"]
-
-    text = config.read_text()
-    assert "# пользовательский" in text  # round-trip preserved the comment
-
-    cfg = yaml.safe_load(text)
-    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
-    assert cfg["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
-
-
-def test_register_usages_registers_conventions_key_idempotently(tmp_path: Path) -> None:
-    """The conventions usage key registers once and is skipped (byte-identical file) on a repeat."""
-    config = tmp_path / "config.yml"
-
-    first = register_usages(config, {"conventions": ".goga/usages/conventions.md"})
-
-    assert first == ["conventions"]
-    before = config.read_bytes()
-
-    second = register_usages(config, {"conventions": ".goga/usages/conventions.md"})
-
-    assert second == []
-    assert config.read_bytes() == before
-
-
-def test_register_usages_invalid_yaml_raises(tmp_path: Path) -> None:
-    """register_usages propagates a YAML error for an invalid existing file."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest: [unclosed")
-
-    with pytest.raises(YAMLError):
-        register_usages(config, _USAGE_KEYS)
-
-
-def test_register_usages_non_map_codemanifest_raises(tmp_path: Path) -> None:
-    """register_usages raises ValueError when codemanifest is not a mapping (never overwrites)."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest: not-a-map")
-
-    with pytest.raises(ValueError, match="not a mapping"):
-        register_usages(config, _USAGE_KEYS)
-
-
-# register_annotations logic tests --------------------------------------------
-
-
-def test_register_annotations_creates_block_when_file_absent(tmp_path: Path) -> None:
-    """register_annotations creates a minimal config carrying the codemanifest.annotations block."""
-    config = tmp_path / "config.yml"
-
-    changed = register_annotations(config, {**_ANNOTATION_LINES, "conventions": _CONVENTION_LINE})
-
-    assert changed == ["pybuggy-api", "pybuggy-asserts", "conventions"]
-    text = config.read_text()
-    assert "annotations: |" in text
-    cfg = yaml.safe_load(text)
-    annotations = cfg["codemanifest"]["annotations"]
-    assert "`pybuggy-api`" in annotations
-    assert "`pybuggy-asserts`" in annotations
-    assert _CONVENTION_LINE in annotations
-
-
-def test_register_annotations_preserves_existing_and_appends(tmp_path: Path) -> None:
-    """register_annotations preserves unreferenced annotation lines and appends the missing ones."""
-    config = tmp_path / "config.yml"
-    config.write_text(
-        "codemanifest:\n"
-        "  usages:\n"
-        "    conventions: .goga/usages/conventions.md\n"
-        "  annotations: |\n"
-        "    Use `conventions` for code writing rules and testing.\n"
-    )
-
-    changed = register_annotations(config, _ANNOTATION_LINES)
-
-    assert changed == ["pybuggy-api", "pybuggy-asserts"]
-    text = config.read_text()
-    assert "Use `conventions` for code writing rules and testing." in text  # unreferenced line preserved
-    assert "`pybuggy-api`" in text
-    assert "`pybuggy-asserts`" in text
-
-
-def test_register_annotations_replaces_legacy_conventions_line(tmp_path: Path) -> None:
-    """register_annotations replaces a legacy conventions annotation line with the package line."""
-    config = tmp_path / "config.yml"
-    config.write_text(
-        "codemanifest:\n"
-        "  usages:\n"
-        "    conventions: .goga/usages/conventions.md  # пользовательский\n"
-        "  annotations: |\n"
-        "    Use `conventions` for code writing rules and testing.\n"
-    )
-
-    changed = register_annotations(
-        config,
-        {
-            "conventions": _CONVENTION_LINE,
-            "pybuggy-api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
-        },
-    )
-
-    assert changed == ["conventions", "pybuggy-api"]
-    text = config.read_text()
-    assert _CONVENTION_LINE in text
-    assert "Use `conventions` for code writing rules and testing." not in text  # legacy line replaced
-    assert text.count("`conventions`") == 1
-    assert "# пользовательский" in text  # round-trip preserved the usages comment
-
-
-def test_register_annotations_appends_when_reference_missing(tmp_path: Path) -> None:
-    """register_annotations appends a line whose backtick reference is absent from the text."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest:\n  annotations: |\n    Keep existing note.\n")
-
-    changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
-
-    assert changed == ["conventions"]
-    text = config.read_text()
-    assert "Keep existing note." in text
-    assert _CONVENTION_LINE in text
-    assert text.index("Keep existing note.") < text.index(_CONVENTION_LINE)
-    assert yaml.safe_load(text)["codemanifest"]["annotations"].endswith(_CONVENTION_LINE + "\n")
-
-
-def test_register_annotations_idempotent_repeat_returns_empty_and_no_file_diff(
-    tmp_path: Path,
-) -> None:
-    """A repeat registration with identical lines returns [] and leaves the file byte-identical."""
-    config = tmp_path / "config.yml"
-    lines = {
-        **_ANNOTATION_LINES,
-        "conventions": _CONVENTION_LINE,
-    }
-    register_annotations(config, lines)
-    before = config.read_bytes()
-
-    changed2 = register_annotations(config, lines)
-
-    assert changed2 == []
-    assert config.read_bytes() == before
-
-
-def test_register_annotations_replaces_only_first_matching_line(tmp_path: Path) -> None:
-    """Only the first line carrying a backtick reference is replaced; later duplicates stay."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest:\n  annotations: |\n    `pybuggy-api` first mention.\n    `pybuggy-api` second.\n")
-
-    changed = register_annotations(config, {"pybuggy-api": "Use `pybuggy-api` for requests."})
-
-    assert changed == ["pybuggy-api"]
-    annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
-    assert "Use `pybuggy-api` for requests.\n`pybuggy-api` second." in annotations
-
-
-def test_register_annotations_replaces_after_plain_scalar_without_trailing_newline(
-    tmp_path: Path,
-) -> None:
-    """A legacy line inside a plain scalar without a trailing newline is replaced in place.
-
-    Unlike the append branch (which normalizes to a ``|`` block with a trailing newline), a
-    replace-only edit on a newline-less scalar is written back without one, so ruamel emits the
-    ``|-`` indicator — the parsed value is still exactly the registered line and a repeat run is
-    a byte-identical no-op.
-    """
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest:\n  annotations: Use `conventions` for code writing rules and testing.\n")
-
-    changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
-
-    assert changed == ["conventions"]
-    assert "annotations: |-\n" in config.read_text()  # replace-only keeps the newline-less shape
-    annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
-    assert annotations == _CONVENTION_LINE
-
-    changed2 = register_annotations(config, {"conventions": _CONVENTION_LINE})
-    assert changed2 == []
-
-
-def test_register_annotations_appends_after_plain_scalar_without_trailing_newline(
-    tmp_path: Path,
-) -> None:
-    """A plain scalar without a trailing newline gains a separator before the appended line."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest:\n  annotations: plain note")
-
-    changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
-
-    assert changed == ["conventions"]
-    annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
-    assert annotations == "plain note\n" + _CONVENTION_LINE + "\n"
-
-
-def test_register_annotations_treats_empty_and_null_annotations_as_absent(
-    tmp_path: Path,
-) -> None:
-    """Empty and null annotations are treated as absent text, not as a line to preserve."""
-    for content in ("", "codemanifest:\n  annotations:\n"):
+        """A non-zero code at any seam is propagated as-is and every downstream seam is skipped."""
+        monkeypatch.chdir(tmp_path)
+        order: list[str] = []
+        monkeypatch.setattr(_SESSION_SEAM, _SeamLog("session", order, [4]))
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, _SeamLog("bootstrap", order, [0]))
+        scaffold = _ScaffoldRecorder(generate_returns=[3], upgrade_returns=[5])
+        monkeypatch.setattr(init_module, "Scaffold", lambda: scaffold)
+
+        assert run_init(*mode_args) == expected_code
+
+        if failing_seam == "scaffold":
+            assert order == []
+            assert scaffold.generate_calls == [("https://t.git#v1", None)]
+        elif failing_seam == "session":
+            assert order == ["session"]
+            assert scaffold.generate_calls == []
+        else:
+            assert order == []
+            assert scaffold.upgrade_calls == [(None,)]
+
+    def test_run_init_template_mode_not_guarded_by_existing_goga(self, tmp_path, monkeypatch):
+        """Template mode over an initialized project still scaffolds and runs both seams."""
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".goga").mkdir()
+        (tmp_path / ".goga" / "config.yml").write_text("language: python\n", encoding="utf-8")
+        scaffold = _ScaffoldRecorder()
+        monkeypatch.setattr(init_module, "Scaffold", lambda: scaffold)
+        order: list[str] = []
+        session = _SeamLog("session", order, [0])
+        bootstrap = _SeamLog("bootstrap", order, [0])
+        monkeypatch.setattr(_SESSION_SEAM, session)
+        monkeypatch.setattr(_BOOTSTRAP_SEAM, bootstrap)
+
+        assert run_init("tpl", None, False) == 0
+        assert order == ["session", "bootstrap"]
+        assert bootstrap.calls == [{"template_mode": True}]
+
+
+class TestResolveDockerfilePath:
+    """The private helper — field resolution and the fallback discipline (never raises into the tier)."""
+
+    def test_resolve_dockerfile_path_returns_the_declared_field(self, tmp_path):
+        """A non-empty string field wins over the fallback."""
         config = tmp_path / "config.yml"
-        config.write_text(content)
+        config.write_text("dockerfile: Dockerfile\n", encoding="utf-8")
 
-        changed = register_annotations(config, {"conventions": _CONVENTION_LINE})
+        assert init_module._resolve_dockerfile_path(config) == Path("Dockerfile")
 
-        assert changed == ["conventions"]
-        annotations = yaml.safe_load(config.read_text())["codemanifest"]["annotations"]
-        assert annotations == _CONVENTION_LINE + "\n"
-
-
-def test_register_annotations_round_trip_preserves_comments(tmp_path: Path) -> None:
-    """register_annotations preserves comments via ruamel round-trip editing."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest:\n  usages:\n    conventions: .goga/usages/conventions.md  # пользовательский\n")
-
-    register_annotations(config, _ANNOTATION_LINES)
-
-    text = config.read_text()
-    assert "# пользовательский" in text  # round-trip preserved the comment
-
-
-def test_register_annotations_invalid_yaml_raises(tmp_path: Path) -> None:
-    """register_annotations propagates a YAML error for an invalid existing file."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest: [unclosed")
-
-    with pytest.raises(YAMLError):
-        register_annotations(config, _ANNOTATION_LINES)
-
-
-def test_register_annotations_non_map_codemanifest_raises(tmp_path: Path) -> None:
-    """register_annotations raises ValueError when codemanifest is not a mapping (never overwrites)."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest: not-a-map")
-
-    with pytest.raises(ValueError, match="not a mapping"):
-        register_annotations(config, _ANNOTATION_LINES)
-
-
-def test_register_annotations_non_scalar_annotations_raises(tmp_path: Path) -> None:
-    """register_annotations raises ValueError when annotations exists but is not a scalar."""
-    config = tmp_path / "config.yml"
-    config.write_text("codemanifest:\n  annotations:\n    key: value\n")
-
-    with pytest.raises(ValueError, match="not a scalar"):
-        register_annotations(config, _ANNOTATION_LINES)
-
-
-# ensure_review_executor_skip logic tests --------------------------------------
-
-
-def test_ensure_review_executor_skip_creates_block_when_file_absent(tmp_path: Path) -> None:
-    """ensure_review_executor_skip creates a minimal config carrying build.review_executor.skip: true."""
-    config = tmp_path / "config.yml"
-
-    changed = ensure_review_executor_skip(config)
-
-    assert changed is True
-    assert yaml.safe_load(config.read_text()) == {"build": {"review_executor": {"skip": True}}}
-
-
-def test_ensure_review_executor_skip_creates_nested_maps_preserving_other_keys(tmp_path: Path) -> None:
-    """A config without a build block gains the nested maps; other top-level content stays."""
-    config = tmp_path / "config.yml"
-    config.write_text(
-        "language: python\n"
-        "image: demo:latest\n"
-        "codemanifest:\n"
-        "  usages:\n"
-        "    conventions: .goga/usages/conventions.md  # пользовательский\n"
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param("dockerfile: true\n", id="boolean"),
+            pytest.param("dockerfile:\n  from: x\n  path: y\n", id="mapping"),
+            pytest.param("dockerfile: 777\n", id="integer"),
+            pytest.param("dockerfile:\n", id="null"),
+        ],
     )
+    def test_resolve_dockerfile_path_falls_back_on_non_string_field(self, tmp_path, config_text):
+        """A null or non-string dockerfile field falls back to the default instead of raising."""
+        config = tmp_path / "config.yml"
+        config.write_text(config_text, encoding="utf-8")
 
-    changed = ensure_review_executor_skip(config)
+        assert init_module._resolve_dockerfile_path(config) == Path(".goga") / "Dockerfile"
 
-    assert changed is True
-    text = config.read_text()
-    assert "# пользовательский" in text  # round-trip preserved the comment
-    cfg = yaml.safe_load(text)
-    assert cfg["language"] == "python"
-    assert cfg["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
-    assert cfg["build"]["review_executor"]["skip"] is True
+    def test_resolve_dockerfile_path_falls_back_on_pyyaml_unparsable_document(self, tmp_path):
+        """A document PyYAML cannot parse falls back — the helper never raises into the tier."""
+        config = tmp_path / "config.yml"
+        config.write_text("? [complex, key]\n: value\n", encoding="utf-8")
 
-
-def test_ensure_review_executor_skip_preserves_existing_build_content(tmp_path: Path) -> None:
-    """An existing build block (task_executor with env anchors) survives verbatim; the flag joins it."""
-    config = tmp_path / "config.yml"
-    config.write_text(
-        ".claude-env: &claude-env\n"
-        "  ANTHROPIC_MODEL: opus\n"
-        "build:\n"
-        "  task_executor:\n"
-        "    agent: claude\n"
-        "    env:\n"
-        "      <<: *claude-env\n"
-        "      ANTHROPIC_DEFAULT_OPUS_MODEL: glm\n"
-    )
-
-    changed = ensure_review_executor_skip(config)
-
-    assert changed is True
-    text = config.read_text()
-    assert "&claude-env" in text  # anchor preserved
-    assert "<<: *claude-env" in text  # merge key preserved
-    cfg = yaml.safe_load(text)
-    assert cfg["build"]["task_executor"]["agent"] == "claude"
-    assert cfg["build"]["task_executor"]["env"]["ANTHROPIC_MODEL"] == "opus"  # merged anchor value intact
-    assert cfg["build"]["review_executor"]["skip"] is True
+        assert init_module._resolve_dockerfile_path(config) == Path(".goga") / "Dockerfile"
 
 
-def test_ensure_review_executor_skip_idempotent_no_rewrite(tmp_path: Path) -> None:
-    """When skip already holds true nothing is written — the file stays byte-identical."""
-    config = tmp_path / "config.yml"
-    config.write_text("build:\n  review_executor:\n    skip: true\n")
+def _seed_config(root: Path, text: str) -> Path:
+    """Write the consumer ``.goga/config.yml`` carrying ``text`` and return its path.
 
-    changed = ensure_review_executor_skip(config)
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
+        text: The raw YAML text of the consumer config.
 
-    assert changed is False
-    assert config.read_text() == "build:\n  review_executor:\n    skip: true\n"
+    Returns:
+        The written config path.
+    """
+    goga = root / ".goga"
+    goga.mkdir(exist_ok=True)
+    config = goga / "config.yml"
+    config.write_text(text, encoding="utf-8")
 
-
-def test_ensure_review_executor_skip_corrects_false_to_true(tmp_path: Path) -> None:
-    """A present skip: false is corrected to true (the enforced value is exactly true)."""
-    config = tmp_path / "config.yml"
-    config.write_text("build:\n  review_executor:\n    skip: false\n")
-
-    changed = ensure_review_executor_skip(config)
-
-    assert changed is True
-    assert yaml.safe_load(config.read_text())["build"]["review_executor"]["skip"] is True
+    return config
 
 
-def test_ensure_review_executor_skip_non_map_build_raises(tmp_path: Path) -> None:
-    """A non-mapping build raises ValueError (never overwrites user data)."""
-    config = tmp_path / "config.yml"
-    config.write_text("build: not-a-map")
-
-    with pytest.raises(ValueError, match="not a mapping"):
-        ensure_review_executor_skip(config)
+def _error_records(caplog):
+    """Return the ERROR-or-worse records captured so far."""
+    return [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 
-def test_ensure_review_executor_skip_non_map_review_executor_raises(tmp_path: Path) -> None:
-    """A non-mapping build.review_executor raises ValueError (never overwrites user data)."""
-    config = tmp_path / "config.yml"
-    config.write_text("build:\n  review_executor: not-a-map")
+def _no_prompt(*_args: object, **_kwargs: object) -> bool:
+    """Fail the test when the bootstrap prompts in a mode that must not.
 
-    with pytest.raises(ValueError, match="not a mapping"):
-        ensure_review_executor_skip(config)
-
-
-def test_ensure_review_executor_skip_invalid_yaml_raises(tmp_path: Path) -> None:
-    """ensure_review_executor_skip propagates a YAML error for an invalid existing file."""
-    config = tmp_path / "config.yml"
-    config.write_text("build: [unclosed")
-
-    with pytest.raises(YAMLError):
-        ensure_review_executor_skip(config)
+    Returns:
+        Never returns — the AssertionError propagates.
+    """
+    raise AssertionError("template mode must not prompt")
 
 
-# _annotation_for (pybuggy usage stem → annotation line) tests ----------------
+class TestRunBootstrap:
+    """The 10-step post-session orchestrator — gates, Dockerfile resolution, failure tier."""
 
-
-def test_annotation_for_known_stem_uses_hand_authored_text() -> None:
-    """_annotation_for returns the hand-authored line for known pybuggy usage stems."""
-    from goga_tool_pybuggy.commands.init.init import PYBUGGY_ANNOTATIONS, _annotation_for
-
-    api_line = _annotation_for("api")
-    asserts_line = _annotation_for("asserts")
-
-    # the hand-authored line is returned verbatim, and references its usage key
-    assert api_line == PYBUGGY_ANNOTATIONS["api"]
-    assert asserts_line == PYBUGGY_ANNOTATIONS["asserts"]
-    assert "`pybuggy-api`" in api_line
-    assert "`pybuggy-asserts`" in asserts_line
-
-
-def test_annotation_for_unknown_stem_uses_bare_backtick() -> None:
-    """_annotation_for falls back to a bare backtick reference for an unknown future subcell."""
-    from goga_tool_pybuggy.commands.init.init import _annotation_for
-
-    assert _annotation_for("future-cell") == "`pybuggy-future-cell`"
-
-
-# write_pybuggy_config contract tests -----------------------------------------
-
-
-def test_write_pybuggy_config_importable_from_facade() -> None:
-    """write_pybuggy_config should be importable from the goga_tool_pybuggy.commands.init facade."""
-    from goga_tool_pybuggy.commands.init import write_pybuggy_config as imported
-
-    assert imported is write_pybuggy_config
-
-
-def test_write_pybuggy_config_is_public_in_facade() -> None:
-    """write_pybuggy_config is exposed on the facade __all__ (public contract)."""
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "write_pybuggy_config" in facade_all
-
-
-def test_write_pybuggy_config_signature() -> None:
-    """write_pybuggy_config has signature (path, scalar_values, specs)."""
-    params = write_pybuggy_config.__code__.co_varnames[: write_pybuggy_config.__code__.co_argcount]
-
-    assert params == ("path", "scalar_values", "specs")
-
-
-# build_pybuggy_config contract tests -----------------------------------------
-
-
-def test_build_pybuggy_config_in_all_public_and_returns_int() -> None:
-    """build_pybuggy_config is importable from the facade, in __all__, and takes no args."""
-    from goga_tool_pybuggy.commands.init import build_pybuggy_config as imported
-
-    assert imported is build_pybuggy_config
-    from goga_tool_pybuggy.commands.init import __all__ as facade_all
-
-    assert "build_pybuggy_config" in facade_all
-    assert build_pybuggy_config.__code__.co_argcount == 0
-
-
-# write_pybuggy_config logic tests --------------------------------------------
-
-# The 7 scalar plugin members (enum minus the complex HEADERS/LOADER), in declaration order.
-_ALL_SCALAR_KEYS = [
-    "base_url",
-    "timeout",
-    "retries",
-    "assert_timeout",
-    "assert_delay",
-    "assert_field_class",
-    "assert_response_class",
-]
-
-
-def _spec_entry(git: bool = False) -> SpecEntry:
-    """Build a deterministic SpecEntry, optionally with a git source."""
-    if git:
-        return SpecEntry(
-            type="openapi",
-            location="specs/api.yaml",
-            git=GitEntry(url="https://example.com/specs.git", location="api.yaml", ref="main"),
+    def test_run_bootstrap_full_pass_on_fresh_session_artifacts(self, tmp_path, monkeypatch, caplog):
+        """A fresh session tree gets every artifact delivered with no ERROR logged."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        tool_config.parent.mkdir(parents=True)
+        tool_config.write_text(
+            "base_url: https://{{ HOST }}/api\nspecs:\n  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
+            encoding="utf-8",
         )
-    return SpecEntry(type="openapi", location="specs/api.yaml")
 
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
 
-def test_write_pybuggy_config_all_scalars_answered_emits_active_and_commented_complex(
-    tmp_path: Path,
-) -> None:
-    """All 7 scalars answered + specs: complex headers/loader still commented, scalars active.
-
-    Numeric scalars (``timeout``/``retries``/``assert_timeout``/``assert_delay``) are emitted as
-    numbers matching their ``ApiPlugin`` option types; the remaining string scalars stay strings.
-    """
-    scalar_values = {key: f"v-{key}" for key in _ALL_SCALAR_KEYS}
-    scalar_values["base_url"] = "https://{{ host }}/api"
-    # numeric members must carry valid numbers for their ApiPlugin option types (int/float)
-    scalar_values["timeout"] = "30"
-    scalar_values["retries"] = "2"
-    scalar_values["assert_timeout"] = "10"
-    scalar_values["assert_delay"] = "0.5"
-    config = tmp_path / "config.yml"
-
-    write_pybuggy_config(config, scalar_values, {"api": _spec_entry()})
-
-    text = config.read_text()
-    assert "base_url:" in text
-    assert "# required, Jinja2 template" in text  # eol comment on base_url
-    assert "# headers:" in text  # complex member still emitted as a commented example
-    assert "# loader:" in text
-    assert "specs:" in text  # active specs section
-
-    cfg = yaml.safe_load(text)
-    assert set(cfg) == set(_ALL_SCALAR_KEYS) | {"specs"}
-    # numeric scalars emitted as numbers, not quoted strings
-    assert isinstance(cfg["timeout"], float)
-    assert cfg["timeout"] == 30.0
-    assert isinstance(cfg["retries"], int)
-    assert cfg["retries"] == 2
-    assert isinstance(cfg["assert_timeout"], int)
-    assert cfg["assert_timeout"] == 10
-    assert isinstance(cfg["assert_delay"], float)
-    assert cfg["assert_delay"] == 0.5
-    # the remaining answered scalars stay plain strings
-    assert isinstance(cfg["assert_field_class"], str)
-    assert cfg["assert_field_class"] == "v-assert_field_class"
-
-    from goga_tool_pybuggy.config import load_config
-
-    load_config(config)  # validates against Config (ignores scalar plugin keys)
-
-
-def test_write_pybuggy_config_skipped_scalars_become_commented_records(tmp_path: Path) -> None:
-    """Only base_url answered: the 6 optional scalars become '# <skipped>: (skipped ...)' records."""
-    config = tmp_path / "config.yml"
-
-    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
-
-    text = config.read_text()
-    optional_keys = [k for k in _ALL_SCALAR_KEYS if k != "base_url"]
-    for key in optional_keys:
-        assert f"# {key}: (skipped optional scalar)" in text
-    assert "# headers:" in text
-    assert "# loader:" in text
-    assert text.index("# loader:") < text.index("specs:")  # trailing buffer pinned before specs
-
-    cfg = yaml.safe_load(text)
-    assert set(cfg) == {"base_url", "specs"}
-
-
-def test_write_pybuggy_config_spec_with_git_emits_git_block(tmp_path: Path) -> None:
-    """A SpecEntry carrying a GitEntry emits an active git block round-tripping through load_config."""
-    config = tmp_path / "config.yml"
-
-    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry(git=True)})
-
-    text = config.read_text()
-    assert "git:" in text
-    assert "url: https://example.com/specs.git" in text
-    assert "location: api.yaml" in text
-    assert "ref: main" in text
-
-    from goga_tool_pybuggy.config import load_config
-
-    cfg = load_config(config)
-    assert cfg.specs["api"].git is not None
-    assert cfg.specs["api"].git.url == "https://example.com/specs.git"
-    assert cfg.specs["api"].git.location == "api.yaml"
-    assert cfg.specs["api"].git.ref == "main"
-
-
-def test_write_pybuggy_config_spec_git_ref_none_comments_ref(tmp_path: Path) -> None:
-    """A git source without a ref emits no active ``ref`` key; ref is documented as ``# ref:``.
-
-    The commented ``ref`` is placed on its own indented line after ``location`` (the post-value
-    comment slot — the slot ruamel's own loader uses for trailing comments; the eol/``after`` slots
-    are dropped on the last key of a block mapping). It is NOT an end-of-line comment on
-    ``location``, and no empty active ``ref:`` key is produced. The file round-trips through
-    ``load_config`` with ``git.ref`` resolving to ``None``.
-    """
-    config = tmp_path / "config.yml"
-    specs = {
-        "api": SpecEntry(
-            type="openapi",
-            location="specs/api.yaml",
-            git=GitEntry(url="https://example.com/specs.git", location="api.yaml", ref=None),
+        assert code == 0
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert (usages / "api.md").read_text(encoding="utf-8") == _PACKAGED_USAGES["api"]
+        assert (usages / "asserts.md").read_text(encoding="utf-8") == _PACKAGED_USAGES["asserts"]
+        slot = tmp_path / ".goga" / "usages" / "conventions.md"
+        packaged_convention = (importlib.resources.files("goga_tool_pybuggy") / "assets" / "conventions.md").read_text(
+            encoding="utf-8"
         )
-    }
+        assert slot.read_text(encoding="utf-8") == packaged_convention
 
-    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
+        tool_config_text = tool_config.read_text(encoding="utf-8")
+        assert "# headers: example (skipped complex member)" in tool_config_text
+        assert "# timeout: (skipped optional scalar)" in tool_config_text
+        assert "# loader: example (skipped complex member)" in tool_config_text
+        assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
+        assert "tool config examples documented" in caplog.text
 
-    text = config.read_text()
-    assert "location: api.yaml  # ref:" not in text  # not an end-of-line comment on location
-    assert "location: api.yaml\n      # ref:\n" in text  # standalone indented line after location
-    cfg = yaml.safe_load(text)
-    assert "ref" not in cfg["specs"]["api"]["git"]  # no active ref key
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert config["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
+        annotations = config["codemanifest"]["annotations"]
+        assert "`pybuggy-api`" in annotations
+        assert "`conventions`" in annotations
 
-    from goga_tool_pybuggy.config import load_config
+        assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == _EXPECTED_CONFTEST
+        dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
+        assert dockerfile.endswith(f"{_INSTALL_LINE}\n")
+        assert _error_records(caplog) == []
 
-    parsed = load_config(config)
-    assert parsed.specs["api"].git is not None
-    assert parsed.specs["api"].git.ref is None
+    def test_run_bootstrap_resolves_dockerfile_from_config_field(self, tmp_path, monkeypatch):
+        """The install line lands in the config-declared root Dockerfile, never in the fallback."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: Dockerfile\n")
+        (tmp_path / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
+        code = run_bootstrap(template_mode=True)
 
-def test_write_pybuggy_config_long_git_url_not_wrapped(tmp_path: Path) -> None:
-    """A long git clone URL stays on one line (best_width raised so ruamel does not fold it)."""
-    config = tmp_path / "config.yml"
-    url = "git@gitlab.wildberries.ru:taxi/taxi/qa/platform/golang/services/traffic/insts/mock.git"
-    specs = {
-        "api": SpecEntry(
-            type="openapi",
-            location="specs/api.yaml",
-            git=GitEntry(url=url, location="api.yaml", ref="main"),
-        )
-    }
+        assert code == 0
+        assert (tmp_path / "Dockerfile").read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert not (tmp_path / ".goga" / "Dockerfile").exists()
 
-    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
-
-    text = config.read_text()
-    assert f"url: {url}\n" in text  # url value on the same line as the key, not folded to a new line
-
-    from goga_tool_pybuggy.config import load_config
-
-    assert load_config(config).specs["api"].git.url == url
-
-
-def test_write_pybuggy_config_is_deterministic(tmp_path: Path) -> None:
-    """Two calls with identical inputs and order produce byte-identical output."""
-    scalar_values = {"base_url": "https://{{ host }}/api", "timeout": "30", "retries": "2"}
-    specs = {"api": _spec_entry(), "admin": _spec_entry(git=True)}
-    one = tmp_path / "one.yml"
-    two = tmp_path / "two.yml"
-
-    write_pybuggy_config(one, scalar_values, specs)
-    write_pybuggy_config(two, scalar_values, specs)
-
-    assert one.read_text() == two.read_text()
-
-
-def test_write_pybuggy_config_creates_parent_dir(tmp_path: Path) -> None:
-    """The destination parent directory tree is created when missing; load_config then passes."""
-    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    assert not config.parent.exists()
-
-    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
-
-    assert config.exists()
-    assert config.parent.is_dir()
-
-    from goga_tool_pybuggy.config import load_config
-
-    load_config(config)
-
-
-def test_write_pybuggy_config_base_url_jinja_template_block_scalar(tmp_path: Path) -> None:
-    """A Jinja2 base_url is emitted as a literal block scalar with the {{ }} preserved verbatim."""
-    config = tmp_path / "config.yml"
-
-    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, {"api": _spec_entry()})
-
-    text = config.read_text()
-    assert "base_url: |" in text  # clip indicator
-    assert "base_url: |-" not in text  # no strip dash
-    assert "{{ host }}" in text  # template preserved
-    cfg = yaml.safe_load(text)
-    assert cfg["base_url"].rstrip("\n") == "https://{{ host }}/api"  # round-trip (trailing \n is the clip marker)
-
-
-def test_write_pybuggy_config_multiline_base_url_emits_block_scalar(tmp_path: Path) -> None:
-    """A multi-line base_url template is emitted as a literal block scalar (``|``), losslessly."""
-    config = tmp_path / "config.yml"
-    base_url = (
-        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock\n"
-        '{% if match_re("^feature-.*$", service_version) %}-{{ service_version }}\n'
-        "{% endif %}"
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param("language: python\ndockerfile: custom/Dockerfile\n", id="field-points-at-absent-file"),
+            pytest.param("language: python\n", id="declined-dockerfile-session"),
+        ],
     )
+    def test_run_bootstrap_missing_dockerfile_fails_with_error(self, tmp_path, monkeypatch, caplog, config_text):
+        """A Dockerfile missing after the session fails at step 9 with steps 2-8 already applied."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, config_text)
 
-    write_pybuggy_config(config, {"base_url": base_url}, {"api": _spec_entry()})
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
 
-    text = config.read_text()
-    assert "base_url: |" in text  # clip indicator
-    assert "base_url: |-" not in text  # no strip dash
-    assert "# required, Jinja2 template" in text  # marker kept (own line above the key)
-    # each template line preserved verbatim, indented under the block
-    assert "  http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock" in text
+        assert code == 1
+        errors = _error_records(caplog)
+        assert len(errors) == 1
+        assert "Dockerfile" in errors[0].message
+        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
+        assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == _EXPECTED_CONFTEST
+        assert not (tmp_path / ".goga" / "Dockerfile").exists()
 
-    cfg = yaml.safe_load(text)
-    assert cfg["base_url"].rstrip("\n") == base_url  # round-trip (trailing \n is the clip marker)
+    def test_run_bootstrap_step_failure_maps_to_nonzero(self, tmp_path, monkeypatch, caplog):
+        """A step failure is ERROR-logged and mapped to 1 — never raised as ClickException."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
-    from goga_tool_pybuggy.config import load_config
+        def _boom(config_path: Path, usage_keys: dict[str, str]) -> list[str]:
+            raise OSError("disk on fire")
 
-    load_config(config)  # validates against Config (ignores scalar plugin keys)
+        monkeypatch.setattr(init_module, "register_usages", _boom)
 
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
 
-def test_write_pybuggy_config_long_single_line_base_url_not_wrapped(tmp_path: Path) -> None:
-    """A long single-line base_url stays on one block-scalar line (ruamel does not line-wrap it)."""
-    config = tmp_path / "config.yml"
-    base_url = (
-        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock"
-        '{% if match_re("^feature-.*$", service_version) %}-{{ service_version }}'
-        "{% endif %}"
+        assert code == 1
+        errors = _error_records(caplog)
+        assert len(errors) == 1
+        assert errors[0].error == "disk on fire"
+
+    def test_run_bootstrap_template_mode_never_prompts(self, tmp_path, monkeypatch, caplog):
+        """A template-mode rerun over a bootstrapped tree writes nothing and never confirms."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+
+        assert run_bootstrap(template_mode=True) == 0
+        snapshot = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+        monkeypatch.setattr(click, "confirm", _no_prompt)
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=True)
+
+        assert code == 0
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == snapshot
+        assert any("existing file kept untouched" in record.message for record in caplog.records)
+
+    def test_run_bootstrap_bare_mode_gates(self, tmp_path, monkeypatch):
+        """Bare mode overwrites a stale usages copy and asks for the conftest (decline keeps it)."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        api_copy = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md"
+        api_copy.parent.mkdir(parents=True)
+        api_copy.write_text("stale api usage\n", encoding="utf-8")
+        conftest = tmp_path / "conftest.py"
+        conftest.write_text("# user conftest\n", encoding="utf-8")
+
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
+        assert run_bootstrap(template_mode=False) == 0
+        assert api_copy.read_text(encoding="utf-8") == _PACKAGED_USAGES["api"]
+        assert conftest.read_text(encoding="utf-8") == "# user conftest\n"
+
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: True)
+        assert run_bootstrap(template_mode=False) == 0
+        assert conftest.read_text(encoding="utf-8") == _EXPECTED_CONFTEST
+
+    def test_run_bootstrap_existing_config_session_end_still_enforces(self, tmp_path, monkeypatch):
+        """A template-brought config (session ended at once) still gets flag, keys, install line."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\nbuild:\n  agent: swax\n")
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
+
+        code = run_bootstrap(template_mode=True)
+
+        assert code == 0
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["build"]["agent"] == "swax"
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+
+    def test_run_bootstrap_idempotent_rerun(self, tmp_path, monkeypatch, caplog):
+        """A second bare run with a declined conftest overwrite leaves the tree byte-identical."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
+        snapshot = {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()}
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
+        assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == snapshot
+
+        warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
+        assert warnings.count("usage already registered, skipped") == 3
+        assert warnings.count("annotation already registered, skipped") == 3
+
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param(None, id="absent-config"),
+            pytest.param("", id="empty-config"),
+        ],
     )
-
-    write_pybuggy_config(config, {"base_url": base_url}, {"api": _spec_entry()})
-
-    text = config.read_text()
-    assert "base_url: |" in text  # clip indicator
-    assert "base_url: |-" not in text  # no strip dash
-    # the whole template sits on a single indented block line — not wrapped across several
-    assert f"  {base_url}" in text
-
-    cfg = yaml.safe_load(text)
-    assert cfg["base_url"].rstrip("\n") == base_url  # round-trip, unwrapped (trailing \n is the clip marker)
-
-
-def test_write_pybuggy_config_multiple_specs_preserve_order(tmp_path: Path) -> None:
-    """Multiple specs are emitted in insertion order."""
-    config = tmp_path / "config.yml"
-    specs = {"api": _spec_entry(), "admin": _spec_entry(git=True)}
-
-    write_pybuggy_config(config, {"base_url": "https://{{ host }}/api"}, specs)
-
-    text = config.read_text()
-    assert text.index("api:") < text.index("admin:")
-
-
-# write_pybuggy_conftest logic tests -------------------------------------------
-
-
-def test_write_pybuggy_conftest_writes_fixed_template(tmp_path: Path) -> None:
-    """In a fresh directory the conftest is written verbatim from the fixed template."""
-    write_pybuggy_conftest(tmp_path / "conftest.py")
-
-    content = (tmp_path / "conftest.py").read_text(encoding="utf-8")
-    assert content == EXPECTED_CONFTEST
-    # operator order: .env is loaded before the plugin import/install (options resolve from os.environ)
-    assert content.index("load_dotenv()") < content.index("plugin.install()")
-
-
-def test_write_pybuggy_conftest_overwrites_existing(tmp_path: Path) -> None:
-    """An existing conftest is silently replaced by the fixed template (existence check lives upstream)."""
-    (tmp_path / "conftest.py").write_text("# custom harness\nimport my_fixtures\n")
-
-    write_pybuggy_conftest(tmp_path / "conftest.py")
-
-    content = (tmp_path / "conftest.py").read_text(encoding="utf-8")
-    assert content == EXPECTED_CONFTEST
-    assert "# custom harness" not in content
-
-
-def test_write_pybuggy_conftest_creates_parent_dir(tmp_path: Path) -> None:
-    """A nested destination creates its parent directory before writing."""
-    write_pybuggy_conftest(tmp_path / "nested" / "conftest.py")
-
-    assert (tmp_path / "nested").is_dir()
-    assert (tmp_path / "nested" / "conftest.py").read_text() == EXPECTED_CONFTEST
-
-
-def test_write_pybuggy_conftest_never_prompts(tmp_path: Path) -> None:
-    """The routine is pure (TTY-free): neither click.confirm nor click.prompt is ever called."""
-    with (
-        mock.patch.object(click, "confirm") as confirm_mock,
-        mock.patch.object(click, "prompt") as prompt_mock,
-    ):
-        write_pybuggy_conftest(tmp_path / "conftest.py")
-
-    assert confirm_mock.call_count == 0
-    assert prompt_mock.call_count == 0
-
-
-def test_write_pybuggy_conftest_propagates_os_error(tmp_path: Path) -> None:
-    """An OSError propagates unchanged to the caller (real write failure path, no mocks)."""
-    (tmp_path / "blocked").mkdir()
-
-    with pytest.raises(OSError, match="blocked"):
-        write_pybuggy_conftest(tmp_path / "blocked")
-
-
-def test_write_pybuggy_conftest_deterministic_across_calls(tmp_path: Path) -> None:
-    """Two calls in different directories emit byte-identical content (fixed template, no state)."""
-    a = tmp_path / "a"
-    b = tmp_path / "b"
-
-    write_pybuggy_conftest(a / "conftest.py")
-    write_pybuggy_conftest(b / "conftest.py")
-
-    assert (a / "conftest.py").read_text() == (b / "conftest.py").read_text() == EXPECTED_CONFTEST
-
-
-def test_write_pybuggy_conftest_emits_runnable_plugin_wiring(tmp_path: Path) -> None:
-    """The emitted conftest is valid Python wiring the real plugin facade (init ↔ plugin cross-check).
-
-    The verbatim-literal tests above stay green even if all three copies of the template drift
-    together (a typo or a dropped install() call edited identically everywhere); compiling the
-    emitted file and resolving its facade attribute against the real plugin cell catches that.
-    """
-    write_pybuggy_conftest(tmp_path / "conftest.py")
-
-    source = (tmp_path / "conftest.py").read_text(encoding="utf-8")
-    compile(source, "conftest.py", "exec")
-
-    from goga_tool_pybuggy import plugin
-
-    assert callable(plugin.install) is True
-    assert "plugin.install()" in source
-
-
-# write_test_convention logic tests ---------------------------------------------
-
-
-def test_write_test_convention_writes_asset_text(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """write_test_convention writes the packaged asset text to a nested, not-yet-existing target."""
-    from goga_tool_pybuggy.commands.init.init import write_test_convention
-
-    monkeypatch.chdir(tmp_path)
-    target = tmp_path / ".goga" / "usages" / "conventions.md"
-
-    write_test_convention(target)
-
-    assert target.exists() is True
-    assert target.parent.is_dir()
-    assert target.read_text(encoding="utf-8") == _ASSET_TEXT
-
-
-def test_write_test_convention_reads_packaged_asset_not_cwd(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Decoy conventions.md files in the cwd checkout are ignored — only the packaged asset is read."""
-    from goga_tool_pybuggy.commands.init.init import write_test_convention
-
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "conventions.md").write_text("decoy root")
-    (tmp_path / "assets").mkdir()
-    (tmp_path / "assets" / "conventions.md").write_text("decoy assets")
-    target = tmp_path / ".goga" / "usages" / "conventions.md"
-
-    write_test_convention(target)
-
-    text = target.read_text(encoding="utf-8")
-    assert text == _ASSET_TEXT
-    assert "decoy root" not in text
-    assert "decoy assets" not in text
-
-
-def test_write_test_convention_overwrites_locally_modified_slot(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A locally modified slot file is replaced by the packaged asset (package-owned overwrite)."""
-    from goga_tool_pybuggy.commands.init.init import write_test_convention
-
-    monkeypatch.chdir(tmp_path)
-    target = tmp_path / ".goga" / "usages" / "conventions.md"
-    target.parent.mkdir(parents=True)
-    target.write_text("locally modified", encoding="utf-8")
-
-    write_test_convention(target)
-
-    assert target.read_text(encoding="utf-8") == _ASSET_TEXT
-
-
-def test_write_test_convention_propagates_os_error(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """An OSError (here: a directory sitting on the file path) propagates — never swallowed."""
-    from goga_tool_pybuggy.commands.init.init import write_test_convention
-
-    monkeypatch.chdir(tmp_path)
-    (tmp_path / "blocked").mkdir()
-
-    with pytest.raises(OSError, match="blocked"):
-        write_test_convention(tmp_path / "blocked")
-
-
-def test_write_test_convention_never_prompts(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The routine is pure (TTY-free): neither click.confirm nor click.prompt is ever called."""
-    from goga_tool_pybuggy.commands.init.init import write_test_convention
-
-    monkeypatch.chdir(tmp_path)
-    with (
-        mock.patch.object(click, "confirm") as confirm_mock,
-        mock.patch.object(click, "prompt") as prompt_mock,
-    ):
-        write_test_convention(tmp_path / ".goga" / "usages" / "conventions.md")
-
-    assert confirm_mock.call_count == 0
-    assert prompt_mock.call_count == 0
-
-
-# build_pybuggy_config logic tests --------------------------------------------
-
-
-def test_build_pybuggy_config_overwrites_existing_without_confirm(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An existing tool config is always overwritten — no existence check, no overwrite confirmation."""
-    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    config.parent.mkdir(parents=True, exist_ok=True)
-    config.write_text("base_url: stale\nspecs: {}\n")  # pre-existing content to replace
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git declined; never an overwrite prompt
-    monkeypatch.setattr(
-        click,
-        "prompt",
-        mock.Mock(
-            side_effect=[
-                "https://{{ host }}/api",  # base_url (required)
-                *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
-                "api",  # first spec name (required)
-                "openapi",  # type (click.Choice)
-                "specs/api.yaml",  # location (required)
-                "",  # second spec name (empty to finish) -> break
-            ]
-        ),
+    def test_run_bootstrap_empty_and_broken_config_variants(self, tmp_path, monkeypatch, config_text):
+        """An absent or empty config still enforces, registers, and falls back for the Dockerfile."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        (tmp_path / ".goga").mkdir()
+        if config_text is not None:
+            (tmp_path / ".goga" / "config.yml").write_text(config_text, encoding="utf-8")
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        dockerfile.write_text("FROM x\n", encoding="utf-8")
+
+        code = run_bootstrap(template_mode=False)
+
+        assert code == 0
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert config["build"]["review"]["skip"] is True
+        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+
+    @pytest.mark.parametrize(
+        "config_text",
+        [
+            pytest.param("language: python\ndockerfile: true\n", id="boolean-field"),
+            pytest.param("language: python\ndockerfile:\n  from: x\n  path: y\n", id="mapping-field"),
+        ],
     )
+    def test_run_bootstrap_non_string_dockerfile_field_falls_back(self, tmp_path, monkeypatch, caplog, config_text):
+        """A non-string dockerfile field never escapes the tier — the fallback path gets the line."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, config_text)
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        dockerfile.write_text("FROM x\n", encoding="utf-8")
 
-    assert build_pybuggy_config() == 0
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=True)
 
-    text = config.read_text()
-    assert "stale" not in text  # previous content replaced
-    assert "base_url: |" in text  # regenerated from the prompted answers
+        assert code == 0
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert _error_records(caplog) == []
 
+    def test_run_bootstrap_corrupt_config_fails_through_the_wrapped_tier(self, tmp_path, monkeypatch, caplog):
+        """An unparsable consumer config is ERROR-logged and mapped to 1 — never a traceback."""
+        monkeypatch.chdir(tmp_path)
+        _seed_config(tmp_path, "language: python\na: [unclosed\n")
 
-def test_build_pybuggy_config_returns_nonzero_on_abort(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A click.Abort during prompting returns non-zero without raising (scenario C).
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
 
-    With the overwrite confirmation removed, cancellation surfaces from the interactive prompts
-    (here the first ``base_url`` prompt); it is never raised — ``build_pybuggy_config`` returns a
-    code.
-    """
-    monkeypatch.chdir(tmp_path)  # no existing config
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git source declined
-    monkeypatch.setattr(click, "prompt", mock.Mock(side_effect=click.Abort()))  # abort at first prompt
-
-    rc = build_pybuggy_config()
-
-    assert rc != 0  # never raises; cancellation surfaces as a non-zero code
-
-
-def test_build_pybuggy_config_returns_nonzero_on_write_failure(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A failure inside write_pybuggy_config is logged/echoed and returns non-zero without raising."""
-    monkeypatch.chdir(tmp_path)  # no existing config → overwrite confirm skipped
-    # git confirm answered 'no' so no extra prompts are consumed inside _ask_spec
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
-    monkeypatch.setattr(
-        click,
-        "prompt",
-        mock.Mock(
-            side_effect=[
-                "https://{{ host }}/api",  # base_url (required)
-                "",  # timeout -> None
-                "",  # retries -> None
-                "",  # assert_timeout -> None
-                "",  # assert_delay -> None
-                "",  # assert_field_class -> None
-                "",  # assert_response_class -> None
-                "api",  # first spec name (required)
-                "openapi",  # type (click.Choice)
-                "specs/api.yaml",  # location (required)
-                "",  # second spec name (empty to finish) -> break
-            ]
-        ),
-    )
-    monkeypatch.setattr(
-        "goga_tool_pybuggy.commands.init.init.write_pybuggy_config",
-        mock.Mock(side_effect=RuntimeError("boom")),
-    )
-    logger = mock.Mock()
-    monkeypatch.setattr("goga_tool_pybuggy.commands.init.init.logger", logger)
-    echo = mock.Mock()
-    monkeypatch.setattr(click, "echo", echo)
-
-    rc = build_pybuggy_config()
-
-    assert rc != 0  # failure surfaces as non-zero, never raises
-    logger.error.assert_called_once()
-    echo.assert_called_once()
-    assert "boom" in echo.call_args.args[0]
-
-
-# The 6 optional scalar plugin members (everything except base_url, HEADERS, LOADER), in declaration
-# order. Empty answers map to ``None`` (a skipped commented record).
-_OPTIONAL_SCALAR_EMPTIES = [""] * 6
-
-
-def _prompt_texts(prompt_mock: mock.Mock) -> list[str]:
-    """Collect the first positional arg (the prompt text) of every prompt_mock call."""
-    return [c.args[0] for c in prompt_mock.call_args_list if c.args]
-
-
-def test_build_pybuggy_config_reprompts_empty_required_base_url(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An empty base_url is re-prompted (echoing 'base_url is required') until a non-empty value is given."""
-    monkeypatch.chdir(tmp_path)  # no existing config -> overwrite confirm skipped
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # git source declined
-    prompt = mock.Mock(
-        side_effect=[
-            "",  # base_url empty -> re-prompt
-            "https://{{ host }}/api",  # base_url valid
-            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
-            "api",  # first spec name
-            "openapi",  # type
-            "specs/api.yaml",  # location
-            "",  # second spec name -> finish
-        ]
-    )
-    monkeypatch.setattr(click, "prompt", prompt)
-    echo = mock.Mock()
-    monkeypatch.setattr(click, "echo", echo)
-
-    assert build_pybuggy_config() == 0
-
-    # the re-prompt body executed: the 'is required' message was echoed
-    echoed = " ".join(c.args[0] for c in echo.call_args_list if c.args)
-    assert "base_url is required" in echoed
-    # and the valid (not empty) base_url landed in the emitted config
-    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    raw = yaml.safe_load(config.read_text())
-    assert raw["base_url"].rstrip("\n") == "https://{{ host }}/api"  # trailing \n is the clip marker
-
-
-def test_build_pybuggy_config_reprompts_empty_required_location(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An empty spec location is re-prompted via 'location (required)' until a non-empty value is given."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
-    prompt = mock.Mock(
-        side_effect=[
-            "https://{{ host }}/api",  # base_url
-            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
-            "api",  # first spec name
-            "openapi",  # type
-            "",  # location empty -> re-prompt
-            "specs/api.yaml",  # location valid
-            "",  # second spec name -> finish
-        ]
-    )
-    monkeypatch.setattr(click, "prompt", prompt)
-
-    assert build_pybuggy_config() == 0
-
-    # the re-prompt fired: the descriptive '(required)' prompt variant was invoked
-    assert "location — path from the project root to the spec file (required)" in _prompt_texts(prompt)
-    from goga_tool_pybuggy.config import load_config
-
-    cfg = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml")
-    assert cfg.specs["api"].location == "specs/api.yaml"
-
-
-def test_build_pybuggy_config_reprompts_empty_required_first_spec_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """An empty first spec name is re-prompted via 'spec name (required)' until a non-empty value is given."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))
-    prompt = mock.Mock(
-        side_effect=[
-            "https://{{ host }}/api",  # base_url
-            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
-            "",  # first spec name empty -> re-prompt
-            "api",  # first spec name valid
-            "openapi",  # type
-            "specs/api.yaml",  # location
-            "",  # second spec name -> finish
-        ]
-    )
-    monkeypatch.setattr(click, "prompt", prompt)
-
-    assert build_pybuggy_config() == 0
-
-    assert "spec name — unique name for this spec (required)" in _prompt_texts(prompt)
-    from goga_tool_pybuggy.config import load_config
-
-    cfg = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml")
-    assert "api" in cfg.specs
-
-
-def test_build_pybuggy_config_reprompts_whitespace_git_url_and_location(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Whitespace-only git url/location are re-prompted until non-empty (mirrors the required location)."""
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=True))  # git source added
-    prompt = mock.Mock(
-        side_effect=[
-            "https://{{ host }}/api",  # base_url
-            *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
-            "api",  # first spec name
-            "openapi",  # type
-            "specs/api.yaml",  # location
-            "   ",  # git url whitespace -> re-prompt
-            "https://example.com/specs.git",  # git url valid
-            "  ",  # git location whitespace -> re-prompt
-            "api.yaml",  # git location valid
-            "",  # git ref (optional) -> None
-            "",  # second spec name -> finish
-        ]
-    )
-    monkeypatch.setattr(click, "prompt", prompt)
-
-    assert build_pybuggy_config() == 0
-
-    texts = _prompt_texts(prompt)
-    assert "git url — clone URL of the repository holding the spec (required)" in texts
-    assert "git location — path inside the repository to the spec file (required)" in texts
-    from goga_tool_pybuggy.config import load_config
-
-    git = load_config(tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").specs["api"].git
-    assert git is not None
-    assert git.url == "https://example.com/specs.git"
-    assert git.location == "api.yaml"
-    assert git.ref is None  # empty ref coerced to None
-
-
-def test_build_pybuggy_config_base_url_emitted_as_block_scalar(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A single-line base_url is emitted as a | block scalar (not a wrapped plain scalar)."""
-    monkeypatch.chdir(tmp_path)  # no existing config -> overwrite confirm skipped
-    monkeypatch.setattr(click, "confirm", mock.Mock(return_value=False))  # no git source
-    base_url = (
-        "http://taxi-ingress-controller.taxi.k8s.dev-el/qa-platform-mock"
-        '{% if service_version is match_re("^feature-.*$") %}-{{ service_version }}'
-        "{% endif %}"
-    )
-    monkeypatch.setattr(
-        click,
-        "prompt",
-        mock.Mock(
-            side_effect=[
-                base_url,  # base_url (required)
-                *_OPTIONAL_SCALAR_EMPTIES,  # 6 optional scalars -> None
-                "api",  # first spec name
-                "openapi",  # type
-                "specs/api.yaml",  # location
-                "",  # second spec name -> finish
-            ]
-        ),
-    )
-
-    assert build_pybuggy_config() == 0
-
-    config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
-    text = config.read_text()
-    assert "base_url: |" in text
-    assert "base_url: |-" not in text
-    assert f"  {base_url}" in text  # one indented block line — not wrapped
-    raw = yaml.safe_load(text)
-    assert raw["base_url"].rstrip("\n") == base_url
+        assert code == 1
+        errors = _error_records(caplog)
+        assert len(errors) == 1
+        assert errors[0].message == "onboarding bootstrap failed"

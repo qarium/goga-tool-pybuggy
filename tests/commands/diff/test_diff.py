@@ -9,8 +9,6 @@ import goga_tool_pybuggy.commands.diff
 import pytest
 from goga_tool_pybuggy.commands.diff import diff_cmd, run_diff
 
-CONFIG_PATH_ATTR = "goga_tool_pybuggy.config.storage.CONFIG_PATH"
-
 # Shared OpenAPI fragments ---------------------------------------------------
 
 _OPENAPI_PREFIX = """\
@@ -44,8 +42,9 @@ def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
 
 
 def _write_config(tmp_path: Path, specs: dict) -> Path:
-    """Write a config.yml whose ``specs`` map mirrors ``specs`` (name -> location)."""
-    config_path = tmp_path / "config.yml"
+    """Write a config.yml at the standard tool-config path; ``specs`` maps name -> location."""
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path.parent.mkdir(parents=True, exist_ok=True)
     if not specs:
         config_path.write_text("specs: {}\n")
         return config_path
@@ -81,7 +80,7 @@ def _setup_workspace(
     """Write a one-spec workspace: client spec + config + the startup endpoint artifacts."""
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", body)
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     _write_artifact(
         tmp_path,
         "client",
@@ -180,9 +179,7 @@ def test_run_diff_no_drift_against_regenerated_non_finite_values(
 ) -> None:
     """A spec carrying .nan/.inf compares equal against the artifacts generate wrote for it.
 
-    generate renders non-finite floats as ``null`` (strict-JSON artifacts); the
-    spec side normalizes them the same way, so a freshly generated tree does
-    not drift on every run and the printed document stays strict JSON.
+    Both sides render non-finite floats as ``null`` (strict-JSON artifacts).
     """
     _setup_workspace(
         tmp_path,
@@ -339,7 +336,7 @@ def test_run_diff_orphan_discovery_not_narrowed_by_endpoint_filter(
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     _write_artifact(
         tmp_path,
         "client",
@@ -392,10 +389,7 @@ paths:
 """,
     )
     _write_spec(tmp_path / ".specs", "client.yaml", _STARTUP_GET)
-    monkeypatch.setattr(
-        CONFIG_PATH_ATTR,
-        _write_config(tmp_path, {"shop": ".specs/shop.yaml", "client": ".specs/client.yaml"}),
-    )
+    _write_config(tmp_path, {"shop": ".specs/shop.yaml", "client": ".specs/client.yaml"})
     _write_artifact(
         tmp_path,
         "shop",
@@ -432,7 +426,7 @@ def test_run_diff_unknown_spec_raises(tmp_path: Path, monkeypatch: pytest.Monkey
     """An unknown --spec value fails with 'spec not found'."""
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", _STARTUP_GET)
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="spec not found: nope"):
         run_diff("nope", None)
@@ -454,7 +448,7 @@ def test_run_diff_missing_paths_raises(tmp_path: Path, monkeypatch: pytest.Monke
     """A spec without a 'paths' key fails with 'invalid spec file'."""
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", "")
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="invalid spec file"):
         run_diff(None, None)
@@ -463,13 +457,11 @@ def test_run_diff_missing_paths_raises(tmp_path: Path, monkeypatch: pytest.Monke
 def test_run_diff_null_paths_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A spec whose 'paths' key holds no value is likewise invalid, not a crash.
 
-    ``paths:`` with nothing after it parses to None — the key is present, so a
-    key-presence guard lets it through and extract_endpoints then dies on
-    paths.items() with an AttributeError traceback.
+    ``paths:`` with nothing after it parses to None, so a key-presence guard lets it through.
     """
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", "paths:\n")
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="invalid spec file"):
         run_diff(None, None)
@@ -483,14 +475,13 @@ def test_run_diff_null_paths_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 def test_run_diff_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, body: str) -> None:
     """A spec document that is not a mapping is invalid, not an AttributeError crash.
 
-    An empty file parses to None and a top-level list/str document never gets a
-    ``paths`` lookup — both must surface through the uniform error channel.
+    An empty file parses to None; a top-level list/str never gets a ``paths`` lookup.
     """
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".specs").mkdir()
     # Written raw: the _write_spec prefix would add a valid openapi mapping header.
     (tmp_path / ".specs/client.yaml").write_text(body)
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="invalid spec file"):
         run_diff(None, None)
@@ -499,14 +490,12 @@ def test_run_diff_non_mapping_spec_raises(tmp_path: Path, monkeypatch: pytest.Mo
 def test_run_diff_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A spec declaring neither an openapi nor a swagger version key is invalid, not a ValueError.
 
-    Such a file has a valid ``paths`` mapping, so the paths guard passes and
-    extract_endpoints raises a bare ValueError from detect_spec_version — it
-    must map to the same click.ClickException channel.
+    The paths guard passes, so extract_endpoints raises a bare ValueError from detect_spec_version.
     """
     monkeypatch.chdir(tmp_path)
     (tmp_path / ".specs").mkdir()
     (tmp_path / ".specs/client.yaml").write_text("info:\n  title: T\npaths: {}\n")
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="invalid spec file"):
         run_diff(None, None)
@@ -515,8 +504,7 @@ def test_run_diff_versionless_spec_raises(tmp_path: Path, monkeypatch: pytest.Mo
 def test_run_diff_illegal_response_key_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A response key carrying path content is invalid, not a traversal into the artifact read.
 
-    generate rejects the same shape before writing, so a hand-crafted spec must
-    not smuggle an out-of-tree path through the diff side either.
+    generate rejects the same shape; the diff side must not smuggle an out-of-tree path either.
     """
     monkeypatch.chdir(tmp_path)
     _write_spec(
@@ -531,7 +519,7 @@ paths:
           description: d
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="invalid response status key"):
         run_diff(None, None)
@@ -554,7 +542,7 @@ def test_run_diff_null_parameters_and_response_entries_degrade(
         + "      responses:\n"
         + "        '200':\n"
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     run_diff(None, None)
 
@@ -590,7 +578,7 @@ def test_run_diff_spec_without_api_tree_reports_all_added(
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     run_diff(None, None)
 
@@ -624,7 +612,7 @@ def test_run_diff_empty_filter_means_every_endpoint(
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     _write_artifact(
         tmp_path,
         "client",
@@ -649,7 +637,7 @@ def test_run_diff_multiple_missing_ids_listed_sorted(tmp_path: Path, monkeypatch
     """Several unknown endpoint ids are listed sorted in one error."""
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", _STARTUP_GET)
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
 
     with pytest.raises(click.ClickException, match="endpoint not found: aa_get, zz_get"):
         run_diff(None, ["zz_get", "aa_get"])
@@ -661,7 +649,7 @@ def test_run_diff_empty_spec_reports_all_dirs_removed(
     """A spec with no operations prints no per-endpoint documents and every directory as removed."""
     monkeypatch.chdir(tmp_path)
     _write_spec(tmp_path / ".specs", "client.yaml", "paths: {}\n")
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     _write_artifact(
         tmp_path,
         "client",
@@ -732,7 +720,7 @@ paths:
                 type: object
 """,
     )
-    monkeypatch.setattr(CONFIG_PATH_ATTR, _write_config(tmp_path, {"client": ".specs/client.yaml"}))
+    _write_config(tmp_path, {"client": ".specs/client.yaml"})
     monkeypatch.chdir(tmp_path)
     # One artifact directory named by the shared segment v1_0_clients_get
     _write_artifact(
@@ -746,6 +734,5 @@ paths:
     run_diff("client", None)
 
     lines = capsys.readouterr().out.splitlines()
-    # Both endpoints print a document keyed by their RAW id; the directory is
-    # covered, so it is never reported as removed and neither side errors.
+    # Both endpoints print a document keyed by their RAW id; the shared directory is never reported removed.
     assert [next(iter(json.loads(line))) for line in lines] == ["v1.0_clients_get", "v1_0_clients_get"]

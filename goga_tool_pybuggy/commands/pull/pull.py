@@ -117,10 +117,7 @@ def _resolve_refs(ref: Optional[str | tuple]) -> tuple:
 def _effective_ref(name: str, git_ref: Optional[str], global_ref: Optional[str], per_spec: dict) -> Optional[str]:
     """Resolve the effective ref for a single spec.
 
-    Precedence (highest to lowest): per-spec override, global override,
-    then the config ``git.ref``. ``PYBUGGY_REF`` is no longer read here —
-    it feeds the global ref as the ``--ref`` envvar (resolved by click in
-    ``pull_cmd``), so it reaches this function via ``global_ref``.
+    Precedence: per-spec override, then global override, then the config ``git.ref``.
 
     Args:
         name: Spec name to resolve the ref for.
@@ -159,17 +156,14 @@ def _validate_per_spec_refs(per_spec: dict, config_specs: dict) -> None:
 def run_pull(spec_name: Optional[str], ref: Optional[str | tuple] = None) -> None:
     """Clone specs from git repositories to local locations.
 
-    Loads config from the fixed config path and copies spec files from remote
-    git repositories to local paths. Idempotent - repeated runs overwrite files.
+    Idempotent - repeated runs overwrite existing files.
 
     Args:
         spec_name: Optional spec name to pull; if None, pulls all specs
-        ref: Optional git ref override. Accepts: None (no override); a global ref
-            string applied to every selected spec; or a tuple of items where each
-            item is a global ref string or a ``(spec_name, ref)`` pair overriding
-            a single spec (per-spec wins over global). When no override applies,
-            the config ``git.ref`` is used (None there falls back to the remote
-            default branch).
+        ref: Optional git ref override: None, a global ref string, or a tuple of
+            global ref strings and ``(spec_name, ref)`` pairs (per-spec wins over
+            global). Without an override the config ``git.ref`` applies (None
+            clones the remote default branch).
 
     Raises:
         click.ClickException: If spec_name not found, a per-spec ref names an unknown
@@ -200,8 +194,7 @@ def run_pull(spec_name: Optional[str], ref: Optional[str | tuple] = None) -> Non
         # Validate paths and prepare destination
         git_url, destination = _validate_and_prepare_destination(entry)
 
-        # Effective ref: per-spec override wins, then global, then config git.ref;
-        # None there means clone the remote default branch.
+        # Effective ref: per-spec wins, then global, then config git.ref (None = default branch).
         effective_ref = _effective_ref(name, entry.git.ref, global_ref, per_spec)
 
         try:
@@ -228,8 +221,7 @@ def run_pull(spec_name: Optional[str], ref: Optional[str | tuple] = None) -> Non
 class SmartParam(click.ParamType):
     """Parses a ``--ref`` value into a global ref or a per-spec ``(name, ref)`` pair.
 
-    A value without ``:`` is a global ref (applies to every selected spec); a
-    value of the form ``NAME:REF`` overrides the ref for a single spec.
+    Without ``:`` the value is a global ref; ``NAME:REF`` overrides a single spec.
     """
 
     name = "smart-ref"
@@ -237,8 +229,7 @@ class SmartParam(click.ParamType):
     def convert(self, value, _param, _ctx):
         """Parse one --ref value into None, a global ref, or a per-spec (name, ref) pair.
 
-        None/'' -> None (no override); a value without ':' -> the value (global ref);
-        'NAME:REF' -> the (name, ref) pair, splitting on the first ':' only.
+        None/'' -> None; a plain value -> global ref; 'NAME:REF' -> (name, ref), split on the first ':'.
         """
         if value is None or value == "":
             return None

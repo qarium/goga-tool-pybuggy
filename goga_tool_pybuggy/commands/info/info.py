@@ -13,16 +13,11 @@ from ...spec import extract_endpoints, load_spec
 def run_info(endpoint_ids: Optional[list[str]] = None, spec_name: Optional[str] = None) -> None:
     """Display endpoint information in JSON format.
 
-    Loads config from the fixed config path and searches across specs for endpoints
-    matching the given endpoint ids (or every endpoint when no filter is given). Prints
-    a JSON object (single match) or array (multiple matches). Raises ClickException when
-    a requested id is not found in any selected spec.
+    Prints a JSON object for a single match, an array for multiple matches.
 
     Args:
         endpoint_ids: Optional endpoint-id filter (as produced by ``build_endpoint_id``);
-            when set, only endpoints whose id is in the list are shown. ``None`` or empty
-            shows every endpoint of the selected specs. Every requested id must match at
-            least one selected spec, otherwise nothing is printed.
+            ``None`` or empty shows every endpoint of the selected specs.
         spec_name: Optional spec name to search; if None, searches all specs
 
     Raises:
@@ -40,8 +35,7 @@ def run_info(endpoint_ids: Optional[list[str]] = None, spec_name: Optional[str] 
     else:
         specs = config.specs
 
-    # Normalize the endpoint-id filter: an empty filter means "no filter" (all endpoints), so a
-    # variadic CLI argument passed with no values behaves identically to the unfiltered command.
+    # An empty filter means no filter, so a variadic argument with no values lists everything.
     endpoint_filter: set[str] | None = set(endpoint_ids) if endpoint_ids else None
 
     # Collect matches across specs
@@ -49,19 +43,13 @@ def run_info(endpoint_ids: Optional[list[str]] = None, spec_name: Optional[str] 
     for _name, entry in specs.items():
         spec_path = Path.cwd() / entry.location
         spec = load_spec(spec_path)
-        # Validate spec has the required structure — the key alone is not
-        # enough: `paths:` with no value parses to None, and an empty or
-        # list/str document is equally not a spec mapping; all three would
-        # crash extract_endpoints.
+        # `paths:` with no value parses to None; a non-mapping document is equally invalid.
         if not isinstance(spec, dict) or not isinstance(spec.get("paths"), dict):
             raise click.ClickException(f"invalid spec file (missing 'paths'): {entry.location}")
         try:
             endpoints = extract_endpoints(spec)
         except ValueError as error:
-            # extract_endpoints raises ValueError on an invalid spec — no
-            # openapi/swagger version key, or a response key outside the shapes
-            # the specifications allow. An invalid spec is a CLI error, not a
-            # traceback (mirrors generate/diff).
+            # ValueError from extract_endpoints means an invalid spec: a CLI error, not a traceback.
             raise click.ClickException(f"invalid spec file ({error}): {entry.location}") from error
         if endpoint_filter is not None:
             matches.extend(e for e in endpoints if e.id in endpoint_filter)

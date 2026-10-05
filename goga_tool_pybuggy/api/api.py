@@ -1,21 +1,6 @@
 """HTTP client of the `goga_tool_pybuggy.api` cell.
 
-``Api`` composes a ``resq.Session`` over a base URL, stores the per-client
-authenticator, default headers/cookies, a request timeout, and the assert
-settings, and exposes them as properties. ``auth`` is read/write.
-
-``Api`` owns the adapter: it holds one cached ``resq.Session`` per adapter name
-(the default session is the composed ``_client``) and routes each request to the
-session matching the effective adapter. Only ``"requests"`` (sync) is supported
-in the sync runtime; ``"httpx"`` (async in resq) is rejected until an async
-stack lands.
-
-``request`` serializes a single request: it dumps pydantic ``params``/``json``
-(with optional ``by_alias``), substitutes ``:name`` path placeholders, injects
-the stored auth/headers/cookies defaults with call-level precedence, resolves
-the effective adapter (call-level override falling back to the ``Api`` default),
-and dispatches to the matching resq verb — one request, never forwarding
-``timeout``/``delay``/polling options.
+``Api`` composes a ``resq.Session`` holding the base URL, auth, and request defaults.
 """
 
 from __future__ import annotations
@@ -34,8 +19,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Adapter names the sync runtime can drive. resq's "httpx" adapter is async and
-# is rejected by _validate_adapter until an async stack lands.
+# Adapter names the sync runtime can drive; resq's "httpx" adapter is async.
 _SYNC_ADAPTERS = frozenset({"requests"})
 
 
@@ -47,19 +31,12 @@ class Api:
         auth: default ``requests`` authenticator applied to every request.
         headers: default request headers (empty dict when None).
         cookies: default request cookies.
-        timeout: network timeout forwarded to resq.Session; not re-sent per
-            request.
-        assert_timeout: baseline assert-polling timeout in seconds (distinct
-            from the network ``timeout``); forwarded to ``AssertConfig``.
-        assert_delay: baseline assert-polling delay in seconds; forwarded to
-            ``AssertConfig``.
-        assert_field_class: dotted ``module:Class`` path of a custom
-            ``AssertField`` subclass; forwarded to ``AssertConfig``.
-        assert_response_class: dotted ``module:Class`` path of a custom
-            ``Expect`` subclass; forwarded to ``AssertConfig``.
-        adapter: default resq adapter name used to build the composed session;
-            ``"requests"`` (sync) only — ``"httpx"`` is async in resq and is
-            rejected by :meth:`_validate_adapter` until an async stack lands.
+        timeout: network timeout held by the session, not re-sent per request.
+        assert_timeout: baseline assert-polling timeout in seconds (distinct from the network ``timeout``).
+        assert_delay: baseline assert-polling delay in seconds.
+        assert_field_class: dotted ``module:Class`` path of a custom ``AssertField`` subclass.
+        assert_response_class: dotted ``module:Class`` path of a custom ``Expect`` subclass.
+        adapter: default resq adapter name; only sync ``"requests"`` is supported.
     """
 
     def __init__(  # noqa: PLR0913, PLR0917
@@ -141,12 +118,7 @@ class Api:
     def request(self, method: str, url_path: str, **kwargs: Any) -> resq.http.Response:
         """Dispatch a single serialized request to the matching resq verb.
 
-        Serializes pydantic ``params``/``json`` (with optional ``by_alias`` via
-        ``use_aliases``), substitutes ``:name`` path placeholders, injects the
-        stored auth/headers/cookies with call-level precedence, resolves the
-        effective adapter (call-level ``adapter`` override falling back to the
-        ``Api`` default), and dispatches to the resq verb on the matching cached
-        session. Never forwards ``timeout``/``delay``/polling options.
+        Never forwards ``timeout``/``delay``/polling options to the resq verb.
 
         Args:
             method: HTTP verb name (case-insensitive), e.g. ``"GET"``.
@@ -181,12 +153,7 @@ class Api:
     def close(self) -> None:
         """Close the composed resq.Session plus any cached override sessions.
 
-        Delegates to each session's public ``close()``. In sync mode (the only
-        mode pybuggy uses — ``adapter="requests"``) each close is a no-op by
-        resq's design: the held ``requests.Session`` is released by garbage
-        collection, not closed here. pybuggy never issues async requests, so the
-        lazily created ``httpx`` client is never created and is left untouched.
-        Called by the ``api`` fixture teardown.
+        In sync mode each close is a no-op — the ``requests.Session`` is released by garbage collection.
         """
         self._client.close()
 
@@ -197,9 +164,7 @@ class Api:
     def _validate_adapter(adapter: str) -> None:
         """Reject any adapter the sync runtime cannot drive.
 
-        Only ``"requests"`` is supported: resq's ``"httpx"`` adapter is async
-        (verbs return coroutines, the wrapper is ``AsyncResponse``) and pybuggy
-        has no async stack yet. When async lands, relax this set.
+        Only ``"requests"`` is supported: resq's ``"httpx"`` adapter is async.
 
         Args:
             adapter: the adapter name to check.
@@ -217,10 +182,7 @@ class Api:
     def _get_session(self, adapter: str) -> resq.Session:
         """Return the cached resq.Session for ``adapter``, building it on first use.
 
-        The default adapter reuses the composed ``_client``; any other validated
-        adapter is built once (same base URL and network timeout as the default)
-        and cached in ``_sessions`` for reuse. ``adapter`` is validated first, so
-        an unsupported value raises before any session is built.
+        The default adapter reuses the composed ``_client``; others share its base URL and timeout.
 
         Args:
             adapter: the adapter name to resolve a session for.
@@ -242,8 +204,7 @@ class Api:
     def _resolve_params(params: Any, use_aliases: bool) -> dict[str, Any]:
         """Serialize ``params`` into a fresh dict (never the caller's dict).
 
-        A pydantic model is dumped with ``by_alias``; a dict is copied; None
-        becomes an empty dict.
+        A pydantic model is dumped with ``by_alias``; a dict is copied; None becomes an empty dict.
         """
         if isinstance(params, BaseModel):
             return params.model_dump(by_alias=use_aliases)
@@ -257,23 +218,14 @@ class Api:
     def _substitute_path_params(url_path: str, params: dict[str, Any]) -> str:
         """Move ``:name`` keys out of ``params`` into ``url_path`` (in place).
 
-        ``params`` is the fresh dict from :meth:`_resolve_params`; the remaining
-        keys stay as the query string. Only the names actually present in
-        ``params`` are matched, each as a whole token (a name is never matched
-        inside a longer one, so ``:id`` / ``:id2`` stay distinct and ``:id``
-        leaves ``:identity`` untouched) — a ``:word`` with no matching parameter
-        is literal path content (e.g. ``09:30``) and is left untouched.
+        Only names present in ``params`` are substituted, as whole tokens; the rest stay as the query string.
         """
         names = sorted((key for key in params if key.startswith(":")), key=len, reverse=True)
         if not names:
             return url_path
 
-        # A name ends where the token ends: the next character must not continue
-        # it. A word char would (``:id`` must not match the ``:id`` prefix of
-        # ``:identity``), and so would ``-`` before a word char (``:order`` must
-        # not match inside ``:order-id``). Everything else ends the name — the
-        # segment end, a literal ``.``/``-`` (``/files/{id}.json`` substitutes),
-        # and the ``:`` of the next placeholder (``/range/{from}-{to}``).
+        # A name ends at the token boundary: a following word char or ``-``+word char would
+        # continue it, so ``:id`` never matches inside ``:identity`` or ``:order-id``.
         pattern = re.compile("|".join(re.escape(name) + r"(?!\w|-\w)" for name in names))
         values = {name: params.pop(name) for name in names}
 

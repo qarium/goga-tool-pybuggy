@@ -31,7 +31,7 @@ Three commands in the target project root:
 
 ```bash
 goga install pybuggy                 # 1. install pybuggy into the goga environment
-goga tool pybuggy init               # 2. bootstrap: goga project + tool config + conftest.py
+goga tool pybuggy init               # 2. onboarding session + bootstrap: goga project, tool config, conftest.py
 goga pipeline pybuggy:api.automate   # 3. run the automated API-test lifecycle
 ```
 
