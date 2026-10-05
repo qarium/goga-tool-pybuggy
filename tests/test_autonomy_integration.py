@@ -13,7 +13,7 @@ from goga_tool_pybuggy.autonomous.amendment import amend_workflow
 from goga_tool_pybuggy.commands.init import build_config_data
 from goga_tool_pybuggy.config import resolve_autonomy
 
-from tests.autonomous.conftest import _AmendmentView, amendment_identity
+from .autonomous.conftest import _AmendmentView, amendment_identity
 
 # Minimal survey answers; the autonomy confirm rides on top as the enabling or disabling answer.
 _ANSWERS = {

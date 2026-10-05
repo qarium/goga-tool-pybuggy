@@ -12,11 +12,13 @@ class TestRenderBaseUrlContract:
     """Contract tests for `render_base_url`."""
 
     def test_render_base_url_importable_from_location(self):
+        """The `render_base_url` routine is importable from the `plugin.render` module location."""
         import goga_tool_pybuggy.plugin.render as render_module
 
         assert render_module.render_base_url is render_base_url
 
     def test_render_base_url_is_callable(self):
+        """The `render_base_url` routine is callable."""
         assert callable(render_base_url)
 
     def test_match_re_test_is_registered_helper(self):
@@ -33,9 +35,11 @@ class TestRenderBaseUrlRendering:
         assert render_base_url("https://plain.example/api", {}) == "https://plain.example/api"
 
     def test_renders_jinja_variable(self):
+        """A single Jinja variable is substituted with its context value."""
         assert render_base_url("http://{{ env }}.svc.example/api", {"env": "dev"}) == ("http://dev.svc.example/api")
 
     def test_renders_multiple_variables(self):
+        """Multiple Jinja variables are substituted with their context values."""
         assert (
             render_base_url(
                 "https://{{ env }}.svc.example/api/{{ version }}",
@@ -48,11 +52,13 @@ class TestRenderBaseUrlRendering:
         )
 
     def test_match_re_conditional_match(self):
+        """A `match_re` conditional renders its branch when the value matches the pattern."""
         template = "http://x/api/v1{% if v is match_re('^feature-.*$') %}-{{ v }}{% endif %}"
 
         assert render_base_url(template, {"v": "feature-123"}) == "http://x/api/v1-feature-123"
 
     def test_match_re_conditional_no_match(self):
+        """A `match_re` conditional renders nothing when the value fails the pattern."""
         template = "http://x/api/v1{% if v is match_re('^feature-.*$') %}-{{ v }}{% endif %}"
 
         assert render_base_url(template, {"v": "1.2.3"}) == "http://x/api/v1"

@@ -60,9 +60,11 @@ class ReloadableResponse:
         self.reload_calls = 0
 
     def json(self) -> Any:
+        """Returns the current body, sticking on the last one."""
         return self._bodies[min(self._idx, len(self._bodies) - 1)]
 
     def reload(self) -> None:
+        """Advances to the next body and records the reload call."""
         self.reload_calls += 1
         self._idx += 1
 
@@ -176,14 +178,17 @@ class TestLoadAssertClass:
     """``load_assert_class`` dotted-path resolution and validation."""
 
     def test_missing_colon_raises_value_error(self) -> None:
+        """An import path without a colon separator raises ``ValueError``."""
         with pytest.raises(ValueError, match="Invalid import path"):
             load_assert_class("no_colon_here", AssertField)
 
     def test_unknown_module_raises_import_error(self) -> None:
+        """An import path naming an unknown module raises ``ImportError``."""
         with pytest.raises(ImportError, match=r'Module "definitely.no.such.module" not found'):
             load_assert_class("definitely.no.such.module:Cls", AssertField)
 
     def test_unknown_class_raises_import_error(self) -> None:
+        """An import path naming an unknown class raises ``ImportError``."""
         with pytest.raises(ImportError, match='Class "Nope" not found'):
             load_assert_class("tests.api.test_assert_polling:Nope", AssertField)
 
@@ -193,6 +198,7 @@ class TestLoadAssertClass:
             load_assert_class("tests.api.test_assert_polling:NotAnAssert", AssertField)
 
     def test_valid_subclass_is_returned(self) -> None:
+        """A valid dotted path resolves to the requested subclass itself."""
         cls = load_assert_class("tests.api.test_assert_polling:CustomAssertField", AssertField)
 
         assert cls is CustomAssertField

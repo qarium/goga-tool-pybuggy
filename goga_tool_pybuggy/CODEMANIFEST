@@ -48,8 +48,8 @@ Annotations: |
   This cell is the package composition root: it owns the root group `main`, loads the .env environment before any
   subcommand runs, and assembles the full CLI.
   Hook registration: the facade callback subscribes the tool's hooks to the platform actions from one place — the
-  topic-status hooks of the statuses cell, the onboarding participation hooks, and the autonomy amendment hook of
-  the autonomous cell. Use relative imports inside the cell.
+  topic-status hooks, the onboarding participation hooks, and the autonomy amendment hook. Use relative imports
+  inside the cell.
 
 ---
 
@@ -75,7 +75,7 @@ Annotations: |
     - The env is loaded and ctx.obj is set before any subcommand is invoked.
     - Assembly runs at package import (in __init__.py), before any subcommand is invoked.
     - The package entry point resolves to this `main` (pyproject: pybuggy = "goga_tool_pybuggy:main").
-    - python -m goga_tool_pybuggy runs via __main__.py (from goga_tool_pybuggy import main; main()).
+    - python -m goga_tool_pybuggy runs via __main__.py, delegating to `main`.
 
     Constraints:
     - Do not introduce a --config option; config loading stays per-command via load_config.

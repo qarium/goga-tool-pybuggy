@@ -94,7 +94,7 @@ path plus the answered FROM — the engine's generator writes the Dockerfile fro
 exactly this pair — and the answered built-image name), and the `tools` record above.
 Consequence: a native `goga init -t pybuggy` session (without the pybuggy CLI) runs
 no bootstrap and sets no flag — add `build.review.skip: true` and the pybuggy-owned
-files by hand, or run the pybuggy CLI (see `MIGRATION.md` at the repository root).
+files by hand, or run the pybuggy CLI.
 
 ## What the command does
 
@@ -110,6 +110,7 @@ bootstrap is skipped, the code is propagated unchanged.
 | Artifact | Gate |
 |----------|------|
 | `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) | template: skip existing (INFO); bare: overwrite |
+| commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted, idempotent, comment-only |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
 | the pybuggy install `RUN` line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |
@@ -136,25 +137,25 @@ re-run — a repeat bare `pybuggy init` is refused by the already-initialized gu
 The pybuggy block of the session asks the image questions and builds
 `.goga/tools/pybuggy/config.yml`. What is asked, in order:
 
-- The **base image** (`base_image`) — the FROM of the always-created Dockerfile. The
-  prompt lists the goga-python image family hints of the running goga minor line
-  (`qarium/goga-python-3.10` … `qarium/goga-python-3.14`, each tagged with the minor
-  line); the newest member is the default. The pybuggy test runtime is pytest, so the
-  python family serves every pybuggy project.
-- The **built-image name** (`image`) — the name the project image is built and tagged
-  with. Default `{project}:latest` derived from the git origin; a required input when
-  no origin is configured.
-- `base_url` — **required** (empty input is re-asked). A Jinja2 URL template — a plain
-  URL is a valid template that renders to itself.
-- The optional scalar plugin keys, one input each, skippable with Enter: `timeout`,
-  `retries`, `assert_timeout`, `assert_delay`, `assert_field_class`,
-  `assert_response_class`. Numeric answers are coerced (`timeout`/`assert_delay` →
-  float, `retries`/`assert_timeout` → int).
-- The first spec, field by field: `name`, `type` (a choice of `swagger`|`openapi`),
-  `location` — all required — and the optional git fields `git_url`, `git_location`,
-  `git_ref`. A git block is attached only when both `git_url` and `git_location` are
-  non-empty; an empty `git_ref` means the default branch. The first spec is validated
-  strictly, so at least one spec always lands in the config.
+1. The **base image** (`base_image`) — the FROM of the always-created Dockerfile. The
+   prompt lists the goga-python image family hints of the running goga minor line
+   (`qarium/goga-python-3.10` … `qarium/goga-python-3.14`, each tagged with the minor
+   line); the newest member is the default. The pybuggy test runtime is pytest, so the
+   python family serves every pybuggy project.
+2. The **built-image name** (`image`) — the name the project image is built and tagged
+   with. Default `{project}:latest` derived from the git origin; a required input when
+   no origin is configured.
+3. `base_url` — **required** (empty input is re-asked). A Jinja2 URL template — a plain
+   URL is a valid template that renders to itself.
+4. The optional scalar plugin keys, one input each, skippable with Enter: `timeout`,
+   `retries`, `assert_timeout`, `assert_delay`, `assert_field_class`,
+   `assert_response_class`. Numeric answers are coerced (`timeout`/`assert_delay` →
+   float, `retries`/`assert_timeout` → int).
+5. The first spec, field by field: `name`, `type` (a choice of `swagger`|`openapi`),
+   `location` — all required — and the optional git fields `git_url`, `git_location`,
+   `git_ref`. A git block is attached only when both `git_url` and `git_location` are
+   non-empty; an empty `git_ref` means the default branch. The first spec is validated
+   strictly, so at least one spec always lands in the config.
 
 Two follow-ups are asked by pybuggy itself at the amendment moment, **after** the
 block:
@@ -166,7 +167,7 @@ block:
 - The **autonomy confirm**, asked last — after the spec survey completed, so the
   question never interleaves the spec fields: `Run the api.automate pipeline unattended
   (autonomous mode)?` — default No. Answering Yes is the one way the session writes a
-  `pipelines` axis entry into the tool config:
+  `pipelines` section entry into the tool config:
 
   ```yaml
   pipelines:
@@ -178,16 +179,20 @@ block:
   unanswered key, and the project's `api.automate` runs stay fully interactive (see
   [Autonomous runs](../pipelines/api-automate.md#autonomous-runs)).
 
-`headers` and `loader` are **never surveyed**, and the tool config is written as plain
-YAML carrying only the answered values (unanswered keys are dropped, never written
-empty; no commented examples are emitted). The two complex sections stay documented
-as hand-added examples:
+`headers` and `loader` are **never surveyed**, and the session writes the tool config
+as plain YAML carrying only the answered values (unanswered keys are dropped, never
+written empty). The bootstrap then documents every absent member with commented
+example records — pinned before the next active key, idempotent, never touching
+active entries — so the two complex sections stay visible as comments:
 
 ```yaml
-# headers:                        # optional section, hand-added: mapping of header name to value/template
-#   X-Api-Key: "{{ API_KEY }}"
-# loader:                         # optional section, hand-added: packages/modules structure
-#   packages: [api]
+# headers: example (skipped complex member)
+#   X-Example: value
+#   default request headers dict
+# loader: example (skipped complex member)
+#   packages:
+#     - api
+#   modules: []
 ```
 
 The generated file is valid for [configuration](../configuration.md) loading.

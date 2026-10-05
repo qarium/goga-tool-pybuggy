@@ -69,7 +69,7 @@ Annotations: |
   annotations: |
     Build the declarative autonomy contribution from the package compile-time constants.
 
-    `document`: the platform WorkflowDocument — the auto-approval window and
+    `document`: the platform `WorkflowDocument` — the auto-approval window and
     the build stage — built exactly as the equivalent authored workflow-file
     would parse.
 
@@ -85,7 +85,7 @@ Annotations: |
 
     Requirements:
     - The window and the build entry are compile-time constants of the package.
-    - The document is a real platform WorkflowDocument (WorkflowStage /
+    - The document is a real platform `WorkflowDocument` (WorkflowStage /
       WorkflowExtendStage values) — the delivery reads it by attribute and the
       merge walks the typed fields; a plain mapping fails the checkpoint.
     - The document uses only the WorkflowDocument instruction vocabulary.

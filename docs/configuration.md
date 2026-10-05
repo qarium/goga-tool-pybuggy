@@ -41,11 +41,11 @@ wins over the config file and `BASE_URL`.
 `os.environ` + the CLI options you actually passed:
 
 ```yaml
-base_url: "https://{{ env }}.svc.example/api/{{ version }}"
+base_url: "https://{{ env }}.svc.example/api/{{ api_version }}"
 ```
 
 ```bash
-pytest --env=dev --version=1.2   # -> https://dev.svc.example/api/1.2
+pytest --env=dev --api-version=1.2   # -> https://dev.svc.example/api/1.2
 ```
 
 Placeholders fed from the CLI (e.g. `{{ env }}`) require registering the options in

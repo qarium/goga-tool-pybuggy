@@ -2,14 +2,14 @@
 
 Any pipeline shipped with pybuggy can be adjusted to your project without forking or
 copying the pipeline-file. The goga
-[workflow mechanism](https://qarium.github.io/goga/pipelines/workflows/) layers
+[workflow mechanism](https://qarium.github.io/goga/features/pipelines/workflows/) layers
 project-specific behavior on top of a compiled pipeline at run time: it can inject a
 top-level prompt, override the agent or prompt of specific stages, and expand a stage
 into N chained copies via `loop`.
 
 This page is a short orientation. The complete reference — document shape, compiler
 passes, and the error catalog — lives in the
-[goga documentation](https://qarium.github.io/goga/pipelines/workflows/).
+[goga documentation](https://qarium.github.io/goga/features/pipelines/workflows/).
 
 ## Workflow file
 

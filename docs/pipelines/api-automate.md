@@ -78,7 +78,7 @@ Service bugs recorded in `bugs.md` are history records — they mark no status o
 ## Autonomous runs
 
 The pipeline can run unattended from the test-cells review onward. Autonomy is opt-in per
-pipeline through the `pipelines` axis of the tool config — set it by hand or through the
+pipeline through the `pipelines` section of the tool config — set it by hand or through the
 autonomy confirm of [`pybuggy init`](../cli/init.md):
 
 ```yaml
@@ -108,7 +108,7 @@ The contribution is a silent no-op for every other pipeline — the window shape
 `api.automate`-specific — and for every disabled state: an absent file, an absent
 `pipelines` section, an absent `api.automate` entry, and `autonomous: false` all mean a
 normal interactive run. Autonomy never disables silently on a malformed config: a
-structural violation of the axis (a file root or `pipelines` value that is not a mapping,
+structural violation of the section (a file root or `pipelines` value that is not a mapping,
 an entry shaped other than exactly `autonomous: <boolean>`) stops the command with a
 clean error naming pybuggy, and the whole contribution is discarded.
 

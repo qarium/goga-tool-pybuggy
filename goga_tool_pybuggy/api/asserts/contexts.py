@@ -104,6 +104,7 @@ class ResponseContext(BaseContext):
 
     @property
     def value(self) -> Any:
+        """Resolve the fixed search token (``status``/``json``/``headers``) against the response."""
         item = self._search_history[0]
         search = item.search
 
@@ -120,6 +121,7 @@ class ResponseContext(BaseContext):
 
     @property
     def key(self) -> str | None:
+        """The response URL."""
         return self._response.url
 
 
@@ -131,6 +133,7 @@ class JsonFieldContext(BaseContext):
 
     @property
     def value(self) -> Any:
+        """Resolve the dotted-path search history against the response body."""
         data = self._response.json()
 
         for item in self._search_history:
@@ -149,6 +152,7 @@ class JsonFieldContext(BaseContext):
 
     @property
     def key(self) -> str | None:
+        """The joined dotted path of the search history."""
         search_list = [item.search for item in self._search_history if item.search is not None]
 
         return ".".join(search_list)
@@ -168,12 +172,14 @@ class JsonPathFieldContext(BaseContext):
 
     @property
     def value(self) -> Any:
+        """The lazily initialized jsonpath match data."""
         self._init_data_if_not_exists()
 
         return self.__data
 
     @property
     def key(self) -> str | None:
+        """The joined jsonpath match string of the search history."""
         self._init_data_if_not_exists()
 
         assert self.__matches is not None
@@ -229,6 +235,7 @@ class JsonPathFieldContext(BaseContext):
         return full_path.strip(".")
 
     def update(self) -> None:
+        """Re-fetch the response and drop the cached jsonpath data and matches."""
         super().update()
 
         self.__data = None
