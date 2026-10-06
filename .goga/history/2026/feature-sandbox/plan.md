@@ -1853,24 +1853,31 @@ testcontainers/psycopg/kafka-python at import time — all declared in the main 
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 26 is being executed
-- [ ] **Contract tests**: create `tests/test_facade.py` —
+- [x] **Declaration**: state that Task 26 is being executed
+- [x] **Contract tests**: create `tests/test_facade.py` —
   `test_facade_exports_capability_surface`: `from goga_tool_pybuggy import active_sandbox,
   services`; `callable(active_sandbox)`; `callable(services)`; `"active_sandbox"` and
   `"services"` in `goga_tool_pybuggy.__all__` (expected to fail now)
-- [ ] **REPL prototype (R4)**: after the edit, import both names in the REPL and confirm the
+  (written first and observed red — `ImportError: cannot import name 'active_sandbox'` —
+  before the facade edit; plus resolution-identity and existing-exports guards)
+- [x] **REPL prototype (R4)**: after the edit, import both names in the REPL and confirm the
   resolution path (root → `.sandbox` facade → `activation.active_sandbox`; root →
   `.sandbox.data` facade → `presets.services`)
-- [ ] **Code**: extend `goga_tool_pybuggy/__init__.py` with the two relative imports and the
+  (verified in the venv REPL: both names identity-resolve to the cell entities, the inert
+  `active_sandbox()` lookup returns None, and `__all__` carries the eight names in isort
+  order)
+- [x] **Code**: extend `goga_tool_pybuggy/__init__.py` with the two relative imports and the
   two `__all__` entries (alphabetical placement)
-- [ ] **Interface verification**: `.venv/bin/pytest tests/test_facade.py -x -v` — pass
-- [ ] **Logic tests**: the import test itself is the behavioral assertion (embeddings → facade
+- [x] **Interface verification**: `.venv/bin/pytest tests/test_facade.py -x -v` — pass
+- [x] **Logic tests**: the import test itself is the behavioral assertion (embeddings → facade
   parity); also assert the CLI import path still works: `.venv/bin/python -c "from
   goga_tool_pybuggy import main"`
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: both embeddings importable; no behavior change for the CLI
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+  (1341 passed, 7 skipped — the docker-gated set — no fixes needed)
+- [x] **Contract re-verification**: both embeddings importable; no behavior change for the CLI
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+  (`ruff format --check` clean on both touched files)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 27: End-to-end validation — full suite, facade audit, packaging re-check
 
