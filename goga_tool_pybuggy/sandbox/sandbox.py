@@ -295,6 +295,26 @@ class Sandbox:
         """
         return self._boundary_batch if self._boundary_open else self._batch
 
+    def _require_instance(self, kind: str, name: str) -> None:
+        """Validate that ``name`` names a configured instance of ``kind``.
+
+        Args:
+            kind: The required instance kind.
+            name: The requested instance name.
+
+        Raises:
+            ValueError: Unknown name or kind mismatch — the message lists the configured
+                instances.
+        """
+        instances = self.config.instances
+
+        if name not in instances or instances[name].kind != kind:
+            listing = ", ".join(
+                f"{instance_name} ({instance_config.kind})" for instance_name, instance_config in instances.items()
+            )
+
+            raise ValueError(f"no {kind} instance named '{name}'; configured instances: {listing}")
+
     def _view(self, view_class: type[ViewT], kind: str, name: str) -> ViewT:
         """Build the view of one configured instance, validating kind and name.
 
@@ -310,13 +330,6 @@ class Sandbox:
             ValueError: Unknown name or kind mismatch — the message lists the configured
                 instances.
         """
-        instances = self.config.instances
-
-        if name not in instances or instances[name].kind != kind:
-            listing = ", ".join(
-                f"{instance_name} ({instance_config.kind})" for instance_name, instance_config in instances.items()
-            )
-
-            raise ValueError(f"no {kind} instance named '{name}'; configured instances: {listing}")
+        self._require_instance(kind, name)
 
         return view_class(name=name, address=self.engines[name].address, batch=self._current_batch())

@@ -1599,22 +1599,28 @@ the batch, ahead of any in-test operation.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 22 is being executed
-- [ ] **Contract tests**: `tests/sandbox/test_activation.py` — both routines importable from
+- [x] **Declaration**: state that Task 22 is being executed
+- [x] **Contract tests**: `tests/sandbox/test_activation.py` — both routines importable from
   `goga_tool_pybuggy.sandbox` (facade completed below); return types
-- [ ] **REPL prototype (R4)**: with a minimal valid `.sandbox.yml` in a `/tmp` cwd (chdir in the
+- [x] **REPL prototype (R4)**: with a minimal valid `.sandbox.yml` in a `/tmp` cwd (chdir in the
   REPL): call `activate_sandbox(ctx)` on a fresh dict; inspect the three registered callables
   and the returned config; invoke `ctx["pytest_runtest_setup"]` with an item stub carrying the
   marker and observe the enqueued batch; reset the module state afterwards; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/activation.py` per the algorithm (module-level
+  (verified end to end in the venv REPL over a /tmp consumer cwd: the inert path registers
+  nothing, the three hooks land in the context incl. the wrap of a pre-existing
+  `pytest_sessionfinish` (prior first), the marker line registers before any Sandbox work, the
+  preset enqueue yields the exact DataOperation and fails on an unknown instance naming it plus
+  the configured ones, and the finish hook stops once and clears the lookup; module state reset
+  afterwards)
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/activation.py` per the algorithm (module-level
   `_ACTIVE` reference; hooks as plain functions assigned into `context`)
-- [ ] **Code**: complete the sandbox facade — `goga_tool_pybuggy/sandbox/__init__.py` with
+- [x] **Code**: complete the sandbox facade — `goga_tool_pybuggy/sandbox/__init__.py` with
   `__all__ = ["Sandbox", "BaselineBoundary", "ServiceContainer", "render_service_env",
   "activate_sandbox", "active_sandbox"]`; verify: `.venv/bin/python -c "from
   goga_tool_pybuggy.sandbox import Sandbox, BaselineBoundary, ServiceContainer,
   render_service_env, activate_sandbox, active_sandbox"`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/ -x -v` — pass
-- [ ] **Logic tests**: `test_activation_inert_without_document` — empty `tmp_path` chdir, fresh
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/ -x -v` — pass
+- [x] **Logic tests**: `test_activation_inert_without_document` — empty `tmp_path` chdir, fresh
   context: returns None; `ctx` has none of the three hook keys; `active_sandbox()` is None;
   `test_activation_registers_hooks_with_document` — minimal valid document: `ctx` has the three
   callables, the returned value is a `SandboxConfig`, no docker interaction (hooks not
@@ -1629,11 +1635,11 @@ the batch, ahead of any in-test operation.
   ("db") only; an item stub carrying `pybuggy_services(presets={"postgresql": {"ghost":
   [{"table": "t", "rows": []}]}})`; invoking the registered setup hook raises `ValueError`
   matching `"ghost.*db"`
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: presence gating, fail-fast position (invalid document
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: presence gating, fail-fast position (invalid document
   raises before anything is registered or started), wrap-if-collision, enqueue-time validation
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 23: Integration tests — sandbox session lifecycle over fakes
 
