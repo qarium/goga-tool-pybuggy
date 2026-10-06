@@ -1154,11 +1154,11 @@ Create the data cell package, its progressive facade, and the mirrored test pack
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create `goga_tool_pybuggy/sandbox/data/__init__.py` — docstring + `__all__ = []`
+- [x] Create `goga_tool_pybuggy/sandbox/data/__init__.py` — docstring + `__all__ = []`
   (populated by Tasks 14–16)
-- [ ] Create `tests/sandbox/data/__init__.py`
-- [ ] Verify: `.venv/bin/python -c "import goga_tool_pybuggy.sandbox.data"`
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] Create `tests/sandbox/data/__init__.py`
+- [x] Verify: `.venv/bin/python -c "import goga_tool_pybuggy.sandbox.data"`
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
 
 ### Task 14: `DataBatch` — the lazy per-test accumulator (TDD)
 
