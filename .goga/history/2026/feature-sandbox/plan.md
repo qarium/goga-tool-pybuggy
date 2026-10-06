@@ -1461,17 +1461,21 @@ allowed (a service with no dependencies); `ensure_service` is a no-op while the 
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 20 is being executed
-- [ ] **Contract tests**: `tests/sandbox/test_sandbox.py` — the class surface (facade exposure
+- [x] **Declaration**: state that Task 20 is being executed
+- [x] **Contract tests**: `tests/sandbox/test_sandbox.py` — the class surface (facade exposure
   lands with Task 22); `base_url` readable after start
-- [ ] **REPL prototype (R4)**: drive a `Sandbox` built over `FakeEngine`s and a `FakeService`
+- [x] **REPL prototype (R4)**: drive a `Sandbox` built over `FakeEngine`s and a `FakeService`
   in the REPL (monkeypatch `build_engine`/`ServiceContainer` in the module namespace): call
   `start`, `apply_pending`, `clear`, `stop`; observe ordering and call records against the
   algorithm; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/sandbox.py` per the algorithm (monkeypatchable
+  (verified end to end in the venv REPL over four FakeEngines + a FakeService: start ordering,
+  startup-op assembly per section, rendered-env hand-off, grouping apply, kind/unknown-name
+  failures, clear/new_test_batch, died-service error, reverse-order stop, and the
+  failed-start cleanup all matched the design trace before migration)
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/sandbox.py` per the algorithm (monkeypatchable
   seams: `build_engine`, `ServiceContainer`, `render_service_env` referenced at module level)
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_sandbox.py -x -v` — pass
-- [ ] **Logic tests** (fakes): `test_apply_pending_groups_by_instance_preserving_order` — two
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_sandbox.py -x -v` — pass
+- [x] **Logic tests** (fakes): `test_apply_pending_groups_by_instance_preserving_order` — two
   FakeEngines ("db", "payments"); batch preloaded via views db-insert A, payments-stub B,
   db-insert C; `apply_pending()` → `engines["db"].applied == [A, C]`,
   `engines["payments"].applied == [B]`, `batch.take() == []` (drained);
@@ -1482,11 +1486,14 @@ allowed (a service with no dependencies); `ensure_service` is a no-op while the 
   tail; plus: view factories hand out views bound to the current batch; `new_test_batch`
   replaces the batch; `clear()` resets every engine and never touches the service; `stop()`
   stops the service then the engines in reverse order, idempotent
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: ordering, grouping, fail-fast views, died-service error,
+  (FakeService gained configurable `host`/`port` in `tests/sandbox/conftest.py` — the
+  `base_url` reads need a mapped service address; `baseline()` carries a local import with a
+  `noqa: PLC0415` until `baseline.py` lands in Task 21, then it can hoist to module level)
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: ordering, grouping, fail-fast views, died-service error,
   per-test batch ownership
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 21: `BaselineBoundary` + `BoundaryBatch` — the immediate-apply boundary (TDD)
 

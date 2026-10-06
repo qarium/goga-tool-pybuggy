@@ -176,18 +176,31 @@ class FakeService:
         started: Whether the last lifecycle call left the service started.
         stopped: Whether ``stop`` was called.
         started_env: The rendered env of the last ``start`` call; None before the first.
+        host: The mapped host the sandbox ``base_url`` reads resolve to.
+        port: The published port the sandbox ``base_url`` reads resolve to.
     """
 
-    def __init__(self, alive: bool = True, logs: str = "", events: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        alive: bool = True,
+        logs: str = "",
+        host: str = "127.0.0.9",
+        port: int = 9000,
+        events: list[str] | None = None,
+    ) -> None:
         """Initialize the recording service.
 
         Args:
             alive: The value every ``alive()`` probe returns.
             logs: The diagnostic output every ``logs()`` call returns.
+            host: The mapped host the sandbox ``base_url`` reads resolve to.
+            port: The published port the sandbox ``base_url`` reads resolve to.
             events: An optional shared sink recording the lifecycle call sequence across fakes.
         """
         self._alive = alive
         self._logs = logs
+        self.host = host
+        self.port = port
         self.events = events
         self.started = False
         self.stopped = False
