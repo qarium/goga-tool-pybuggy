@@ -8,5 +8,6 @@ The facade is populated progressively by the engine entity tasks: ``DataOperatio
 from .address import InstanceAddress
 from .base import BaseEngine, EngineError
 from .operation import DataOperation
+from .postgres import PostgresEngine
 
-__all__ = ["BaseEngine", "DataOperation", "EngineError", "InstanceAddress"]
+__all__ = ["BaseEngine", "DataOperation", "EngineError", "InstanceAddress", "PostgresEngine"]

@@ -868,25 +868,25 @@ interpolated values — parameters are bound server-side; identifiers are double
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 8 is being executed
-- [ ] **Contract tests**: `tests/sandbox/engines/test_postgres.py` — `PostgresEngine`
+- [x] **Declaration**: state that Task 8 is being executed
+- [x] **Contract tests**: `tests/sandbox/engines/test_postgres.py` — `PostgresEngine`
   importable from the facade; subclasses `BaseEngine`; inherits the contract surface
-- [ ] **REPL prototype (R4, docker-gated)**: with the runtime available, start a
+- [x] **REPL prototype (R4, docker-gated)**: with the runtime available, start a
   `PostgresContainer("postgres:16-alpine")` in the REPL; connect via psycopg accessors
   (test/test/test, autocommit); execute `executemany` of a parameterized insert; run the catalog
   discovery query against `information_schema.tables`; observe the mapped host/port accessors;
   then migrate (if docker is unavailable, verify the SQL fragments against the psycopg cook and
   proceed — the docker-gated tests below will cover the live behavior)
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/engines/postgres.py` implementing the kind
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/engines/postgres.py` implementing the kind
   hooks: container (`config.image or "postgres:16-alpine"`, labels `{"pybuggy-sandbox":
   "true"}`), module readiness, the autocommit plane, `_execute` for both payload forms (column
   list from the first row's keys in insertion order; empty rows → no-op), `_wipe` (catalog
   discovery at reset time, one `TRUNCATE TABLE "s"."t", … RESTART IDENTITY CASCADE`, skip when
   no user tables), stop closing the connection then the container
-- [ ] **Code**: expose `PostgresEngine` on the engines facade
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_postgres.py -x
+- [x] **Code**: expose `PostgresEngine` on the engines facade
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_postgres.py -x
   -v` (unit/contract parts) — pass
-- [ ] **Logic tests** (design test stack, docker-gated via `requires_docker`):
+- [x] **Logic tests** (design test stack, docker-gated via `requires_docker`):
   `test_postgres_engine_roundtrip_start_apply_reset` — `InstanceConfig(name="db",
   kind="postgresql", image=None)`; startup ops `[DataOperation("db","postgresql","insert",
   {"sql": "CREATE TABLE orders (id int PRIMARY KEY, n int)"})]`; baseline recorded via `record`
@@ -894,11 +894,11 @@ interpolated values — parameters are bound server-side; identifiers are double
   and the test row is gone (duplicate id=1 apply → `UniqueViolation` proves the baseline row
   exists); `test_reset_with_empty_journal_is_wipe_only` — engine started with no startup ops,
   one insert applied, reset leaves the table empty
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: readiness-before-return, parameter binding, catalog reset,
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: readiness-before-return, parameter binding, catalog reset,
   idempotent-startup-SQL note observed
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 9: `BaseEngine::KafkaEngine` — mokapi kafka mock instance (TDD)
 
