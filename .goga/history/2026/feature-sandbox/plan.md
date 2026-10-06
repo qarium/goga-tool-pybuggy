@@ -1727,25 +1727,25 @@ contracts"): the configure-phase Jinja2 `base_url` rendering, the option resolut
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 24 is being executed
-- [ ] **Contract tests** (extend `tests/plugin/test_plugin.py` and `tests/plugin/test_install.py`):
+- [x] **Declaration**: state that Task 24 is being executed
+- [x] **Contract tests** (extend `tests/plugin/test_plugin.py` and `tests/plugin/test_install.py`):
   `ApiPlugin` exposes `sandbox_activation` (None after plain construction — it is not a
   constructor kwarg); `install()` calls `activate_sandbox` with the defaulted context and keeps
   the activation on the plugin
-- [ ] **REPL prototype (R4)**: in the REPL construct `ApiPlugin(context={})`; assign a stub
+- [x] **REPL prototype (R4)**: in the REPL construct `ApiPlugin(context={})`; assign a stub
   `sandbox_activation`; drive a fake pytest config with `invocation_params.args = ["--base-url",
   "http://x"]` through `configure()` and observe the `pytest.UsageError`; then drive the api
   fixture seam with `active_sandbox` monkeypatched to a fake (base_url + recording
   apply_pending/ensure_service) and observe the guard order; then migrate
-- [ ] **Code**: `plugin/plugin.py` — initialize `self.sandbox_activation = None` in
+- [x] **Code**: `plugin/plugin.py` — initialize `self.sandbox_activation = None` in
   `__init__`; `configure()` gains the fail-fast step (renumber the remaining steps); `api()`
   resolves the base URL through `active_sandbox()` and wraps `api.request` with the guard when
   a sandbox is active
-- [ ] **Code**: `plugin/__init__.py` — `install()` gains the arming step before construction:
+- [x] **Code**: `plugin/__init__.py` — `install()` gains the arming step before construction:
   `activation = activate_sandbox(kwargs["context"])` … `plugin.sandbox_activation = activation`
   (import `activate_sandbox` from `..sandbox` relatively)
-- [ ] **Interface verification**: `.venv/bin/pytest tests/plugin/ -x -v` — pass
-- [ ] **Logic tests** (design test stack):
+- [x] **Interface verification**: `.venv/bin/pytest tests/plugin/ -x -v` — pass
+- [x] **Logic tests** (design test stack):
   `test_configure_renders_base_url_unchanged_without_sandbox` — `ApiPlugin(context={})`
   (constructor leaves `sandbox_activation = None`), fake config with empty args, option
   `base_url: "http://{{ENV_X}}/api"`, env `ENV_X=x` → `plugin.base_url == "http://x/api"`;
@@ -1764,11 +1764,11 @@ contracts"): the configure-phase Jinja2 `base_url` rendering, the option resolut
   `api.base_url == "http://10.0.0.1:9000"` (sandbox wins), guard ran before the request
   (`applied_pending == 1`, `ensured == 1`), the `base_url` option value unchanged
   (`"http://rendered/api"`)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: arming seam, fail-fast position (pre-container, pre-test),
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: arming seam, fail-fast position (pre-container, pre-test),
   read-time substitution, guard coverage; non-sandbox behavior unchanged
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 25: `run_bootstrap` — packaged usage discovery over the sandbox subtree (TDD)
 

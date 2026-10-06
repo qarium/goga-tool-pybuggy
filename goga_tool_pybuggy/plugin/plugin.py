@@ -13,6 +13,8 @@ import pytest
 from pluginator import CommandLine, define
 
 from ..api import Api
+from ..sandbox import Sandbox, active_sandbox
+from ..sandbox.config import SandboxConfig
 from . import defaults
 from .envvars import API_TIMEOUT, BASE_URL
 from .loaders import BaseLoader, ModuleLoader, PackageLoader
@@ -68,6 +70,42 @@ def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
     return {
         name: getattr(option, name) for name in names if hasattr(option, name) and getattr(option, name) is not None
     }
+
+
+def _sandbox_guard(original: t.Callable[..., t.Any], sandbox: Sandbox) -> t.Callable[..., t.Any]:
+    """Wrap an Api request callable with the sandbox pre-flight checks.
+
+    Every guarded request applies the pending per-test batch and ensures the service is still
+    alive before delegating to the original request — the died-service error surfaces on the
+    first request after the death, with the service output attached.
+
+    Args:
+        original: The instance-level ``Api.request`` callable being wrapped.
+        sandbox: The active session sandbox owning the pending batch and the service.
+
+    Returns:
+        The guarded request callable replacing ``Api.request``.
+    """
+
+    def guarded(method: str, url_path: str, **kwargs: t.Any) -> t.Any:
+        """Apply pending data, ensure the service, then run the original request.
+
+        Args:
+            method: The HTTP method of the request.
+            url_path: The request path.
+            **kwargs: Forwarded verbatim to the original request callable.
+
+        Returns:
+            The original request's response.
+        """
+        logger.debug("sandbox request guard", extra={"method": method, "url_path": url_path})
+
+        sandbox.apply_pending()
+        sandbox.ensure_service()
+
+        return original(method, url_path, **kwargs)
+
+    return guarded
 
 
 @define.plugin("pybuggy", config=defaults.CONFIG_FILE)
@@ -162,6 +200,8 @@ class ApiPlugin:
         self._default_assert_timeout = default_assert_timeout
         self._default_assert_delay = default_assert_delay
 
+        self.sandbox_activation: SandboxConfig | None = None
+
         self._load_plugins(context, loaders or [])
 
     def configure(self) -> None:
@@ -175,6 +215,12 @@ class ApiPlugin:
         if cli_base_url is not None:
             self.base_url = cli_base_url
 
+        if cli_base_url is not None and self.sandbox_activation is not None:
+            raise pytest.UsageError(
+                "--base-url was passed while the sandbox is active "
+                "(.sandbox.yml present); the sandbox owns the service address"
+            )
+
         logger.debug("rendering base_url template", extra={"base_url": self.base_url})
         context: dict[str, t.Any] = dict(os.environ)
         context.update(cli_options)
@@ -186,12 +232,20 @@ class ApiPlugin:
 
         Minimal profile — ``base_url``/``headers``/``timeout`` plus the assert options; no auth, no cookies.
 
+        With an active sandbox the sandbox address wins ``base_url`` at read time (the option
+        value stays untouched) and every request passes the sandbox guard first — pending data
+        is applied, the service liveness is ensured, then the original request runs.
+
         Yields:
             An :class:`Api` constructed from the resolved options.
         """
-        logger.debug("building api fixture", extra={"base_url": self.base_url})
+        sandbox = active_sandbox()
+
+        base_url = sandbox.base_url if sandbox is not None else self.base_url
+
+        logger.debug("building api fixture", extra={"base_url": base_url, "sandbox": sandbox is not None})
         api = Api(
-            base_url=self.base_url,
+            base_url=base_url,
             headers=self.headers,
             timeout=self.timeout,
             assert_timeout=self.assert_timeout,
@@ -199,6 +253,10 @@ class ApiPlugin:
             assert_field_class=self.assert_field_class,
             assert_response_class=self.assert_response_class,
         )
+
+        if sandbox is not None:
+            api.request = _sandbox_guard(api.request, sandbox)
+
         yield api
         api.close()
 

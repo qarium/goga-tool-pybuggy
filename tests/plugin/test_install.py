@@ -7,6 +7,7 @@ import importlib
 import inspect
 import sys
 import types
+from unittest import mock
 
 import goga_tool_pybuggy.plugin
 import pytest
@@ -48,6 +49,18 @@ class TestInstallContract:
         assert len(var_keyword) == 1
         assert var_keyword[0].name == "kwargs"
 
+    def test_install_arms_sandbox_with_defaulted_context(self, tmp_path, monkeypatch):
+        """`install()` calls `activate_sandbox` with the defaulted context before constructing the plugin."""
+        monkeypatch.chdir(tmp_path)
+
+        context: dict[str, object] = {}
+        fake_activate = mock.Mock(return_value=None)
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "activate_sandbox", fake_activate)
+
+        goga_tool_pybuggy.plugin.install(context=context)
+
+        fake_activate.assert_called_once_with(context)
+
 
 class TestInstallLogic:
     """Behavioral logic tests for `install`."""
@@ -71,3 +84,39 @@ class TestInstallLogic:
         importlib.reload(goga_tool_pybuggy.plugin)
 
         assert getattr(goga_tool_pybuggy.plugin, "pytest_plugins", []) == []
+
+    def test_install_arms_sandbox_and_keeps_activation_on_plugin(self, tmp_path, monkeypatch):
+        """The activation returned by `activate_sandbox` is kept on the constructed plugin."""
+        monkeypatch.chdir(tmp_path)
+
+        context: dict[str, object] = {}
+        sentinel = object()
+        captured: dict[str, object] = {}
+
+        def fake_install(plugin: object, context: dict[str, object] | None = None) -> None:
+            captured["plugin"] = plugin
+
+        fake_activate = mock.Mock(return_value=sentinel)
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "activate_sandbox", fake_activate)
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+
+        goga_tool_pybuggy.plugin.install(context=context)
+
+        fake_activate.assert_called_once_with(context)
+        assert captured["plugin"].sandbox_activation is sentinel
+
+    def test_install_without_document_leaves_plugin_unarmed(self, tmp_path, monkeypatch):
+        """Without `.sandbox.yml` the arming is inert and the plugin stays unarmed."""
+        monkeypatch.chdir(tmp_path)  # no .sandbox.yml in the empty cwd
+
+        context: dict[str, object] = {}
+        captured: dict[str, object] = {}
+
+        def fake_install(plugin: object, context: dict[str, object] | None = None) -> None:
+            captured["plugin"] = plugin
+
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+
+        goga_tool_pybuggy.plugin.install(context=context)
+
+        assert captured["plugin"].sandbox_activation is None
