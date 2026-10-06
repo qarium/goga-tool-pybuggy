@@ -746,24 +746,24 @@ postgres payload forms are discriminated by key (`sql` vs `table`+`rows`).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 6 is being executed
-- [ ] **Contract tests**: `tests/sandbox/engines/test_operation.py`, `test_address.py` — both
+- [x] **Declaration**: state that Task 6 is being executed
+- [x] **Contract tests**: `tests/sandbox/engines/test_operation.py`, `test_address.py` — both
   importable from the facade; kw_only construction; property types (`instance/kind/action ->
   str`, `payload -> dict[str, object]`; `host -> str`, `port -> int`)
-- [ ] **REPL prototype (R4)**: construct sample operations of every payload-table row in the
+- [x] **REPL prototype (R4)**: construct sample operations of every payload-table row in the
   REPL (e.g. `DataOperation(instance="db", kind="postgresql", action="insert",
   payload={"sql": "CREATE TABLE …"})`); confirm payloads hold plain data only (no callables,
   no models)
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/engines/{operation,address}.py` (pydantic
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/engines/{operation,address}.py` (pydantic
   `kw_only` models; `port: int` — addresses carry the published host-side port)
-- [ ] **Code**: expose both on the engines facade (`__all__` += the two names)
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/ -x -v` — pass
-- [ ] **Logic tests**: positional construction raises `TypeError`; payload round-trips plain
+- [x] **Code**: expose both on the engines facade (`__all__` += the two names)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/ -x -v` — pass
+- [x] **Logic tests**: positional construction raises `TypeError`; payload round-trips plain
   dicts/lists/strs; edge — empty payload dict is valid
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: models match the entity declarations
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: models match the entity declarations
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 7: `BaseEngine` and `EngineError` — the per-instance contract (TDD)
 

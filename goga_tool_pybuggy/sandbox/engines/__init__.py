@@ -5,4 +5,7 @@ The facade is populated progressively by the engine entity tasks: ``DataOperatio
 ``KafkaEngine``, ``VaultEngine``, ``HttpEngine``.
 """
 
-__all__ = []
+from .address import InstanceAddress
+from .operation import DataOperation
+
+__all__ = ["DataOperation", "InstanceAddress"]
