@@ -1223,23 +1223,23 @@ through as given (matching, priority, delays, faults stay available).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 15 is being executed
-- [ ] **Contract tests**: `tests/sandbox/data/test_postgres.py`, `test_kafka.py`,
+- [x] **Declaration**: state that Task 15 is being executed
+- [x] **Contract tests**: `tests/sandbox/data/test_postgres.py`, `test_kafka.py`,
   `test_vault.py`, `test_http.py` — all four importable from the facade; constructor signature
   `(name, address, batch)`; properties `name`/`host`/`port`; the one declaring method each
-- [ ] **REPL prototype (R4)**: with a recording batch and an `InstanceAddress`, call each view
+- [x] **REPL prototype (R4)**: with a recording batch and an `InstanceAddress`, call each view
   method in the REPL; inspect the produced `DataOperation` against the payload table; then
   migrate
-- [ ] **Code**: create the four view modules in `goga_tool_pybuggy/sandbox/data/` per the
+- [x] **Code**: create the four view modules in `goga_tool_pybuggy/sandbox/data/` per the
   contract above; expose all four on the facade
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass
-- [ ] **Logic tests**: each view method appends exactly one `DataOperation` with the correct
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass
+- [x] **Logic tests**: each view method appends exactly one `DataOperation` with the correct
   `instance`, `kind`, `action`, and payload shape to the batch; properties read from the
   address; nothing else is touched (batch receives no execution call)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: declaration shapes match the payload table exactly
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: declaration shapes match the payload table exactly
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 16: `services` — the per-test data-preset decorator (TDD)
 

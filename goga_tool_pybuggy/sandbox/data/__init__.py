@@ -6,7 +6,15 @@ The facade is populated progressively by the data entity tasks: ``DataBatch``,
 """
 
 from .batch import DataBatch
+from .http import HttpInstance
+from .kafka import KafkaInstance
+from .postgres import PostgresInstance
+from .vault import VaultInstance
 
 __all__ = [
     "DataBatch",
+    "HttpInstance",
+    "KafkaInstance",
+    "PostgresInstance",
+    "VaultInstance",
 ]
