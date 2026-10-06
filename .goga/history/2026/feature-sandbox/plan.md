@@ -1329,25 +1329,25 @@ unreachable via the load-time validation.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 18 is being executed
-- [ ] **Contract tests**: `tests/sandbox/test_env_render.py` — importable from
+- [x] **Declaration**: state that Task 18 is being executed
+- [x] **Contract tests**: `tests/sandbox/test_env_render.py` — importable from
   `goga_tool_pybuggy.sandbox.env_render` (facade exposure lands with Task 22); signature and
   return type
-- [ ] **REPL prototype (R4)**: build the context for `{"db": InstanceAddress(host="127.0.0.2",
+- [x] **REPL prototype (R4)**: build the context for `{"db": InstanceAddress(host="127.0.0.2",
   port=5432)}` in the REPL; render `"postgres://{{db.host}}:{{db.port}}/test"` and
   `"no-placeholders"`; trigger `UndefinedError` on `{{ghost.host}}` and observe the wrap; then
   migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/env_render.py` per the algorithm
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_env_render.py -x -v` —
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/env_render.py` per the algorithm
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_env_render.py -x -v` —
   pass
-- [ ] **Logic tests**: `test_render_service_env_resolves_placeholders` —
+- [x] **Logic tests**: `test_render_service_env_resolves_placeholders` —
   `rendered["DATABASE_URL"] == "postgres://127.0.0.2:5432/test"`, `rendered["PLAIN"] ==
   "no-placeholders"`; negative: an unknown placeholder raises `ValueError` naming the env key
   and the value
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: strict rendering, context shape, error naming
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: strict rendering, context shape, error naming
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 19: `ServiceContainer` — the service under test (TDD)
 
