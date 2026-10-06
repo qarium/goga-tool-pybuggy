@@ -154,3 +154,8 @@ add-only and never cached — package edits apply from the next run, without rei
   pybuggy invited (an existing `.goga/config.yml` ends the session immediately) and then bootstraps the consumer's
   pybuggy environment (packaged usages, `conventions` slot, `build.review.skip`, Dockerfile install line, root
   conftest).
+
+The facade also re-exports the sandbox capability surface — `active_sandbox` (the session-fixture
+lookup of a running sandbox) and `services` (the per-test data-preset decorator) — so consumer
+conftest files and tests import them from the package root: `from goga_tool_pybuggy import
+active_sandbox, services`.

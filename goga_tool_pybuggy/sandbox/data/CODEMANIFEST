@@ -1,0 +1,171 @@
+Imports:
+  - Types:
+      - DataOperation
+      - InstanceAddress
+    From: goga_tool_pybuggy/sandbox/engines
+
+Usages:
+  conventions: .goga/usages/conventions.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `conventions` for the docstring rules.
+
+  Data declaration surface of the sandbox. Instance views declare dependency-data operations from
+  tests; presets declare them on the test itself; the batch accumulates the declared operations and
+  hands them over as one consistent unit. Declarations are lazy — nothing is executed at
+  declaration time. Use relative imports inside the cell.
+
+---
+
+"DataBatch()":
+  location: batch.py
+  annotations: |
+    The accumulated operations of the current test.
+
+    Requirements:
+    - One batch per test; the batch empties when taken.
+    - The accumulation order is the application order per instance — presets precede in-test
+    operations.
+
+    Use `conventions` for type hints and testing.
+  methods:
+    "add(operation: DataOperation)": |
+      Append one operation to the batch. Nothing is executed.
+    "take() -> operations: list[DataOperation]": |
+      Drain the batch in accumulation order; the batch is empty afterwards.
+
+"PostgresInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: postgres.py
+  annotations: |
+    Test-facing view of a started postgresql instance.
+
+    `name`: the instance name from the sandbox configuration.
+    `address`: the mapped address of the started instance.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured instance name.
+    "host -> str": |
+      The mapped host — the value the service env placeholders resolve to.
+    "port -> int": |
+      The published port — the value the service env placeholders resolve to.
+  methods:
+    "insert(table: str, rows: list[dict[str, object]])": |
+      Declare row inserts into one table. One call targets one table; rows apply in list order.
+      For foreign-key chains across tables, declare parents first.
+
+      `table`: the target table.
+      `rows`: the rows to insert, in order.
+
+"KafkaInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: kafka.py
+  annotations: |
+    Test-facing view of a started kafka instance.
+
+    `name`: the instance name from the sandbox configuration.
+    `address`: the mapped address of the started instance.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured instance name.
+    "host -> str": |
+      The mapped host — the value the service env placeholders resolve to.
+    "port -> int": |
+      The published port — the value the service env placeholders resolve to.
+  methods:
+    "produce(topic: str, value: dict[str, object] | str, key: str | None)": |
+      Declare one message produce.
+
+      `topic`: the target topic — it must exist in the instance's AsyncAPI spec.
+      `value`: the message value.
+      `key`: the optional partition key.
+
+"VaultInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: vault.py
+  annotations: |
+    Test-facing view of a started vault instance.
+
+    `name`: the instance name from the sandbox configuration.
+    `address`: the mapped address of the started instance.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured instance name.
+    "host -> str": |
+      The mapped host — the value the service env placeholders resolve to.
+    "port -> int": |
+      The published port — the value the service env placeholders resolve to.
+  methods:
+    "put(path: str, data: dict[str, object])": |
+      Declare one secret write.
+
+      `path`: the secret path.
+      `data`: the secret data.
+
+"HttpInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: http.py
+  annotations: |
+    Test-facing view of a started http instance.
+
+    `name`: the instance name from the sandbox configuration.
+    `address`: the mapped address of the started instance.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured instance name.
+    "host -> str": |
+      The mapped host — the value the service env placeholders resolve to.
+    "port -> int": |
+      The published port — the value the service env placeholders resolve to.
+  methods:
+    "stub(mapping: dict[str, object])": |
+      Declare one stub mapping. Matching, priority, delays, and faults pass through as given.
+
+      `mapping`: the mapping object of the http mock.
+
+"services(...presets: dict[str, dict[str, list[dict[str, object]]]]) -> decorator: Callable":
+  location: presets.py
+  annotations: |
+    Per-test data-preset decorator: kind-named arguments carrying instance-targeted declarations.
+
+    `presets`: kind → instance name → declaration list; every declaration carries the same fields
+    as the matching instance view operation.
+    `decorator`: the marker applied to the test.
+
+    Algorithm:
+    1. Validate the declarations at decoration — only the four supported kinds; anything else
+    fails listing the supported kinds.
+    2. Mark the test with the presets.
+    3. At the test's start the marked presets enqueue into that test's batch, ahead of any in-test
+    operation — instance names resolve there against the sandbox configuration; an unknown
+    name fails listing the configured instances.
+
+    Requirements:
+    - Presets apply only to the test declaring them.
+    - Declaration order within one instance is the application order — parents before children for
+    foreign-key chains.
+
+    Constraints:
+    - Do not execute anything at decoration time.
+
+    Use `conventions` for type hints and testing.
+
+---
+
+Author: Goga
+CreatedAt: 06/10/26
+Description: |
+  Data declaration surface of the sandbox — instance views, the lazy batch, and per-test presets.
