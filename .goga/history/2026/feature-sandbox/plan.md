@@ -526,18 +526,18 @@ everything inside it (R1.2).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create the virtualenv: `python3 -m venv .venv` and install the project editable with the
+- [x] Create the virtualenv: `python3 -m venv .venv` and install the project editable with the
   test extra: `.venv/bin/pip install -e '.[test]'`; verify `.venv/bin/python -c "import
   goga_tool_pybuggy"` succeeds
-- [ ] Create `goga_tool_pybuggy/sandbox/__init__.py` — package marker with a module docstring
+- [x] Create `goga_tool_pybuggy/sandbox/__init__.py` — package marker with a module docstring
   only (the 6-name facade is populated in Task 22, after all sandbox-cell entities exist)
-- [ ] Create `goga_tool_pybuggy/sandbox/config/__init__.py` — docstring + `__all__ = []`
+- [x] Create `goga_tool_pybuggy/sandbox/config/__init__.py` — docstring + `__all__ = []`
   (populated progressively by Tasks 3–4)
-- [ ] Create `tests/sandbox/__init__.py` and `tests/sandbox/config/__init__.py`
-- [ ] Verify package importability: `.venv/bin/python -c "import goga_tool_pybuggy.sandbox;
+- [x] Create `tests/sandbox/__init__.py` and `tests/sandbox/config/__init__.py`
+- [x] Verify package importability: `.venv/bin/python -c "import goga_tool_pybuggy.sandbox;
   import goga_tool_pybuggy.sandbox.config"`
-- [ ] Verify the existing suite still passes: `.venv/bin/pytest tests/ -x` (baseline green)
-- [ ] Lint gate (also the pre-commit gate for this task's commit): `.venv/bin/ruff check
+- [x] Verify the existing suite still passes: `.venv/bin/pytest tests/ -x` (baseline green)
+- [x] Lint gate (also the pre-commit gate for this task's commit): `.venv/bin/ruff check
   goga_tool_pybuggy/ tests/` — exit 0
 
 ### Task 2: Dependencies and packaged usage data in `pyproject.toml` (infrastructure)
