@@ -1659,21 +1659,21 @@ failed start surfaces an actionable error and leaves nothing behind").
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create `tests/sandbox/test_session_lifecycle.py`
-- [ ] `test_sessionstart_failure_stops_everything_and_reraises` — Sandbox with one FakeEngine
+- [x] Create `tests/sandbox/test_session_lifecycle.py`
+- [x] `test_sessionstart_failure_stops_everything_and_reraises` — Sandbox with one FakeEngine
   whose `start` raises; FakeService recording stop; simulate the sessionstart hook body
   (construct + start): the exception propagates AND every started engine and the service got
   `stop()`
-- [ ] Armed flow over fakes: a valid document; `activate_sandbox(ctx)`; invoke
+- [x] Armed flow over fakes: a valid document; `activate_sandbox(ctx)`; invoke
   `ctx["pytest_sessionstart"]` (Sandbox/engine seams faked) → `active_sandbox()` resolves the
   started sandbox; a marked item through `ctx["pytest_runtest_setup"]` enqueues presets ahead
   of in-test view declarations; `apply_pending()` applies groups in order; a raising operation
   surfaces a readable error identifying it; `ctx["pytest_sessionfinish"]` stops everything and
   clears `active_sandbox()`
-- [ ] Test edge case: presets precede in-test operations within one instance group (first
+- [x] Test edge case: presets precede in-test operations within one instance group (first
   preset op, then the in-test op, in `engine.applied` order)
-- [ ] Run validation: `.venv/bin/pytest tests/sandbox/ -x -v`
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] Run validation: `.venv/bin/pytest tests/sandbox/ -x -v`
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
 
 ---
 
