@@ -10,5 +10,14 @@ from .base import BaseEngine, EngineError
 from .kafka import KafkaEngine
 from .operation import DataOperation
 from .postgres import PostgresEngine
+from .vault import VaultEngine
 
-__all__ = ["BaseEngine", "DataOperation", "EngineError", "InstanceAddress", "KafkaEngine", "PostgresEngine"]
+__all__ = [
+    "BaseEngine",
+    "DataOperation",
+    "EngineError",
+    "InstanceAddress",
+    "KafkaEngine",
+    "PostgresEngine",
+    "VaultEngine",
+]
