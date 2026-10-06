@@ -656,24 +656,24 @@ beyond the named document.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 4 is being executed
-- [ ] **Contract tests**: `tests/sandbox/config/test_loader.py` — importable from the facade;
+- [x] **Declaration**: state that Task 4 is being executed
+- [x] **Contract tests**: `tests/sandbox/config/test_loader.py` — importable from the facade;
   signature `(path: str | None)`; returns `SandboxConfig | None`
-- [ ] Create the shared loader fixture `sandbox_yaml(tmp_path, monkeypatch, content)` in
+- [x] Create the shared loader fixture `sandbox_yaml(tmp_path, monkeypatch, content)` in
   `tests/sandbox/conftest.py` — writes `.sandbox.yml` into `tmp_path`, `monkeypatch.chdir`,
   returns the path
-- [ ] **REPL prototype (R4)**: in the venv REPL parse the `sandbox-file.md` example document
+- [x] **REPL prototype (R4)**: in the venv REPL parse the `sandbox-file.md` example document
   with ruamel.yaml (write it to a `/tmp` file first); observe the parsed mapping shape, the
   None result for empty content, and the exception type for unparsable content; prototype the
   placeholder grammar regex against `"postgres://{{db.host}}:{{db.port}}/x"`, `"{{events}}"`,
   `"{{db.hst}}"`; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/config/loader.py` implementing the 7-step
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/config/loader.py` implementing the 7-step
   algorithm (structured INFO log on successful load; every `ValueError` names the location and
   the offending entry)
-- [ ] **Code**: expose `load_sandbox_config` on the cell facade (`__all__` now carries all five
+- [x] **Code**: expose `load_sandbox_config` on the cell facade (`__all__` now carries all five
   names)
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — pass
-- [ ] **Logic tests** (design test stack, verbatim scenarios):
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — pass
+- [x] **Logic tests** (design test stack, verbatim scenarios):
   `test_load_returns_validated_model_for_full_document` (the `sandbox-file.md` example: service
   image `my-service:latest`, port 8080, health `/health`, three placeholders; instances
   db/events/secrets/payments; all four data sections; asserts `config.data.kafka ==
@@ -687,12 +687,12 @@ beyond the named document.
   `test_load_fails_missing_required_service_field` (missing `port` named);
   `test_load_fails_unparsable_yaml` (content `":\n - ["` → location + problem named);
   `test_load_fails_empty_document` (zero bytes → match `".sandbox.yml"`)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green (do NOT fix
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green (do NOT fix
   test code); reproduce failures in the REPL with the exact fixture content first (R4.3)
-- [ ] **Contract re-verification**: loader algorithm, requirements, and constraints hold —
+- [x] **Contract re-verification**: loader algorithm, requirements, and constraints hold —
   validation completes before anything starts; every message names location + entry
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ---
 
