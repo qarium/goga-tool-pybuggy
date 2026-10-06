@@ -1804,19 +1804,19 @@ are not roots).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 25 is being executed
-- [ ] **Contract tests** (extend `tests/commands/init/test_bootstrap.py`): after
+- [x] **Declaration**: state that Task 25 is being executed
+- [x] **Contract tests** (extend `tests/commands/init/test_bootstrap.py`): after
   `run_bootstrap(template_mode=True)` the five stems exist under
   `.goga/usages/cooks/pybuggy/` and the three new `pybuggy-<stem>` keys + annotation lines are
   registered
-- [ ] **REPL prototype (R4)**: in the REPL walk `importlib.resources.files(
+- [x] **REPL prototype (R4)**: in the REPL walk `importlib.resources.files(
   "goga_tool_pybuggy.sandbox")` with the existing `_walk` and list the collected stems;
   confirm exactly `sandbox-session`, `sandbox-file`, `data-operations`; then migrate
-- [ ] **Code**: `commands/init/init.py` — drive `_discover_usages` over the two roots (api +
+- [x] **Code**: `commands/init/init.py` — drive `_discover_usages` over the two roots (api +
   sandbox) and merge the results; extend `PYBUGGY_ANNOTATIONS` with the three hand-authored
   lines
-- [ ] **Interface verification**: `.venv/bin/pytest tests/commands/init/ -x -v` — pass
-- [ ] **Logic tests** (design test stack): `test_bootstrap_copies_and_registers_sandbox_usages`
+- [x] **Interface verification**: `.venv/bin/pytest tests/commands/init/ -x -v` — pass
+- [x] **Logic tests** (design test stack): `test_bootstrap_copies_and_registers_sandbox_usages`
   — existing bootstrap harness (tmp CWD, fake `.goga` config writer): all five files exist
   under tmp `.goga/usages/cooks/pybuggy/` (incl. `asserts.md` — as today); usage keys
   `pybuggy-sandbox-session`, `pybuggy-sandbox-file`, `pybuggy-data-operations` registered;
@@ -1825,11 +1825,14 @@ are not roots).
   `.goga/usages/cooks/pybuggy/sandbox-session.md` with sentinel content; run bootstrap twice in
   template mode → sentinel intact, INFO logged; bare mode (`template_mode=False`) overwrites
   (counter-test)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: two-root scope, five-stem collection, registration parity
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+  (`test_run_bootstrap_idempotent_rerun`'s already-registered warning counts updated 3 → 6 —
+  the two-root scope registers five pybuggy keys + conventions, so six keys now warn on rerun;
+  the test's intent — every pre-registered key warns — is unchanged)
+- [x] **Contract re-verification**: two-root scope, five-stem collection, registration parity
   ("one distribution path, one registration path"), unchanged copy gates
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 26: Root facade — re-export `active_sandbox` and `services` (TDD)
 

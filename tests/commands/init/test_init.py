@@ -618,8 +618,8 @@ class TestRunBootstrap:
         assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == snapshot
 
         warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
-        assert warnings.count("usage already registered, skipped") == 3
-        assert warnings.count("annotation already registered, skipped") == 3
+        assert warnings.count("usage already registered, skipped") == 6
+        assert warnings.count("annotation already registered, skipped") == 6
 
     @pytest.mark.parametrize(
         "config_text",

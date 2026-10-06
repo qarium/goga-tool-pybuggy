@@ -45,10 +45,31 @@ def _walk(directory: Any, discovered: list[tuple[str, str]]) -> None:
 
 
 def _discover_usages(root: Any) -> list[tuple[str, str]]:
-    """Recursively discover ``.usages/*.md`` files under ``root`` (the installed goga_tool_pybuggy.api package)."""
+    """Recursively discover ``.usages/*.md`` files under an installed package ``root``."""
     discovered: list[tuple[str, str]] = []
 
     _walk(root, discovered)
+
+    return discovered
+
+
+# The packaged usage roots the bootstrap distributes: the api cell (its walk also collects the
+# ``asserts`` sub-package riding that root) plus the sandbox subtree cells. The plugin and commands
+# cells are not roots — their usages stay out of the consumer target.
+_USAGE_ROOTS = ("goga_tool_pybuggy.api", "goga_tool_pybuggy.sandbox")
+
+
+def _discover_packaged_usages() -> list[tuple[str, str]]:
+    """Discover ``.usages/*.md`` files under every packaged usage root, roots in order.
+
+    Returns:
+        The ``(stem, text)`` pairs of every packaged usage file — five stems today: api, asserts,
+        sandbox-session, sandbox-file, data-operations.
+    """
+    discovered: list[tuple[str, str]] = []
+
+    for root in _USAGE_ROOTS:
+        discovered.extend(_discover_usages(importlib.resources.files(root)))
 
     return discovered
 
@@ -58,6 +79,15 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
 PYBUGGY_ANNOTATIONS: dict[str, str] = {
     "api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
     "asserts": ("Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses."),
+    "sandbox-session": (
+        "Use `pybuggy-sandbox-session` for the sandbox consumer fixtures: activation, baseline, reset, and api usage."
+    ),
+    "sandbox-file": (
+        "Use `pybuggy-sandbox-file` for authoring `.sandbox.yml`: service entry, instances, and startup data."
+    ),
+    "data-operations": (
+        "Use `pybuggy-data-operations` for declaring lazy sandbox data from tests: rows, stubs, secrets, messages."
+    ),
 }
 
 # Annotation line for the ``conventions`` usage key — the sole source registered under ``codemanifest.annotations``.
@@ -252,7 +282,7 @@ def run_bootstrap(template_mode: bool) -> int:
     config = cwd / ".goga" / "config.yml"
 
     try:
-        discovered = _discover_usages(importlib.resources.files("goga_tool_pybuggy.api"))
+        discovered = _discover_packaged_usages()
 
         for stem, text in discovered:
             dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"
