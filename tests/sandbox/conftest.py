@@ -1,9 +1,38 @@
-"""Shared pytest fixtures for the sandbox test package."""
+"""Shared pytest fixtures for the sandbox test package.
 
+Also carries the container-runtime availability probe and the ``requires_docker`` skip condition
+every docker-gated test in the plan reuses: ``from ..conftest import requires_docker``.
+"""
+
+import functools
 import pathlib
 from collections.abc import Callable
 
+import docker
 import pytest
+
+
+@functools.lru_cache(maxsize=1)
+def docker_available() -> bool:
+    """Probe the container-runtime availability once per test session.
+
+    Pings the daemon through the docker SDK client — the same client testcontainers drives — and
+    treats any failure as unavailability, so container-dependent tests skip instead of hanging on
+    a silent connection timeout.
+
+    Returns:
+        True when a docker-compatible daemon answers the ping, False otherwise.
+    """
+    try:
+        return bool(docker.from_env().ping())
+    except Exception:
+        return False
+
+
+requires_docker = pytest.mark.skipif(
+    not docker_available(),
+    reason="docker-compatible container runtime unavailable",
+)
 
 
 @pytest.fixture

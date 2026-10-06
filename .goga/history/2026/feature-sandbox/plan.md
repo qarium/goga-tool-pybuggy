@@ -709,15 +709,15 @@ docker availability fixtures every container-dependent test in the plan reuses.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create `goga_tool_pybuggy/sandbox/engines/__init__.py` — docstring + `__all__ = []`
+- [x] Create `goga_tool_pybuggy/sandbox/engines/__init__.py` — docstring + `__all__ = []`
   (populated progressively by Tasks 6–12)
-- [ ] Create `tests/sandbox/engines/__init__.py`
-- [ ] Extend `tests/sandbox/conftest.py` with `docker_available()` (session-scoped probe) and
+- [x] Create `tests/sandbox/engines/__init__.py`
+- [x] Extend `tests/sandbox/conftest.py` with `docker_available()` (session-scoped probe) and
   the module-level skip condition `requires_docker = pytest.mark.skipif(not docker_available(),
   reason="docker-compatible container runtime unavailable")`
-- [ ] Verify: `.venv/bin/python -c "import goga_tool_pybuggy.sandbox.engines"` and
+- [x] Verify: `.venv/bin/python -c "import goga_tool_pybuggy.sandbox.engines"` and
   `.venv/bin/pytest tests/sandbox/ -q` (fixtures collect cleanly)
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
 
 ### Task 6: `DataOperation` and `InstanceAddress` models (TDD)
 
