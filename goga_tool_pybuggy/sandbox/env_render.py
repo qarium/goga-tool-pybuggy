@@ -3,7 +3,7 @@
 import logging
 
 from jinja2 import Environment, StrictUndefined
-from jinja2.exceptions import UndefinedError
+from jinja2.exceptions import TemplateSyntaxError, UndefinedError
 
 from .engines.address import InstanceAddress
 
@@ -27,9 +27,9 @@ def render_service_env(env: dict[str, str], addresses: dict[str, InstanceAddress
         The rendered env mapping with every placeholder resolved.
 
     Raises:
-        ValueError: A value references an unknown placeholder — the message names the env key
-            and the offending value. Defense in depth: the load-time validation already rejects
-            such documents.
+        ValueError: A value is not a well-formed template or references an unknown
+            placeholder — the message names the env key and the offending value. Defense in
+            depth: the load-time validation already rejects such documents.
     """
     context = {name: {"host": address.host, "port": address.port} for name, address in addresses.items()}
 
@@ -39,7 +39,7 @@ def render_service_env(env: dict[str, str], addresses: dict[str, InstanceAddress
     for key, value in env.items():
         try:
             rendered[key] = environment.from_string(value).render(context)
-        except UndefinedError as exc:
+        except (TemplateSyntaxError, UndefinedError) as exc:
             raise ValueError("env key '" + key + "': cannot render value '" + value + "': " + str(exc)) from exc
 
         logger.debug("service env value rendered", extra={"env_key": key})

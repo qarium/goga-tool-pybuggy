@@ -1,6 +1,7 @@
 """Contract and logic tests for the ``KafkaEngine`` entity."""
 
 import inspect
+import json
 from typing import ClassVar
 
 import pytest
@@ -9,6 +10,7 @@ from goga_tool_pybuggy.sandbox.config import InstanceConfig
 from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, KafkaEngine
 from goga_tool_pybuggy.sandbox.engines import kafka as kafka_module
 from goga_tool_pybuggy.sandbox.engines.kafka import _serialize_value
+from kafka import KafkaConsumer
 
 from ..conftest import requires_docker
 
@@ -427,8 +429,34 @@ class TestKafkaEnginePlane:
 class TestKafkaEngineContainer:
     """Live behavior of the kafka engine against a real container (docker-gated)."""
 
+    @staticmethod
+    def _consumed_values(engine: KafkaEngine, topic: str) -> list[object]:
+        """Read every message currently on ``topic``, from the beginning.
+
+        Args:
+            engine: The started kafka engine owning the mapped broker address.
+            topic: The spec-defined topic to drain.
+
+        Returns:
+            The JSON-deserialized message values currently held by the topic.
+        """
+        address = engine.address
+        consumer = KafkaConsumer(
+            topic,
+            bootstrap_servers=f"{address.host}:{address.port}",
+            auto_offset_reset="earliest",
+            enable_auto_commit=False,
+            consumer_timeout_ms=5000,
+            value_deserializer=lambda raw: json.loads(raw.decode("utf-8")),
+        )
+
+        try:
+            return [message.value for message in consumer]
+        finally:
+            consumer.close()
+
     def test_kafka_engine_spec_mount_and_restart_reset(self, tmp_path: pytest.TempPathFactory):
-        """Reset restarts the same container: address stable, topology back, baseline replayed."""
+        """Reset restarts the same container: address stable, messages wiped, baseline replayed."""
         spec = tmp_path / "asyncapi.yaml"
         spec.write_text(
             """
@@ -459,10 +487,17 @@ channels:
             engine.record([produce_op("orders.events", {"id": 0}, key="baseline")])
             engine.apply([produce_op("orders.events", {"id": 2})])
 
+            assert self._consumed_values(engine, "orders.events") == [{"id": 1}, {"id": 0}, {"id": 2}]
+
             engine.reset()
 
             assert engine.address == address_before
+            # The restart wiped the in-memory state: only the replayed baseline remains.
+            assert self._consumed_values(engine, "orders.events") == [{"id": 0}]
+
             engine.apply([produce_op("orders.events", {"id": 3})])
+
+            assert self._consumed_values(engine, "orders.events") == [{"id": 0}, {"id": 3}]
         finally:
             engine.stop()
 

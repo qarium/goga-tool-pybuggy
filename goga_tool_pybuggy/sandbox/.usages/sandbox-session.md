@@ -29,13 +29,14 @@ file the suite behaves exactly as it would without the sandbox.
 import pytest
 from goga_tool_pybuggy import active_sandbox
 
+
 @pytest.fixture(scope="session")
 def sandbox():
     sbx = active_sandbox()
-    with sbx.baseline():                      # the baseline boundary — author code
+    with sbx.baseline():  # the baseline boundary — author code
         sbx.postgresql("db").insert("customers", rows=[{"id": 1, "name": "Ann"}])
         sbx.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
-    yield sbx                                 # stop is product-owned — do not stop manually
+    yield sbx  # stop is product-owned — do not stop manually
 ```
 
 Operations inside the baseline boundary apply immediately and become the session baseline: after
@@ -62,9 +63,11 @@ Tests use the standard api fixture unchanged — its address resolves from the s
 ```python
 from goga_tool_pybuggy.api import Api, Endpoint
 
+
 @pytest.fixture(scope="function")
 def checkout(api: Api) -> Endpoint:
     return Endpoint(api, "/checkout", method="POST")
+
 
 def test_checkout(checkout, sandbox):
     sandbox.postgresql("db").insert("orders", rows=[{"id": 100, "customer_id": 1}])

@@ -1,6 +1,7 @@
 """Contract and logic tests for the ``load_sandbox_config`` routine."""
 
 import inspect
+import re
 
 import pytest
 from goga_tool_pybuggy.sandbox.config import SandboxConfig, load_sandbox_config
@@ -229,4 +230,104 @@ class TestLoadSandboxConfigLogic:
         sandbox_yaml("")
 
         with pytest.raises(ValueError, match=r"\.sandbox\.yml"):
+            load_sandbox_config(None)
+
+    @pytest.mark.parametrize(
+        ("document", "match"),
+        [
+            ("service:\n  image: i\n  port: 1\n  env: {}\ninstances: []", r"instances.*mapping"),
+            (
+                "service:\n  image: i\n  port: 1\n  env: {}\ninstances:\n  ' ': { kind: postgresql }",
+                r"instances.*non-empty string",
+            ),
+            (
+                "service:\n  image: i\n  port: 1\n  env: {}\ninstances:\n  db: oops",
+                r"instances\.db.*mapping",
+            ),
+            (
+                "service:\n  image: i\n  port: 1\n  env: {}\ninstances:\n  db: { image: x }",
+                r"instances\.db\.kind.*missing",
+            ),
+            (
+                "service:\n  image: i\n  port: 1\n  env: {}\ninstances:\n  db: { kind: }\n",
+                r"instances\.db\.kind.*missing",
+            ),
+            ("service:\n  image: i\n  port: 1\n  env: {}\ninstances: {}\ndata: []", r"data.*mapping"),
+            (
+                "service:\n  image: i\n  port: 1\n  env: {}\ninstances:\n  db: { kind: postgresql }\n"
+                "data:\n  postgres: oops",
+                r"data\.postgres.*mapping",
+            ),
+            (
+                "service:\n  image: i\n  port: 1\n  env: {}\ninstances: {}\ndata:\n  cache: {}",
+                r"data\.cache.*unknown data section.*vault, http, kafka, postgres",
+            ),
+            (
+                "service:\n  image: i\n  port: 1\n  env: {}\ninstances:\n  events: { kind: kafka }\n"
+                "data:\n  kafka:\n    events: 7",
+                r"data\.kafka\.events.*non-empty string",
+            ),
+            (
+                "service:\n  image: i\n  port: [1]\n  env: {}\ninstances: {}",
+                r"service.*port.*Input should be a valid integer",
+            ),
+        ],
+    )
+    def test_load_fails_malformed_entries_naming_the_location(self, sandbox_yaml, document, match):
+        """Every malformed entry branch fails with the location and the offending entry named."""
+        sandbox_yaml(document)
+
+        with pytest.raises(ValueError, match=match):
+            load_sandbox_config(None)
+
+    @pytest.mark.parametrize(
+        "name",
+        ["my-db", "1db", "db.two", "events!"],
+    )
+    def test_load_fails_instance_name_that_is_not_a_template_identifier(self, sandbox_yaml, name):
+        """Instance names double as Jinja2 placeholder identifiers — anything else fails."""
+        sandbox_yaml(f"service:\n  image: i\n  port: 1\n  env: {{}}\ninstances:\n  {name}: {{ kind: postgresql }}\n")
+
+        with pytest.raises(ValueError, match=rf"instances\.{re.escape(name)}.*template identifier"):
+            load_sandbox_config(None)
+
+    def test_load_fails_unterminated_placeholder_in_env_value(self, sandbox_yaml):
+        """An env value with an unterminated ``{{`` fails at load time, not at render time."""
+        sandbox_yaml(
+            "service:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env:\n"
+            '    DATABASE_URL: "postgres://{{db.host:5432/app"\n'
+            "instances:\n"
+            "  db: { kind: postgresql }\n"
+        )
+
+        with pytest.raises(ValueError, match=r"DATABASE_URL.*unterminated.*'\{\{'"):
+            load_sandbox_config(None)
+
+    @pytest.mark.parametrize(
+        ("declaration", "match"),
+        [
+            ("- { data: {k: v} }", r"data\.vault\.secrets.*non-empty string 'path'"),
+            ("- { path: 7, data: {k: v} }", r"data\.vault\.secrets.*non-empty string 'path'"),
+            ("- { path: p }", r"data\.vault\.secrets.*mapping 'data'"),
+            ("- { path: p, data: oops }", r"data\.vault\.secrets.*mapping 'data'"),
+        ],
+    )
+    def test_load_fails_vault_declaration_of_wrong_shape(self, sandbox_yaml, declaration, match):
+        """A malformed vault secret declaration fails at load time naming the section."""
+        sandbox_yaml(
+            "service:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "instances:\n"
+            "  secrets: { kind: vault }\n"
+            "data:\n"
+            "  vault:\n"
+            f"    secrets:\n      {declaration}\n"
+        )
+
+        with pytest.raises(ValueError, match=match):
             load_sandbox_config(None)

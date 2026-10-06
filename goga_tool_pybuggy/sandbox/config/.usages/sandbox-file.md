@@ -43,7 +43,18 @@ data:                             # startup data layer, applied before the servi
 ## Instances
 
 - Every instance has a name (the key) and a `kind`: `postgresql`, `kafka`, `vault`, or `http`.
-- `image` overrides the product-pinned default image of the kind — omit it for the default.
+- The name is a template identifier — letters, digits, underscores, not starting with a digit —
+  because it names the `{{<name>.host}}` / `{{<name>.port}}` placeholders (a hyphenated name
+  such as `my-db` is rejected at load time).
+- `image` overrides the product-pinned default image of the kind — omit it for the default:
+
+| kind | product-pinned default image |
+|---|---|
+| `postgresql` | `postgres:16-alpine` |
+| `kafka` | `mokapi/mokapi:0.28.0` |
+| `vault` | `hashicorp/vault:1.17` |
+| `http` | `wiremock/wiremock:3.13.0` |
+
 - Any subset of kinds may be configured; configure only the dependencies the service needs.
 - A `grpc` kind is rejected at startup with an explicit "not supported yet" error.
 
@@ -76,7 +87,8 @@ declare parents before children.
 ## Preconditions and constraints
 
 - The file name and location are fixed: `.sandbox.yml` at the repository root.
-- An invalid file (unknown kind, unknown instance reference, missing required field, unparsable
-  YAML) fails the run before any container starts, with an error naming the entry.
+- An invalid file (unknown kind, unknown instance reference, missing required field, malformed
+  placeholder or declaration, unparsable YAML) fails the run before any container starts, with
+  an error naming the entry.
 - Without the file the product is fully inert — nothing starts, nothing changes.
 - A container runtime must be available in the environment running the tests.

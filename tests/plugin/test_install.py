@@ -120,3 +120,35 @@ class TestInstallLogic:
         goga_tool_pybuggy.plugin.install(context=context)
 
         assert captured["plugin"].sandbox_activation is None
+
+    def test_install_with_document_composes_real_activation(self, tmp_path, monkeypatch):
+        """A real `.sandbox.yml` composes: the lifecycle hooks land in the context, the plugin arms."""
+        from goga_tool_pybuggy.sandbox import activation as activation_module
+        from goga_tool_pybuggy.sandbox.config import SandboxConfig
+
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / ".sandbox.yml").write_text(
+            "service:\n  image: my-service:latest\n  port: 8080\n  env: {}\ninstances:\n  db: { kind: postgresql }\n",
+            encoding="utf-8",
+        )
+
+        context: dict[str, object] = {}
+        captured: dict[str, object] = {}
+
+        def fake_install(plugin: object, context: dict[str, object] | None = None) -> None:
+            captured["plugin"] = plugin
+
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+
+        try:
+            goga_tool_pybuggy.plugin.install(context=context)
+        finally:
+            activation_module._ARMED = None  # do not leak the armed state into other tests
+
+        for hook in ("pytest_sessionstart", "pytest_sessionfinish", "pytest_runtest_setup"):
+            assert callable(context[hook]), hook
+
+        activation = captured["plugin"].sandbox_activation
+
+        assert isinstance(activation, SandboxConfig)
+        assert activation.service.image == "my-service:latest"

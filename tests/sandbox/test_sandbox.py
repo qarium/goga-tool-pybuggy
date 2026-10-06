@@ -42,6 +42,24 @@ def sandbox_config() -> SandboxConfig:
     )
 
 
+class RefusingStopEngine(FakeEngine):
+    """Engine double whose stop always raises — the guarded-teardown scenario.
+
+    The refusal raises after the lifecycle event was recorded, so the teardown-order
+    assertions still see the stop attempt.
+    """
+
+    def stop(self) -> None:
+        """Record the stop attempt, then refuse it.
+
+        Raises:
+            RuntimeError: Always — the guarded-teardown scenario.
+        """
+        self._emit("stop")
+
+        raise RuntimeError(f"instance '{self.name}': stop failed: fake refused to stop")
+
+
 class SandboxHarness:
     """The sample sandbox scenario wired over recording fakes.
 
@@ -53,7 +71,13 @@ class SandboxHarness:
         sandbox: The wired session sandbox; set by ``wire``.
     """
 
-    def __init__(self, fail_payments_start: bool = False, service_alive: bool = True, service_logs: str = "") -> None:
+    def __init__(
+        self,
+        fail_payments_start: bool = False,
+        service_alive: bool = True,
+        service_logs: str = "",
+        fail_db_stop: bool = False,
+    ) -> None:
         """Initialize the fakes of the sample scenario.
 
         Args:
@@ -61,11 +85,13 @@ class SandboxHarness:
                 cleanup scenario.
             service_alive: The liveness every ``alive()`` probe of the fake service reports.
             service_logs: The diagnostic output every ``logs()`` call of the fake service reports.
+            fail_db_stop: Make the db engine's ``stop`` raise — the guarded-teardown scenario.
         """
         self.events: list[str] = []
         self.config = sandbox_config()
+        db_engine = RefusingStopEngine if fail_db_stop else FakeEngine
         self.engines: dict[str, FakeEngine] = {
-            "db": FakeEngine(
+            "db": db_engine(
                 name="db",
                 kind="postgresql",
                 address=InstanceAddress(host="127.0.0.2", port=5432),
@@ -332,6 +358,20 @@ class TestSandboxLifecycle:
 
         assert all(engine.stopped for engine in started.engines.values())
         assert started.service.stopped is True
+
+    def test_stop_survives_a_failing_engine_stop_and_removes_the_rest(self, monkeypatch: pytest.MonkeyPatch):
+        """One engine's failing stop never blocks the remaining removals or raises."""
+        harness = SandboxHarness(fail_db_stop=True)
+        harness.wire(monkeypatch).start()
+        harness.events.clear()
+
+        harness.sandbox.stop()  # must not raise although the db engine's stop fails
+
+        assert harness.events == ["service:stop", "engine:payments:stop", "engine:db:stop"]
+        assert harness.service.stopped is True
+        assert harness.engines["payments"].stopped is True
+
+        harness.sandbox.stop()  # still idempotent after the failed removal
 
 
 class TestSandboxEnsureService:

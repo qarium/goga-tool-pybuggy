@@ -241,6 +241,33 @@ class TestPostgresEnginePlane:
         with pytest.raises(RuntimeError, match='relation "ghost" does not exist'):
             engine._execute(insert_op([{"id": 1}]))
 
+    @pytest.mark.parametrize(
+        "payload",
+        [{}, {"table": "orders"}, {"rows": [{"id": 1}]}, {"topic": "orders.events"}],
+    )
+    def test_execute_fails_readably_without_either_insert_form(self, payload):
+        """A payload carrying neither ``sql`` nor ``table`` + ``rows`` fails naming both forms."""
+        engine = db_engine()
+        engine._connection = FakeConnection()
+
+        operation = DataOperation(instance="db", kind="postgresql", action="insert", payload=payload)
+
+        with pytest.raises(RuntimeError, match=r"must carry either 'sql' or 'table' \+ 'rows'"):
+            engine._execute(operation)
+
+        assert engine._connection.statements == []
+
+    def test_apply_wraps_the_missing_form_error_into_engine_error(self):
+        """Through the apply path the malformed payload surfaces as a readable ``EngineError``."""
+        engine = db_engine()
+        engine._connection = FakeConnection()
+        engine._started = True
+
+        operation = DataOperation(instance="db", kind="postgresql", action="insert", payload={"table": "orders"})
+
+        with pytest.raises(EngineError, match=r"instance 'db': insert failed:.*'table' \+ 'rows'"):
+            engine.apply([operation])
+
     def test_wipe_truncates_every_discovered_table_in_one_statement(self):
         """Wipe discovers the catalog at reset time and truncates all tables in one statement."""
         engine = db_engine()

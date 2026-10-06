@@ -84,3 +84,13 @@ class TestRenderServiceEnvLogic:
 
         with pytest.raises(ValueError, match=r"DATABASE_URL.*db\.hst"):
             render_service_env({"DATABASE_URL": value}, addresses)
+
+    def test_render_service_env_fails_malformed_template_naming_key_and_value(self):
+        """A syntactically broken value fails as ``ValueError`` naming the env key."""
+        from goga_tool_pybuggy.sandbox.env_render import render_service_env
+
+        value = "postgres://{{db.host:5432/x"
+        addresses = {"db": InstanceAddress(host="127.0.0.2", port=5432)}
+
+        with pytest.raises(ValueError, match=r"DATABASE_URL.*cannot render value"):
+            render_service_env({"DATABASE_URL": value}, addresses)

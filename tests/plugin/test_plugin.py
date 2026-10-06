@@ -846,6 +846,75 @@ class TestApiPluginSandboxIntegration:
         with pytest.raises(pytest.UsageError, match=r"--base-url.*sandbox"):
             _lifecycle(plugin, args=["--base-url", "http://x"], options={"base_url": "http://x"})
 
+    def test_configure_with_armed_sandbox_still_requires_the_base_url_option(self, tmp_path, monkeypatch):
+        """The base_url option stays required with an armed sandbox — the contract keeps it.
+
+        The sandbox owns the address at read time only; the option itself is still rendered
+        in configure exactly as before, so a consumer without any base_url source fails on
+        the required-option error.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BASE_URL", raising=False)
+
+        plugin = ApiPlugin(context={})
+        plugin.sandbox_activation = SandboxConfig(
+            service=ServiceConfig(image="my-service:latest", env={}, port=8080, health=None),
+            instances={},
+            data=StartupData(),
+        )
+
+        with pytest.raises(ValueError, match=r'option "base_url" is required'):
+            _lifecycle(plugin)
+
+    def test_api_fixture_guard_forwards_kwargs_and_blocks_on_died_service(self, tmp_path, monkeypatch):
+        """The guard forwards request kwargs verbatim and the died-service error blocks the request."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("BASE_URL", "http://rendered/api")
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(plugin)
+
+        calls: list[object] = []
+
+        class _DiedSandbox:
+            """Sandbox double whose service died before the request."""
+
+            base_url = "http://10.0.0.1:9000"
+
+            def apply_pending(self):
+                calls.append("apply_pending")
+
+            def ensure_service(self):
+                calls.append("ensure_service")
+
+                raise RuntimeError("the service under test (image my-service:latest) died; its output:\nOOM")
+
+        class _FakeApi:
+            """Api double recording the request kwargs it receives."""
+
+            def __init__(self, *, base_url: str, **kwargs: object) -> None:
+                self.base_url = base_url
+
+            def request(self, method: str, url_path: str, **kwargs: object) -> object:
+                calls.append(("request", method, url_path, kwargs))
+
+                return "response"
+
+            def close(self) -> None:
+                pass
+
+        monkeypatch.setattr(plugin_module, "active_sandbox", _DiedSandbox)
+        monkeypatch.setattr(plugin_module, "Api", _FakeApi)
+
+        gen = ApiPlugin.api.__wrapped__(plugin)
+        api = next(gen)
+
+        with pytest.raises(RuntimeError, match="died"):
+            api.request("GET", "/x", headers={"h": "1"}, params={"q": "v"})
+
+        assert ("request", "GET", "/x", {"headers": {"h": "1"}, "params": {"q": "v"}}) not in calls
+        assert calls == ["apply_pending", "ensure_service"]
+
     def test_api_fixture_substitutes_base_url_and_guards_first_request(self, tmp_path, monkeypatch):
         """An active sandbox wins the fixture base_url and guards every request."""
         monkeypatch.chdir(tmp_path)
@@ -874,7 +943,7 @@ class TestApiPluginSandboxIntegration:
                 self.base_url = base_url
 
             def request(self, method: str, url_path: str, **kwargs: object) -> object:
-                calls.append(("request", method, url_path))
+                calls.append(("request", method, url_path, kwargs) if kwargs else ("request", method, url_path))
                 return "response"
 
             def close(self) -> None:
@@ -887,10 +956,18 @@ class TestApiPluginSandboxIntegration:
         api = next(gen)  # drive the fixture up to the yield
 
         api.request("GET", "/x")
+        api.request("POST", "/y", headers={"h": "1"}, params={"q": "v"})  # kwargs forwarded verbatim
 
         assert api.base_url == "http://10.0.0.1:9000"  # the sandbox address wins
-        # The guard ran both checks before the original request.
-        assert calls == ["apply_pending", "ensure_service", ("request", "GET", "/x")]
+        # The guard ran both checks before each original request; the kwargs passed through.
+        assert calls == [
+            "apply_pending",
+            "ensure_service",
+            ("request", "GET", "/x"),
+            "apply_pending",
+            "ensure_service",
+            ("request", "POST", "/y", {"headers": {"h": "1"}, "params": {"q": "v"}}),
+        ]
         # The read-time substitution leaves the option value untouched.
         assert plugin.base_url == "http://rendered/api"
 

@@ -26,6 +26,10 @@ _SECTION_KINDS = {"vault": "vault", "http": "http", "kafka": "kafka", "postgres"
 _PLACEHOLDER = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 _PLACEHOLDER_ATTRIBUTE = re.compile(r"^(?P<name>[^.\s]+)\.(?P<attribute>host|port)$")
 
+# An instance name doubles as the Jinja2 identifier of the {{<name>.host}} /
+# {{<name>.port}} placeholders — anything else breaks template parsing at render time.
+_INSTANCE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
 
 def load_sandbox_config(path: str | None = None) -> SandboxConfig | None:
     """Read and validate the sandbox configuration document ``.sandbox.yml``.
@@ -135,6 +139,13 @@ def _read_instances(document: dict[str, object], location: Path) -> dict[str, In
         if not isinstance(name, str) or not name.strip():
             raise ValueError(f"{scope}: the instance name must be a non-empty string")
 
+        if not _INSTANCE_NAME.fullmatch(name):
+            raise ValueError(
+                f"{scope}: the instance name must be a template identifier "
+                f"(letters, digits, underscores; not starting with a digit) — it names the "
+                f"{{{{<name>.host}}}} / {{{{<name>.port}}}} placeholders"
+            )
+
         if not isinstance(entry, dict):
             raise ValueError(f"{scope}: the entry must be a mapping")
 
@@ -224,9 +235,45 @@ def _read_section(
                 f"'{instance.kind}', the section requires kind '{kind}'"
             )
 
+        if section == "vault":
+            _validate_vault_declarations(name, value, location)
+
         declarations[name] = _resolve_spec_path(value, location, name) if section == "kafka" else value
 
     return declarations
+
+
+def _validate_vault_declarations(target: str, declarations: object, location: Path) -> None:
+    """Validate the shape of one vault section's secret declarations.
+
+    Every declaration must be a mapping carrying a non-empty string ``path`` and a mapping
+    ``data`` — the keys the startup assembly reads; a malformed declaration fails here,
+    at load time, instead of crashing the sandbox start with a bare lookup error.
+
+    Args:
+        target: The vault instance name the declarations target.
+        declarations: The raw section value — the target's declaration list.
+        location: The resolved document location.
+
+    Raises:
+        ValueError: A secret declaration is missing its ``path`` or ``data`` entry.
+    """
+    if not isinstance(declarations, list):
+        return  # a non-list section value fails the model build with the scope-named error
+
+    for declaration in declarations:
+        if not isinstance(declaration, dict):
+            continue  # a non-mapping declaration fails the model build the same way
+
+        path = declaration.get("path")
+
+        if not isinstance(path, str) or not path.strip():
+            raise ValueError(
+                f"{location}: data.vault.{target}: every secret declaration requires a non-empty string 'path'"
+            )
+
+        if not isinstance(declaration.get("data"), dict):
+            raise ValueError(f"{location}: data.vault.{target}: every secret declaration requires a mapping 'data'")
 
 
 def _resolve_spec_path(spec: object, location: Path, target: str) -> str:
@@ -268,6 +315,11 @@ def _validate_placeholders(service: ServiceConfig, instances: dict[str, Instance
     configured = set(instances)
 
     for key, value in service.env.items():
+        if "{{" in _PLACEHOLDER.sub("", value):
+            raise ValueError(
+                f"{location}: service.env.{key}: invalid placeholder — an unterminated '{{{{' in value '{value}'"
+            )
+
         for token in _PLACEHOLDER.findall(value):
             placeholder = "{{" + token + "}}"
             match = _PLACEHOLDER_ATTRIBUTE.match(token)

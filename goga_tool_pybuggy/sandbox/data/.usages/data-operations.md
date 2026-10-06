@@ -13,10 +13,10 @@ service under test.
 Every configured instance is reachable by name through the session fixture, kind-named:
 
 ```python
-sandbox.postgresql("db").insert(...)   # a postgresql instance named db
-sandbox.http("payments").stub(...)     # an http instance named payments
-sandbox.vault("secrets").put(...)      # a vault instance named secrets
-sandbox.kafka("events").produce(...)   # a kafka instance named events
+sandbox.postgresql("db").insert(...)  # a postgresql instance named db
+sandbox.http("payments").stub(...)  # an http instance named payments
+sandbox.vault("secrets").put(...)  # a vault instance named secrets
+sandbox.kafka("events").produce(...)  # a kafka instance named events
 ```
 
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped address the
@@ -27,10 +27,12 @@ service env placeholders resolved to.
 ```python
 sandbox.postgresql("db").insert("orders", rows=[{"id": 1, "total": 100}])
 
-sandbox.http("payments").stub({
-    "request": {"method": "POST", "urlPath": "/v1/charge"},
-    "response": {"status": 200, "jsonBody": {"status": "captured"}},
-})
+sandbox.http("payments").stub(
+    {
+        "request": {"method": "POST", "urlPath": "/v1/charge"},
+        "response": {"status": 200, "jsonBody": {"status": "captured"}},
+    }
+)
 
 sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
 
@@ -47,14 +49,24 @@ Declare data directly on the test:
 ```python
 from goga_tool_pybuggy import services
 
+
 @services(
-    postgresql={"db": [{"table": "customers", "rows": [{"id": 1, "name": "Ann"}]},
-                       {"table": "orders", "rows": [{"id": 100, "customer_id": 1}]}]},
-    http={"payments": [{"request": {"method": "GET", "urlPath": "/v1/rate"},
-                        "response": {"status": 200, "jsonBody": {"rate": 0.5}}}]},
+    postgresql={
+        "db": [
+            {"table": "customers", "rows": [{"id": 1, "name": "Ann"}]},
+            {"table": "orders", "rows": [{"id": 100, "customer_id": 1}]},
+        ]
+    },
+    http={
+        "payments": [
+            {
+                "request": {"method": "GET", "urlPath": "/v1/rate"},
+                "response": {"status": 200, "jsonBody": {"rate": 0.5}},
+            }
+        ]
+    },
 )
-def test_checkout(api):
-    ...
+def test_checkout(api): ...
 ```
 
 Each declaration carries the same fields as the matching view operation. Presets apply only to the

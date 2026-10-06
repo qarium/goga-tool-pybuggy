@@ -90,8 +90,8 @@ class ServiceContainer:
         logger.info("service starting", extra={"image": self.config.image, "port": self.config.port})
 
         container = self._build_container(env)
-        container.start()
         self._container = container
+        container.start()
 
         for key in env:
             logger.debug("service env value applied", extra={"env_key": key})

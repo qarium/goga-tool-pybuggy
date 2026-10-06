@@ -31,13 +31,21 @@ def services(**presets: dict[str, list[dict[str, object]]]) -> Callable[..., Any
         The decorator applying the ``pybuggy_services`` marker with the presets to a test.
 
     Raises:
-        ValueError: When a preset key is not a supported kind.
+        ValueError: When a preset key is not a supported kind, or a preset value is not the
+            declared ``instance name -> declaration list`` shape.
     """
-    for kind in presets:
+    for kind, targets in presets.items():
         if kind not in _SUPPORTED_KINDS:
             raise ValueError(
                 f"services preset kind '{kind}' is not one of the supported kinds ({', '.join(_SUPPORTED_KINDS)})"
             )
+
+        if not isinstance(targets, dict):
+            raise ValueError(f"services preset kind '{kind}' must map instance names to declaration lists")
+
+        for name, declarations in targets.items():
+            if not isinstance(declarations, list) or not all(isinstance(d, dict) for d in declarations):
+                raise ValueError(f"services preset '{kind}.{name}' must be a list of declaration mappings")
 
     def _decorate(item: Any) -> Any:
         return pytest.mark.pybuggy_services(presets=presets)(item)

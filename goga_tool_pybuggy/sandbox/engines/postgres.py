@@ -3,7 +3,7 @@
 import logging
 
 import psycopg
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 
 from ..config.instance import InstanceConfig
 from .base import BaseEngine
@@ -87,14 +87,19 @@ class PostgresEngine(BaseEngine):
 
         A raw ``sql`` payload executes as given; a ``table`` + ``rows`` payload executes one
         parameterized bulk insert with the column list taken from the first row's keys in
-        insertion order; empty rows execute nothing.
+        insertion order; empty rows execute nothing. A payload carrying neither form is a
+        malformed declaration and fails with a readable error naming both expected forms.
 
         Args:
             operation: The ``insert`` operation to execute.
 
         Raises:
-            RuntimeError: The statement failed; the message carries the server message.
+            RuntimeError: The statement failed or the payload carries neither insert form;
+                the failure message names the cause.
         """
+        if "sql" not in operation.payload and not ("table" in operation.payload and "rows" in operation.payload):
+            raise RuntimeError("an insert payload must carry either 'sql' or 'table' + 'rows'")
+
         try:
             with self._connection.cursor() as cursor:
                 if "sql" in operation.payload:

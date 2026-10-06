@@ -11,7 +11,10 @@ goga pipeline pybuggy:api.automate   # 3. run the pipeline
 ## 1. Install: `goga install pybuggy`
 
 Installs the pybuggy package into the **goga**(<https://github.com/qarium/goga>)
-environment of the target project.
+environment of the target project. The package carries the container/DB/Kafka stack as
+main dependencies (`testcontainers`, `psycopg`, `kafka-python`, `requests`); running
+tests with a `.sandbox.yml` present additionally requires a docker-compatible container
+runtime in the test environment (see [Sandbox](sandbox.md)).
 
 ## 2. Initialize: `goga tool pybuggy init`
 
@@ -60,12 +63,12 @@ See [Configuration](configuration.md).
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/api.md`, `asserts.md` — the packaged usages | written (bare overwrites; template skips existing) |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged usages (`api.md`, `asserts.md`, `sandbox-session.md`, `sandbox-file.md`, `data-operations.md`) | written (bare overwrites; template skips existing) |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted (idempotent, comment-only) |
 | `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
 | `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version range is derived from the installed pybuggy version |
-| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
+| usage keys `pybuggy-api` / `pybuggy-asserts` / `pybuggy-sandbox-session` / `pybuggy-sandbox-file` / `pybuggy-data-operations` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
 | root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
 The command requires a Dockerfile — and the session always creates one (the fixed

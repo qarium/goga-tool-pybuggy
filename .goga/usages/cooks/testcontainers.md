@@ -9,7 +9,7 @@ and provides the crash-safe cleanup guarantee ("no leftover containers on any ex
 
 Import in code:
 ```python
-from testcontainers.postgres import PostgresContainer
+from testcontainers.community.postgres import PostgresContainer
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.waiting_utils import wait_for
 ```

@@ -29,10 +29,12 @@ MARKER_LINE_PREFIX = "pybuggy_services:"
 def reset_module_state():
     """Reset the activation module state around every test."""
     activation_module._ACTIVE = None
+    activation_module._ARMED = None
 
     yield
 
     activation_module._ACTIVE = None
+    activation_module._ARMED = None
 
 
 class ConfigStub:
@@ -125,6 +127,10 @@ def stub_sandbox(calls: list[str], constructed: list[SandboxConfig], start_label
         def start(self) -> None:
             """Record a start."""
             calls.append(start_label)
+
+        def new_test_batch(self) -> None:
+            """Record a per-test batch refresh."""
+            calls.append("sandbox:batch")
 
         def stop(self) -> None:
             """Record a stop."""
@@ -233,6 +239,21 @@ class TestActivationBehavior:
         assert activation_module.active_sandbox() is active
         assert active.config is config
 
+    def test_activation_invalid_document_fails_fast_registering_nothing(self, sandbox_yaml):
+        """An invalid document fails before anything is registered or armed."""
+        sandbox_yaml(
+            "service:\n  image: my-service:latest\n  port: 8080\n  env: {}\ninstances:\n  cache: { kind: redis }\n"
+        )
+
+        context: dict[str, object] = {}
+
+        with pytest.raises(ValueError, match=r"redis"):
+            activation_module.activate_sandbox(context)
+
+        assert context == {}
+        assert activation_module.active_sandbox() is None
+        assert activation_module._ARMED is None
+
     def test_activation_wraps_preexisting_hook(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
         """A pre-existing same-name callable runs first, the sandbox body second."""
         sandbox_yaml(MINIMAL_DOCUMENT)
@@ -253,6 +274,45 @@ class TestActivationBehavior:
         assert calls == ["prior", "markers", "sandbox"]
         assert calls.count("prior") == 1
         assert constructed == [config]
+
+    def test_activation_wraps_preexisting_sessionfinish_hook(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
+        """A pre-existing ``pytest_sessionfinish`` runs first, both arguments forwarded."""
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        calls: list[str] = []
+        monkeypatch.setattr(activation_module, "Sandbox", stub_sandbox(calls, []))
+
+        def prior(session: SessionStub, exitstatus: int) -> None:
+            """Record the prior hook invocation with its exit status."""
+            calls.append(("prior", exitstatus))
+
+        context: dict[str, object] = {"pytest_sessionfinish": prior}
+        activation_module.activate_sandbox(context)
+        context["pytest_sessionstart"](SessionStub(ConfigStub(calls)))
+
+        context["pytest_sessionfinish"](SessionStub(), 5)
+
+        assert calls == ["markers", "sandbox:start", ("prior", 5), "sandbox:stop"]
+        assert activation_module.active_sandbox() is None
+
+    def test_activation_wraps_preexisting_runtest_setup_hook(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
+        """A pre-existing ``pytest_runtest_setup`` runs first, the sandbox body second."""
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        calls: list[str] = []
+        monkeypatch.setattr(activation_module, "Sandbox", stub_sandbox(calls, []))
+
+        def prior(item: ItemStub) -> None:
+            """Record the prior hook invocation."""
+            calls.append("prior")
+
+        context: dict[str, object] = {"pytest_runtest_setup": prior}
+        activation_module.activate_sandbox(context)
+        context["pytest_sessionstart"](SessionStub(ConfigStub(calls)))
+
+        context["pytest_runtest_setup"](ItemStub([]))
+
+        assert calls == ["markers", "sandbox:start", "prior", "sandbox:batch"]
 
     def test_sessionfinish_stops_the_active_sandbox_and_clears_the_lookup(
         self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch
@@ -276,6 +336,36 @@ class TestActivationBehavior:
         context["pytest_sessionfinish"](SessionStub(), 1)
 
         assert calls == ["markers", "sandbox:start", "sandbox:stop"]
+
+    def test_sessionfinish_clears_the_lookup_when_stop_raises(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
+        """A failing sandbox stop still clears the lookup seam and the error propagates."""
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        class RefusingSandbox:
+            """Sandbox double whose stop always raises."""
+
+            def __init__(self, config: SandboxConfig) -> None:
+                """Accept the armed configuration."""
+
+            def start(self) -> None:
+                """Start without containers."""
+
+            base_url = "http://127.0.0.9:9000"
+
+            def stop(self) -> None:
+                """Refuse the stop."""
+                raise RuntimeError("fake refused to stop")
+
+        monkeypatch.setattr(activation_module, "Sandbox", RefusingSandbox)
+
+        context: dict[str, object] = {}
+        activation_module.activate_sandbox(context)
+        context["pytest_sessionstart"](SessionStub(ConfigStub()))
+
+        with pytest.raises(RuntimeError, match="refused to stop"):
+            context["pytest_sessionfinish"](SessionStub(), 1)
+
+        assert activation_module.active_sandbox() is None
 
     def test_preset_enqueue_fails_unknown_instance_listing_configured(
         self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch

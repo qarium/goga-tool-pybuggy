@@ -364,6 +364,47 @@ class TestServiceContainerStop:
         assert wrapped is not None
         assert wrapped.stops == 1
 
+    def test_stop_removes_the_container_even_when_start_failed(self, monkeypatch: pytest.MonkeyPatch):
+        """A container whose ``start`` raised is still reachable for the failed-start cleanup."""
+        from goga_tool_pybuggy.sandbox import service_container as module
+
+        class RefusingContainer(FakeDockerContainer):
+            """Container double whose ``start`` always raises."""
+
+            def start(self) -> "RefusingContainer":
+                raise RuntimeError("port bind conflict")
+
+        monkeypatch.setattr(module, "DockerContainer", RefusingContainer)
+        container = ServiceContainer(service_config())
+
+        with pytest.raises(RuntimeError, match="port bind conflict"):
+            container.start({})
+
+        built = container._container
+
+        assert built is not None  # the failed start kept the created container reachable
+
+        container.stop()
+
+        assert built.stops == 1
+        assert container._container is None
+
+    def test_stop_swallows_a_failing_container_removal(self, monkeypatch: pytest.MonkeyPatch):
+        """A failing container removal is logged, never raised — teardown of the rest proceeds."""
+        container, wrapped = started_container(monkeypatch)
+
+        def refusing_stop() -> None:
+            raise RuntimeError("docker daemon gone")
+
+        assert wrapped is not None
+        wrapped.stop = refusing_stop
+
+        container.stop()  # must not raise
+
+        assert container._container is None
+
+        container.stop()  # idempotent even after the failed removal
+
 
 @requires_docker
 class TestServiceContainerContainer:

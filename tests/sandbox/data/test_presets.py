@@ -67,6 +67,21 @@ class TestServicesLogic:
         with pytest.raises(ValueError, match=r"postgresql.*kafka.*vault.*http"):
             services(grpc={"events": []})
 
+    def test_services_rejects_kind_value_that_is_not_a_mapping(self):
+        """A kind value that is not an ``instance name -> declaration list`` mapping fails."""
+        with pytest.raises(ValueError, match=r"postgresql.*must map instance names"):
+            services(postgresql="db")
+
+    def test_services_rejects_instance_value_that_is_not_a_list(self):
+        """An instance value that is not a declaration list fails at decoration."""
+        with pytest.raises(ValueError, match=r"postgresql\.db.*must be a list"):
+            services(postgresql={"db": "rows"})
+
+    def test_services_rejects_declaration_that_is_not_a_mapping(self):
+        """A declaration that is not a mapping fails at decoration."""
+        with pytest.raises(ValueError, match=r"postgresql\.db.*must be a list"):
+            services(postgresql={"db": ["oops"]})
+
     def test_services_preserves_declaration_order_within_one_instance(self):
         """Declarations under one instance keep the author's list order in the payload."""
         declarations = [{"table": "customers", "rows": []}, {"table": "orders", "rows": []}]
