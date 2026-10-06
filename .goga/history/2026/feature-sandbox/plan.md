@@ -588,36 +588,36 @@ readiness only.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 3 is being executed
-- [ ] **Contract tests** (expected to fail now): `tests/sandbox/config/test_sandbox_config.py`,
+- [x] **Declaration**: state that Task 3 is being executed
+- [x] **Contract tests** (expected to fail now): `tests/sandbox/config/test_sandbox_config.py`,
   `test_service.py`, `test_instance.py`, `test_startup_data.py` — for each model: importable
   from `goga_tool_pybuggy.sandbox.config`; constructible with keyword arguments only; declared
   properties return the declared types (`service -> ServiceConfig`,
   `instances -> dict[str, InstanceConfig]`, `data -> StartupData`; `image -> str`,
   `env -> dict[str, str]`, `port -> int`, `health -> str | None`; `name -> str`, `kind -> str`,
   `image -> str | None`; the four StartupData section types)
-- [ ] **REPL prototype (R4)**: in the venv REPL construct each model with sample keyword data
+- [x] **REPL prototype (R4)**: in the venv REPL construct each model with sample keyword data
   (e.g. `ServiceConfig(image="my-service:latest", env={"A": "b"}, port=8080, health=None)`);
   observe defaults and field order (`StartupData.model_fields` order is vault, http, kafka,
   postgres); then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/config/{sandbox_config,service,instance,startup_data}.py`
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/config/{sandbox_config,service,instance,startup_data}.py`
   with the pydantic `kw_only` models (type-hinted fields, empty-dict defaults for the `data`
   sections and `env`, `str | None` for `health`/`image`, Google docstrings, relative imports)
-- [ ] **Code**: expose all four models on the cell facade — `sandbox/config/__init__.py`
+- [x] **Code**: expose all four models on the cell facade — `sandbox/config/__init__.py`
   imports + `__all__ = ["SandboxConfig", "ServiceConfig", "InstanceConfig", "StartupData"]`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — all contract
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — all contract
   tests pass
-- [ ] **Logic tests**: keyword-only construction (positional construction raises `TypeError`);
+- [x] **Logic tests**: keyword-only construction (positional construction raises `TypeError`);
   `data` sections and `env` default to `{}`; `health`/`image` default to `None`; `StartupData`
   field order is vault → http → kafka → postgres; several instances of one kind are allowed in
   `instances`
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation code until all tests pass
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation code until all tests pass
   (do NOT fix test code); reproduce failures in the REPL first (R4.3)
-- [ ] **Contract re-verification**: facade, API shape, and behavior match the four entity
+- [x] **Contract re-verification**: facade, API shape, and behavior match the four entity
   declarations
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format` touched files if drift
-- [ ] **Completion**: mark all checkboxes complete; submit for review → approval → next task
+- [x] **Completion**: mark all checkboxes complete; submit for review → approval → next task
 
 ### Task 4: `load_sandbox_config` — fail-fast reading and validation of `.sandbox.yml` (TDD)
 
