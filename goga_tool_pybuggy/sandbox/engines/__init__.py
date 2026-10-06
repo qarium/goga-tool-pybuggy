@@ -7,7 +7,8 @@ The facade is populated progressively by the engine entity tasks: ``DataOperatio
 
 from .address import InstanceAddress
 from .base import BaseEngine, EngineError
+from .kafka import KafkaEngine
 from .operation import DataOperation
 from .postgres import PostgresEngine
 
-__all__ = ["BaseEngine", "DataOperation", "EngineError", "InstanceAddress", "PostgresEngine"]
+__all__ = ["BaseEngine", "DataOperation", "EngineError", "InstanceAddress", "KafkaEngine", "PostgresEngine"]
