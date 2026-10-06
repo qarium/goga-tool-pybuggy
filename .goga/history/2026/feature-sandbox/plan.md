@@ -805,32 +805,32 @@ exist only after start).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 7 is being executed
-- [ ] **Contract tests**: `tests/sandbox/engines/test_base.py` — `BaseEngine` and `EngineError`
+- [x] **Declaration**: state that Task 7 is being executed
+- [x] **Contract tests**: `tests/sandbox/engines/test_base.py` — `BaseEngine` and `EngineError`
   importable from the facade; `EngineError` subclasses `RuntimeError`; the five methods and the
   `address` property exist with the declared signatures
-- [ ] **REPL prototype (R4)**: in the REPL drive a minimal fake subclass (kind hooks recording
+- [x] **REPL prototype (R4)**: in the REPL drive a minimal fake subclass (kind hooks recording
   calls, `_execute` appending to a list): call `start` → `apply` → `record` → `reset` → `stop`
   → `stop` again; observe journal contents and call order against the algorithm above; then
   migrate the base class
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/engines/base.py` — `EngineError(RuntimeError)`
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/engines/base.py` — `EngineError(RuntimeError)`
   and `BaseEngine` with the internal kind hooks (`_build_container`, `_wait_ready`,
   `_open_plane`, `_execute`, `_wipe`, `_close_plane` — names are internal design freedom);
   `_execute` failures wrap into `EngineError` as `instance '<name>': <action> failed: <cause>`
-- [ ] **Code**: expose `BaseEngine` (and `EngineError` for internal cross-module use) on the
+- [x] **Code**: expose `BaseEngine` (and `EngineError` for internal cross-module use) on the
   engines facade
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/ -x -v` — pass
-- [ ] **Logic tests** (fake subclass, no mocks): `apply` preserves order and never records;
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/ -x -v` — pass
+- [x] **Logic tests** (fake subclass, no mocks): `apply` preserves order and never records;
   `record` extends the journal; `reset` runs `_wipe` then replays the journal through
   `_execute`; `apply([])` is a no-op; `reset()` with an empty journal runs the wipe only;
   `stop()` is safe twice; a raising `_execute` surfaces as `EngineError` with the
   `instance '<name>': <action> failed: <cause>` message; a failing start calls `stop()` and
   re-raises
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: journal semantics (startup ∈ journal; apply does not
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: journal semantics (startup ∈ journal; apply does not
   record), stop safety, error shape
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 8: `BaseEngine::PostgresEngine` — real postgres instance (TDD)
 
