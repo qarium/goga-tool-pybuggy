@@ -1299,13 +1299,13 @@ recording stubs for `Sandbox` unit tests (apply/record/reset calls, alive/logs).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Extend `tests/sandbox/conftest.py` with `FakeEngine` (records `applied`, `journaled`,
+- [x] Extend `tests/sandbox/conftest.py` with `FakeEngine` (records `applied`, `journaled`,
   `reset_count`, `started`/`stopped`; configurable `kind`, a raising `start`, and a configurable
   `address` — an `InstanceAddress` instance — so the sandbox view factories can bind views to
   the fake) and `FakeService` (records `started`/`stopped`; configurable `alive` and `logs`) —
   plain classes exposed as fixtures
-- [ ] Verify collection: `.venv/bin/pytest tests/sandbox/ -q`
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] Verify collection: `.venv/bin/pytest tests/sandbox/ -q`
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
 
 ### Task 18: `render_service_env` — strict placeholder rendering (TDD)
 

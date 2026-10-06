@@ -1,7 +1,9 @@
 """Shared pytest fixtures for the sandbox test package.
 
 Also carries the container-runtime availability probe and the ``requires_docker`` skip condition
-every docker-gated test in the plan reuses: ``from ..conftest import requires_docker``.
+every docker-gated test in the plan reuses (``from ..conftest import requires_docker``), and the
+``FakeEngine`` / ``FakeService`` recording stubs the sandbox cell unit tests drive — import them
+the same way, or take the ``fake_engine`` / ``fake_service`` fixtures for the default shapes.
 """
 
 import functools
@@ -10,6 +12,7 @@ from collections.abc import Callable
 
 import docker
 import pytest
+from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 
 
 @functools.lru_cache(maxsize=1)
@@ -54,3 +57,192 @@ def sandbox_yaml(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> Cal
         return path
 
     return _write
+
+
+class FakeEngine:
+    """Recording engine double for the sandbox cell unit tests.
+
+    The double mirrors the ``BaseEngine`` surface the ``Sandbox`` drives — lifecycle, apply,
+    record, reset, address — without touching containers: every call is recorded, so tests
+    assert ordering, grouping and cleanup against the records instead of live instances.
+
+    Attributes:
+        name: The instance name the sandbox resolves this engine by.
+        kind: The configured instance kind — the view factories and the preset enqueue
+            validate against it.
+        address: The mapped address the instance views bind to.
+        events: An optional shared sink recording the lifecycle call sequence across fakes.
+        applied: Operations executed through ``apply``, in call order.
+        journaled: Operations that joined the baseline journal — startup and recorded.
+        reset_count: The number of ``reset`` calls.
+        started: Whether the last lifecycle call left the instance started.
+        stopped: Whether ``stop`` was called.
+    """
+
+    def __init__(
+        self,
+        name: str = "db",
+        kind: str = "postgresql",
+        address: InstanceAddress | None = None,
+        fail_start: bool = False,
+        events: list[str] | None = None,
+    ) -> None:
+        """Initialize the recording engine.
+
+        Args:
+            name: The instance name the sandbox resolves this engine by.
+            kind: The configured instance kind.
+            address: The mapped address the instance views bind to; defaults to a sample address.
+            fail_start: Make ``start`` raise — the failed-start cleanup scenarios.
+            events: An optional shared sink recording the lifecycle call sequence across fakes.
+        """
+        self.name = name
+        self.kind = kind
+        self.address = address if address is not None else InstanceAddress(host="127.0.0.2", port=5432)
+        self.fail_start = fail_start
+        self.events = events
+        self.applied: list[DataOperation] = []
+        self.journaled: list[DataOperation] = []
+        self.reset_count = 0
+        self.started = False
+        self.stopped = False
+
+    def start(self, startup: list[DataOperation]) -> None:
+        """Record a start; the startup operations join the journal as the initial baseline.
+
+        Args:
+            startup: The startup data of this instance, in declaration order.
+
+        Raises:
+            RuntimeError: ``fail_start`` is set — the failed-start scenarios.
+        """
+        self._emit("start")
+
+        if self.fail_start:
+            raise RuntimeError(f"instance '{self.name}': start failed: fake refused to start")
+
+        self.started = True
+        self.stopped = False
+        self.journaled.extend(startup)
+
+    def apply(self, operations: list[DataOperation]) -> None:
+        """Record operations as applied, in order; they never join the journal.
+
+        Args:
+            operations: Operations of this instance's kind, in application order.
+        """
+        self._emit("apply")
+        self.applied.extend(operations)
+
+    def record(self, operations: list[DataOperation]) -> None:
+        """Record operations as journaled baseline entries.
+
+        Args:
+            operations: Applied operations to remember as the baseline.
+        """
+        self._emit("record")
+        self.journaled.extend(operations)
+
+    def reset(self) -> None:
+        """Record a reset call — the wipe-and-replay contract asserted by count."""
+        self._emit("reset")
+        self.reset_count += 1
+
+    def stop(self) -> None:
+        """Record a stop; safe when already stopped."""
+        self._emit("stop")
+        self.started = False
+        self.stopped = True
+
+    def _emit(self, event: str) -> None:
+        """Append one lifecycle event label to the shared sink when present.
+
+        Args:
+            event: The event name of the recorded call.
+        """
+        if self.events is not None:
+            self.events.append(f"engine:{self.name}:{event}")
+
+
+class FakeService:
+    """Recording service double for the sandbox cell unit tests.
+
+    The double mirrors the ``ServiceContainer`` surface the ``Sandbox`` drives — start with the
+    rendered env, stop, liveness, logs — with liveness and output configurable, so the
+    died-service diagnostics are assertable without containers.
+
+    Attributes:
+        events: An optional shared sink recording the lifecycle call sequence across fakes.
+        started: Whether the last lifecycle call left the service started.
+        stopped: Whether ``stop`` was called.
+        started_env: The rendered env of the last ``start`` call; None before the first.
+    """
+
+    def __init__(self, alive: bool = True, logs: str = "", events: list[str] | None = None) -> None:
+        """Initialize the recording service.
+
+        Args:
+            alive: The value every ``alive()`` probe returns.
+            logs: The diagnostic output every ``logs()`` call returns.
+            events: An optional shared sink recording the lifecycle call sequence across fakes.
+        """
+        self._alive = alive
+        self._logs = logs
+        self.events = events
+        self.started = False
+        self.stopped = False
+        self.started_env: dict[str, str] | None = None
+
+    def start(self, env: dict[str, str]) -> None:
+        """Record a start carrying the rendered env.
+
+        Args:
+            env: The rendered service environment.
+        """
+        self._emit("start")
+        self.started = True
+        self.stopped = False
+        self.started_env = dict(env)
+
+    def stop(self) -> None:
+        """Record a stop; safe when already stopped."""
+        self._emit("stop")
+        self.started = False
+        self.stopped = True
+
+    def alive(self) -> bool:
+        """Report the configured liveness.
+
+        Returns:
+            The configured ``alive`` value.
+        """
+        return self._alive
+
+    def logs(self) -> str:
+        """Report the configured diagnostic output.
+
+        Returns:
+            The configured ``logs`` value.
+        """
+        return self._logs
+
+    def _emit(self, event: str) -> None:
+        """Append one lifecycle event label to the shared sink when present.
+
+        Args:
+            event: The event name of the recorded call.
+        """
+        if self.events is not None:
+            self.events.append(f"service:{event}")
+
+
+@pytest.fixture
+def fake_engine() -> FakeEngine:
+    """A fresh recording engine of the default ``db`` instance — postgresql kind."""
+    return FakeEngine()
+
+
+@pytest.fixture
+def fake_service() -> FakeService:
+    """A fresh recording service — running, with empty output."""
+    return FakeService()
