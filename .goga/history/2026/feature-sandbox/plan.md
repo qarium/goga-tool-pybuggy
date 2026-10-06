@@ -1054,23 +1054,30 @@ operation.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 11 is being executed
-- [ ] **Contract tests**: `tests/sandbox/engines/test_http.py` — `HttpEngine` importable from
+- [x] **Declaration**: state that Task 11 is being executed
+- [x] **Contract tests**: `tests/sandbox/engines/test_http.py` — `HttpEngine` importable from
   the facade; subclasses `BaseEngine`
-- [ ] **REPL prototype (R4, docker-gated)**: start the wiremock container in the REPL; confirm
+- [x] **REPL prototype (R4, docker-gated)**: start the wiremock container in the REPL; confirm
   `/__admin/health`; POST a mapping (with a priority or delay to confirm passthrough); request
   the stubbed path; POST `mappings/reset` and confirm the stub is gone; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/engines/http.py` per the contract above
-- [ ] **Code**: expose `HttpEngine` on the engines facade
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_http.py -x -v` —
+  (docker runtime unavailable in this environment — live probing deferred to the docker-gated
+  test; the readiness loop incl. the 404→mappings fallback, the mapping-label/failure-text
+  builders, and the admin URL shapes were REPL-verified against the cooks, and the full
+  lifecycle was REPL-replayed over fake seams)
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/engines/http.py` per the contract above
+- [x] **Code**: expose `HttpEngine` on the engines facade
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_http.py -x -v` —
   pass
-- [ ] **Logic tests** (docker-gated): `test_http_engine_stub_and_admin_reset` — stubs visible
+- [x] **Logic tests** (docker-gated): `test_http_engine_stub_and_admin_reset` — stubs visible
   via `GET /__admin/mappings` while active; after `reset()` the API-created mappings are gone
   and only the journaled baseline mappings replay
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: mapping passthrough, admin reset, readiness fallback
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (written; skips here without a docker runtime — plus fake-driven unit coverage of build,
+  readiness incl. the fallback and connection-retry paths, mapping passthrough, error naming,
+  mappings-reset wipe, journal replay, and stop safety that runs everywhere)
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: mapping passthrough, admin reset, readiness fallback
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 12: `check_runtime` and `build_engine` — probe and factory, engines facade completion (TDD)
 
