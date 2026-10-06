@@ -551,17 +551,17 @@ always satisfiable and `run_bootstrap` finds the packaged `.usages/*.md` files v
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Add to `[project.dependencies]` (main block): `testcontainers[postgres]>=4.0`,
+- [x] Add to `[project.dependencies]` (main block): `testcontainers[postgres]>=4.0`,
   `psycopg[binary]>=3.1`, `kafka-python>=2.2`, `requests>=2.31`; no test-extra additions
-- [ ] Extend `[tool.setuptools.package-data]` with `".usages/*.md"` and `"**/.usages/*.md"` so
+- [x] Extend `[tool.setuptools.package-data]` with `".usages/*.md"` and `"**/.usages/*.md"` so
   the api cell and the three sandbox cells' usage files ship in the wheel
-- [ ] Reinstall into the venv: `.venv/bin/pip install -e '.[test]'`; verify imports:
+- [x] Reinstall into the venv: `.venv/bin/pip install -e '.[test]'`; verify imports:
   `.venv/bin/python -c "import testcontainers, psycopg, kafka, requests"`
-- [ ] Build the wheel and verify contents: the wheel carries `api/.usages/api.md`,
+- [x] Build the wheel and verify contents: the wheel carries `api/.usages/api.md`,
   `api/asserts/.usages/asserts.md`, `sandbox/.usages/sandbox-session.md`,
   `sandbox/config/.usages/sandbox-file.md`, `sandbox/data/.usages/data-operations.md` — and no
   `CODEMANIFEST` files (exclusion via MANIFEST.in holds)
-- [ ] Lint gate: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] Lint gate: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
 
 ### Task 3: Config data models — `SandboxConfig`, `ServiceConfig`, `InstanceConfig`, `StartupData` (TDD)
 

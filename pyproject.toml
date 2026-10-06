@@ -40,6 +40,10 @@ dependencies = [
     "swax>=1.0.0,<1.1.0",
     "resq>=1.0.0,<1.1.0",
     "pluginator>=1.0.0,<1.1.0",
+    "testcontainers[postgres]>=4.0",
+    "psycopg[binary]>=3.1",
+    "kafka-python>=2.2",
+    "requests>=2.31",
 ]
 
 [project.optional-dependencies]
@@ -65,7 +69,7 @@ pybuggy = "goga_tool_pybuggy:main"
 include = ["goga_tool_pybuggy*"]
 
 [tool.setuptools.package-data]
-goga_tool_pybuggy = ["skills/**/*", "pipelines/*.yml", "assets/**/*"]
+goga_tool_pybuggy = ["skills/**/*", "pipelines/*.yml", "assets/**/*", ".usages/*.md", "**/.usages/*.md"]
 
 [tool.ruff]
 target-version = "py310"
