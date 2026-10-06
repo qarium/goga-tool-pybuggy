@@ -132,6 +132,12 @@ Annotations: |
       - Called on the request path — the api fixture's first-request guard invokes it — so a
       crashed service surfaces as an explicit died-service indication, never as a hang or an
       opaque connection failure.
+    "new_test_batch()": |
+      Create the fresh data batch of the next test.
+
+      Called by the registered per-test lifecycle hook before every test, ahead of the preset
+      enqueue — a new test never sees a previous test's operations; the instance views returned
+      afterwards bind to the new batch.
     "postgresql(name: str) -> instance: PostgresInstance": |
       The test-facing view of the named postgresql instance.
 

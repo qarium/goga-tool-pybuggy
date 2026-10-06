@@ -56,7 +56,7 @@ data:                             # startup data layer, applied before the servi
 | `http` | `wiremock/wiremock:3.13.0` |
 
 - Any subset of kinds may be configured; configure only the dependencies the service needs.
-- A `grpc` kind is rejected at startup with an explicit "not supported yet" error.
+- A `grpc` kind is rejected at document load with an explicit "not supported yet" error.
 
 ## Wiring the service to its dependencies
 
