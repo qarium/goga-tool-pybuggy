@@ -1526,25 +1526,30 @@ object while the boundary is open.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 21 is being executed
-- [ ] **Contract tests**: `tests/sandbox/test_baseline.py` — the class, `open`/`close`, and the
+- [x] **Declaration**: state that Task 21 is being executed
+- [x] **Contract tests**: `tests/sandbox/test_baseline.py` — the class, `open`/`close`, and the
   context-manager protocol
-- [ ] **REPL prototype (R4)**: with a FakeEngine sandbox, open the boundary in the REPL, obtain
+- [x] **REPL prototype (R4)**: with a FakeEngine sandbox, open the boundary in the REPL, obtain
   `sandbox.postgresql("db")`, call `insert`, and observe `applied`/`journal` and the untouched
   lazy batch; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/baseline.py` per the algorithm
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_baseline.py -x -v` — pass
-- [ ] **Logic tests**: `test_baseline_boundary_applies_immediately_and_journals` — with
+  (verified in the venv REPL over a FakeEngine/FakeService sandbox driven through the prototype
+  `BaselineBoundary`: immediate apply + journal at declaration time, lazy batch untouched,
+  freeze-on-close, and exception propagation with routing restored all matched the design trace
+  before migration; after landing `baseline.py`, the `baseline()` local import in `sandbox.py`
+  hoisted to module level and the `TYPE_CHECKING` block dropped, as Task 20's note anticipated)
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/baseline.py` per the algorithm
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_baseline.py -x -v` — pass
+- [x] **Logic tests**: `test_baseline_boundary_applies_immediately_and_journals` — with
   FakeEngine recording `apply`/`record`: inside `with sandbox.baseline():` a view
   `insert("customers", rows=[{"id": 1}])` → `engine.applied == [op]` and `engine.journal ==
   [op]` (applied AND journaled at declaration time), the sandbox's lazy batch untouched
   (`take() == []`); after `close()` views are lazy again; an exception raised inside the `with`
   block propagates AND the boundary closes (routing restored)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: immediate apply + journaling, freeze-on-close, exception
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: immediate apply + journaling, freeze-on-close, exception
   propagation, lazy contract outside the boundary
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 22: `activate_sandbox` / `active_sandbox` and the sandbox facade completion (TDD)
 

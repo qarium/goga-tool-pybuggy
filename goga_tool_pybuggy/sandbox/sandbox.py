@@ -1,16 +1,14 @@
 """Sandbox entity: the session runtime of the sandbox."""
 
 import logging
-from typing import TYPE_CHECKING, TypeVar
+from typing import TypeVar
 
+from .baseline import BaselineBoundary
 from .config import SandboxConfig
 from .data import DataBatch, HttpInstance, KafkaInstance, PostgresInstance, VaultInstance
 from .engines import BaseEngine, DataOperation, InstanceAddress, build_engine, check_runtime
 from .env_render import render_service_env
 from .service_container import ServiceContainer
-
-if TYPE_CHECKING:
-    from .baseline import BaselineBoundary
 
 logger = logging.getLogger(__name__)
 
@@ -118,15 +116,13 @@ class Sandbox:
             engine.reset()
             logger.info("instance reset", extra={"instance": name})
 
-    def baseline(self) -> "BaselineBoundary":
+    def baseline(self) -> BaselineBoundary:
         """Open the session baseline boundary.
 
         Returns:
             The boundary of this sandbox; inside it declared operations apply immediately
             and land in the engine journals.
         """
-        from .baseline import BaselineBoundary  # noqa: PLC0415 — the boundary module lands with its own task
-
         return BaselineBoundary(self)
 
     def apply_pending(self) -> None:
