@@ -1108,32 +1108,39 @@ build_engine:
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 12 is being executed
-- [ ] **Contract tests**: `tests/sandbox/engines/test_runtime.py` — both routines importable
+- [x] **Declaration**: state that Task 12 is being executed
+- [x] **Contract tests**: `tests/sandbox/engines/test_runtime.py` — both routines importable
   from the facade; `build_engine` returns a `BaseEngine` subclass per kind
-- [ ] **REPL prototype (R4)**: call `check_runtime()` in the REPL; observe the ping path and
+- [x] **REPL prototype (R4)**: call `check_runtime()` in the REPL; observe the ping path and
   (with docker absent or the client monkeypatched) the actionable message; call `build_engine`
   for each of the four kinds and for a fabricated `kind="grpc"` config
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/engines/runtime.py` implementing both
+  (docker runtime unavailable in this environment — the absent-daemon path was observed live
+  against the real testcontainers client: the DockerClient constructor raises DockerException
+  while fetching the server version, so the probe wraps construction and ping together; the
+  ping-success and factory-failure paths were REPL-verified over a faked client, and
+  build_engine was REPL-driven for all four kinds plus the fabricated grpc config)
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/engines/runtime.py` implementing both
   routines per the algorithms above
-- [ ] **Code**: complete the engines facade — `__all__ = ["DataOperation", "InstanceAddress",
+- [x] **Code**: complete the engines facade — `__all__ = ["DataOperation", "InstanceAddress",
   "check_runtime", "build_engine", "BaseEngine", "PostgresEngine", "KafkaEngine",
-  "VaultEngine", "HttpEngine"]`; verify each name importable
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/ -x -v` — pass; facade
+  "VaultEngine", "HttpEngine"]`; verify each name importable (ruff RUF022 requires the
+  isort-sorted spelling of the same nine names; `EngineError` stays importable from the
+  package via the explicit re-export alias, outside `__all__` per the contract facade)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/ -x -v` — pass; facade
   check: `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.engines import DataOperation,
   InstanceAddress, check_runtime, build_engine, BaseEngine, PostgresEngine, KafkaEngine,
   VaultEngine, HttpEngine"`
-- [ ] **Logic tests**: `test_check_runtime_fails_actionable_without_daemon` — monkeypatch the
+- [x] **Logic tests**: `test_check_runtime_fails_actionable_without_daemon` — monkeypatch the
   docker client factory to raise `DockerException`; `pytest.raises(RuntimeError,
   match="docker-compatible container runtime")`; `test_build_engine_fails_unmapped_kind` —
   `InstanceConfig(name="x", kind="grpc", image=None)` (bypassing the loader);
   `pytest.raises(EngineError, match="postgresql.*kafka.*vault.*http")`; positive: each kind
   returns the matching class; the image override reaches `engine.config.image`
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: probe-before-start positioning, factory defense, image
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: probe-before-start positioning, factory defense, image
   override flow
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ---
 
