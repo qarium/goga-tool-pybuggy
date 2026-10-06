@@ -1177,20 +1177,20 @@ take(): drained = list(ops); ops.clear(); return drained
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 14 is being executed
-- [ ] **Contract tests**: `tests/sandbox/data/test_batch.py` — `DataBatch` importable from the
+- [x] **Declaration**: state that Task 14 is being executed
+- [x] **Contract tests**: `tests/sandbox/data/test_batch.py` — `DataBatch` importable from the
   facade; both methods with the declared signatures
-- [ ] **REPL prototype (R4)**: drive add/add/take/take in the REPL; observe drain semantics;
+- [x] **REPL prototype (R4)**: drive add/add/take/take in the REPL; observe drain semantics;
   then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/data/batch.py`; expose `DataBatch` on the
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/data/batch.py`; expose `DataBatch` on the
   facade
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass
-- [ ] **Logic tests**: `test_batch_take_drains_and_repeat_is_empty` — two ops added; first
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass
+- [x] **Logic tests**: `test_batch_take_drains_and_repeat_is_empty` — two ops added; first
   `take()` returns both in order; second returns `[]`
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: laziness (add executes nothing) and drain semantics
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: laziness (add executes nothing) and drain semantics
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 15: Instance views — `PostgresInstance`, `KafkaInstance`, `VaultInstance`, `HttpInstance` (TDD)
 

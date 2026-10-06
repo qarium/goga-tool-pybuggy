@@ -5,4 +5,8 @@ The facade is populated progressively by the data entity tasks: ``DataBatch``,
 ``services``.
 """
 
-__all__ = []
+from .batch import DataBatch
+
+__all__ = [
+    "DataBatch",
+]
