@@ -1890,18 +1890,22 @@ the usage files, the manifests untouched.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Full suite: `.venv/bin/pytest tests/ -x` — all tests pass (docker-gated tests run when
-  the runtime is available, skip otherwise)
-- [ ] Lint gate (pre-commit for the final commit): `.venv/bin/ruff check goga_tool_pybuggy/
+- [x] Full suite: `.venv/bin/pytest tests/ -x` — all tests pass (docker-gated tests run when
+  the runtime is available, skip otherwise) (1341 passed, 7 skipped — the docker-gated set)
+- [x] Lint gate (pre-commit for the final commit): `.venv/bin/ruff check goga_tool_pybuggy/
   tests/` — exit 0
-- [ ] Facade audit — every cell facade importable in one command each (config, engines, data,
+- [x] Facade audit — every cell facade importable in one command each (config, engines, data,
   sandbox, root; see Validation Commands)
-- [ ] Packaging re-check: rebuild the wheel; confirm the five packaged usage files and no
-  CODEMANIFEST inside
-- [ ] Manifest integrity (read-only): `goga lint` (23 cells, 0 errors) and `goga contract` (no
-  issues) — confirms no CODEMANIFEST was modified during implementation
-- [ ] Coverage sanity (optional, informational): `.venv/bin/pytest tests/ --cov=goga_tool_pybuggy
-  --cov-report=term-missing` — review the sandbox subtree for untested branches
+- [x] Packaging re-check: rebuild the wheel; confirm the five packaged usage files and no
+  CODEMANIFEST inside (all five present: api.md, asserts.md, sandbox-session.md,
+  sandbox-file.md, data-operations.md; zero CODEMANIFEST entries)
+- [x] Manifest integrity (read-only): `goga lint` (23 cells, 0 errors) and `goga contract` (no
+  issues) — confirms no CODEMANIFEST was modified during implementation (also verified via
+  git: no working-tree changes and no implementation commit touched CODEMANIFEST)
+- [x] Coverage sanity (optional, informational): `.venv/bin/pytest tests/ --cov=goga_tool_pybuggy
+  --cov-report=term-missing` — review the sandbox subtree for untested branches (sandbox
+  modules at 86–100%; the uncovered lines are the docker-gated live paths plus a few error
+  branches; package total 95%)
 
 ---
 
@@ -1937,31 +1941,32 @@ compatibility required throughout.
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location`
-- [ ] Every contract entity is accessible from its cell facade (`__all__`), and
+- [x] Every contract entity is implemented in the correct `location`
+- [x] Every contract entity is accessible from its cell facade (`__all__`), and
   `active_sandbox` / `services` from the root facade
-- [ ] Properties and methods match the declared API (signatures, types per the Python rules)
-- [ ] Descriptions are reflected in behavior (algorithms, requirements, constraints from the
+- [x] Properties and methods match the declared API (signatures, types per the Python rules)
+- [x] Descriptions are reflected in behavior (algorithms, requirements, constraints from the
   manifests and the design traces)
-- [ ] Contract dependencies are met (Imports resolve; no cycles; sandbox subtree never imports
-  plugin/api/root)
-- [ ] Re-exports are accessible from the facade
-- [ ] Every coding task followed the TDD workflow (contract tests → code → verification →
+- [x] Contract dependencies are met (Imports resolve; no cycles; sandbox subtree never imports
+  plugin/api/root) (grep-verified in Task 27: only docstrings, read-only CODEMANIFESTs, and
+  consumer-facing usage markdown mention other packages)
+- [x] Re-exports are accessible from the facade
+- [x] Every coding task followed the TDD workflow (contract tests → code → verification →
   logic tests → debugging → re-verification → lint)
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding task;
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding task;
   all 38 design test scenarios exist (5 of them docker-gated via `requires_docker`)
-- [ ] Integration tests exist where cross-entity scenarios require them (Task 23)
-- [ ] No package boundary was expanded (no new cells; internal helpers stay inside their cell)
-- [ ] `CODEMANIFEST` files were not modified (contract is read-only; verified by `goga lint` /
+- [x] Integration tests exist where cross-entity scenarios require them (Task 23)
+- [x] No package boundary was expanded (no new cells; internal helpers stay inside their cell)
+- [x] `CODEMANIFEST` files were not modified (contract is read-only; verified by `goga lint` /
   `goga contract` in Task 27)
-- [ ] All validation commands pass
-- [ ] Every Usages entry is mentioned in at least one task (see the Usages Context mapping:
+- [x] All validation commands pass
+- [x] Every Usages entry is mentioned in at least one task (see the Usages Context mapping:
   conventions — every task; ruamel-yaml — Task 4; testcontainers — Tasks 5, 7–12, 19;
   psycopg — Task 8; kafka-python — Task 9; mokapi — Task 9; vault-dev — Task 10; wiremock —
   Task 11; requests — Tasks 10, 11, 19; jinja2 — Task 18; pluginator — Tasks 22, 24;
   imported sandbox-file — Tasks 18, 20, 22; data-operations — Tasks 15, 20, 23;
   sandbox-session — Tasks 23, 24)
-- [ ] The Mandatory Rules were followed throughout: R1 coding style, R2 test rules, R3 lint and
+- [x] The Mandatory Rules were followed throughout: R1 coding style, R2 test rules, R3 lint and
   format gates at every development stage and before every local commit, R4 REPL cycle
   (prototype → evaluate → migrate → re-verify) with no scratch code left in the repo, R5
   contract discipline
