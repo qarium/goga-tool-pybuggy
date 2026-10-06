@@ -1379,17 +1379,23 @@ output readable. Constraint: never restarted on reset.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 19 is being executed
-- [ ] **Contract tests**: `tests/sandbox/test_service_container.py` — the class and its method/
+- [x] **Declaration**: state that Task 19 is being executed
+- [x] **Contract tests**: `tests/sandbox/test_service_container.py` — the class and its method/
   property surface (facade exposure lands with Task 22)
-- [ ] **REPL prototype (R4, docker-gated)**: start the container for the pinned
+- [x] **REPL prototype (R4, docker-gated)**: start the container for the pinned
   `wiremock/wiremock:3.13.0` image with port 8080 in the REPL (no extra image needed); observe
   the port-probe readiness loop, the mapped host/port, `alive()`, `logs()`, stop-twice safety;
   repeat with `health="/__admin/health"` for the health branch; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/service_container.py` per the contract
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_service_container.py -x
+  (docker runtime unavailable in this environment — live probing deferred to the docker-gated
+  test; the DockerContainer build chain (construction fetches the server version eagerly, so the
+  module-seam patch pattern is required), the `_tcp_port_open` helper against a live and a
+  closed local socket, both readiness deadline loops over fake requests/time, the
+  reload→status liveness semantics, and the bytes→str log decode were REPL-verified, and the
+  full lifecycle was REPL-replayed over fake seams)
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/service_container.py` per the contract
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_service_container.py -x
   -v` — pass
-- [ ] **Logic tests** (docker-gated, review-added scenario):
+- [x] **Logic tests** (docker-gated, review-added scenario):
   `test_service_container_readiness_and_liveness` — variant A: `ServiceConfig(image=
   "wiremock/wiremock:3.13.0", port=8080, health=None, env={})`; `sc.start(env={"K": "v"})`;
   assert `int(sc.port) > 0`, `sc.host` resolvable, `requests.get(f"http://{sc.host}:{sc.port}
@@ -1397,11 +1403,14 @@ output readable. Constraint: never restarted on reset.
   `isinstance(sc.logs(), str)`, `sc.stop()`; second `sc.stop()` does not raise; `sc.alive()` is
   False after stop. Variant B: the same shape with `health="/__admin/health"` (health-path
   readiness branch)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: both readiness branches, mapped address, liveness/logs pair,
+  (written; skips here without a docker runtime — plus fake-driven unit coverage of build, both
+  readiness branches incl. the deadline failures, mapped address, before-start guard, liveness
+  reload, logs decode, and stop safety that runs everywhere)
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: both readiness branches, mapped address, liveness/logs pair,
   stop safety
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 20: `Sandbox` — the session runtime core (TDD)
 
