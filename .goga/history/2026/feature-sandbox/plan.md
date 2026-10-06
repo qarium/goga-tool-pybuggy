@@ -1263,27 +1263,27 @@ instance is the application order. Constraint: do not execute anything at decora
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 16 is being executed
-- [ ] **Contract tests**: `tests/sandbox/data/test_presets.py` — `services` importable from the
+- [x] **Declaration**: state that Task 16 is being executed
+- [x] **Contract tests**: `tests/sandbox/data/test_presets.py` — `services` importable from the
   facade; callable with keyword presets returning a decorator
-- [ ] **REPL prototype (R4)**: decorate a sample function in the REPL; inspect
+- [x] **REPL prototype (R4)**: decorate a sample function in the REPL; inspect
   `fn.pytestmark` / the marker kwargs; confirm no I/O occurred; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/data/presets.py` per the contract; expose
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/data/presets.py` per the contract; expose
   `services` on the facade; final data facade — `__all__ = ["DataBatch", "PostgresInstance",
   "KafkaInstance", "VaultInstance", "HttpInstance", "services"]`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass; facade
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass; facade
   check: `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.data import DataBatch,
   PostgresInstance, KafkaInstance, VaultInstance, HttpInstance, services"`
-- [ ] **Logic tests**: `test_presets_decorator_marks_test_and_executes_nothing` — the
+- [x] **Logic tests**: `test_presets_decorator_marks_test_and_executes_nothing` — the
   `pybuggy_services` marker exists with `presets` payload
   (`marker.kwargs["presets"]["postgresql"]["db"][0]["table"] == "customers"`);
   `test_services_rejects_unknown_kind_at_decoration` — `@services(redis={"x": []})` raises
   `ValueError` matching `"redis"` at decoration
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
-- [ ] **Contract re-verification**: decoration-time kind validation (decision 3A), marker shape,
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — fix implementation until green
+- [x] **Contract re-verification**: decoration-time kind validation (decision 3A), marker shape,
   zero execution
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ---
 

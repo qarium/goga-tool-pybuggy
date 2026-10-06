@@ -1,14 +1,14 @@
 """`goga_tool_pybuggy.sandbox.data` cell facade — lazy declaration surface.
 
-The facade is populated progressively by the data entity tasks: ``DataBatch``,
-``PostgresInstance``, ``KafkaInstance``, ``VaultInstance``, ``HttpInstance``,
-``services``.
+The data cell facade: ``DataBatch``, ``PostgresInstance``, ``KafkaInstance``,
+``VaultInstance``, ``HttpInstance``, ``services``.
 """
 
 from .batch import DataBatch
 from .http import HttpInstance
 from .kafka import KafkaInstance
 from .postgres import PostgresInstance
+from .presets import services
 from .vault import VaultInstance
 
 __all__ = [
@@ -17,4 +17,5 @@ __all__ = [
     "KafkaInstance",
     "PostgresInstance",
     "VaultInstance",
+    "services",
 ]
