@@ -109,8 +109,20 @@ class FakePostgresContainer:
     def __init__(self, image: str, **kwargs: object) -> None:
         self.image = image
         self.kwargs = kwargs
+        self.network: object | None = None
+        self.network_aliases: list[str] = []
 
         FakePostgresContainer.last_kwargs = {"image": image, **kwargs}
+
+    def with_network(self, network: object) -> "FakePostgresContainer":
+        self.network = network
+
+        return self
+
+    def with_network_aliases(self, *aliases: str) -> "FakePostgresContainer":
+        self.network_aliases.extend(aliases)
+
+        return self
 
 
 class TestPostgresEngineContract:
@@ -133,7 +145,7 @@ class TestPostgresEngineContract:
     def test_postgres_engine_inherits_the_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` resolve with declared parameters."""
         expected = {
-            "start": ["self", "startup"],
+            "start": ["self", "startup", "network"],
             "apply": ["self", "operations"],
             "record": ["self", "operations"],
             "reset": ["self"],
@@ -321,10 +333,11 @@ class TestPostgresEngineContainer:
         try:
             assert engine.address.port > 0
 
+            # record journals without applying — the baseline boundary is the applying seam.
             engine.record([insert_op([{"id": 1, "n": 5}])])
             engine.apply([insert_op([{"id": 2, "n": 7}])])
 
-            assert self.fetch_rows(engine) == [(1, 5), (2, 7)]
+            assert self.fetch_rows(engine) == [(2, 7)]
 
             engine.reset()
 

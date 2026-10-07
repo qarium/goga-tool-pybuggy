@@ -131,8 +131,20 @@ class FakeDockerContainer:
         self.exposed_ports: list[int] = []
         self.env: dict[str, str] = {}
         self.command: str | list[str] | None = None
+        self.network: object | None = None
+        self.network_aliases: list[str] = []
         self.stops = 0
         self.starts = 0
+
+    def with_network(self, network: object) -> "FakeDockerContainer":
+        self.network = network
+
+        return self
+
+    def with_network_aliases(self, *aliases: str) -> "FakeDockerContainer":
+        self.network_aliases.extend(aliases)
+
+        return self
 
     def start(self) -> "FakeDockerContainer":
         self.starts += 1
@@ -201,7 +213,7 @@ class TestHttpEngineContract:
     def test_http_engine_inherits_the_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` resolve with declared parameters."""
         expected = {
-            "start": ["self", "startup"],
+            "start": ["self", "startup", "network"],
             "apply": ["self", "operations"],
             "record": ["self", "operations"],
             "reset": ["self"],

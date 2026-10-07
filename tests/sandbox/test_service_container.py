@@ -1,6 +1,7 @@
 """Contract and logic tests for the ``ServiceContainer`` entity."""
 
 import inspect
+import time
 
 import pytest
 import requests
@@ -178,7 +179,7 @@ class TestServiceContainerContract:
     def test_service_container_declares_the_contract_methods(self):
         """``start`` / ``stop`` / ``alive`` / ``logs`` resolve with declared parameters."""
         expected = {
-            "start": ["self", "env"],
+            "start": ["self", "env", "network"],
             "stop": ["self"],
             "alive": ["self"],
             "logs": ["self"],
@@ -410,6 +411,33 @@ class TestServiceContainerStop:
 class TestServiceContainerContainer:
     """Live behavior of the service container against a real container (docker-gated)."""
 
+    @staticmethod
+    def _get_until_answer(url: str) -> requests.Response:
+        """GET until any answer arrives — TCP readiness can precede HTTP by a moment.
+
+        The port branch waits only for a TCP accept; the first HTTP request may still hit
+        a booting server or a resetting port proxy of the docker host.
+
+        Args:
+            url: The URL to request.
+
+        Returns:
+            The first response the endpoint answers with.
+
+        Raises:
+            requests.RequestException: The endpoint answered nothing within the deadline.
+        """
+        deadline = time.monotonic() + 10.0
+
+        while True:
+            try:
+                return requests.get(url, timeout=5)
+            except requests.RequestException:
+                if time.monotonic() >= deadline:
+                    raise
+
+                time.sleep(0.5)
+
     def test_service_container_readiness_and_liveness_port_branch(self):
         """Variant A — port readiness: mapped address, liveness, output, stop safety."""
         container = ServiceContainer(service_config(health=None))
@@ -419,7 +447,7 @@ class TestServiceContainerContainer:
         try:
             assert int(container.port) > 0
             assert len(container.host) > 0
-            health = requests.get(f"http://{container.host}:{container.port}/__admin/health", timeout=5)
+            health = self._get_until_answer(f"http://{container.host}:{container.port}/__admin/health")
             assert health.status_code == 200
             assert container.alive() is True
             assert isinstance(container.logs(), str)

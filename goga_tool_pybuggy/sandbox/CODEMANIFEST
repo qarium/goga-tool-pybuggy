@@ -59,6 +59,10 @@ Annotations: |
     Requirements:
     - Stop removes everything on every exit path — success, failure, interruption.
     - The service address is readable as the base_url after start.
+    - Start creates one sandbox network — the per-session isolation boundary — and every
+    container the session starts (instance engines and the service) joins it; stop removes
+    the network after the containers left it. Mapped-address consumption is unchanged: the
+    network isolates parallel sessions, the runner keeps using the published host ports.
     - The session lifecycle owns one `DataBatch` per test: the registered per-test hook creates a
     fresh batch before the test, the instance views returned by postgresql/kafka/vault/http bind
     to it, and apply_pending takes exactly that batch; a new test never sees a previous test's

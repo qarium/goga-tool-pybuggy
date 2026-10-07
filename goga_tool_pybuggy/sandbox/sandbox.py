@@ -3,6 +3,8 @@
 import logging
 from typing import TypeVar
 
+from testcontainers.core.network import Network
+
 from .baseline import BaselineBoundary
 from .config import SandboxConfig
 from .data import DataBatch, HttpInstance, KafkaInstance, PostgresInstance, VaultInstance
@@ -13,6 +15,8 @@ from .service_container import ServiceContainer
 logger = logging.getLogger(__name__)
 
 ViewT = TypeVar("ViewT", PostgresInstance, KafkaInstance, VaultInstance, HttpInstance)
+
+SANDBOX_NETWORK_LABELS = {"pybuggy-sandbox": "true"}
 
 
 class Sandbox:
@@ -43,6 +47,7 @@ class Sandbox:
         self._batch = DataBatch()
         self._boundary_open = False
         self._boundary_batch: DataBatch | None = None
+        self._network: Network | None = None
 
     @property
     def base_url(self) -> str:
@@ -57,9 +62,10 @@ class Sandbox:
     def start(self) -> None:
         """Bring the sandbox up in the ordered sequence.
 
-        Probes the container runtime, starts every configured instance engine — in
-        declaration order, each with its startup data — renders the service env against
-        the started instance addresses, then starts the service container to readiness.
+        Probes the container runtime, creates the sandbox network — the per-session isolation
+        boundary every container joins — starts every configured instance engine in
+        declaration order, each with its startup data, renders the service env against the
+        started instance addresses, then starts the service container to readiness.
         A failure at any step removes everything started so far and re-raises.
 
         Raises:
@@ -71,11 +77,14 @@ class Sandbox:
         try:
             check_runtime()
 
+            self._network = Network(docker_network_kw={"labels": SANDBOX_NETWORK_LABELS})
+            self._network.create()
+
             addresses = self._start_engines()
             rendered = render_service_env(self.config.service.env, addresses)
             logger.info("service env rendered", extra={"values": len(rendered)})
 
-            self.service.start(rendered)
+            self.service.start(rendered, self._network)
         except Exception:
             logger.error("sandbox start failed", extra={"image": self.config.service.image})
             self.stop()
@@ -88,7 +97,8 @@ class Sandbox:
         """Remove everything the sandbox started.
 
         The service stops first, then the engines in reverse start order — each guarded,
-        so one failing removal never blocks the remaining ones. Safe when already stopped.
+        so one failing removal never blocks the remaining ones — then the sandbox network
+        goes. Safe when already stopped.
 
         Raises:
             RuntimeError: Never; a failing engine stop is logged instead of raising.
@@ -100,6 +110,8 @@ class Sandbox:
                 self.engines[name].stop()
             except Exception:
                 logger.error("engine stop failed", extra={"instance": name})
+
+        self._remove_network()
 
         logger.info("sandbox stopped", extra={"image": self.config.service.image})
 
@@ -232,6 +244,8 @@ class Sandbox:
     def _start_engines(self) -> dict[str, InstanceAddress]:
         """Start every instance engine with its startup data, in declaration order.
 
+        Each engine's container joins the sandbox network.
+
         Returns:
             The mapped address of every started instance, keyed by instance name.
         """
@@ -240,11 +254,33 @@ class Sandbox:
         for name, engine in self.engines.items():
             startup = self._startup_operations(name)
 
-            engine.start(startup)
+            engine.start(startup, self._network)
             addresses[name] = engine.address
             logger.info("startup data applied", extra={"instance": name, "operations": len(startup)})
 
         return addresses
+
+    def _remove_network(self) -> None:
+        """Remove the sandbox network — guarded, after every container left it.
+
+        Raises:
+            RuntimeError: Never; a failing removal is logged instead of raising, so teardown
+                of the remaining parts never gets blocked.
+        """
+        if self._network is None:
+            return
+
+        network = self._network
+        self._network = None
+
+        try:
+            network.remove()
+        except Exception:
+            logger.error("sandbox network removal failed", extra={"instances": list(self.engines)})
+
+            return
+
+        logger.debug("sandbox network removed", extra={"instances": list(self.engines)})
 
     def _startup_operations(self, name: str) -> list[DataOperation]:
         """Assemble the startup operations of one instance from the startup data sections.

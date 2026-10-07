@@ -8,7 +8,7 @@ from goga_tool_pybuggy.sandbox.config import InstanceConfig, SandboxConfig, Serv
 from goga_tool_pybuggy.sandbox.data import PostgresInstance
 from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 
-from .conftest import FakeEngine, FakeService
+from .conftest import FakeEngine, FakeNetwork, FakeService
 
 
 def sandbox_config() -> SandboxConfig:
@@ -121,6 +121,9 @@ class SandboxHarness:
         monkeypatch.setattr(sandbox_module, "build_engine", lambda instance_config: self.engines[instance_config.name])
         monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _service_config: self.service)
         monkeypatch.setattr(sandbox_module, "check_runtime", lambda: self.events.append("runtime-check"))
+        monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
+        FakeNetwork.created.clear()
+        FakeNetwork.removed.clear()
 
         self.sandbox: sandbox_module.Sandbox = sandbox_module.Sandbox(self.config)
 
@@ -232,6 +235,14 @@ class TestSandboxStart:
             "PAYMENTS_URL": "http://127.0.0.3:8080/pay",
         }
 
+    def test_start_creates_one_labeled_network_and_hands_it_to_the_service(self, started: SandboxHarness):
+        """One labeled network per session: created at start, carried into the service start."""
+        [network] = FakeNetwork.created
+
+        assert network.docker_network_kw == {"labels": {"pybuggy-sandbox": "true"}}
+        assert started.sandbox._network is network
+        assert started.service.started_network is network
+
     def test_start_failure_stops_started_parts_and_reraises(self, monkeypatch: pytest.MonkeyPatch):
         """A failing instance start propagates and removes everything started so far."""
         harness = SandboxHarness(fail_payments_start=True)
@@ -341,6 +352,15 @@ class TestSandboxLifecycle:
         assert started.events == ["engine:db:reset", "engine:payments:reset"]
         assert started.service.stopped is False
         assert started.service.started is True
+
+    def test_stop_removes_the_network_after_the_containers(self, started: SandboxHarness):
+        """Tearing the session down removes the sandbox network after the containers left it."""
+        [network] = FakeNetwork.created
+
+        started.sandbox.stop()
+
+        assert FakeNetwork.removed == [network]
+        assert started.sandbox._network is None
 
     def test_stop_stops_service_then_engines_in_reverse_order_and_is_idempotent(self, started: SandboxHarness):
         """Stop removes the service first, then the engines in reverse start order; twice is safe."""

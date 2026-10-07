@@ -56,13 +56,17 @@ class PostgresEngine(BaseEngine):
         """
         image = self.config.image or DEFAULT_IMAGE
 
-        return PostgresContainer(
+        container = PostgresContainer(
             image,
             username=PLANE_USER,
             password=PLANE_PASSWORD,
             dbname=PLANE_DBNAME,
             labels=SANDBOX_LABELS,
         )
+
+        self._attach_network(container)
+
+        return container
 
     def _open_plane(self) -> None:
         """Open the session autocommit connection against the started container.

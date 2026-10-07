@@ -9,6 +9,7 @@ the same way, or take the ``fake_engine`` / ``fake_service`` fixtures for the de
 import functools
 import pathlib
 from collections.abc import Callable
+from typing import ClassVar
 
 import docker
 import pytest
@@ -107,11 +108,12 @@ class FakeEngine:
         self.started = False
         self.stopped = False
 
-    def start(self, startup: list[DataOperation]) -> None:
+    def start(self, startup: list[DataOperation], network: object = None) -> None:
         """Record a start; the startup operations join the journal as the initial baseline.
 
         Args:
             startup: The startup data of this instance, in declaration order.
+            network: The sandbox network handed through — recorded, never used.
 
         Raises:
             RuntimeError: ``fail_start`` is set — the failed-start scenarios.
@@ -205,17 +207,20 @@ class FakeService:
         self.started = False
         self.stopped = False
         self.started_env: dict[str, str] | None = None
+        self.started_network: object | None = None
 
-    def start(self, env: dict[str, str]) -> None:
+    def start(self, env: dict[str, str], network: object = None) -> None:
         """Record a start carrying the rendered env.
 
         Args:
             env: The rendered service environment.
+            network: The sandbox network handed through — recorded for the lifecycle assertions.
         """
         self._emit("start")
         self.started = True
         self.stopped = False
         self.started_env = dict(env)
+        self.started_network = network
 
     def stop(self) -> None:
         """Record a stop; safe when already stopped."""
@@ -259,3 +264,36 @@ def fake_engine() -> FakeEngine:
 def fake_service() -> FakeService:
     """A fresh recording service — running, with empty output."""
     return FakeService()
+
+
+class FakeNetwork:
+    """Recording network double for the sandbox cell unit tests.
+
+    Mirrors the testcontainers ``Network`` surface the sandbox drives — construction with the
+    labels keyword, ``create``, ``remove`` — without touching the daemon.
+
+    Attributes:
+        docker_network_kw: The network-creation keywords recorded from the constructor call.
+    """
+
+    created: ClassVar[list["FakeNetwork"]] = []
+    removed: ClassVar[list["FakeNetwork"]] = []
+
+    def __init__(self, docker_client_kw: dict | None = None, docker_network_kw: dict | None = None) -> None:
+        """Initialize the recording network of one constructor call.
+
+        Args:
+            docker_client_kw: Unused by the double — accepted for signature parity.
+            docker_network_kw: The network-creation keywords recorded for assertions.
+        """
+        self.docker_network_kw = docker_network_kw or {}
+
+    def create(self) -> "FakeNetwork":
+        """Record the creation; the double stays inert."""
+        FakeNetwork.created.append(self)
+
+        return self
+
+    def remove(self) -> None:
+        """Record the removal; the double stays inert."""
+        FakeNetwork.removed.append(self)

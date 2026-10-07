@@ -9,7 +9,7 @@ from goga_tool_pybuggy.sandbox import sandbox as sandbox_module
 from goga_tool_pybuggy.sandbox.config import InstanceConfig, SandboxConfig, ServiceConfig, StartupData
 from goga_tool_pybuggy.sandbox.engines import DataOperation
 
-from .conftest import FakeEngine, FakeService
+from .conftest import FakeEngine, FakeNetwork, FakeService
 
 MINIMAL_DOCUMENT = """\
 service:
@@ -151,6 +151,8 @@ def fake_sandbox(monkeypatch: pytest.MonkeyPatch) -> sandbox_module.Sandbox:
     engine = FakeEngine(name="db", kind="postgresql")
     monkeypatch.setattr(sandbox_module, "build_engine", lambda _instance_config: engine)
     monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _service_config: FakeService())
+    monkeypatch.setattr(sandbox_module, "check_runtime", lambda: None)
+    monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
 
     return sandbox_module.Sandbox(
         SandboxConfig(

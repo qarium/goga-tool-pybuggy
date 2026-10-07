@@ -2,6 +2,7 @@
 
 import inspect
 import logging
+import time
 
 import pytest
 import requests
@@ -114,11 +115,24 @@ class FakeDockerContainer:
         self.image = image
         self.kwargs = kwargs
         self.exposed_ports: list[int] = []
+        self.bind_ports: list[tuple[int, int | None]] = []
         self.env: dict[str, str] = {}
         self.command: str | list[str] | None = None
+        self.network: object | None = None
+        self.network_aliases: list[str] = []
         self.wrapped = FakeWrappedContainer()
         self.stops = 0
         self.starts = 0
+
+    def with_network(self, network: object) -> "FakeDockerContainer":
+        self.network = network
+
+        return self
+
+    def with_network_aliases(self, *aliases: str) -> "FakeDockerContainer":
+        self.network_aliases.extend(aliases)
+
+        return self
 
     def start(self) -> "FakeDockerContainer":
         self.starts += 1
@@ -127,6 +141,11 @@ class FakeDockerContainer:
 
     def with_exposed_ports(self, *ports: int) -> "FakeDockerContainer":
         self.exposed_ports.extend(ports)
+
+        return self
+
+    def with_bind_ports(self, container: int, host: int | None = None) -> "FakeDockerContainer":
+        self.bind_ports.append((container, host))
 
         return self
 
@@ -144,7 +163,7 @@ class FakeDockerContainer:
         return "127.0.0.2"
 
     def get_exposed_port(self, port: int) -> str:
-        return {8200: "18200"}[port]
+        return {8200: "18200"}.get(port, str(port))
 
     def get_wrapped_container(self) -> FakeWrappedContainer:
         return self.wrapped
@@ -166,6 +185,7 @@ def armed_engine(monkeypatch: pytest.MonkeyPatch, fake_requests: FakeRequests) -
     monkeypatch.setattr(vault_module, "DockerContainer", FakeDockerContainer)
     monkeypatch.setattr(vault_module, "requests", fake_requests)
     monkeypatch.setattr(vault_module, "time", FakeTime())
+    monkeypatch.setattr(vault_module, "reserve_port", lambda: 18200)
 
     return secrets_engine()
 
@@ -190,7 +210,7 @@ class TestVaultEngineContract:
     def test_vault_engine_inherits_the_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` resolve with declared parameters."""
         expected = {
-            "start": ["self", "startup"],
+            "start": ["self", "startup", "network"],
             "apply": ["self", "operations"],
             "record": ["self", "operations"],
             "reset": ["self"],
@@ -210,16 +230,18 @@ class TestVaultEngineContract:
 class TestVaultEngineBuild:
     """Container build arguments of the vault engine, driven through the patched constructor."""
 
-    def test_build_uses_the_pinned_image_labels_and_port(self, monkeypatch: pytest.MonkeyPatch):
-        """Without an image override the build uses the pinned image, labels, the vault port."""
+    def test_build_uses_the_pinned_image_labels_and_the_fixed_port(self, monkeypatch: pytest.MonkeyPatch):
+        """Without an image override the build uses the pinned image, labels, fixed bound port."""
         monkeypatch.setattr(vault_module, "DockerContainer", FakeDockerContainer)
+        monkeypatch.setattr(vault_module, "reserve_port", lambda: 18200)
         engine = secrets_engine()
 
         container = engine._build_container()
 
         assert container.image == "hashicorp/vault:1.17"
         assert container.kwargs["labels"] == {"pybuggy-sandbox": "true"}
-        assert container.exposed_ports == [8200]
+        assert container.exposed_ports == []
+        assert container.bind_ports == [(8200, 18200)]
 
     def test_build_honors_the_image_override(self, monkeypatch: pytest.MonkeyPatch):
         """The image override of the instance config reaches the container build."""
@@ -424,6 +446,33 @@ class TestVaultEngineLifecycle:
 class TestVaultEngineContainer:
     """Live behavior of the vault engine against a real container (docker-gated)."""
 
+    @staticmethod
+    def _get(url: str, headers: dict[str, str]) -> requests.Response:
+        """GET until any answer arrives — the first connections after a restart may reset.
+
+        A container restart can leave the docker host's port proxy resetting connections
+        for a moment; a readiness loop absorbs it, a single request does not.
+
+        Args:
+            url: The vault API URL to request.
+
+        Returns:
+            The first response the endpoint answers with.
+
+        Raises:
+            requests.RequestException: The endpoint answered nothing within the deadline.
+        """
+        deadline = time.monotonic() + 10.0
+
+        while True:
+            try:
+                return requests.get(url, headers=headers, timeout=5)
+            except requests.RequestException:
+                if time.monotonic() >= deadline:
+                    raise
+
+                time.sleep(0.5)
+
     def test_vault_engine_put_and_restart_reset(self):
         """Reset restarts the container: test writes gone, baseline replayed, address stable."""
         engine = secrets_engine()
@@ -440,10 +489,10 @@ class TestVaultEngineContainer:
             base = f"http://{engine.address.host}:{engine.address.port}"
             headers = {"X-Vault-Token": vault_module.DEV_ROOT_TOKEN}
 
-            test_write = requests.get(f"{base}/v1/secret/data/x/y", headers=headers, timeout=5)
+            test_write = self._get(f"{base}/v1/secret/data/x/y", headers)
             assert test_write.status_code == 404
 
-            baseline_secret = requests.get(f"{base}/v1/secret/data/payment/api-key", headers=headers, timeout=5)
+            baseline_secret = self._get(f"{base}/v1/secret/data/payment/api-key", headers)
             assert baseline_secret.status_code == 200
             assert baseline_secret.json()["data"]["data"] == {"api_key": "test-key"}
         finally:

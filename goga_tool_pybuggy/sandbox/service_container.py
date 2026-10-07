@@ -6,6 +6,7 @@ import time
 
 import requests
 from testcontainers.core.container import DockerContainer
+from testcontainers.core.network import Network
 
 from .config.service import ServiceConfig
 
@@ -42,6 +43,7 @@ class ServiceContainer:
         """
         self.config = config
         self._container: DockerContainer | None = None
+        self._network: Network | None = None
 
     @property
     def host(self) -> str:
@@ -73,20 +75,24 @@ class ServiceContainer:
 
         return int(self._container.get_exposed_port(self.config.port))
 
-    def start(self, env: dict[str, str]) -> None:
+    def start(self, env: dict[str, str], network: Network | None = None) -> None:
         """Start the service container with the rendered env and bring it to readiness.
 
         The container runs the declared image with the sandbox labels, publishes the declared
-        port and receives the rendered env values. Readiness is the declared mode — a TCP port
-        probe loop when ``config.health`` is ``None``, the health endpoint until it answers 2xx
-        otherwise — and completes before the call returns.
+        port and receives the rendered env values; with a network it joins it, side by side
+        with the dependency instances of the same sandbox. Readiness is the declared mode — a
+        TCP port probe loop when ``config.health`` is ``None``, the health endpoint until it
+        answers 2xx otherwise — and completes before the call returns.
 
         Args:
             env: The rendered service environment, placeholder values resolved.
+            network: The sandbox network the container joins.
 
         Raises:
             RuntimeError: The service did not become ready within the deadline.
         """
+        self._network = network
+
         logger.info("service starting", extra={"image": self.config.image, "port": self.config.port})
 
         container = self._build_container(env)
@@ -181,6 +187,9 @@ class ServiceContainer:
 
         for key, value in env.items():
             container.with_env(key, value)
+
+        if self._network is not None:
+            container.with_network(self._network)
 
         return container
 

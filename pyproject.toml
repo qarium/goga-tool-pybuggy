@@ -42,7 +42,7 @@ dependencies = [
     "pluginator>=1.0.0,<1.1.0",
     "testcontainers[postgres]>=4.15",
     "psycopg[binary]>=3.1",
-    "kafka-python>=2.2",
+    "kafka-python>=3.0",
     "requests>=2.31",
 ]
 

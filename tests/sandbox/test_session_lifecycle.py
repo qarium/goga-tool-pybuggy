@@ -15,7 +15,7 @@ from goga_tool_pybuggy.sandbox import activation as activation_module
 from goga_tool_pybuggy.sandbox import sandbox as sandbox_module
 from goga_tool_pybuggy.sandbox.engines import DataOperation, EngineError, InstanceAddress
 
-from .conftest import FakeEngine, FakeService
+from .conftest import FakeEngine, FakeNetwork, FakeService
 
 SESSION_DOCUMENT = """\
 service:
@@ -188,6 +188,7 @@ def armed(
         monkeypatch.setattr(sandbox_module, "build_engine", lambda instance_config: engines[instance_config.name])
         monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _service_config: service)
         monkeypatch.setattr(sandbox_module, "check_runtime", lambda: None)
+        monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
 
         return context
 

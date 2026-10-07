@@ -6,7 +6,7 @@ import time
 import requests
 from testcontainers.core.container import DockerContainer
 
-from .base import BaseEngine
+from .base import BaseEngine, reserve_port
 from .operation import DataOperation
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 DEFAULT_IMAGE = "hashicorp/vault:1.17"
 CONTAINER_PORT = 8200
 DEV_ROOT_TOKEN = "sandbox-root"
-DEV_LISTEN_ADDRESS = "0.0.0.0:8200"
+DEV_LISTEN_ADDRESS = f"0.0.0.0:{CONTAINER_PORT}"
 DEV_COMMAND = "server -dev"
 SANDBOX_LABELS = {"pybuggy-sandbox": "true"}
 
@@ -44,17 +44,24 @@ class VaultEngine(BaseEngine):
     _container_port = CONTAINER_PORT
 
     def _build_container(self) -> DockerContainer:
-        """Build the vault dev container — pinned image, labels, port, dev env, dev command.
+        """Build the vault dev container — pinned image, labels, fixed port, dev env, dev command.
+
+        The container's vault port is published on a reserved fixed host port, not a
+        dynamically assigned one: a restart-based reset re-rolls dynamic port assignments,
+        and the mapped address — already rendered into the service env — must survive the
+        reset.
 
         Returns:
             The built, not yet started, vault container.
         """
         image = self.config.image or DEFAULT_IMAGE
         container = DockerContainer(image, labels=SANDBOX_LABELS)
-        container.with_exposed_ports(CONTAINER_PORT)
+        container.with_bind_ports(CONTAINER_PORT, reserve_port())
         container.with_env("VAULT_DEV_ROOT_TOKEN_ID", DEV_ROOT_TOKEN)
         container.with_env("VAULT_DEV_LISTEN_ADDRESS", DEV_LISTEN_ADDRESS)
         container.with_command(DEV_COMMAND)
+
+        self._attach_network(container)
 
         return container
 
@@ -68,7 +75,7 @@ class VaultEngine(BaseEngine):
             RuntimeError: The health endpoint did not succeed within the deadline.
         """
         host = self._container.get_container_host_ip()
-        port = int(self._container.get_exposed_port(CONTAINER_PORT))
+        port = int(self._container.get_exposed_port(self._container_port))
         url = f"http://{host}:{port}/v1/sys/health"
         deadline = time.monotonic() + READINESS_TIMEOUT
 

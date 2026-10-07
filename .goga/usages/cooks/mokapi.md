@@ -8,25 +8,39 @@ topology (topics and their partitions) is described by an **AsyncAPI** document,
 is a real kafka wire-protocol listener that ordinary kafka clients (kafka-python producer) connect
 to directly.
 
+Product pin: `mokapi/mokapi:0.52.0`. kafka clients negotiate ApiVersionsRequest v4
+(kafka-python >= 3); mokapi releases before ~0.5x answer `kafka: unsupported version 4` and the
+bootstrap hangs — do not downgrade the pin without re-checking client compatibility.
+
 ---
 
-## Running with an AsyncAPI spec
+## The spec's server entry is load-bearing
 
-Specs are passed as positional file arguments; config files reach the container through a volume
-mount:
+`servers.<name>.host` in the AsyncAPI document decides **both** where mokapi binds its kafka
+listener and **what address it advertises to clients** in metadata responses:
+
+- a kafka client bootstraps on the address it was given, then follows the broker address of the
+  metadata answer — the advertised address must be reachable from the client, or every produce
+  hangs;
+- the listener port is parsed from the same `host:port` string — the published port mapping must
+  target exactly that in-container port.
+
+This is why the sandbox never mounts the author's document as-is: it reserves a free host port,
+rewrites every kafka-protocol `servers.*.host` of a spec copy to the client-reachable
+`{docker-host}:{reserved-port}`, transfers the copy into the container through the docker API
+(no bind mount — host paths resolve on the daemon's filesystem and break when the engine itself
+runs inside a container), and publishes the reserved port on both sides. Bootstrap, advertised
+metadata and the `{{instance.host}}`/`{{instance.port}}` service-env placeholders then name one
+and the same address.
 
 ```bash
+# the equivalent manual run — spec advertising exactly the reachable address, same port both sides
 docker run --rm -p 8080:8080 -p 9092:9092 \
-  -v $(pwd):/data mokapi/mokapi /data/asyncapi.yaml
+  -v $(pwd):/data mokapi/mokapi /data/asyncapi.yaml   # spec server host: localhost:9092
 ```
 
-- The AsyncAPI document defines the mocked topics (kafka bindings); mokapi serves them on its kafka
-  listener (default port `9092` unless configured otherwise).
-- The sandbox starts the container with the spec path as a command argument and reads back the
-  mapped host/port of the kafka listener — that address is the bootstrap the producer uses and the
-  value the `{{instance.host}}`/`{{instance.port}}` placeholders inject into the service env.
-- Spec patching/config files can override parts of a spec without touching the original — not used
-  by the sandbox (the spec path comes from `.sandbox.yml` as-is).
+- The AsyncAPI document defines the mocked topics (kafka bindings); without a kafka server entry
+  mokapi opens no kafka listener at all — the sandbox rejects a spec-less kafka instance at start.
 - JavaScript scripting (`on('kafka', ...)`) can customize behavior — deliberately unused: the
   sandbox drives data through the kafka protocol, not through mock-internal scripts.
 
@@ -48,9 +62,11 @@ docker run --rm -p 8080:8080 -p 9092:9092 \
 All state is in-memory:
 
 - A restart of the container empties everything — produced messages are gone, and the topology is
-  re-created from the AsyncAPI spec on boot.
+  re-created from the spec on boot.
 - This is exactly why the sandbox resets a kafka instance by restarting the container: after the
   restart the instance is in its pristine startup state, and the baseline journal replay
   re-establishes the author-declared preconditions on top.
+- The fixed port binding and the transferred spec survive the restart — the mapped address stays
+  valid across resets (a dynamically assigned published port would be re-rolled by the restart).
 - Services under test must tolerate the broker reconnecting (the accepted speed-over-fidelity
   trade-off of the reset strategy).

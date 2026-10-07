@@ -7,7 +7,7 @@ from goga_tool_pybuggy.sandbox import sandbox as sandbox_module
 from goga_tool_pybuggy.sandbox.config import InstanceConfig, SandboxConfig, ServiceConfig, StartupData
 from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 
-from .conftest import FakeEngine, FakeService
+from .conftest import FakeEngine, FakeNetwork, FakeService
 
 
 @pytest.fixture
@@ -35,6 +35,7 @@ def started(
     monkeypatch.setattr(sandbox_module, "build_engine", lambda _instance_config: engine)
     monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _service_config: service)
     monkeypatch.setattr(sandbox_module, "check_runtime", lambda: None)
+    monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
 
     config = SandboxConfig(
         service=ServiceConfig(image="my-service:latest", env={}, port=8080, health=None),

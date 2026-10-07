@@ -178,3 +178,34 @@ children — one `insert` call targets one table.
 - `base_url` stays a required plugin option even with an armed sandbox (the render
   contract is unchanged); any configured value is simply overridden at fixture time by
   the sandbox address.
+
+### Running the tests inside a container
+
+When pytest itself runs inside a container (a pipeline runner, a CI step image), the sandbox
+containers are **siblings** on the host daemon — the engine drives them through the docker API,
+nothing runs inside the runner. That topology needs two things from the runner's launcher:
+
+```bash
+docker run \
+  -v /var/run/docker.sock:/var/run/docker.sock \        # the daemon must be reachable
+  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \ # published ports resolve here
+  ... your-runner-image python -m pytest
+```
+
+- The **socket mount** gives the engine a daemon to drive; without it the startup probe fails
+  with the runtime-requirement error.
+- The **host override** tells testcontainers which host actually answers the published ports —
+  without it the client aims at the container-network gateway and every connection is refused.
+  `host.docker.internal` is the Docker Desktop name; on a plain Linux host use the host's
+  address or `host-gateway`.
+- One shared address space results: the mapped instance addresses the tests bootstrap on, the
+  kafka broker advertises in metadata, and the `{{instance.host}}`/`{{instance.port}}`
+  placeholders inject into the service env are the same `host:port` — every consumer (runner,
+  service container) reaches every dependency through it.
+- Every session gets its **own docker network**: all containers the sandbox starts (dependency
+  instances and the service under test) join it, and it is removed at teardown. Parallel
+  sandboxes on one daemon are network-isolated from each other; the runner keeps consuming
+  the published host ports as before.
+- Alternative — a docker-in-docker daemon inside a privileged runner — needs neither the socket
+  nor the override, at the cost of `--privileged` and a private image cache; the sandbox works
+  unchanged in both topologies.

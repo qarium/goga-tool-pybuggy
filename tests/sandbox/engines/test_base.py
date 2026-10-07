@@ -127,7 +127,7 @@ class TestBaseEngineContract:
     def test_base_engine_declares_the_five_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` exist with the declared parameters."""
         expected = {
-            "start": ["self", "startup"],
+            "start": ["self", "startup", "network"],
             "apply": ["self", "operations"],
             "record": ["self", "operations"],
             "reset": ["self"],

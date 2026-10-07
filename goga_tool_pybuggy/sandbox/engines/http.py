@@ -50,6 +50,8 @@ class HttpEngine(BaseEngine):
         container = DockerContainer(image, labels=SANDBOX_LABELS)
         container.with_exposed_ports(CONTAINER_PORT)
 
+        self._attach_network(container)
+
         return container
 
     def _wait_ready(self) -> None:

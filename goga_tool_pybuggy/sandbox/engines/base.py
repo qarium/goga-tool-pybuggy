@@ -1,10 +1,12 @@
 """BaseEngine entity and EngineError: the common per-instance engine contract."""
 
 import logging
+import socket
 from collections.abc import Callable
 from typing import TypeVar
 
 from testcontainers.core.container import DockerContainer
+from testcontainers.core.network import Network
 
 from ..config.instance import InstanceConfig
 from .address import InstanceAddress
@@ -48,6 +50,7 @@ class BaseEngine:
         self._journal: list[DataOperation] = []
         self._started = False
         self._container: DockerContainer | None = None
+        self._network: Network | None = None
 
     @property
     def address(self) -> InstanceAddress:
@@ -67,7 +70,7 @@ class BaseEngine:
             port=int(self._container.get_exposed_port(self._container_port)),
         )
 
-    def start(self, startup: list[DataOperation]) -> None:
+    def start(self, startup: list[DataOperation], network: Network | None = None) -> None:
         """Start the instance container and bring it to readiness.
 
         The startup operations apply in declaration order and join the journal as the initial
@@ -76,11 +79,15 @@ class BaseEngine:
 
         Args:
             startup: The startup data of this instance, in declaration order.
+            network: The sandbox network the container joins under its instance-name alias —
+                the per-sandbox isolation boundary between parallel sessions.
 
         Raises:
             EngineError: A lifecycle step or a startup operation failed; the message names the
                 instance and the failed step or operation.
         """
+        self._network = network
+
         logger.info("instance starting", extra={"instance": self.config.name, "kind": self.config.kind})
 
         try:
@@ -284,3 +291,36 @@ class BaseEngine:
         """
         if not self._started:
             raise EngineError(f"instance '{self.config.name}': {action} failed: the instance is not started")
+
+    def _attach_network(self, container: DockerContainer) -> None:
+        """Join the built container to the sandbox network.
+
+        A no-op without a network — engines stay usable standalone.
+
+        Args:
+            container: The built, not yet started, kind container.
+        """
+        if self._network is None:
+            return
+
+        container.with_network(self._network)
+
+
+def reserve_port() -> int:
+    """Reserve a free TCP port on the docker host.
+
+    Binds port 0, reads back the assigned port and releases the socket — the standard
+    reservation probe for engines that restart their container as the reset mechanism: a
+    dynamically assigned published port changes on every restart, breaking the
+    restart-stable-address contract, so such engines publish a reserved fixed port on both
+    sides instead. A race window remains between the release and the daemon's bind a moment
+    later; losing it fails the container start with the daemon's clear already-allocated
+    error instead of a silent misbehavior.
+
+    Returns:
+        A port number currently free on every local interface.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind(("", 0))
+
+        return int(probe.getsockname()[1])

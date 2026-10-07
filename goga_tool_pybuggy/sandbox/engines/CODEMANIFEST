@@ -231,14 +231,19 @@ Annotations: |
   annotations: |
     kafka kind — the kafka mock instance.
 
-    Container: the kafka mock image; the startup spec operation mounts the AsyncAPI document and
-    passes it as the start argument of the container — topics come from the spec; readiness waits
-    for the HTTP health side.
+    Container: the kafka mock image; the startup spec operation is consumed at build — the
+    AsyncAPI document's kafka servers are rewritten to the client-reachable mapped address of a
+    reserved fixed port, the patched copy travels into the container through the docker API, and
+    its in-container path is passed as the start argument — topics come from the spec, the mock
+    binds and advertises the patched address, and bootstrap, metadata and the service env name
+    one and the same address; readiness waits for the HTTP health side. A kafka instance without
+    a spec fails fast — the mock would open no kafka listener.
     Data plane: the kafka protocol — messages are produced with the producer client against the
     mapped bootstrap address; delivery is confirmed at the batch boundary.
-    Wipe: restart the container — all state is in-memory, the topology returns from the spec on
-    boot, and the baseline replays on top. Replaying the journaled startup spec operation after a
-    restart is an idempotent no-op — the spec is already mounted and passed at boot.
+    Wipe: restart the container — all state is in-memory, the fixed port binding and the
+    transferred spec survive the restart, the topology returns from the spec on boot, and the
+    baseline replays on top. Replaying the journaled startup spec operation after a restart is
+    an idempotent no-op — the spec was consumed at container build.
 
     Requirements:
     - The producer is created against the mapped address and closed on stop.
@@ -246,7 +251,8 @@ Annotations: |
 
     Use `mokapi` for the container contract and the two planes.
     Use `kafka-python` for producing.
-    Use `testcontainers` for the generic container and the restart-based wipe.
+    Use `testcontainers` for the generic container, the reserved fixed port and the
+    restart-based wipe.
 
 "BaseEngine::VaultEngine(config: InstanceConfig)":
   location: vault.py
@@ -254,8 +260,9 @@ Annotations: |
     vault kind — the secrets mock instance in dev mode.
 
     Container: the official vault image in dev mode — in-memory storage, plain HTTP,
-    auto-initialized, auto-unsealed, with the fixed dev root token; readiness waits for the health
-    endpoint.
+    auto-initialized, auto-unsealed, with the fixed dev root token; the vault port is published on
+    a reserved fixed host port, so the mapped address survives the restart-based reset;
+    readiness waits for the health endpoint.
     Data plane: KV v2 over HTTP with the token header — put writes a secret at a path; startup
     declarations write the same way.
     Wipe: restart the container (storage is in-memory) and replay the baseline.
