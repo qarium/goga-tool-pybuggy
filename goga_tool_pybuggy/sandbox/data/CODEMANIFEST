@@ -136,7 +136,7 @@ Annotations: |
 
       `mapping`: the mapping object of the http mock.
 
-"services(...presets: dict[str, dict[str, list[dict[str, object]]]]) -> decorator: Callable":
+"services(...presets: dict[str, list[dict[str, object]]]) -> decorator: Callable":
   location: presets.py
   annotations: |
     Per-test data-preset decorator: kind-named arguments carrying instance-targeted declarations.

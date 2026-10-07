@@ -64,7 +64,7 @@ data:                             # startup data layer, applied before the servi
 | kind | default image | reset strategy |
 |------|---------------|----------------|
 | `postgresql` | `postgres:16-alpine` | catalog-driven `TRUNCATE ... RESTART IDENTITY CASCADE` + journal replay |
-| `kafka` | `mokapi/mokapi:0.28.0` | container restart (in-memory state wiped) + journal replay |
+| `kafka` | `mokapi/mokapi:0.52.0` | container restart (in-memory state wiped) + journal replay |
 | `vault` | `hashicorp/vault:1.17` | container restart (dev-mode in-memory storage) + journal replay |
 | `http` | `wiremock/wiremock:3.13.0` | `POST /__admin/mappings/reset` + journal replay |
 

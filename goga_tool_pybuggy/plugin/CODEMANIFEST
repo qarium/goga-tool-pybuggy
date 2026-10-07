@@ -167,12 +167,12 @@ Annotations: |
       Use `pluginator` for the hook discovery via pluginmanager registration in pytest_configure.
       Use `conventions` for type hints.
 
-"install(...kwargs: dict)":
+"install(...kwargs: object)":
   location: __init__.py
   annotations: |
     Install the plugin into pytest at import time, then synchronously register discovered generated fixtures.
 
-    kwargs: context (defaulted via call_context()) and loaders (defaulted to the api package discovery) are forwarded to `ApiPlugin`; ApiPlugin.__init__ then registers discovered plugins, populating the pytest_plugins list.
+    `kwargs`: context (defaulted via call_context()) and loaders (defaulted to the api package discovery) are forwarded to `ApiPlugin`; ApiPlugin.__init__ then registers discovered plugins, populating the pytest_plugins list.
 
     Algorithm:
     1. Default context to call_context(), which resolves to the caller module's globals through the one-level wrapper — so calling `install` from conftest.py targets the conftest namespace (where pytest picks up the hooks and pytest_plugins).
@@ -193,7 +193,7 @@ Annotations: |
     Use `pluginator` for install_pytest_plugins and call_context.
     Use `registration` for the loader-driven registration step.
 
-"render_base_url(template: str, context: dict) -> rendered:str":
+"render_base_url(template: str, context: dict[str, object]) -> rendered:str":
   location: render.py
   annotations: |
     Render a base_url template once with the Jinja2 engine against `context`, then normalize the result as a URL.

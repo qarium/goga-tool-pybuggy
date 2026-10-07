@@ -84,13 +84,15 @@ Annotations: |
 
       Algorithm:
       1. Probe the container runtime availability via `check_runtime`.
-      2. Start every configured instance engine — built with `build_engine` — with its startup
+      2. Create the sandbox network — the per-session isolation boundary every container the
+      session starts joins.
+      3. Start every configured instance engine — built with `build_engine` — with its startup
       data as `DataOperation` entries taken from the `StartupData` sections in the fixed order —
       vault secrets, http mappings, the kafka spec, then postgres init.
-      3. Render the service environment values against the started instance addresses.
-      4. Start the service container and wait for readiness — the port, or the health path when
+      4. Render the service environment values against the started instance addresses.
+      5. Start the service container and wait for readiness — the port, or the health path when
       configured.
-      5. Log the startup progress at every step, and the resolved service address with its source.
+      6. Log the startup progress at every step, and the resolved service address with its source.
 
       Requirements:
       - Visible startup progress; tests run only after readiness.
@@ -206,10 +208,12 @@ Annotations: |
     "port -> int": |
       The published port of the service.
   methods:
-    "start(env: dict[str, str])": |
+    "start(env: dict[str, str], network: Network | None)": |
       Start the service image with the rendered environment.
 
       `env`: fully rendered values — placeholders already resolved.
+      `network`: the sandbox network the service container joins, side by side with the
+      dependency instances of the same sandbox; absent keeps the service standalone.
     "stop()": |
       Remove the container; safe when already stopped.
     "alive() -> alive: bool": |

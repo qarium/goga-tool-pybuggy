@@ -118,6 +118,17 @@ Annotations: |
 
     Use `conventions` for type hints and testing.
 
+"EngineError()":
+  location: base.py
+  annotations: |
+    The failure type of every engine operation — the engine-specific RuntimeError subtype.
+
+    Every engine failure surfaces as this type; the message names the instance, the failed
+    operation or lifecycle step, and the underlying cause. Exposed through the cell facade —
+    the session runtime and consumer tests catch it by name.
+
+    Use `conventions` for type hints and testing.
+
 "BaseEngine(config: InstanceConfig)":
   location: base.py
   annotations: |
@@ -145,14 +156,18 @@ Annotations: |
       The mapped address of the started instance, read back from the container engine — the value
       the service env placeholders and the instance views consume.
   methods:
-    "start(startup: list[DataOperation])": |
+    "start(startup: list[DataOperation], network: Network | None)": |
       Start the instance container and bring it to readiness.
 
       `startup`: the startup data of this instance, in declaration order.
+      `network`: the sandbox network the container joins under its instance-name alias — the
+      per-session isolation boundary between parallel sessions; absent keeps the engine
+      standalone.
 
       Algorithm:
       1. Build the kind's container — the product-pinned image unless the config overrides it,
-      labeled for sandbox identification, with the service port published.
+      labeled for sandbox identification, with the service port published, joined to `network`
+      when one is given.
       2. Start the container and wait for readiness.
       3. Open the data-plane connection.
       4. Apply the startup operations in order and record them into the journal as the initial

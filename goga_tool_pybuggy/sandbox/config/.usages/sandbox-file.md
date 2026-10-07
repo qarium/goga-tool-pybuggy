@@ -51,7 +51,7 @@ data:                             # startup data layer, applied before the servi
 | kind | product-pinned default image |
 |---|---|
 | `postgresql` | `postgres:16-alpine` |
-| `kafka` | `mokapi/mokapi:0.28.0` |
+| `kafka` | `mokapi/mokapi:0.52.0` |
 | `vault` | `hashicorp/vault:1.17` |
 | `http` | `wiremock/wiremock:3.13.0` |
 
