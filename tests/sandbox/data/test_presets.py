@@ -82,6 +82,42 @@ class TestServicesLogic:
         with pytest.raises(ValueError, match=r"postgresql\.db.*must be a list"):
             services(postgresql={"db": ["oops"]})
 
+    def test_services_accepts_conforming_reference_rows(self):
+        """Grammar-conforming ``$ref`` / ``$lookup`` row values reach the marker unchanged."""
+        declarations = {
+            "postgresql": {"db": [{"table": "orders", "rows": [{"customer_id": {"$ref": "customers.0.id"}}]}]}
+        }
+
+        @services(**declarations)
+        def sample_test() -> int:
+            return 42
+
+        mark = next(mark for mark in sample_test.pytestmark if mark.name == "pybuggy_services")
+
+        assert mark.kwargs["presets"] == declarations
+
+    def test_services_rejects_a_malformed_reference_at_decoration(self):
+        """A malformed ``$ref`` in postgresql rows fails at decoration naming the location."""
+        with pytest.raises(ValueError, match=r"services preset 'postgresql\.db' rows\[0\]\.customer_id"):
+            services(postgresql={"db": [{"table": "orders", "rows": [{"customer_id": {"$ref": "customers.0"}}]}]})
+
+    def test_services_rejects_a_malformed_lookup_at_decoration(self):
+        """A malformed ``$lookup`` in postgresql rows fails at decoration naming the location."""
+        with pytest.raises(ValueError, match=r"services preset 'postgresql\.db' rows\[0\]\.customer_id"):
+            services(postgresql={"db": [{"table": "orders", "rows": [{"customer_id": {"$lookup": {"where": {}}}}]}]})
+
+    def test_services_skips_row_validation_for_other_kinds(self):
+        """Non-postgresql declarations never run the row grammar — their shapes are kind-owned."""
+        declarations = {"vault": {"secrets": [{"path": "payment/api-key", "data": {"$ref": "anything"}}]}}
+
+        @services(**declarations)
+        def sample_test() -> int:
+            return 42
+
+        mark = next(mark for mark in sample_test.pytestmark if mark.name == "pybuggy_services")
+
+        assert mark.kwargs["presets"] == declarations
+
     def test_services_preserves_declaration_order_within_one_instance(self):
         """Declarations under one instance keep the author's list order in the payload."""
         declarations = [{"table": "customers", "rows": []}, {"table": "orders", "rows": []}]

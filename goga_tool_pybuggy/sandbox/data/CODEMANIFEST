@@ -2,6 +2,7 @@ Imports:
   - Types:
       - DataOperation
       - InstanceAddress
+      - validate_insert_rows
     From: goga_tool_pybuggy/sandbox/engines
 
 Usages:
@@ -56,7 +57,10 @@ Annotations: |
   methods:
     "insert(table: str, rows: list[dict[str, object]])": |
       Declare row inserts into one table. One call targets one table; rows apply in list order.
-      For foreign-key chains across tables, declare parents first.
+      Foreign-key chains follow the declaration order — parents first — while generated parent
+      keys resolve through row values: a $ref addresses the data plane's own applied rows, a
+      $lookup matches the current database state. The row grammar is validated by
+      `validate_insert_rows` — a malformed reference fails at declaration.
 
       `table`: the target table.
       `rows`: the rows to insert, in order.
@@ -147,7 +151,8 @@ Annotations: |
 
     Algorithm:
     1. Validate the declarations at decoration — only the four supported kinds; anything else
-    fails listing the supported kinds.
+    fails listing the supported kinds. Postgresql rows run the `validate_insert_rows` grammar
+    validation — a malformed $ref / $lookup fails naming the declaration location.
     2. Mark the test with the presets.
     3. At the test's start the marked presets enqueue into that test's batch, ahead of any in-test
     operation — instance names resolve there against the sandbox configuration; an unknown
@@ -156,7 +161,7 @@ Annotations: |
     Requirements:
     - Presets apply only to the test declaring them.
     - Declaration order within one instance is the application order — parents before children for
-    foreign-key chains.
+    foreign-key chains; $ref / $lookup row values resolve the generated keys.
 
     Constraints:
     - Do not execute anything at decoration time.

@@ -40,7 +40,9 @@ def sandbox():
 ```
 
 Operations inside the baseline boundary apply immediately and become the session baseline: after
-every reset the instances return to exactly this state.
+every reset the instances return to exactly this state. Baseline rows may use `$ref` / `$lookup`
+references like any declaration — after every reset the journal replay re-applies and re-resolves
+them, so generated keys stay consistent between the baseline and the tests built on top of it.
 
 ## Per-test reset
 
@@ -78,7 +80,9 @@ def test_checkout(checkout, sandbox):
 - The sandbox address overrides the configured base_url value; the startup output names the
   source.
 - A typed `--base-url` flag together with an active sandbox fails fast with an explicit error.
-- Declared operations apply automatically as one batch before the first service call.
+- Declared operations apply automatically as one batch before the first service call — also the
+  moment when `$ref` / `$lookup` row values resolve, so a declaration made after earlier service
+  calls may reference rows those calls created (`$lookup`).
 
 ## Preconditions and side effects
 

@@ -75,9 +75,55 @@ test declaring them, on top of the reset state, ahead of the test's own operatio
 ## Ordering and foreign keys
 
 Operations apply in the order declared, per instance: presets first, then in-test operations in
-call order; rows within one insert apply in list order. Foreign-key chains are expressed by
-declaring parents before children — one `insert` call targets one table. Reset-side cleanup
-needs no ordering from the author.
+call order; rows within one insert apply in list order. Foreign-key chains follow the declaration
+order — parents before children, one `insert` call targeting one table (the database constraint
+still needs the parent row applied first). Reset-side cleanup needs no ordering from the author.
+
+## Referencing rows
+
+Explicit literal ids are optional: a row value may reference another row instead of carrying a
+hardcoded key. Two reference forms exist, both plain data in the declaration:
+
+- **`$ref`** — addresses the data plane's own applied rows:
+
+  ```python
+  sandbox.postgresql("db").insert("customers", rows=[{"name": "Ann"}])  # id generated
+  sandbox.postgresql("db").insert("orders", rows=[{"customer_id": {"$ref": "customers.0.id"}, "total": 500}])
+  ```
+
+  The address `table.index.column` positions the row in the table's applied-row stream since the
+  last reset — journal baseline first, then presets, then in-test declarations, in application
+  order. The value is the real applied column value (an autoincrement id resolves to whatever the
+  sequence generated; after a reset the values are deterministic — 1, 2, 3 in application order).
+  A later row of the same insert may reference an earlier row. Inserting an extra earlier parent
+  row shifts the indexes — see `$lookup` for a position-independent reference.
+
+- **`$lookup`** — matches the current database state by predicate, regardless of who created the
+  row (the service under test included):
+
+  ```python
+  # the service itself created the customer through its API
+  response = checkout.post(json={"name": "Ann", "email": "ann@x.io"})
+
+  sandbox.postgresql("db").insert(
+      "orders",
+      rows=[{"customer_id": {"$lookup": {"table": "customers", "where": {"email": "ann@x.io"}}}}],
+  )
+  ```
+
+  The predicate must match exactly one row — zero matches fail naming the missing precondition,
+  several matches fail naming the ambiguity. The resolved column defaults to the table's primary
+  key; pass `"column"` to choose another.
+
+Rules common to both forms:
+
+- References are top-level row values only; a nested dict carrying `$ref` stays plain column
+  data.
+- The grammar is validated at declaration — a malformed reference fails before anything executes.
+- Resolution happens at apply time, right before the first service call; references never rewrite
+  the declaration.
+- References resolve within one postgres instance; rows created by raw sql startup statements are
+  addressable only through `$lookup`.
 
 ## Preconditions and side effects
 

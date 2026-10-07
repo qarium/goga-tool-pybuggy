@@ -1,6 +1,6 @@
 """PostgresInstance entity: test-facing view of a started postgresql instance."""
 
-from ..engines import DataOperation, InstanceAddress
+from ..engines import DataOperation, InstanceAddress, validate_insert_rows
 from .batch import DataBatch
 
 
@@ -47,13 +47,20 @@ class PostgresInstance:
     def insert(self, table: str, rows: list[dict[str, object]]) -> None:
         """Declare row inserts into one table.
 
-        One call targets one table; rows apply in list order. For foreign-key chains
-        across tables, declare parents first.
+        One call targets one table; rows apply in list order. Foreign-key chains across
+        tables follow the declaration order — parents first — while generated parent keys
+        resolve through row values: ``$ref`` addresses the data plane's own applied rows,
+        ``$lookup`` matches the current database state.
 
         Args:
             table: The target table.
             rows: The rows to insert, in order.
+
+        Raises:
+            ValueError: A row value carries a malformed ``$ref`` / ``$lookup`` reference.
         """
+        validate_insert_rows(rows, context=f"table '{table}'")
+
         operation = DataOperation(
             instance=self._name,
             kind="postgresql",

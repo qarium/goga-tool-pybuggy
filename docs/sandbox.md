@@ -164,7 +164,56 @@ def test_checkout(api):
 
 Operations apply in the order declared, per instance: presets first, then in-test
 operations in call order; foreign-key chains are expressed by declaring parents before
-children — one `insert` call targets one table.
+children — one `insert` call targets one table (the database constraint still requires the
+parent row first).
+
+### Referencing rows
+
+Explicit literal ids are optional — a row value may reference another row instead of a
+hardcoded key. Two reference forms:
+
+- **`$ref`** — addresses the rows the data plane itself applied since the last reset
+  (baseline journal, presets, in-test declarations — in application order):
+
+  ```python
+  sandbox.postgresql("db").insert("customers", rows=[{"name": "Ann"}])  # id generated
+  sandbox.postgresql("db").insert(
+      "orders", rows=[{"customer_id": {"$ref": "customers.0.id"}, "total": 500}]
+  )
+  ```
+
+  The value is the real applied column value — an autoincrement id resolves to whatever the
+  sequence generated (deterministic after a reset: 1, 2, 3 in application order). A later row
+  of one insert may reference an earlier row; inserting an extra earlier parent row shifts
+  the indexes.
+
+- **`$lookup`** — matches the current database state by predicate, regardless of who created
+  the row (the service under test included):
+
+  ```python
+  # the service itself created the customer through its API
+  response = checkout.post(json={"name": "Ann", "email": "ann@x.io"})
+
+  sandbox.postgresql("db").insert(
+      "orders",
+      rows=[{"customer_id": {"$lookup": {"table": "customers", "where": {"email": "ann@x.io"}}}}],
+  )
+  ```
+
+  The predicate must match exactly one row — zero matches fail naming the missing
+  precondition, several matches fail naming the ambiguity. The resolved column defaults to
+  the table's primary key; pass `"column"` to choose another.
+
+Common rules:
+
+- References are recognized only as top-level row values; a nested dict carrying `$ref`
+  stays plain column data.
+- The reference grammar is validated at declaration — a malformed form fails before anything
+  executes.
+- Resolution happens at apply time, right before the first service call; declarations are
+  never rewritten, so baseline replay re-resolves references after every reset.
+- References resolve within one postgres instance; rows created by raw sql startup
+  statements are addressable only through `$lookup`.
 
 ## Preconditions and side effects
 

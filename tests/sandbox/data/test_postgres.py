@@ -2,6 +2,7 @@
 
 import inspect
 
+import pytest
 from goga_tool_pybuggy.sandbox.data import DataBatch, PostgresInstance
 from goga_tool_pybuggy.sandbox.engines import InstanceAddress
 
@@ -104,3 +105,40 @@ class TestPostgresInstanceLogic:
         view.insert("orders", rows=[])
 
         assert recording_batch.added[0].payload == {"table": "orders", "rows": []}
+
+    def test_insert_passes_reference_values_through_untouched(
+        self, recording_batch: RecordingBatch, address: InstanceAddress
+    ):
+        """Grammar-conforming ``$ref`` / ``$lookup`` values declare as plain payload data."""
+        rows: list[dict[str, object]] = [
+            {"name": "Ann"},
+            {"customer_id": {"$ref": "customers.0.id"}, "total": 5},
+            {"customer_id": {"$lookup": {"table": "customers", "where": {"email": "a@x.io"}}}},
+        ]
+        view = PostgresInstance(name="db", address=address, batch=recording_batch)
+
+        view.insert("orders", rows=rows)
+
+        assert recording_batch.added[0].payload["rows"] == rows
+
+    def test_insert_rejects_a_malformed_reference_at_declaration(
+        self, recording_batch: RecordingBatch, address: InstanceAddress
+    ):
+        """A malformed ``$ref`` fails at declaration, before anything joins the batch."""
+        view = PostgresInstance(name="db", address=address, batch=recording_batch)
+
+        with pytest.raises(ValueError, match=r"table 'orders' rows\[0\]\.customer_id"):
+            view.insert("orders", rows=[{"customer_id": {"$ref": "customers.0"}}])
+
+        assert recording_batch.added == []
+
+    def test_insert_rejects_a_malformed_lookup_at_declaration(
+        self, recording_batch: RecordingBatch, address: InstanceAddress
+    ):
+        """A malformed ``$lookup`` fails at declaration, before anything joins the batch."""
+        view = PostgresInstance(name="db", address=address, batch=recording_batch)
+
+        with pytest.raises(ValueError, match=r"table 'orders' rows\[0\]\.customer_id"):
+            view.insert("orders", rows=[{"customer_id": {"$lookup": {"table": "customers"}}}])
+
+        assert recording_batch.added == []

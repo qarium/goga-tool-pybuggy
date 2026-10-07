@@ -5,6 +5,8 @@ from typing import Any
 
 import pytest
 
+from ..engines import validate_insert_rows
+
 _SUPPORTED_KINDS = ("postgresql", "kafka", "vault", "http")
 
 
@@ -18,7 +20,8 @@ def services(**presets: dict[str, list[dict[str, object]]]) -> Callable[..., Any
     setup time, ahead of any in-test view declaration, and applied right before the first call
     to the service under test.
 
-    Nothing executes at decoration time — the routine only validates the kind keys and
+    Nothing executes at decoration time — the routine validates the kind keys, the
+    declaration shapes, and the ``$ref`` / ``$lookup`` grammar of postgresql rows, then
     attaches the marker. Instance names are validated later, at enqueue time, against the
     sandbox configuration.
 
@@ -31,8 +34,9 @@ def services(**presets: dict[str, list[dict[str, object]]]) -> Callable[..., Any
         The decorator applying the ``pybuggy_services`` marker with the presets to a test.
 
     Raises:
-        ValueError: When a preset key is not a supported kind, or a preset value is not the
-            declared ``instance name -> declaration list`` shape.
+        ValueError: When a preset key is not a supported kind, a preset value is not the
+            declared ``instance name -> declaration list`` shape, or a postgresql row value
+            carries a malformed ``$ref`` / ``$lookup`` reference.
     """
     for kind, targets in presets.items():
         if kind not in _SUPPORTED_KINDS:
@@ -46,6 +50,11 @@ def services(**presets: dict[str, list[dict[str, object]]]) -> Callable[..., Any
         for name, declarations in targets.items():
             if not isinstance(declarations, list) or not all(isinstance(d, dict) for d in declarations):
                 raise ValueError(f"services preset '{kind}.{name}' must be a list of declaration mappings")
+
+            if kind == "postgresql":
+                for declaration in declarations:
+                    if "rows" in declaration:
+                        validate_insert_rows(declaration["rows"], context=f"services preset '{kind}.{name}'")
 
     def _decorate(item: Any) -> Any:
         return pytest.mark.pybuggy_services(presets=presets)(item)

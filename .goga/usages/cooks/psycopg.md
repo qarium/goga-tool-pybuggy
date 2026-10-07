@@ -36,26 +36,56 @@ conn = psycopg.connect(
 
 ## Execute — inserts and replay
 
+Row inserts apply one row per statement with `RETURNING` — every applied row is captured for
+`$ref` addressing:
+
 ```python
-with conn.cursor() as cur:
-    cur.execute(
-        "INSERT INTO orders (id, customer, total) VALUES (%s, %s, %s)",
-        (order_id, customer, total),
-    )
+from psycopg.rows import dict_row
+
+with conn.transaction():  # explicit block — all-or-nothing per operation
+    with conn.cursor(row_factory=dict_row) as cur:  # dict rows — column-name addressing
+        cur.execute(
+            'INSERT INTO "orders" (customer, total) VALUES (%s, %s) RETURNING *',
+            (customer, total),
+        )
+        applied = cur.fetchone()  # the applied row with generated values (serial ids included)
 ```
 
 - Placeholders: `%s` positional or `%(name)s` named. Parameters are bound server-side — never
   format SQL with f-strings/`%` formatting.
-- `cur.executemany(sql, seq_of_params)` runs one statement over many parameter sets — use it for
-  bulk inserts of precondition rows.
-- Results: `cur.fetchall()` / `cur.fetchone()` for `SELECT` (catalog query, verification during
-  development).
+- `conn.transaction()` works on `autocommit` connections: it opens an explicit transaction for
+  the block and commits or rolls back on exit — the per-operation atomicity seam.
+- Row-per-statement instead of `executemany`: `executemany` returns no results, while the
+  sandbox needs each row's applied values (later rows may reference earlier ones).
+- `row_factory=dict_row` is per-cursor — the catalog queries keep the default tuple rows.
+- Results: `cur.fetchall()` / `cur.fetchone()` for `SELECT` (catalog query, reference lookups,
+  verification during development).
 - JSON columns (`jsonb`): wrap python dicts with `psycopg.types.json.Json(payload)`.
 
 Every applied operation that raises must surface as a readable error identifying the failed
 operation (the requirement applies at the sandbox layer; psycopg provides the cause):
 psycopg exceptions live in `psycopg.errors` (`UndefinedTable`, `UniqueViolation`, …) and carry
 `.diag.message_primary` with the server-side message.
+
+---
+
+## Reference resolution — $ref and $lookup
+
+`$ref` reads the engine's captured applied rows (no SQL); `$lookup` runs one parameterized match
+query against the current database state:
+
+```python
+cur.execute('SELECT "id" FROM "customers" WHERE "email" = %s LIMIT 2', ("ann@x.io",))
+matches = cur.fetchall()
+# exactly one match resolves; zero matches = missing precondition, two = ambiguous predicate
+```
+
+- `LIMIT 2` is the match counter: one row resolves, two rows prove ambiguity — never fetch more.
+- The default resolved column is the table's primary key, discovered through
+  `information_schema.table_constraints` joined with `information_schema.key_column_usage`
+  (`constraint_type = 'PRIMARY KEY'`, `table_name = %s`); an explicit column skips the discovery.
+- A lookup sees rows created by anyone — the data plane, the service, migrations — because it
+  reads the live database state at apply time.
 
 ---
 

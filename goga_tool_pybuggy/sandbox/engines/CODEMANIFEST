@@ -49,7 +49,9 @@ Annotations: |
     stub for http. The startup-only spec action carries the kafka AsyncAPI document path — it
     mounts the document at container start and never executes against the data plane. The
     startup-only postgresql insert carries a raw sql payload key instead of table and rows —
-    the statement executes as given.
+    the statement executes as given, opaque: no reference resolution, no symbol capture.
+    - Postgresql rows may carry $ref / $lookup dicts as top-level values — plain data here,
+    resolved only at execution; the payload is never rewritten, so journal replay re-resolves.
 
     Use `conventions` for the data-model rules.
   properties:
@@ -218,6 +220,29 @@ Annotations: |
       - Safe on an already-stopped instance.
       - Removal is guaranteed — the explicit stop plus the cleanup safety net.
 
+"validate_insert_rows(rows: object, context: str)":
+  location: refs.py
+  annotations: |
+    Declaration-time grammar validation of insert rows.
+
+    `rows`: the declared rows of one insert.
+    `context`: the declaration location naming the rows in error messages.
+
+    Algorithm:
+    1. Rows must be a list of mappings.
+    2. Every top-level row value carrying $ref or $lookup must match the reference grammar:
+    a $ref value is exactly one key holding a non-empty table.index.column address; a $lookup
+    value is exactly one key holding a mapping with the required table and where and the
+    optional column, nothing else, where a non-empty mapping of scalars.
+    3. Plain dict values pass through — references are recognized only as top-level row values.
+
+    Requirements:
+    - Shape only — no I/O, no resolution; resolution belongs to the postgres engine at
+    execution time.
+    - Every failure names the declaration location: `{context} rows[i].column`.
+
+    Use `conventions` for type hints and testing.
+
 "BaseEngine::PostgresEngine(config: InstanceConfig)":
   location: postgres.py
   annotations: |
@@ -225,15 +250,26 @@ Annotations: |
 
     Container: the postgres module container with the product-pinned default image; module
     readiness applies — start returns after the server accepts connections.
-    Data plane: SQL over the postgres driver — insert executes parameterized inserts; startup
-    statements execute as given.
-    Wipe: discover the user tables from the catalog at reset time, then truncate them all with
-    identity restart and cascade — the cascade carries the foreign-key ordering; the container is
-    never restarted.
+    Data plane: SQL over the postgres driver — a table + rows insert resolves $ref / $lookup
+    values, then applies the rows one by one inside one transaction with RETURNING; every applied
+    row joins the engine's per-table symbol stream — the address space $ref resolves against
+    (the stream covers the data plane's own applied rows since the last wipe: journal, presets,
+    in-test declarations, in application order; a later row may reference an earlier row of the
+    same insert). A $lookup resolves through one parameterized match query against the current
+    database state — exactly one match required, the column defaults to the table's primary key
+    discovered from the catalog. Startup raw sql statements execute as given, opaque — no
+    resolution, no symbol capture.
+    Wipe: clear the symbol stream, discover the user tables from the catalog at reset time, then
+    truncate them all with identity restart and cascade — the cascade carries the foreign-key
+    ordering; the container is never restarted. The journal replay rebuilds the symbol stream and
+    re-resolves the journaled references.
 
     Requirements:
     - One connection for the session in autocommit mode, closed on stop.
     - Catalog discovery runs at every reset — the table set may change mid-session.
+    - One transaction per insert — a failing row leaves nothing applied, and the symbol stream
+    rolls back with it.
+    - Resolution never rewrites the declared payload.
 
     Constraints:
     - Do not format SQL with interpolated values — parameters are bound server-side.

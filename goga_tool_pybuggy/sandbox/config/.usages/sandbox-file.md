@@ -79,7 +79,8 @@ Applied in a fixed order after all instances are up and before the service start
 | `postgres` | postgresql instances | SQL statements (schema/bootstrap SQL) |
 
 Within a section, declarations apply in the order written — for dependent rows (foreign keys),
-declare parents before children.
+declare parents before children. Postgres init statements are raw sql: they resolve no
+`$ref` / `$lookup` references and their rows are addressable later only through `$lookup`.
 
 - Postgres init statements replay on every per-test reset — write them idempotent (e.g.
   `CREATE TABLE IF NOT EXISTS`); the TRUNCATE-based reset keeps tables, only data is wiped.
