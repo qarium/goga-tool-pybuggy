@@ -2027,24 +2027,39 @@ here; failures route back to the owning task's implementation.
 **Usages relevant to this task:**
 - `conventions`: the validation command table (virtualenv, pytest, ruff, facade checks).
 
-- [ ] Run the full suite: `.venv/bin/pytest tests/ -x` — green; docker-gated suites run when
+- [x] Run the full suite: `.venv/bin/pytest tests/ -x` — green; docker-gated suites run when
   the runtime is available, skip otherwise
-- [ ] Facade checks (fresh interpreter):
+  (1552 passed, 0 failed in 68.70s — the docker-gated live cases executed for real with the
+  recorded `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` prefix)
+- [x] Facade checks (fresh interpreter):
   `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.config import SandboxConfig,
   InstanceConfig, ServiceConfig, StartupData, ProbeConfig, TopicConfig, load_sandbox_config"`;
   `... from goga_tool_pybuggy.sandbox.engines import build_engine, BaseEngine, EngineError"`;
   `... from goga_tool_pybuggy.sandbox import Sandbox, activate_sandbox, active_sandbox"`;
   root re-exports `active_sandbox`, `services` unchanged
-- [ ] Contract lint: `goga lint` — 23 cells, 0 errors
-- [ ] Repo sweep: `grep -rn "\.sandbox\.yml"` over docs, README, mkdocs, usage files, cooks →
+  (all four imports succeed in fresh interpreters; `__all__` verified — config 7 names,
+  engines 11 incl. `EngineError`, data 6, sandbox 6; root re-exports intact)
+- [x] Contract lint: `goga lint` — 23 cells, 0 errors
+  (cells: 23 errors: 0 — same cell count as the Task 1 baseline: no new cells)
+- [x] Repo sweep: `grep -rn "\.sandbox\.yml"` over docs, README, mkdocs, usage files, cooks →
   empty
-- [ ] Default-equivalence: with no probe declarations, every readiness loop runs at 30.0/0.5 —
+  (empty over docs/, README.md, mkdocs.yml, the whole goga_tool_pybuggy/ tree incl. the cell
+  `.usages/` directories, and `.goga/usages/` incl. the cooks)
+- [x] Default-equivalence: with no probe declarations, every readiness loop runs at 30.0/0.5 —
   the former constants (D6 single source; scenarios 16/22 assert it; re-run those focused
   tests as the evidence)
-- [ ] Lint + format gate: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (`test_base.py::TestBaseEngineLogic::test_base_readiness_bounds_default_and_override` and
+  `test_vault.py::TestDeclaredBoundsReadiness::test_vault_and_http_wait_use_declared_bounds`
+  re-run green — (30.0, 0.5) by construction for the base engine and both HTTP-plane kinds)
+- [x] Lint + format gate: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` — no drift on plan-touched files
-- [ ] Commit gate (M-R3.4, full): lint + format + `pytest tests/ -x` green before the final
+  (All checks passed!; 301 files already formatted — zero drift anywhere, not just
+  plan-touched files)
+- [x] Commit gate (M-R3.4, full): lint + format + `pytest tests/ -x` green before the final
   commit
+  (all three gates re-verified immediately before the final commit: ruff check exit 0,
+  format clean, full suite 1552 green; CODEMANIFESTs and pyproject.toml confirmed unchanged
+  since the Task 1 contract commit `4a67ad7` — empty diffs)
 
 ---
 
@@ -2074,28 +2089,28 @@ here; failures route back to the owning task's implementation.
 
 ## Completion Criteria
 
-- [ ] Every contract entity change is implemented in the correct `location` (`probe.py` and
+- [x] Every contract entity change is implemented in the correct `location` (`probe.py` and
       `topic.py` new; all other entities in place)
-- [ ] Every contract entity is accessible from its facade (config facade at 7 names; engines /
+- [x] Every contract entity is accessible from its facade (config facade at 7 names; engines /
       data / sandbox / root facades byte-stable)
-- [ ] Properties and methods match the declared API; the public Python surface is unchanged
+- [x] Properties and methods match the declared API; the public Python surface is unchanged
       (same class names, view factories, re-exports — M-R5.5)
-- [ ] Descriptions are reflected in behavior — probe bounds and defaults (30.0/0.5), the D1–D10
+- [x] Descriptions are reflected in behavior — probe bounds and defaults (30.0/0.5), the D1–D10
       decisions, the fixed vault → http → postgres startup order, the EngineError expiry clause
-- [ ] Contract dependencies are met (`ServiceConfig` edge config ← engines; `InstanceConfig` /
+- [x] Contract dependencies are met (`ServiceConfig` edge config ← engines; `InstanceConfig` /
       `EngineError` edges into the sandbox cell)
-- [ ] Every coding task followed the TDD workflow (contract tests → code → interface
+- [x] Every coding task followed the TDD workflow (contract tests → code → interface
       verification → logic tests → debugging → contract re-verification → lint) with the REPL
       loop inside implementation and debugging (R4)
-- [ ] All 31 design test scenarios plus the model-level units exist and pass; boundary tables
+- [x] All 31 design test scenarios plus the model-level units exist and pass; boundary tables
       include each boundary incl. the legal `interval == timeout` edge
-- [ ] The integration suite (`test_session_lifecycle.py`) covers the armed session over the
+- [x] The integration suite (`test_session_lifecycle.py`) covers the armed session over the
       new document; docker-gated cases skip cleanly without a runtime
-- [ ] No package boundary was expanded; no new cells; no new dependencies
-- [ ] `CODEMANIFEST` files were not modified (the working-tree contract committed unchanged in
+- [x] No package boundary was expanded; no new cells; no new dependencies
+- [x] `CODEMANIFEST` files were not modified (the working-tree contract committed unchanged in
       Task 1)
-- [ ] All validation commands pass — full suite green, ruff clean, facades importable,
+- [x] All validation commands pass — full suite green, ruff clean, facades importable,
       `goga lint` 0 errors, former-path sweep empty, default equivalence (30.0/0.5) asserted
-- [ ] Every Usages entry is exercised in at least one task (conventions throughout; ruamel in
+- [x] Every Usages entry is exercised in at least one task (conventions throughout; ruamel in
       Tasks 4/8; testcontainers in Tasks 5–8/10; psycopg Task 6; kafka-python/mokapi Task 8;
       vault-dev/wiremock/requests Tasks 7/10; jinja2/pluginator Tasks 11–13)
