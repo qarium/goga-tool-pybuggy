@@ -6,23 +6,32 @@ import time
 
 import pytest
 import requests
-from goga_tool_pybuggy.sandbox.config import InstanceConfig
-from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, VaultEngine
+from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig
+from goga_tool_pybuggy.sandbox.engines import (
+    BaseEngine,
+    DataOperation,
+    EngineError,
+    HttpEngine,
+    VaultEngine,
+)
+from goga_tool_pybuggy.sandbox.engines import base as base_module
+from goga_tool_pybuggy.sandbox.engines import http as http_module
 from goga_tool_pybuggy.sandbox.engines import vault as vault_module
 
 from ..conftest import requires_docker
 
 
-def secrets_engine(image: str | None = None) -> VaultEngine:
-    """Build a vault engine of the sample ``secrets`` instance.
+def secrets_engine(image: str | None = None, probe: ProbeConfig | None = None) -> VaultEngine:
+    """Build a vault engine of the sample ``secrets`` service.
 
     Args:
-        image: The optional image override of the instance declaration.
+        image: The optional image override of the service declaration.
+        probe: The optional readiness declaration of the service entry.
 
     Returns:
-        The engine of an instance named ``secrets`` of kind ``vault``.
+        The engine of a service named ``secrets`` of kind ``vault``.
     """
-    return VaultEngine(InstanceConfig(name="secrets", kind="vault", image=image))
+    return VaultEngine(ServiceConfig(name="secrets", kind="vault", image=image, probe=probe))
 
 
 def put_op(path: str, data: dict[str, object]) -> DataOperation:
@@ -33,7 +42,7 @@ def put_op(path: str, data: dict[str, object]) -> DataOperation:
         data: The secret payload written at the path.
 
     Returns:
-        A sample ``put`` operation targeted at the ``secrets`` instance.
+        A sample ``put`` operation targeted at the ``secrets`` service.
     """
     return DataOperation(instance="secrets", kind="vault", action="put", payload={"path": path, "data": data})
 
@@ -85,17 +94,35 @@ class FakeRequests:
         return FakeResponse(200, {"request_id": "fake"})
 
 
-class FakeTime:
-    """Namespace double of ``time`` — instant monotonic, no sleeping."""
+class FakeClock:
+    """Clock double of the probe loop — instant monotonic, sleeps advance the clock."""
 
     def __init__(self) -> None:
         self.now = 100.0
+        self.slept: list[float] = []
 
     def monotonic(self) -> float:
         return self.now
 
     def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
         self.now += seconds
+
+
+def install_fake_clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
+    """Patch the probe-loop clock of the engines base — no wall-clock waiting in unit tests.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture swapping the base seams.
+
+    Returns:
+        The installed clock double recording the interval sleeps.
+    """
+    clock = FakeClock()
+    monkeypatch.setattr(base_module, "monotonic", clock.monotonic)
+    monkeypatch.setattr(base_module, "sleep", clock.sleep)
+
+    return clock
 
 
 class FakeWrappedContainer:
@@ -184,8 +211,8 @@ def armed_engine(monkeypatch: pytest.MonkeyPatch, fake_requests: FakeRequests) -
     """
     monkeypatch.setattr(vault_module, "DockerContainer", FakeDockerContainer)
     monkeypatch.setattr(vault_module, "requests", fake_requests)
-    monkeypatch.setattr(vault_module, "time", FakeTime())
     monkeypatch.setattr(vault_module, "reserve_port", lambda: 18200)
+    install_fake_clock(monkeypatch)
 
     return secrets_engine()
 
@@ -202,10 +229,20 @@ class TestVaultEngineContract:
         assert issubclass(VaultEngine, BaseEngine)
 
     def test_vault_engine_declares_the_contract_constructor(self):
-        """The constructor signature is ``__init__(self, config)``."""
+        """The constructor signature is ``__init__(self, config)`` over ``ServiceConfig``."""
         signature = inspect.signature(VaultEngine.__init__)
 
         assert list(signature.parameters) == ["self", "config"]
+        assert signature.parameters["config"].annotation is ServiceConfig
+
+    def test_vault_engine_constructs_over_a_service_config(self):
+        """The engine carries the service declaration — name, kind, image override, probe."""
+        probe = ProbeConfig(timeout=45.0, interval=1.0)
+        engine = VaultEngine(ServiceConfig(name="secrets", kind="vault", probe=probe))
+
+        assert engine.config.name == "secrets"
+        assert engine.config.kind == "vault"
+        assert engine.config.probe is probe
 
     def test_vault_engine_inherits_the_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` resolve with declared parameters."""
@@ -226,6 +263,10 @@ class TestVaultEngineContract:
 
         assert isinstance(address, property)
 
+    def test_vault_engine_declares_the_engine_owned_readiness_wait(self):
+        """The kind engine overrides ``_wait_ready`` — readiness probing is engine-owned."""
+        assert VaultEngine._wait_ready is not BaseEngine._wait_ready
+
 
 class TestVaultEngineBuild:
     """Container build arguments of the vault engine, driven through the patched constructor."""
@@ -244,7 +285,7 @@ class TestVaultEngineBuild:
         assert container.bind_ports == [(8200, 18200)]
 
     def test_build_honors_the_image_override(self, monkeypatch: pytest.MonkeyPatch):
-        """The image override of the instance config reaches the container build."""
+        """The image override of the service declaration reaches the container build."""
         monkeypatch.setattr(vault_module, "DockerContainer", FakeDockerContainer)
         engine = secrets_engine(image="hashicorp/vault:1.18")
 
@@ -270,28 +311,31 @@ class TestVaultEngineReadiness:
     """Health probing of the vault engine, driven over the fake requests namespace."""
 
     def test_wait_ready_probes_health_until_success(self, monkeypatch: pytest.MonkeyPatch):
-        """The probe polls the mapped health endpoint on the readiness interval."""
+        """The probe polls the mapped health endpoint on the declared interval."""
         fake_requests = FakeRequests(statuses=[503, 429])
         monkeypatch.setattr(vault_module, "requests", fake_requests)
-        monkeypatch.setattr(vault_module, "time", FakeTime())
+        clock = install_fake_clock(monkeypatch)
         engine = secrets_engine()
         engine._container = FakeDockerContainer("hashicorp/vault:1.17")
 
         engine._wait_ready()
 
         assert fake_requests.probes == [("http://127.0.0.2:18200/v1/sys/health", 5)] * 3
+        assert clock.slept == [0.5, 0.5]
 
-    def test_wait_ready_fails_past_the_deadline(self, monkeypatch: pytest.MonkeyPatch):
-        """A health endpoint that never answers fails within the 30s deadline."""
-        fake_requests = FakeRequests(statuses=[503] * 100)
+    def test_wait_ready_fails_past_the_declared_deadline(self, monkeypatch: pytest.MonkeyPatch):
+        """A health endpoint that never answers fails when the declared deadline expires."""
+        fake_requests = FakeRequests(statuses=[503] * 8)
         monkeypatch.setattr(vault_module, "requests", fake_requests)
-        monkeypatch.setattr(vault_module, "time", FakeTime())
-        engine = secrets_engine()
+        clock = install_fake_clock(monkeypatch)
+        engine = secrets_engine(probe=ProbeConfig(timeout=0.2, interval=0.05))
         engine._container = FakeDockerContainer("hashicorp/vault:1.17")
 
-        with pytest.raises(RuntimeError, match=r"health.*did not succeed"):
+        with pytest.raises(RuntimeError, match=r"health endpoint .*did not succeed within 0\.2s"):
             engine._wait_ready()
 
+        assert clock.slept == [0.05] * len(clock.slept)
+        assert len(clock.slept) >= 4
         assert fake_requests.probes[0] == ("http://127.0.0.2:18200/v1/sys/health", 5)
 
 
@@ -327,21 +371,21 @@ class TestVaultEnginePlane:
             engine._execute(put_op("payment/api-key", {"api_key": "test-key"}))
 
     def test_execute_failed_write_wraps_into_engine_error_through_apply(self, monkeypatch: pytest.MonkeyPatch):
-        """Through the base apply path the failed write names the instance and the action."""
+        """Through the base apply path the failed write names the service and the action."""
         fake_requests = FakeRequests(write_responses=[FakeResponse(403, {"errors": ["forbidden"]})])
         monkeypatch.setattr(vault_module, "requests", fake_requests)
         engine = secrets_engine()
         engine._container = FakeDockerContainer("hashicorp/vault:1.17")
         engine._started = True
 
-        with pytest.raises(EngineError, match=r"instance 'secrets': put failed.*x/y"):
+        with pytest.raises(EngineError, match=r"service 'secrets': put failed.*x/y"):
             engine.apply([put_op("x/y", {"v": 1})])
 
     def test_wipe_restarts_the_same_container_and_rewaits_health(self, monkeypatch: pytest.MonkeyPatch):
         """Reset-wipe restarts the wrapped SDK container and re-probes the health endpoint."""
         fake_requests = FakeRequests()
         monkeypatch.setattr(vault_module, "requests", fake_requests)
-        monkeypatch.setattr(vault_module, "time", FakeTime())
+        install_fake_clock(monkeypatch)
         engine = secrets_engine()
         engine._container = FakeDockerContainer("hashicorp/vault:1.17")
 
@@ -440,6 +484,49 @@ class TestVaultEngineLifecycle:
 
             for value in record.__dict__.values():
                 assert "sandbox-root" not in str(value)
+
+
+class TestDeclaredBoundsReadiness:
+    """Scenario 22: the declared probe bounds drive both HTTP-plane readiness waits."""
+
+    def test_vault_and_http_wait_use_declared_bounds(self, monkeypatch: pytest.MonkeyPatch):
+        """An expired declared deadline fails both kinds within the wall-clock deadline.
+
+        With a patched ``requests.get`` answering failures and probe ``{timeout: 0.3,
+        interval: 0.05}``, both waits expire as ``EngineError`` naming the endpoint within
+        ~0.3s of wall clock; with no probe declared the loop bounds equal the former
+        constants (30.0 / 0.5) — the default-equivalence regression.
+        """
+        monkeypatch.setattr(vault_module, "DockerContainer", FakeDockerContainer)
+        monkeypatch.setattr(vault_module, "reserve_port", lambda: 18200)
+        monkeypatch.setattr(http_module, "DockerContainer", FakeDockerContainer)
+        failing_requests = FakeRequests(statuses=[500] * 64)
+        monkeypatch.setattr(vault_module, "requests", failing_requests)
+        monkeypatch.setattr(http_module, "requests", failing_requests)
+        probe = ProbeConfig(timeout=0.3, interval=0.05)
+
+        vault_started = time.monotonic()
+
+        with pytest.raises(EngineError, match=r"service 'secrets'.*health endpoint .*did not succeed within 0\.3s"):
+            secrets_engine(probe=probe).start([])
+
+        vault_elapsed = time.monotonic() - vault_started
+
+        http_started = time.monotonic()
+
+        with pytest.raises(EngineError, match=r"service 'payments'.*admin endpoint .*did not succeed within 0\.3s"):
+            HttpEngine(ServiceConfig(name="payments", kind="http", probe=probe)).start([])
+
+        http_elapsed = time.monotonic() - http_started
+
+        assert 0.25 <= vault_elapsed <= 2.0
+        assert 0.25 <= http_elapsed <= 2.0
+        assert not hasattr(vault_module, "READINESS_TIMEOUT")
+        assert not hasattr(vault_module, "READINESS_INTERVAL")
+        assert not hasattr(http_module, "READINESS_TIMEOUT")
+        assert not hasattr(http_module, "READINESS_INTERVAL")
+        assert secrets_engine()._readiness_bounds == (30.0, 0.5)
+        assert HttpEngine(ServiceConfig(name="payments", kind="http"))._readiness_bounds == (30.0, 0.5)
 
 
 @requires_docker

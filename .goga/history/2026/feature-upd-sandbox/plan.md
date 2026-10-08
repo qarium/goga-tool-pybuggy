@@ -1252,32 +1252,55 @@ unchanged); everything else unchanged.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 7 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/engines/test_vault.py`, `test_http.py`):
+- [x] **Declaration**: state that Task 7 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/engines/test_vault.py`, `test_http.py`):
   constructed with `ServiceConfig`; readiness driven by the declared bounds
-- [ ] **REPL prototype (R4)**: in the REPL drive `_probe_until` with a patched `requests.get`
+  (reworked first; 6 readiness/bounds failures confirmed against the old code — TDD red
+  before implementation; the docker-gated live cases stayed green throughout)
+- [x] **REPL prototype (R4)**: in the REPL drive `_probe_until` with a patched `requests.get`
   returning a failing response object and probe `{timeout: 0.3, interval: 0.05}` — observe
   expiry within ~0.3s and the message naming the endpoint; then migrate
-- [ ] **Code**: rewrite `_wait_ready` in `vault.py` and `http.py` onto the D5 loop; delete the
+  (observed live in a venv heredoc REPL: expiry at 0.344s wall clock over 6 attempts with the
+  full chain "service 'secrets': start failed at readiness wait: health endpoint
+  http://…/v1/sys/health did not succeed within 0.3s"; 3rd-call success → exactly 2 sleeps of
+  the declared 0.05 interval; then migrated)
+- [x] **Code**: rewrite `_wait_ready` in `vault.py` and `http.py` onto the D5 loop; delete the
   `READINESS_*` constants; vocabulary swap; vocabulary touch-ups in `address.py` and the cell
   `__init__.py` docstrings
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_vault.py
+  (both loops probe at the declared `_readiness_bounds` with the wiremock 404→mappings
+  fallback kept; `import time` and both constants removed; D8 extras `{"service": ...}`
+  throughout; module/class/attribute docstrings to the service vocabulary)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_vault.py
   tests/sandbox/engines/test_http.py tests/sandbox/engines/test_address.py
   tests/sandbox/engines/test_refs.py -x -v` — pass
-- [ ] **Logic tests** (scenario 22, transferred verbatim): `test_vault_and_http_wait_use_declared_bounds`
+  (87 passed, 0 skipped — the docker-gated vault/wiremock live cases ran for real; one
+  float-drift arithmetic expectation in the deadline tests fixed after an M-R4.5 REPL
+  reproduction: 4 accumulated 0.05 sleeps land at 100.19999… < the 100.2 deadline, so the
+  sleep-count assertion now pins "every sleep equals the declared interval, ≥4 sleeps")
+- [x] **Logic tests** (scenario 22, transferred verbatim): `test_vault_and_http_wait_use_declared_bounds`
   — with a patched `requests.get` failing: probe `{timeout: 0.3, interval: 0.05}` →
   `EngineError` within ~0.3s (wall clock assertion with tolerance) naming the endpoint —
   expiry clause for both kinds; with no probe the loop constants equal the former 30/0.5
   (regression: default equivalence)
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (landed by name in test_vault.py driving both kinds — wall clock 0.25–2.0s window,
+  endpoint-naming `EngineError` matches, `READINESS_*` absence pinned, and
+  `_readiness_bounds == (30.0, 0.5)` for both kinds without a probe)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/ --ignore=tests/sandbox/engines/test_kafka.py -x` green
   (`test_kafka.py` is known-red until Task 8, Migration Ledger; without the ignore `-x` would
   stop there — alphabetically before this task's own `test_vault.py`)
-- [ ] **Contract re-verification**: dev-mode contract, KV v2 plane, mappings reset, fallback
+  (318 green; ledger blast radius verified — full tree collects 1532 tests, red files exactly
+  the scheduled suites: engines kafka + sandbox cell + plugin; data suites unaffected)
+- [x] **Contract re-verification**: dev-mode contract, KV v2 plane, mappings reset, fallback
   readiness — all unchanged except the bounds source
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked against the VaultEngine/HttpEngine CODEMANIFEST annotations and re-verified in a
+  fresh interpreter — facade byte-stable at 11 names, `ServiceConfig` constructor
+  annotations, health/admin readiness within the declared deadline at the declared interval)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (two PT018s in the scenario-22 test split into single asserts; both gates exit 0;
+  authoritative suites re-run green after the fix)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 8: `KafkaEngine` — inline topics, in-memory AsyncAPI generation, produce gate (TDD)
 

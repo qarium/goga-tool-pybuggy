@@ -4,23 +4,25 @@ import inspect
 
 import pytest
 import requests
-from goga_tool_pybuggy.sandbox.config import InstanceConfig
+from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig
 from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, HttpEngine
+from goga_tool_pybuggy.sandbox.engines import base as base_module
 from goga_tool_pybuggy.sandbox.engines import http as http_module
 
 from ..conftest import requires_docker
 
 
-def payments_engine(image: str | None = None) -> HttpEngine:
-    """Build an http engine of the sample ``payments`` instance.
+def payments_engine(image: str | None = None, probe: ProbeConfig | None = None) -> HttpEngine:
+    """Build an http engine of the sample ``payments`` service.
 
     Args:
-        image: The optional image override of the instance declaration.
+        image: The optional image override of the service declaration.
+        probe: The optional readiness declaration of the service entry.
 
     Returns:
-        The engine of an instance named ``payments`` of kind ``http``.
+        The engine of a service named ``payments`` of kind ``http``.
     """
-    return HttpEngine(InstanceConfig(name="payments", kind="http", image=image))
+    return HttpEngine(ServiceConfig(name="payments", kind="http", image=image, probe=probe))
 
 
 def stub_op(mapping: dict[str, object]) -> DataOperation:
@@ -30,7 +32,7 @@ def stub_op(mapping: dict[str, object]) -> DataOperation:
         mapping: The mapping declaration the stub operation carries.
 
     Returns:
-        A sample ``stub`` operation targeted at the ``payments`` instance.
+        A sample ``stub`` operation targeted at the ``payments`` service.
     """
     return DataOperation(instance="payments", kind="http", action="stub", payload=mapping)
 
@@ -109,17 +111,35 @@ class FakeRequests:
         return FakeResponse(200, {"id": "fake"})
 
 
-class FakeTime:
-    """Namespace double of ``time`` — instant monotonic, no sleeping."""
+class FakeClock:
+    """Clock double of the probe loop — instant monotonic, sleeps advance the clock."""
 
     def __init__(self) -> None:
         self.now = 100.0
+        self.slept: list[float] = []
 
     def monotonic(self) -> float:
         return self.now
 
     def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
         self.now += seconds
+
+
+def install_fake_clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
+    """Patch the probe-loop clock of the engines base — no wall-clock waiting in unit tests.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture swapping the base seams.
+
+    Returns:
+        The installed clock double recording the interval sleeps.
+    """
+    clock = FakeClock()
+    monkeypatch.setattr(base_module, "monotonic", clock.monotonic)
+    monkeypatch.setattr(base_module, "sleep", clock.sleep)
+
+    return clock
 
 
 class FakeDockerContainer:
@@ -188,7 +208,7 @@ def armed_engine(monkeypatch: pytest.MonkeyPatch, fake_requests: FakeRequests) -
     """
     monkeypatch.setattr(http_module, "DockerContainer", FakeDockerContainer)
     monkeypatch.setattr(http_module, "requests", fake_requests)
-    monkeypatch.setattr(http_module, "time", FakeTime())
+    install_fake_clock(monkeypatch)
 
     return payments_engine()
 
@@ -205,10 +225,20 @@ class TestHttpEngineContract:
         assert issubclass(HttpEngine, BaseEngine)
 
     def test_http_engine_declares_the_contract_constructor(self):
-        """The constructor signature is ``__init__(self, config)``."""
+        """The constructor signature is ``__init__(self, config)`` over ``ServiceConfig``."""
         signature = inspect.signature(HttpEngine.__init__)
 
         assert list(signature.parameters) == ["self", "config"]
+        assert signature.parameters["config"].annotation is ServiceConfig
+
+    def test_http_engine_constructs_over_a_service_config(self):
+        """The engine carries the service declaration — name, kind, image override, probe."""
+        probe = ProbeConfig(timeout=45.0, interval=1.0)
+        engine = HttpEngine(ServiceConfig(name="payments", kind="http", probe=probe))
+
+        assert engine.config.name == "payments"
+        assert engine.config.kind == "http"
+        assert engine.config.probe is probe
 
     def test_http_engine_inherits_the_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` resolve with declared parameters."""
@@ -229,6 +259,10 @@ class TestHttpEngineContract:
 
         assert isinstance(address, property)
 
+    def test_http_engine_declares_the_engine_owned_readiness_wait(self):
+        """The kind engine overrides ``_wait_ready`` — readiness probing is engine-owned."""
+        assert HttpEngine._wait_ready is not BaseEngine._wait_ready
+
 
 class TestHttpEngineBuild:
     """Container build arguments of the http engine, driven through the patched constructor."""
@@ -245,7 +279,7 @@ class TestHttpEngineBuild:
         assert container.exposed_ports == [8080]
 
     def test_build_honors_the_image_override(self, monkeypatch: pytest.MonkeyPatch):
-        """The image override of the instance config reaches the container build."""
+        """The image override of the service declaration reaches the container build."""
         monkeypatch.setattr(http_module, "DockerContainer", FakeDockerContainer)
         engine = payments_engine(image="wiremock/wiremock:3.14.0")
 
@@ -258,22 +292,23 @@ class TestHttpEngineReadiness:
     """Admin-endpoint probing of the http engine, driven over the fake requests namespace."""
 
     def test_wait_ready_probes_health_until_success(self, monkeypatch: pytest.MonkeyPatch):
-        """The probe polls the mapped 3.x health endpoint on the readiness interval."""
+        """The probe polls the mapped 3.x health endpoint on the declared interval."""
         fake_requests = FakeRequests(statuses=[503, 503])
         monkeypatch.setattr(http_module, "requests", fake_requests)
-        monkeypatch.setattr(http_module, "time", FakeTime())
+        clock = install_fake_clock(monkeypatch)
         engine = payments_engine()
         engine._container = FakeDockerContainer("wiremock/wiremock:3.13.0")
 
         engine._wait_ready()
 
         assert fake_requests.probes == [("http://127.0.0.2:18080/__admin/health", 5)] * 3
+        assert clock.slept == [0.5, 0.5]
 
     def test_wait_ready_falls_back_to_mappings_on_missing_health(self, monkeypatch: pytest.MonkeyPatch):
         """A 404 health answer falls back to the mappings endpoint of older versions."""
         fake_requests = FakeRequests(statuses=[404, 200])
         monkeypatch.setattr(http_module, "requests", fake_requests)
-        monkeypatch.setattr(http_module, "time", FakeTime())
+        install_fake_clock(monkeypatch)
         engine = payments_engine()
         engine._container = FakeDockerContainer("wiremock/wiremock:3.13.0")
 
@@ -288,25 +323,28 @@ class TestHttpEngineReadiness:
         """A refused connection keeps the loop probing until the endpoint answers."""
         fake_requests = FakeRequests(statuses=[200], probe_errors=1)
         monkeypatch.setattr(http_module, "requests", fake_requests)
-        monkeypatch.setattr(http_module, "time", FakeTime())
+        clock = install_fake_clock(monkeypatch)
         engine = payments_engine()
         engine._container = FakeDockerContainer("wiremock/wiremock:3.13.0")
 
         engine._wait_ready()
 
         assert fake_requests.probes == [("http://127.0.0.2:18080/__admin/health", 5)] * 2
+        assert clock.slept == [0.5]
 
-    def test_wait_ready_fails_past_the_deadline(self, monkeypatch: pytest.MonkeyPatch):
-        """An admin endpoint that never answers fails within the 30s deadline."""
-        fake_requests = FakeRequests(statuses=[404, 500] * 100)
+    def test_wait_ready_fails_past_the_declared_deadline(self, monkeypatch: pytest.MonkeyPatch):
+        """An admin endpoint that never answers fails when the declared deadline expires."""
+        fake_requests = FakeRequests(statuses=[404, 500] * 8)
         monkeypatch.setattr(http_module, "requests", fake_requests)
-        monkeypatch.setattr(http_module, "time", FakeTime())
-        engine = payments_engine()
+        clock = install_fake_clock(monkeypatch)
+        engine = payments_engine(probe=ProbeConfig(timeout=0.2, interval=0.05))
         engine._container = FakeDockerContainer("wiremock/wiremock:3.13.0")
 
-        with pytest.raises(RuntimeError, match=r"admin endpoint.*did not succeed"):
+        with pytest.raises(RuntimeError, match=r"admin endpoint .*did not succeed within 0\.2s"):
             engine._wait_ready()
 
+        assert clock.slept == [0.05] * len(clock.slept)
+        assert len(clock.slept) >= 4
         assert fake_requests.probes[0] == ("http://127.0.0.2:18080/__admin/health", 5)
 
 
@@ -346,14 +384,14 @@ class TestHttpEnginePlane:
             engine._execute(stub_op(status_mapping()))
 
     def test_execute_failed_post_wraps_into_engine_error_through_apply(self, monkeypatch: pytest.MonkeyPatch):
-        """Through the base apply path the failed post names the instance and the action."""
+        """Through the base apply path the failed post names the service and the action."""
         fake_requests = FakeRequests(post_responses=[FakeResponse(400, {"detail": "invalid mapping"})])
         monkeypatch.setattr(http_module, "requests", fake_requests)
         engine = payments_engine()
         engine._container = FakeDockerContainer("wiremock/wiremock:3.13.0")
         engine._started = True
 
-        with pytest.raises(EngineError, match=r"instance 'payments': stub failed.*payment-provider-charge"):
+        with pytest.raises(EngineError, match=r"service 'payments': stub failed.*payment-provider-charge"):
             engine.apply([stub_op(charge_mapping())])
 
     def test_wipe_posts_the_admin_mappings_reset(self, monkeypatch: pytest.MonkeyPatch):

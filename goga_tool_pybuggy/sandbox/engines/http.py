@@ -1,7 +1,6 @@
-"""HttpEngine: the http kind engine — a wiremock http mock instance."""
+"""HttpEngine: the http kind engine — a wiremock http mock service."""
 
 import logging
-import time
 
 import requests
 from testcontainers.core.container import DockerContainer
@@ -15,8 +14,6 @@ DEFAULT_IMAGE = "wiremock/wiremock:3.13.0"
 CONTAINER_PORT = 8080
 SANDBOX_LABELS = {"pybuggy-sandbox": "true"}
 
-READINESS_TIMEOUT = 30.0
-READINESS_INTERVAL = 0.5
 PLANE_TIMEOUT = 5
 HEALTHY_STATUS = 200
 NOT_FOUND_STATUS = 404
@@ -27,7 +24,7 @@ WRITE_OK_MAX_STATUS = 299
 class HttpEngine(BaseEngine):
     """http kind engine: wiremock container, admin-API stub plane, mappings-reset wipe.
 
-    The container runs the product-pinned wiremock image unless the instance config overrides
+    The container runs the product-pinned wiremock image unless the service entry overrides
     it — stub traffic and the admin API share the one published port. The data plane is plain
     ``requests`` posting stub mappings over the admin API; the declarations pass through as
     given, so matching, priority, delays and faults stay available to authors. Reset drops the
@@ -35,7 +32,7 @@ class HttpEngine(BaseEngine):
     and the base replays the journal through the same execution path.
 
     Attributes:
-        config: The instance declaration — name, kind, image override.
+        config: The service declaration — name, kind, image override, probe.
     """
 
     _container_port = CONTAINER_PORT
@@ -55,32 +52,32 @@ class HttpEngine(BaseEngine):
         return container
 
     def _wait_ready(self) -> None:
-        """Wait for the wiremock admin endpoint.
+        """Wait for the wiremock admin endpoint, bounded by the declared deadline.
 
-        A probe loop with a deadline — the 3.x health endpoint is the primary signal; a 404
-        answer falls back to the mappings endpoint of older versions. Connection failures keep
-        the loop probing.
+        A probe loop at the declared bounds — the 3.x health endpoint is the primary signal;
+        a 404 answer falls back to the mappings endpoint of older versions. Connection
+        failures keep the loop probing.
 
         Raises:
-            RuntimeError: The admin endpoint did not succeed within the deadline.
+            RuntimeError: The declared deadline expired; the lifecycle wrappers convert it
+                into ``EngineError`` naming the service, the waited check and the deadline.
         """
-        host = self._container.get_container_host_ip()
-        port = int(self._container.get_exposed_port(CONTAINER_PORT))
-        base_url = f"http://{host}:{port}/__admin"
-        deadline = time.monotonic() + READINESS_TIMEOUT
+        address = self.address
+        base_url = f"http://{address.host}:{address.port}/__admin"
+        timeout, interval = self._readiness_bounds
 
-        while time.monotonic() < deadline:
+        def attempt() -> bool:
             try:
-                if self._admin_ready(base_url):
-                    logger.debug("wiremock admin ready", extra={"instance": self.config.name, "admin": base_url})
-
-                    return
+                ready = self._admin_ready(base_url)
             except requests.RequestException:
-                logger.debug("wiremock admin probe retry", extra={"instance": self.config.name, "admin": base_url})
+                logger.debug("wiremock admin probe retry", extra={"service": self.config.name, "admin": base_url})
 
-            time.sleep(READINESS_INTERVAL)
+                return False
 
-        raise RuntimeError(f"admin endpoint {base_url} did not succeed within {READINESS_TIMEOUT:.0f}s")
+            return ready
+
+        self._probe_until(timeout, interval, attempt, f"admin endpoint {base_url} did not succeed")
+        logger.debug("wiremock admin ready", extra={"service": self.config.name, "admin": base_url})
 
     def _open_plane(self) -> None:
         """Open the admin data plane.
@@ -88,7 +85,7 @@ class HttpEngine(BaseEngine):
         The plane is stateless ``requests`` — there is no client to hold; the step only marks
         the plane open.
         """
-        logger.debug("wiremock plane open", extra={"instance": self.config.name})
+        logger.debug("wiremock plane open", extra={"service": self.config.name})
 
     def _execute(self, operation: DataOperation) -> None:
         """Execute one http operation over the admin API.
@@ -109,7 +106,7 @@ class HttpEngine(BaseEngine):
         if not WRITE_OK_MIN_STATUS <= response.status_code <= WRITE_OK_MAX_STATUS:
             raise RuntimeError(_stub_failure(mapping, response))
 
-        logger.debug("wiremock stub created", extra={"instance": self.config.name, "mapping": _mapping_label(mapping)})
+        logger.debug("wiremock stub created", extra={"service": self.config.name, "mapping": _mapping_label(mapping)})
 
     def _wipe(self) -> None:
         """Reset the mappings over the admin API — back to the effective empty state.
@@ -125,7 +122,7 @@ class HttpEngine(BaseEngine):
         if not WRITE_OK_MIN_STATUS <= response.status_code <= WRITE_OK_MAX_STATUS:
             raise RuntimeError(f"mappings reset failed with status {response.status_code}")
 
-        logger.debug("wiremock mappings reset", extra={"instance": self.config.name})
+        logger.debug("wiremock mappings reset", extra={"service": self.config.name})
 
     def _close_plane(self) -> None:
         """Close the admin data plane; stateless ``requests`` needs no close."""
@@ -134,7 +131,7 @@ class HttpEngine(BaseEngine):
         """Probe the admin endpoint for readiness — health first, mappings fallback.
 
         Args:
-            base_url: The mapped admin base URL of the instance.
+            base_url: The mapped admin base URL of the service.
 
         Returns:
             True when the admin endpoint answered ready.

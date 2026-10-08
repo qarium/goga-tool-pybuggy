@@ -1,7 +1,6 @@
-"""VaultEngine: the vault kind engine — a dev-mode vault secrets mock instance."""
+"""VaultEngine: the vault kind engine — a dev-mode vault secrets mock service."""
 
 import logging
-import time
 
 import requests
 from testcontainers.core.container import DockerContainer
@@ -18,8 +17,6 @@ DEV_LISTEN_ADDRESS = f"0.0.0.0:{CONTAINER_PORT}"
 DEV_COMMAND = "server -dev"
 SANDBOX_LABELS = {"pybuggy-sandbox": "true"}
 
-READINESS_TIMEOUT = 30.0
-READINESS_INTERVAL = 0.5
 PLANE_TIMEOUT = 5
 HEALTHY_STATUS = 200
 WRITE_OK_MIN_STATUS = 200
@@ -30,7 +27,7 @@ RESTART_TIMEOUT = 10
 class VaultEngine(BaseEngine):
     """vault kind engine: dev-mode container, KV v2 HTTP plane, restart-based wipe.
 
-    The container runs the product-pinned vault image in dev mode unless the instance config
+    The container runs the product-pinned vault image in dev mode unless the service entry
     overrides it — in-memory storage, plain HTTP, auto-initialized and auto-unsealed, with the
     fixed dev root token. The data plane is plain ``requests`` with the token header writing
     secrets over the KV v2 API. Reset restarts the same container — the published address
@@ -38,7 +35,7 @@ class VaultEngine(BaseEngine):
     secrets.
 
     Attributes:
-        config: The instance declaration — name, kind, image override.
+        config: The service declaration — name, kind, image override, probe.
     """
 
     _container_port = CONTAINER_PORT
@@ -48,8 +45,8 @@ class VaultEngine(BaseEngine):
 
         The container's vault port is published on a reserved fixed host port, not a
         dynamically assigned one: a restart-based reset re-rolls dynamic port assignments,
-        and the mapped address — already rendered into the service env — must survive the
-        reset.
+        and the mapped address — already rendered into the instance env values — must survive
+        the reset.
 
         Returns:
             The built, not yet started, vault container.
@@ -66,33 +63,32 @@ class VaultEngine(BaseEngine):
         return container
 
     def _wait_ready(self) -> None:
-        """Wait for the vault health endpoint.
+        """Wait for the vault health endpoint, bounded by the declared deadline.
 
-        A probe loop with a deadline — the endpoint answers 200 once the server is initialized,
-        unsealed and active; the pre-ready codes (429, 501, 503) keep the loop probing.
+        A probe loop at the declared bounds — the endpoint answers 200 once the server is
+        initialized, unsealed and active; the pre-ready codes (429, 501, 503) and connection
+        failures keep the loop probing.
 
         Raises:
-            RuntimeError: The health endpoint did not succeed within the deadline.
+            RuntimeError: The declared deadline expired; the lifecycle wrappers convert it
+                into ``EngineError`` naming the service, the waited check and the deadline.
         """
-        host = self._container.get_container_host_ip()
-        port = int(self._container.get_exposed_port(self._container_port))
-        url = f"http://{host}:{port}/v1/sys/health"
-        deadline = time.monotonic() + READINESS_TIMEOUT
+        address = self.address
+        url = f"http://{address.host}:{address.port}/v1/sys/health"
+        timeout, interval = self._readiness_bounds
 
-        while time.monotonic() < deadline:
+        def attempt() -> bool:
             try:
                 response = requests.get(url, timeout=PLANE_TIMEOUT)
-
-                if response.status_code == HEALTHY_STATUS:
-                    logger.debug("vault health ready", extra={"instance": self.config.name, "health": url})
-
-                    return
             except requests.RequestException:
-                logger.debug("vault health probe retry", extra={"instance": self.config.name, "health": url})
+                logger.debug("vault health probe retry", extra={"service": self.config.name, "health": url})
 
-            time.sleep(READINESS_INTERVAL)
+                return False
 
-        raise RuntimeError(f"health endpoint {url} did not succeed within {READINESS_TIMEOUT:.0f}s")
+            return response.status_code == HEALTHY_STATUS
+
+        self._probe_until(timeout, interval, attempt, f"health endpoint {url} did not succeed")
+        logger.debug("vault health ready", extra={"service": self.config.name, "health": url})
 
     def _open_plane(self) -> None:
         """Open the HTTP data plane.
@@ -100,7 +96,7 @@ class VaultEngine(BaseEngine):
         The plane is stateless ``requests`` with the token header — there is no client to hold;
         the step only marks the plane open.
         """
-        logger.debug("vault plane open", extra={"instance": self.config.name})
+        logger.debug("vault plane open", extra={"service": self.config.name})
 
     def _execute(self, operation: DataOperation) -> None:
         """Execute one vault operation through the KV v2 HTTP API.
@@ -125,7 +121,7 @@ class VaultEngine(BaseEngine):
         if not WRITE_OK_MIN_STATUS <= response.status_code <= WRITE_OK_MAX_STATUS:
             raise RuntimeError(_write_failure(path, response))
 
-        logger.debug("vault secret written", extra={"instance": self.config.name, "path": path})
+        logger.debug("vault secret written", extra={"service": self.config.name, "path": path})
 
     def _wipe(self) -> None:
         """Restart the same container — empty in-memory storage, unchanged address.
@@ -138,7 +134,7 @@ class VaultEngine(BaseEngine):
         """
         wrapped = self._container.get_wrapped_container()
         wrapped.restart(timeout=RESTART_TIMEOUT)
-        logger.debug("vault container restarted", extra={"instance": self.config.name})
+        logger.debug("vault container restarted", extra={"service": self.config.name})
 
         self._wait_ready()
 
