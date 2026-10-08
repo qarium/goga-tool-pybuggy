@@ -732,14 +732,20 @@ input. Nothing else changes.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create the virtualenv: `python3 -m venv .venv` and install the project editable with the
+- [x] Create the virtualenv: `python3 -m venv .venv` and install the project editable with the
   test extra: `.venv/bin/pip install -e '.[test]'`; verify `.venv/bin/python -c "import
   goga_tool_pybuggy"` succeeds
-- [ ] Verify the current suite baseline is green: `.venv/bin/pytest tests/ -x`
-- [ ] Verify the contract baseline: `goga lint` → 23 cells, 0 errors
-- [ ] Commit the already-materialized contract files (the four sandbox CODEMANIFESTs + the four
+- [x] Verify the current suite baseline is green: `.venv/bin/pytest tests/ -x`
+  (1458 passed, 0 failed; environment note — docker IS reachable here and runs inside a
+  proxied-socket container, so container-gated tests execute and need
+  `TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal` prefixed to every pytest run; recorded in
+  the progress log)
+- [x] Verify the contract baseline: `goga lint` → 23 cells, 0 errors
+- [x] Commit the already-materialized contract files (the four sandbox CODEMANIFESTs + the four
   cell `.usages/` files) unchanged — they are this plan's read-only input
-- [ ] Lint gate (pre-commit, M-R3.4): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+  (already committed unchanged in `4a67ad7` before the loop started; all 8 paths verified
+  tracked, working tree clean — nothing further to commit)
+- [x] Lint gate (pre-commit, M-R3.4): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
 
 ### Task 2: `ProbeConfig` and `TopicConfig` — the new declaration models (TDD)
 
