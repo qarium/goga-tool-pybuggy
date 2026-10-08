@@ -1165,24 +1165,28 @@ design-review R3/R6 guards.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 6 is being executed
-- [ ] **Contract tests** (extend `test_loader.py`; expected to fail now): `load_sandbox_config`
+- [x] **Declaration**: stated in the iteration output and the progress log
+- [x] **Contract tests** (extend `test_loader.py`; expected to fail now): `load_sandbox_config`
   signature unchanged; a migrations-declaring document loads into
   `config.services["db"].migrations: MigrationsConfig | None` (the new step is observable
-  through the public reader)
-- [ ] **REPL prototype (R4)**: in the venv REPL (documents written under `/tmp` with the
-  tools-home layout): load the full valid local-source document (observe the typed
-  declaration: `location`, `git is None`); load the remote-source document (no folder on
-  disk — observe it accepted by URL shape); walk each invalid variant (kafka placement,
-  `migrations: null` / `12` / `"x"`, `location: ""`, missing local folder, `ftp://` URL,
-  duplicate versions on disk) and read each `ValueError` — document path + entry scope in
-  every one, with the `MigrationError` cause on the wrapped ones; then migrate
-- [ ] **Code**: add `_validate_migrations` to `goga_tool_pybuggy/sandbox/config/loader.py`
-  per the design details; call it from `_read_services` after `_validate_topics`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — pass;
-  fresh-interpreter check: `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.config import
-  load_sandbox_config"`
-- [ ] **Logic tests** (design scenarios, transferred):
+  through the public reader) — the two contract tests passed on the Task 5 field (the typed
+  coercion predates the step); the genuine TDD red sat in the six rejection scenarios below,
+  observed as `DID NOT RAISE` before the code landed
+- [x] **REPL prototype (R4)**: drove the exact `_validate_migrations` body live in the venv
+  over `/tmp` fixtures before migrating — valid local (typed declaration, `git is None`),
+  remote by shape (no folder on disk), kafka placement firing before the mapping guard for
+  every raw shape, `Path.cwd() / ""` resolving to a cwd whose sprinkled `.sql` passes
+  `check_local_migrations` (the non-empty guard is load-bearing), missing folder /
+  `ftp://` / duplicates wrapping with the `MigrationError` cause, unknown key wrapping
+  through `_build_model`; then migrated
+- [x] **Code**: added `_validate_migrations` to `goga_tool_pybuggy/sandbox/config/loader.py`
+  per the design details; called it from `_read_services` after `_validate_topics` (with the
+  docstring Raises extended); imports `from ..migrations import MigrationError,
+  check_git_url, check_local_migrations` + `from .migrations import MigrationsConfig`
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — 168
+  passed; fresh-interpreter check: `.venv/bin/python -c "from
+  goga_tool_pybuggy.sandbox.config import load_sandbox_config"` — succeeds
+- [x] **Logic tests** (design scenarios, transferred):
   1. `test_loader_accepts_migrations_on_postgresql` — tmp_path with a valid
      `db/migrations/00001_init.sql`, document with `services: {db: {kind: postgresql,
      migrations: {location: db/migrations}}}`; `load_sandbox_config()` →
@@ -1206,15 +1210,20 @@ design-review R3/R6 guards.
      `ValueError` with the scope and `disallowed`
   8. `test_loader_rejects_duplicate_versions_at_load` — folder with `1_a.sql` +
      `0001_b.sql` → wrapped `ValueError` naming both files
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green; REPL-reproduce any
-  failure with the exact document first (M-R4.5)
-- [ ] **Contract re-verification**: the extended Algorithm step 5 holds verbatim — placement,
+
+  All 8 present (12 migrations-step tests total with the 2 contract tests and the 3-row
+  parametrized table)
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — 1663 passed, 17 skipped (Task 5 baseline
+  1651 + 12 new), green on the first run after the code landed; no failures to reproduce
+- [x] **Contract re-verification**: the extended Algorithm step 5 holds verbatim — placement,
   local resolution + `check_local_migrations`, remote `check_git_url`, the MigrationError →
   ValueError wrap with the cause preserved; the new requirement bullet (local validated fully
   at load; remote by URL shape); no container starts for an invalid document
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
-  `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  `ruff format --check` on touched files — clean (initial pass fixed 3 findings in the test
+  file: one PT011 broad `pytest.raises` gained its `match`, two E501 overlong lines via
+  shortened patterns — no production findings, no decomposition needed)
+- [x] **Completion**: checkboxes marked; submitted to the external review loop
 
 ### Task 7: Engines cell — `base.py` `_migrate` hook + start insertion; `postgres.py` override; docstring enumerations (TDD)
 

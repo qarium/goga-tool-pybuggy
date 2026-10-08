@@ -9,7 +9,9 @@ from pydantic import BaseModel, ValidationError
 from ruamel.yaml import YAML
 from ruamel.yaml.error import YAMLError
 
+from ..migrations import MigrationError, check_git_url, check_local_migrations
 from .instance import InstanceConfig
+from .migrations import MigrationsConfig
 from .sandbox_config import SandboxConfig
 from .service import ServiceConfig
 from .startup_data import StartupData
@@ -154,7 +156,7 @@ def _read_services(document: dict[str, object], location: Path) -> dict[str, Ser
         The validated service entries keyed by service name.
 
     Raises:
-        ValueError: A service name, kind, topics, or probe entry is invalid.
+        ValueError: A service name, kind, topics, probe, or migrations entry is invalid.
     """
     raw = document.get("services", {})
 
@@ -181,6 +183,7 @@ def _read_services(document: dict[str, object], location: Path) -> dict[str, Ser
 
         _validate_kind(entry, scope)
         _validate_topics(entry, scope)
+        _validate_migrations(entry, scope)
         services[name] = _build_model(ServiceConfig, dict(entry, name=name), scope)
 
     return services
@@ -226,6 +229,54 @@ def _validate_topics(entry: dict[str, object], scope: str) -> None:
             )
 
         declared.add(topic.name)
+
+
+def _validate_migrations(entry: dict[str, object], scope: str) -> None:
+    """Validate the migrations declaration of one service entry.
+
+    The declaration is accepted on the postgresql kind only — placement is checked before
+    the model build. A local source resolves its location against the current working
+    directory and passes through the on-disk folder checks; a remote source passes its URL
+    through the shape check. A ``MigrationError`` from either check wraps into the reader's
+    ``ValueError`` naming the scope and the offending path or URL, with the original error
+    as the cause.
+
+    Args:
+        entry: The raw service entry mapping.
+        scope: The error scope naming the document location and the entry.
+
+    Raises:
+        ValueError: The declaration sits on a non-postgresql entry, is not a mapping, carries
+            an empty location, or its source fails the load-time checks.
+    """
+    if "migrations" not in entry:
+        return
+
+    if entry.get("kind") != "postgresql":
+        raise ValueError(f"{scope}: migrations are accepted only on postgresql entries")
+
+    raw = entry["migrations"]
+
+    if not isinstance(raw, dict):
+        raise ValueError(f"{scope}.migrations: must be a mapping")
+
+    location = raw.get("location")
+
+    if not isinstance(location, str) or not location:
+        raise ValueError(f"{scope}.migrations.location: must be a non-empty path")
+
+    declaration = _build_model(MigrationsConfig, dict(raw), f"{scope}.migrations")
+
+    if declaration.git is None:
+        try:
+            check_local_migrations(Path.cwd() / declaration.location)
+        except MigrationError as exc:
+            raise ValueError(f"{scope}.migrations: {exc}") from exc
+    else:
+        try:
+            check_git_url(declaration.git.url)
+        except MigrationError as exc:
+            raise ValueError(f"{scope}.migrations: {exc}") from exc
 
 
 def _read_data(document: dict[str, object], location: Path, services: dict[str, ServiceConfig]) -> StartupData:

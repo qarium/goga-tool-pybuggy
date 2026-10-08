@@ -4,7 +4,8 @@ import inspect
 import re
 
 import pytest
-from goga_tool_pybuggy.sandbox.config import SandboxConfig, StartupData, load_sandbox_config
+from goga_tool_pybuggy.sandbox.config import MigrationsConfig, SandboxConfig, StartupData, load_sandbox_config
+from goga_tool_pybuggy.sandbox.migrations import MigrationError
 
 FULL_DOCUMENT = """\
 instance:
@@ -576,3 +577,228 @@ class TestLoadSandboxConfigLogic:
 
         with pytest.raises(ValueError, match=match):
             load_sandbox_config(None)
+
+
+MIGRATION_FILE = "-- +goose Up\nCREATE TABLE orders (id bigint PRIMARY KEY);\n"
+
+
+class TestLoadSandboxConfigMigrationsContract:
+    """Declared API of the migrations validation step of the loader."""
+
+    def test_load_sandbox_config_signature_unchanged_with_migrations_step(self):
+        """The extension keeps the ``(path: str | None) -> SandboxConfig | None`` signature."""
+        signature = inspect.signature(load_sandbox_config)
+
+        assert list(signature.parameters) == ["path"]
+        assert signature.return_annotation == SandboxConfig | None
+
+    def test_migrations_declaration_is_observable_through_the_public_reader(self, sandbox_yaml, tmp_path):
+        """A migrations-declaring document loads into the typed ``ServiceConfig.migrations``."""
+        folder = tmp_path / "db" / "migrations"
+        folder.mkdir(parents=True)
+        (folder / "00001_init.sql").write_text(MIGRATION_FILE, encoding="utf-8")
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            "    migrations:\n"
+            "      location: db/migrations\n"
+        )
+
+        config = load_sandbox_config(None)
+
+        assert isinstance(config.services["db"].migrations, MigrationsConfig)
+
+
+class TestLoadSandboxConfigMigrationsLogic:
+    """Reading and validation behavior of the migrations declaration step."""
+
+    def test_loader_accepts_migrations_on_postgresql(self, sandbox_yaml, tmp_path):
+        """A local source with a valid on-disk folder loads into the typed declaration."""
+        folder = tmp_path / "db" / "migrations"
+        folder.mkdir(parents=True)
+        (folder / "00001_init.sql").write_text(MIGRATION_FILE, encoding="utf-8")
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            "    migrations:\n"
+            "      location: db/migrations\n"
+        )
+
+        config = load_sandbox_config(None)
+
+        assert config.services["db"].migrations.location == "db/migrations"
+        assert config.services["db"].migrations.git is None
+
+    def test_loader_accepts_remote_source_by_shape(self, sandbox_yaml):
+        """A remote source loads by URL shape only — no folder on disk, no network."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            "    migrations:\n"
+            "      location: db/migrations\n"
+            "      git:\n"
+            "        url: https://gitlab.example/acme/s.git\n"
+        )
+
+        config = load_sandbox_config(None)
+
+        assert config.services["db"].migrations.git.url == "https://gitlab.example/acme/s.git"
+        assert config.services["db"].migrations.git.ref is None
+
+    def test_loader_rejects_migrations_on_non_postgresql(self, sandbox_yaml, tmp_path):
+        """A declaration on a kafka entry fails naming the entry — even with a valid folder."""
+        folder = tmp_path / "db" / "migrations"
+        folder.mkdir(parents=True)
+        (folder / "00001_init.sql").write_text(MIGRATION_FILE, encoding="utf-8")
+        path = sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  events:\n"
+            "    kind: kafka\n"
+            "    topics: [{name: orders.events}]\n"
+            "    migrations:\n"
+            "      location: db/migrations\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.events.*accepted only on postgresql entries") as excinfo:
+            load_sandbox_config(None)
+
+        assert str(path) in str(excinfo.value)
+
+    @pytest.mark.parametrize(
+        "migrations_entry",
+        [
+            "",
+            "12",
+            "x",
+        ],
+    )
+    def test_loader_rejects_non_mapping_migrations_value(self, sandbox_yaml, migrations_entry):
+        """A null, list or scalar migrations value fails as exactly a ValueError — no TypeError."""
+        path = sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            f"    migrations: {migrations_entry}\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.db\.migrations: must be a mapping") as excinfo:
+            load_sandbox_config(None)
+
+        assert excinfo.type is ValueError
+        message = str(excinfo.value)
+        assert str(path) in message
+        assert "services.db" in message
+        assert "migrations" in message
+
+    def test_loader_rejects_empty_migrations_location(self, sandbox_yaml, tmp_path):
+        """An empty location fails the guard — it would resolve to the cwd or the clone root."""
+        (tmp_path / "00001_root.sql").write_text(MIGRATION_FILE, encoding="utf-8")
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            "    migrations:\n"
+            '      location: ""\n'
+        )
+
+        with pytest.raises(ValueError, match=r"migrations\.location: must be a non-empty path") as excinfo:
+            load_sandbox_config(None)
+
+        assert excinfo.type is ValueError
+
+    def test_loader_rejects_missing_local_folder(self, sandbox_yaml):
+        """A declared local folder absent from disk fails with the MigrationError as the cause."""
+        path = sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            "    migrations:\n"
+            "      location: db/migrations\n"
+        )
+
+        with pytest.raises(ValueError, match=r"migrations: .*must be an existing folder") as excinfo:
+            load_sandbox_config(None)
+
+        message = str(excinfo.value)
+        assert str(path) in message
+        assert "db/migrations" in message
+        assert isinstance(excinfo.value.__cause__, MigrationError)
+
+    def test_loader_rejects_bad_git_url_scheme(self, sandbox_yaml):
+        """A remote URL outside the scheme allowlist fails wrapped with the scope."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            "    migrations:\n"
+            "      location: db/migrations\n"
+            "      git:\n"
+            "        url: ftp://h/r.git\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.db\.migrations: .*disallowed git URL scheme 'ftp'") as excinfo:
+            load_sandbox_config(None)
+
+        assert isinstance(excinfo.value.__cause__, MigrationError)
+
+    def test_loader_rejects_duplicate_versions_at_load(self, sandbox_yaml, tmp_path):
+        """Duplicate numeric version prefixes in the declared folder fail naming both files."""
+        folder = tmp_path / "db" / "migrations"
+        folder.mkdir(parents=True)
+        (folder / "1_a.sql").write_text(MIGRATION_FILE, encoding="utf-8")
+        (folder / "0001_b.sql").write_text(MIGRATION_FILE, encoding="utf-8")
+        path = sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db:\n"
+            "    kind: postgresql\n"
+            "    migrations:\n"
+            "      location: db/migrations\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.db\.migrations: .*duplicate migration version 1") as excinfo:
+            load_sandbox_config(None)
+
+        message = str(excinfo.value)
+        assert str(path) in message
+        assert "1_a.sql" in message
+        assert "0001_b.sql" in message
+        assert isinstance(excinfo.value.__cause__, MigrationError)
