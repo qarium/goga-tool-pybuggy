@@ -1,4 +1,4 @@
-"""load_sandbox_config routine: fail-fast reading and validation of ``.sandbox.yml``."""
+"""load_sandbox_config routine: fail-fast reading and validation of the sandbox document."""
 
 import logging
 import re
@@ -13,33 +13,36 @@ from .instance import InstanceConfig
 from .sandbox_config import SandboxConfig
 from .service import ServiceConfig
 from .startup_data import StartupData
+from .topic import TopicConfig
 
 logger = logging.getLogger(__name__)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
-_DOCUMENT_NAME = ".sandbox.yml"
+_DOCUMENT_PATH = Path(".goga") / "tools" / "pybuggy" / "sandbox.yml"
+_TOP_LEVEL_KEYS = ("instance", "services", "data")
 _SUPPORTED_KINDS = ("postgresql", "kafka", "vault", "http")
-_REQUIRED_SERVICE_FIELDS = ("image", "env", "port")
-_SECTION_KINDS = {"vault": "vault", "http": "http", "kafka": "kafka", "postgres": "postgresql"}
+_REQUIRED_INSTANCE_FIELDS = ("image", "env", "port")
+_SECTION_KINDS = {"vault": "vault", "http": "http", "postgres": "postgresql"}
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 _PLACEHOLDER_ATTRIBUTE = re.compile(r"^(?P<name>[^.\s]+)\.(?P<attribute>host|port)$")
 
-# An instance name doubles as the Jinja2 identifier of the {{<name>.host}} /
+# A service name doubles as the Jinja2 identifier of the {{<name>.host}} /
 # {{<name>.port}} placeholders — anything else breaks template parsing at render time.
-_INSTANCE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_SERVICE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def load_sandbox_config(path: str | None = None) -> SandboxConfig | None:
-    """Read and validate the sandbox configuration document ``.sandbox.yml``.
+    """Read and validate the sandbox document ``.goga/tools/pybuggy/sandbox.yml``.
 
     Validation completes fully before anything could start — an invalid document fails fast with
     an error naming the document location and the offending entry.
 
     Args:
-        path: Explicit document location; ``None`` resolves ``.sandbox.yml`` in the current
-            working directory.
+        path: Explicit document location; ``None`` resolves
+            ``.goga/tools/pybuggy/sandbox.yml`` in the current working directory — resolution
+            never searches upward.
 
     Returns:
         The validated configuration model; ``None`` when the document is absent — the sandbox
@@ -49,20 +52,21 @@ def load_sandbox_config(path: str | None = None) -> SandboxConfig | None:
         ValueError: The document is present but invalid; the message names the document location
             and the offending entry.
     """
-    location = Path(path) if path is not None else Path.cwd() / _DOCUMENT_NAME
+    location = Path(path) if path is not None else Path.cwd() / _DOCUMENT_PATH
 
     if not location.is_file():
         return None
 
     document = _parse_document(location)
-    service = _read_service(document, location)
-    instances = _read_instances(document, location)
-    data = _read_data(document, location, instances)
-    _validate_placeholders(service, instances, location)
+    _validate_top_level_keys(document, location)
+    instance = _read_instance(document, location)
+    services = _read_services(document, location)
+    data = _read_data(document, location, services)
+    _validate_placeholders(instance, services, location)
 
     logger.info("sandbox document loaded", extra={"document": str(location)})
 
-    return _build_model(SandboxConfig, {"service": service, "instances": instances, "data": data}, str(location))
+    return _build_model(SandboxConfig, {"instance": instance, "services": services, "data": data}, str(location))
 
 
 def _parse_document(location: Path) -> dict[str, object]:
@@ -83,7 +87,7 @@ def _parse_document(location: Path) -> dict[str, object]:
         raise ValueError(f"{location}: unparsable document: {exc}") from exc
 
     if document is None:
-        raise ValueError(f"{location}: the document is empty — a sandbox document must carry the service entry")
+        raise ValueError(f"{location}: the document is empty — a sandbox document must carry the instance entry")
 
     if not isinstance(document, dict):
         raise ValueError(f"{location}: the document must be a mapping")
@@ -91,57 +95,80 @@ def _parse_document(location: Path) -> dict[str, object]:
     return document
 
 
-def _read_service(document: dict[str, object], location: Path) -> ServiceConfig:
-    """Validate and build the service entry.
+def _validate_top_level_keys(document: dict[str, object], location: Path) -> None:
+    """Apply the top-level key diagnostics to the parsed document.
+
+    Args:
+        document: The parsed document mapping.
+        location: The resolved document location.
+
+    Raises:
+        ValueError: A former key name or an unknown key sits at the document top level.
+    """
+    if "service" in document:
+        raise ValueError(f"{location}: top-level key 'service' was renamed to 'instance'")
+
+    if "instances" in document:
+        raise ValueError(f"{location}: top-level key 'instances' was renamed to 'services'")
+
+    for key in document:
+        if key not in _TOP_LEVEL_KEYS:
+            raise ValueError(
+                f"{location}: unknown top-level key '{key}' (supported keys: {', '.join(_TOP_LEVEL_KEYS)})"
+            )
+
+
+def _read_instance(document: dict[str, object], location: Path) -> InstanceConfig:
+    """Validate and build the instance-under-test entry.
 
     Args:
         document: The parsed document mapping.
         location: The resolved document location.
 
     Returns:
-        The validated service entry.
+        The validated instance-under-test entry.
 
     Raises:
-        ValueError: A required service field is missing or mistyped.
+        ValueError: A required instance field is missing or mistyped.
     """
-    entry = _mapping_entry(document, "service", location)
+    entry = _mapping_entry(document, "instance", location)
 
-    for field in _REQUIRED_SERVICE_FIELDS:
+    for field in _REQUIRED_INSTANCE_FIELDS:
         if field not in entry:
-            raise ValueError(f"{location}: service.{field}: required entry missing")
+            raise ValueError(f"{location}: instance.{field}: required entry missing")
 
-    return _build_model(ServiceConfig, dict(entry), f"{location}: service")
+    return _build_model(InstanceConfig, dict(entry), f"{location}: instance")
 
 
-def _read_instances(document: dict[str, object], location: Path) -> dict[str, InstanceConfig]:
-    """Validate and build the dependency instance entries keyed by instance name.
+def _read_services(document: dict[str, object], location: Path) -> dict[str, ServiceConfig]:
+    """Validate and build the dependency service entries keyed by service name.
 
     Args:
         document: The parsed document mapping.
         location: The resolved document location.
 
     Returns:
-        The validated instance entries keyed by instance name.
+        The validated service entries keyed by service name.
 
     Raises:
-        ValueError: An instance name, kind, or image entry is invalid.
+        ValueError: A service name, kind, topics, or probe entry is invalid.
     """
-    raw = document.get("instances", {})
+    raw = document.get("services", {})
 
     if not isinstance(raw, dict):
-        raise ValueError(f"{location}: instances: must be a mapping of instance name to entry")
+        raise ValueError(f"{location}: services: must be a mapping of service name to entry")
 
-    instances: dict[str, InstanceConfig] = {}
+    services: dict[str, ServiceConfig] = {}
 
     for name, entry in raw.items():
-        scope = f"{location}: instances.{name}"
+        scope = f"{location}: services.{name}"
 
         if not isinstance(name, str) or not name.strip():
-            raise ValueError(f"{scope}: the instance name must be a non-empty string")
+            raise ValueError(f"{scope}: the service name must be a non-empty string")
 
-        if not _INSTANCE_NAME.fullmatch(name):
+        if not _SERVICE_NAME.fullmatch(name):
             raise ValueError(
-                f"{scope}: the instance name must be a template identifier "
+                f"{scope}: the service name must be a template identifier "
                 f"(letters, digits, underscores; not starting with a digit) — it names the "
                 f"{{{{<name>.host}}}} / {{{{<name>.port}}}} placeholders"
             )
@@ -150,21 +177,61 @@ def _read_instances(document: dict[str, object], location: Path) -> dict[str, In
             raise ValueError(f"{scope}: the entry must be a mapping")
 
         _validate_kind(entry, scope)
-        instances[name] = _build_model(InstanceConfig, dict(entry, name=name), scope)
+        _validate_topics(entry, scope)
+        services[name] = _build_model(ServiceConfig, dict(entry, name=name), scope)
 
-    return instances
+    return services
 
 
-def _read_data(document: dict[str, object], location: Path, instances: dict[str, InstanceConfig]) -> StartupData:
+def _validate_topics(entry: dict[str, object], scope: str) -> None:
+    """Validate the inline topic declarations of one service entry.
+
+    Args:
+        entry: The raw service entry mapping.
+        scope: The error scope naming the document location and the entry.
+
+    Raises:
+        ValueError: The topics declaration is absent on a kafka entry, present on a non-kafka
+            entry, malformed, or carries a duplicate topic name.
+    """
+    if entry.get("kind") != "kafka":
+        if "topics" in entry:
+            raise ValueError(f"{scope}: topics are accepted only on kafka entries")
+
+        return
+
+    topics = entry.get("topics")
+
+    if not isinstance(topics, list) or not topics:
+        raise ValueError(
+            f"{scope}: a kafka entry requires a non-empty 'topics' list — "
+            f"without topics the mock opens no kafka listener"
+        )
+
+    declared: set[str] = set()
+
+    for declaration in topics:
+        if not isinstance(declaration, dict):
+            raise ValueError(f"{scope}.topics: every topic declaration must be a mapping")
+
+        topic = _build_model(TopicConfig, dict(declaration), f"{scope}.topics")
+
+        if topic.name in declared:
+            raise ValueError(
+                f"{scope}.topics: duplicate topic '{topic.name}' — "
+                f"each topic name must be unique within the service entry"
+            )
+
+        declared.add(topic.name)
+
+
+def _read_data(document: dict[str, object], location: Path, services: dict[str, ServiceConfig]) -> StartupData:
     """Validate the startup data sections and build the startup data layer.
-
-    Kafka spec paths are resolved against the document directory — relative paths become
-    absolute, absolute paths stay as-is (string resolution only; the file is not read).
 
     Args:
         document: The parsed document mapping.
         location: The resolved document location.
-        instances: The validated instance entries.
+        services: The validated service entries.
 
     Returns:
         The validated startup data layer.
@@ -178,6 +245,9 @@ def _read_data(document: dict[str, object], location: Path, instances: dict[str,
         raise ValueError(f"{location}: data: must be a mapping of data section to declarations")
 
     for section in raw:
+        if section == "kafka":
+            raise ValueError(f"{location}: data.kafka was removed — declare topics inline on the kafka service entry")
+
         if section not in _SECTION_KINDS:
             raise ValueError(
                 f"{location}: data.{section}: unknown data section (supported sections: {', '.join(_SECTION_KINDS)})"
@@ -186,7 +256,7 @@ def _read_data(document: dict[str, object], location: Path, instances: dict[str,
     sections: dict[str, dict[str, object]] = {}
 
     for section, kind in _SECTION_KINDS.items():
-        sections[section] = _read_section(section, kind, raw[section], instances, location) if section in raw else {}
+        sections[section] = _read_section(section, kind, raw[section], services, location) if section in raw else {}
 
     return _build_model(StartupData, sections, f"{location}: data")
 
@@ -195,50 +265,50 @@ def _read_section(
     section: str,
     kind: str,
     targets: object,
-    instances: dict[str, InstanceConfig],
+    services: dict[str, ServiceConfig],
     location: Path,
 ) -> dict[str, object]:
-    """Validate one data section and resolve its kafka spec paths.
+    """Validate one data section.
 
     Args:
         section: The data section name.
-        kind: The instance kind the section targets.
-        targets: The raw section value — instance name to declarations.
-        instances: The validated instance entries.
+        kind: The service kind the section targets.
+        targets: The raw section value — service name to declarations.
+        services: The validated service entries.
         location: The resolved document location.
 
     Returns:
-        The section declarations keyed by instance name.
+        The section declarations keyed by service name.
 
     Raises:
-        ValueError: A section target is not a configured instance of the matching kind.
+        ValueError: A section target is not a configured service of the matching kind.
     """
     if not isinstance(targets, dict):
-        raise ValueError(f"{location}: data.{section}: must be a mapping of instance name to declarations")
+        raise ValueError(f"{location}: data.{section}: must be a mapping of service name to declarations")
 
     declarations: dict[str, object] = {}
 
     for target, value in targets.items():
         name = str(target)
-        instance = instances.get(name)
+        service = services.get(name)
 
-        if instance is None:
-            configured = ", ".join(sorted(instances)) or "none"
+        if service is None:
+            configured = ", ".join(sorted(services)) or "none"
             raise ValueError(
-                f"{location}: data.{section}.{name}: targets instance '{name}' "
-                f"which is not configured (configured instances: {configured})"
+                f"{location}: data.{section}.{name}: targets service '{name}' "
+                f"which is not configured (configured services: {configured})"
             )
 
-        if instance.kind != kind:
+        if service.kind != kind:
             raise ValueError(
-                f"{location}: data.{section}.{name}: targets instance '{name}' of kind "
-                f"'{instance.kind}', the section requires kind '{kind}'"
+                f"{location}: data.{section}.{name}: targets service '{name}' of kind "
+                f"'{service.kind}', the section requires kind '{kind}'"
             )
 
         if section == "vault":
             _validate_vault_declarations(name, value, location)
 
-        declarations[name] = _resolve_spec_path(value, location, name) if section == "kafka" else value
+        declarations[name] = value
 
     return declarations
 
@@ -251,7 +321,7 @@ def _validate_vault_declarations(target: str, declarations: object, location: Pa
     at load time, instead of crashing the sandbox start with a bare lookup error.
 
     Args:
-        target: The vault instance name the declarations target.
+        target: The vault service name the declarations target.
         declarations: The raw section value — the target's declaration list.
         location: The resolved document location.
 
@@ -276,48 +346,26 @@ def _validate_vault_declarations(target: str, declarations: object, location: Pa
             raise ValueError(f"{location}: data.vault.{target}: every secret declaration requires a mapping 'data'")
 
 
-def _resolve_spec_path(spec: object, location: Path, target: str) -> str:
-    """Resolve one kafka spec path against the document directory.
-
-    Args:
-        spec: The raw spec declaration — a file path.
-        location: The resolved document location.
-        target: The kafka instance name the declaration targets.
-
-    Returns:
-        The resolved spec path; relative paths joined onto the document directory.
-
-    Raises:
-        ValueError: The spec declaration is not a non-empty string.
-    """
-    if not isinstance(spec, str) or not spec.strip():
-        raise ValueError(f"{location}: data.kafka.{target}: the spec path must be a non-empty string")
-
-    path = Path(str(spec))
-
-    return str(path if path.is_absolute() else location.parent / path)
-
-
-def _validate_placeholders(service: ServiceConfig, instances: dict[str, InstanceConfig], location: Path) -> None:
-    """Validate every instance placeholder in the service env values against the full grammar.
+def _validate_placeholders(instance: InstanceConfig, services: dict[str, ServiceConfig], location: Path) -> None:
+    """Validate every service placeholder in the instance env values against the full grammar.
 
     Every ``{{ … }}`` occurrence must be ``{{ <name>.host }}`` or ``{{ <name>.port }}`` with
-    ``<name>`` a configured instance.
+    ``<name>`` a configured service.
 
     Args:
-        service: The validated service entry.
-        instances: The validated instance entries.
+        instance: The validated instance-under-test entry.
+        services: The validated service entries.
         location: The resolved document location.
 
     Raises:
-        ValueError: A placeholder is malformed or names an unconfigured instance.
+        ValueError: A placeholder is malformed or names an unconfigured service.
     """
-    configured = set(instances)
+    configured = set(services)
 
-    for key, value in service.env.items():
+    for key, value in instance.env.items():
         if "{{" in _PLACEHOLDER.sub("", value):
             raise ValueError(
-                f"{location}: service.env.{key}: invalid placeholder — an unterminated '{{{{' in value '{value}'"
+                f"{location}: instance.env.{key}: invalid placeholder — an unterminated '{{{{' in value '{value}'"
             )
 
         for token in _PLACEHOLDER.findall(value):
@@ -332,8 +380,8 @@ def _validate_placeholders(service: ServiceConfig, instances: dict[str, Instance
             if name not in configured:
                 known = ", ".join(sorted(configured)) or "none"
                 raise ValueError(
-                    f"{location}: service.env.{key}: invalid placeholder '{placeholder}' "
-                    f"— instance '{name}' is not configured (configured instances: {known})"
+                    f"{location}: instance.env.{key}: invalid placeholder '{placeholder}' "
+                    f"— service '{name}' is not configured (configured services: {known})"
                 )
 
 
@@ -341,7 +389,7 @@ def _placeholder_error(key: str, placeholder: str, token: str, location: Path) -
     """Build the error message for one malformed placeholder token.
 
     Args:
-        key: The service env key carrying the placeholder.
+        key: The instance env key carrying the placeholder.
         placeholder: The rendered ``{{ … }}`` occurrence.
         token: The placeholder inner text.
         location: The resolved document location.
@@ -353,21 +401,21 @@ def _placeholder_error(key: str, placeholder: str, token: str, location: Path) -
         attribute = token.split(".", 1)[1]
 
         return (
-            f"{location}: service.env.{key}: invalid placeholder '{placeholder}' "
+            f"{location}: instance.env.{key}: invalid placeholder '{placeholder}' "
             f"— unknown attribute '{attribute}', expected '.host' or '.port'"
         )
 
     return (
-        f"{location}: service.env.{key}: invalid placeholder '{placeholder}' "
-        f"— the instance name is missing its '.host' or '.port' attribute"
+        f"{location}: instance.env.{key}: invalid placeholder '{placeholder}' "
+        f"— the service name is missing its '.host' or '.port' attribute"
     )
 
 
 def _validate_kind(entry: dict[str, object], scope: str) -> None:
-    """Validate the kind of one instance entry.
+    """Validate the kind of one service entry.
 
     Args:
-        entry: The raw instance entry mapping.
+        entry: The raw service entry mapping.
         scope: The error scope naming the document location and the entry.
 
     Raises:

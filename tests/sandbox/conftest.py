@@ -39,21 +39,26 @@ requires_docker = pytest.mark.skipif(
 )
 
 
+DOCUMENT_PATH = pathlib.Path(".goga") / "tools" / "pybuggy" / "sandbox.yml"
+
+
 @pytest.fixture
 def sandbox_yaml(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], pathlib.Path]:
-    """Write ``.sandbox.yml`` under ``tmp_path`` and chdir there.
+    """Write the sandbox document under ``tmp_path`` at its fixed location and chdir there.
 
     Args:
         tmp_path: The per-test temporary directory serving as the consumer repository root.
         monkeypatch: The pytest monkeypatch fixture performing the chdir.
 
     Returns:
-        A writer placing ``content`` at ``.sandbox.yml`` under ``tmp_path``, returning the written path.
+        A writer placing ``content`` at ``.goga/tools/pybuggy/sandbox.yml`` under ``tmp_path``
+        (creating the parent directories), returning the written path.
     """
     monkeypatch.chdir(tmp_path)
 
     def _write(content: str) -> pathlib.Path:
-        path = tmp_path / ".sandbox.yml"
+        path = tmp_path / DOCUMENT_PATH
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
         return path
 

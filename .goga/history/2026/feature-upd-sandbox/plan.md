@@ -936,24 +936,32 @@ The loader rework plus the shared test fixture flip. Design test scenarios 1–1
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 4 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/config/test_loader.py`): importable from the
+- [x] **Declaration**: state that Task 4 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/config/test_loader.py`): importable from the
   facade; signature `(path: str | None)`; returns `SandboxConfig | None`
-- [ ] **REPL prototype (R4)**: in the venv REPL (with documents written under `/tmp`): parse a
+  (reworked first; the logic tests failed against the old loader — TDD red confirmed — the 3
+  contract tests pass unchanged since the signature never moved)
+- [x] **REPL prototype (R4)**: in the venv REPL (with documents written under `/tmp`): parse a
   full valid document (instance + kafka service with topics + data.postgres) and observe the
   built model; walk each invalid variant (renamed keys, unknown key, kafka-without-topics,
   topics-on-postgresql, duplicate topics, probe path on service, probe bounds, data.kafka,
   unknown placeholder, hyphenated name, grpc kind) and read each `ValueError` message —
   location + offending entry in every one; prototype the empty-document path (parse → None →
   invalid document error naming the location); then migrate
-- [ ] **Code**: rewrite `goga_tool_pybuggy/sandbox/config/loader.py` per the design details —
+  (fragments observed live first — pydantic error surfacing through the `_build_model` wrap
+  (D1 wording, probe-bounds loc shapes, TopicConfig rejections), the diagnostics fragment,
+  ruamel empty→None, name grammar; then the migrated loader re-verified against the full valid
+  document and all 13 invalid variants + stale-root + defaults in a second heredoc REPL — every
+  message carries location + offending entry)
+- [x] **Code**: rewrite `goga_tool_pybuggy/sandbox/config/loader.py` per the design details —
   new `_DOCUMENT_PATH`, diagnostics step, `_read_instance`/`_read_services` (name grammar,
   kinds, topics with D7, probe), `_read_data` (no kafka, removed-section diagnostic),
   `_validate_placeholders` vocabulary; delete `_resolve_spec_path`
-- [ ] **Code**: flip the shared fixture `sandbox_yaml` in `tests/sandbox/conftest.py` to
+- [x] **Code**: flip the shared fixture `sandbox_yaml` in `tests/sandbox/conftest.py` to
   `.goga/tools/pybuggy/sandbox.yml` (parents created) with the docstring update
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — pass
-- [ ] **Logic tests** (design scenarios 1–15, transferred verbatim — Setup / Input / Assertions):
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/ -x -v` — pass
+  (124 passed across the seven config suites; fresh-interpreter facade check ok — 7 names)
+- [x] **Logic tests** (design scenarios 1–15, transferred verbatim — Setup / Input / Assertions):
   1. `test_load_resolves_document_under_tools_home` — tmp_path with the document at the new
      path (instance + one kafka service with topics + data.postgres), `monkeypatch.chdir`;
      `load_sandbox_config(None)` → `SandboxConfig` with `instance.image`,
@@ -996,15 +1004,27 @@ The loader rework plus the shared test fixture flip. Design test scenarios 1–1
       45.0}` → `config.instance.probe.timeout == 30.0`, `interval == 0.5`, `path is None`;
       `config.services["db"].probe.timeout == 45.0` (defaults reproduce the established wait;
       partial override keeps the rest)
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/ -x` green;
+
+  (all 15 landed by name plus the retained branches — full-document model fidelity, required
+  instance fields, missing instance section, unknown kind, data target unknown/wrong-kind,
+  unparsable/empty document, malformed-entries table incl. non-list/non-mapping topics, name
+  grammar table, placeholder grammar trio, vault declaration shape table)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/ -x` green;
   reproduce any failure in the REPL with the exact fixture content first (M-R4.5); the
   activation/session-lifecycle/plugin suites are known-red until their tasks (Migration Ledger)
-- [ ] **Contract re-verification**: the 8-step algorithm, requirements (validation completes
+  (124 green; ledger blast radius verified — full tree collects 1511 tests, `test_loader.py`
+  absent from the red list, data suites unaffected at 64 green, engines/sandbox-cell/plugin
+  suites red at runtime only as scheduled)
+- [x] **Contract re-verification**: the 8-step algorithm, requirements (validation completes
   before anything starts; every message names location + entry), and constraints (no
   defaulting/repairing; read nothing beyond the named document) hold
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked line-by-line against the `load_sandbox_config` CODEMANIFEST annotation; every step
+  and requirement observed live in the second REPL pass)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (two E501s and format drift corrected via `ruff format` on the touched files; both gates
+  exit 0; authoritative suite re-run green after the reformat)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ---
 
