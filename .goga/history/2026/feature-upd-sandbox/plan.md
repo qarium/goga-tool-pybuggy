@@ -771,35 +771,41 @@ new file) — both importable from `goga_tool_pybuggy.sandbox.config`.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 2 is being executed
-- [ ] **Contract tests** (expected to fail now): `tests/sandbox/config/test_probe.py` (new),
+- [x] **Declaration**: state that Task 2 is being executed
+- [x] **Contract tests** (expected to fail now): `tests/sandbox/config/test_probe.py` (new),
   `tests/sandbox/config/test_topic.py` (new) — both importable from the facade; kw_only
   construction; property types `timeout -> float`, `interval -> float`, `path -> str | None`,
   `name -> str`, `partitions -> int`
-- [ ] **REPL prototype (R4)**: in the venv REPL construct `ProbeConfig()`, `ProbeConfig(timeout=45.0)`,
+  (written first; failed with ImportError on the missing facade names before implementation —
+  TDD red confirmed)
+- [x] **REPL prototype (R4)**: in the venv REPL construct `ProbeConfig()`, `ProbeConfig(timeout=45.0)`,
   `ProbeConfig(timeout=0.3, interval=0.05)`, `TopicConfig(name="orders.events")`,
   `TopicConfig(name="payments.events", partitions=6)`; observe defaults (30.0 / 0.5 / None; 1)
   and the validator rejections (`timeout=0`, `interval=-1`, `interval=60, timeout=30`,
   `interval == timeout` accepted, empty topic name, `partitions=0`); then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/config/probe.py` and `topic.py` with the
+  (all constructions and rejections observed live in a venv heredoc REPL, including the exact
+  D-message wording of the interval validator; then migrated)
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/config/probe.py` and `topic.py` with the
   pydantic `kw_only` models and validators exactly as above
-- [ ] **Code**: expose both on the cell facade — `__all__ = ["InstanceConfig", "ProbeConfig",
+- [x] **Code**: expose both on the cell facade — `__all__ = ["InstanceConfig", "ProbeConfig",
   "SandboxConfig", "ServiceConfig", "StartupData", "TopicConfig", "load_sandbox_config"]`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/test_probe.py
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/test_probe.py
   tests/sandbox/config/test_topic.py -x -v` — pass; fresh-interpreter facade check (M-R4.3):
   `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.config import ProbeConfig, TopicConfig"`
-- [ ] **Logic tests**: defaults (30.0 / 0.5 / None; partitions 1); partial override keeps the
+  (29 passed; fresh-interpreter import ok)
+- [x] **Logic tests**: defaults (30.0 / 0.5 / None; partitions 1); partial override keeps the
   rest; bound rejections parametrized per M-R2.5 (`timeout=0`, negative interval,
   `interval > timeout`, empty name, `partitions=0`, `partitions=-1`); **legal boundary**
   `ProbeConfig(timeout=30.0, interval=30.0)` constructs (guards the `<=` comparator);
   positional construction raises `TypeError` (kw_only); path-free construction valid
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green (additive change; this is
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green (additive change; this is
   the last task with that luxury — see the Migration Ledger)
-- [ ] **Contract re-verification**: model requirements match the entity declarations (defaults
+  (1487 passed, 0 failed = 1458 baseline + 29 new)
+- [x] **Contract re-verification**: model requirements match the entity declarations (defaults
   reproduce the established wait; bounds positive; interval never exceeds timeout)
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 3: Entry models rework — `InstanceConfig`/`ServiceConfig` swap subjects, `SandboxConfig` fields, `StartupData` without kafka (TDD)
 
