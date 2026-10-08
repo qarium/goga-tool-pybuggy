@@ -5,7 +5,7 @@ import inspect
 import docker
 import pytest
 import requests
-from goga_tool_pybuggy.sandbox.config import InstanceConfig
+from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig, TopicConfig
 from goga_tool_pybuggy.sandbox.engines import (
     BaseEngine,
     EngineError,
@@ -34,11 +34,13 @@ class TestRuntimeContract:
         """``check_runtime`` probes with no parameters."""
         assert list(inspect.signature(check_runtime).parameters) == []
 
-    def test_build_engine_signature_takes_the_instance_config(self):
-        """``build_engine`` takes the instance declaration as its single parameter."""
-        parameters = list(inspect.signature(build_engine).parameters)
+    def test_build_engine_signature_takes_the_service_config(self):
+        """``build_engine`` takes the service declaration as its single parameter."""
+        signature = inspect.signature(build_engine)
 
-        assert parameters == ["config"]
+        assert list(signature.parameters) == ["config"]
+        assert signature.parameters["config"].annotation is ServiceConfig
+        assert signature.return_annotation is BaseEngine
 
     @pytest.mark.parametrize(
         ("kind", "engine_class"),
@@ -51,7 +53,7 @@ class TestRuntimeContract:
     )
     def test_build_engine_returns_the_kind_engine(self, kind: str, engine_class: type[BaseEngine]):
         """Every supported kind maps onto its engine, a ``BaseEngine`` subclass."""
-        engine = build_engine(InstanceConfig(name="x", kind=kind, image=None))
+        engine = build_engine(ServiceConfig(name="x", kind=kind))
 
         assert isinstance(engine, engine_class)
         assert isinstance(engine, BaseEngine)
@@ -108,17 +110,31 @@ class TestBuildEngine:
 
     def test_build_engine_fails_unmapped_kind(self):
         """A fabricated unmapped kind fails listing the supported kinds (loader bypassed)."""
-        config = InstanceConfig(name="x", kind="grpc", image=None)
+        config = ServiceConfig(name="x", kind="grpc")
 
-        with pytest.raises(EngineError, match=r"postgresql.*kafka.*vault.*http"):
+        with pytest.raises(
+            EngineError,
+            match=r"service 'x': kind 'grpc' has no engine.*postgresql.*kafka.*vault.*http",
+        ):
             build_engine(config)
 
-    def test_build_engine_carries_the_instance_declaration(self):
-        """The engine keeps the declaration — the name and the image override reach it."""
-        override = build_engine(InstanceConfig(name="db", kind="postgresql", image="postgres:17-alpine"))
-        pinned = build_engine(InstanceConfig(name="events", kind="kafka", image=None))
+    def test_build_engine_carries_the_service_declaration(self):
+        """The engine keeps the declaration — the name, image override, topics and probe reach it."""
+        override = build_engine(ServiceConfig(name="db", kind="postgresql", image="postgres:17-alpine"))
+        events = build_engine(
+            ServiceConfig(
+                name="events",
+                kind="kafka",
+                topics=[TopicConfig(name="orders.events", partitions=6)],
+                probe=ProbeConfig(timeout=45.0, interval=1.0),
+            ),
+        )
 
         assert override.config.name == "db"
         assert override.config.image == "postgres:17-alpine"
-        assert pinned.config.name == "events"
-        assert pinned.config.image is None
+        assert events.config.name == "events"
+        assert events.config.image is None
+        assert [topic.name for topic in events.config.topics] == ["orders.events"]
+        assert events.config.probe is not None
+        assert events.config.probe.timeout == 45.0
+        assert events.config.probe.interval == 1.0

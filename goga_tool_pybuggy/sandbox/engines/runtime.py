@@ -6,7 +6,7 @@ import requests
 from docker.errors import DockerException
 from testcontainers.core.docker_client import DockerClient
 
-from ..config.instance import InstanceConfig
+from ..config.service import ServiceConfig
 from .base import BaseEngine, EngineError
 from .http import HttpEngine
 from .kafka import KafkaEngine
@@ -45,26 +45,27 @@ def check_runtime() -> None:
     logger.info("container runtime available")
 
 
-def build_engine(config: InstanceConfig) -> BaseEngine:
-    """Build the engine of the configured instance kind.
+def build_engine(config: ServiceConfig) -> BaseEngine:
+    """Build the engine of the configured service kind.
 
     Args:
-        config: The instance declaration — name, kind, image override.
+        config: The service declaration — name, kind, image override, topics, probe.
 
     Returns:
-        The engine of the instance's kind, constructed with the declaration — the image
-        override reaches the engine via ``config.image``.
+        The engine of the service's kind, constructed with the declaration — the image
+        override, the topic declarations, and the readiness declaration reach the engine
+        via ``config``.
 
     Raises:
-        EngineError: The instance kind has no engine; the message lists the supported kinds.
+        EngineError: The service kind has no engine; the message lists the supported kinds.
     """
     engine_class = KIND_ENGINES.get(config.kind)
 
     if engine_class is None:
         supported = ", ".join(KIND_ENGINES)
 
-        raise EngineError(f"instance '{config.name}': kind '{config.kind}' has no engine; supported kinds: {supported}")
+        raise EngineError(f"service '{config.name}': kind '{config.kind}' has no engine; supported kinds: {supported}")
 
-    logger.debug("engine built", extra={"instance": config.name, "kind": config.kind})
+    logger.debug("engine built", extra={"service": config.name, "kind": config.kind})
 
     return engine_class(config)

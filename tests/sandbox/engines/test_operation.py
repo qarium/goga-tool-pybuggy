@@ -1,10 +1,66 @@
 """Contract and logic tests for the ``DataOperation`` entity."""
 
+import ast
 import inspect
+from pathlib import Path
 
 import pytest
 from goga_tool_pybuggy.sandbox.engines import DataOperation
 from pydantic import BaseModel
+
+ENGINES_PACKAGE_DIR = Path(inspect.getsourcefile(DataOperation)).parent
+
+
+def spec_dispatch_findings() -> list[str]:
+    """Locate ``spec`` dispatch branches inside every ``_execute`` method of the engines package.
+
+    A raw substring scan does not work — the package legitimately carries the word ``spec`` in
+    the retained ``SPEC_MOUNT_DIR`` constant and migration-note docstrings. The dispatch level
+    is precise: an equality comparison against the ``"spec"`` constant or a ``"spec"`` entry of
+    a dict dispatch, inside an ``_execute`` method body.
+
+    Returns:
+        The ``file:line`` location of every ``spec`` dispatch finding; empty when none exist.
+    """
+    findings: list[str] = []
+
+    for source_path in sorted(ENGINES_PACKAGE_DIR.glob("*.py")):
+        tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.FunctionDef) or node.name != "_execute":
+                continue
+
+            for inner in ast.walk(node):
+                if isinstance(inner, ast.Compare):
+                    operands = [inner.left, *inner.comparators]
+
+                    if any(isinstance(operand, ast.Constant) and operand.value == "spec" for operand in operands):
+                        findings.append(f"{source_path.name}:{inner.lineno}")
+
+                if isinstance(inner, ast.Dict):
+                    keys = [key for key in inner.keys if key is not None]
+
+                    if any(isinstance(key, ast.Constant) and key.value == "spec" for key in keys):
+                        findings.append(f"{source_path.name}:{inner.lineno}")
+
+    return findings
+
+
+def execute_method_count() -> int:
+    """Count the ``_execute`` method definitions across the engines package source.
+
+    Returns:
+        The number of ``_execute`` definitions found — the dispatch-scan coverage guard.
+    """
+    count = 0
+
+    for source_path in ENGINES_PACKAGE_DIR.glob("*.py"):
+        tree = ast.parse(source_path.read_text(encoding="utf-8"), filename=str(source_path))
+
+        count += sum(isinstance(node, ast.FunctionDef) and node.name == "_execute" for node in ast.walk(tree))
+
+    return count
 
 
 class TestDataOperationContract:
@@ -47,6 +103,24 @@ class TestDataOperationContract:
 class TestDataOperationLogic:
     """Construction and payload behavior of ``DataOperation``."""
 
+    def test_operation_has_no_spec_action(self):
+        """The documented action set is exactly insert/produce/put/stub — no ``spec`` anywhere.
+
+        Asserted at the dispatch level: no ``action == "spec"`` branch and no ``"spec"`` entry
+        of an ``_execute`` dispatch mapping anywhere in the engines package source.
+        """
+        assert execute_method_count() >= 1, "the engines package defines _execute methods"
+        assert spec_dispatch_findings() == []
+
+    def test_data_operation_documents_the_four_actions_only(self):
+        """The class docstring names exactly the four documented actions."""
+        documented = DataOperation.__doc__ or ""
+
+        for action in ("insert", "produce", "put", "stub"):
+            assert action in documented
+
+        assert "spec" not in documented
+
     def test_data_operation_positional_construction_raises_type_error(self):
         """Positional construction is rejected — keyword arguments only."""
         with pytest.raises(TypeError):
@@ -72,12 +146,6 @@ class TestDataOperationLogic:
                 kind="kafka",
                 action="produce",
                 payload={"topic": "orders.created", "value": {"id": 1}, "key": "1"},
-            ),
-            DataOperation(
-                instance="events",
-                kind="kafka",
-                action="spec",
-                payload={"path": "/repo/asyncapi.yaml"},
             ),
             DataOperation(
                 instance="secrets",

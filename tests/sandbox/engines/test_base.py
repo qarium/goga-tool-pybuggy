@@ -1,10 +1,12 @@
 """Contract and logic tests for the ``BaseEngine`` entity and ``EngineError``."""
 
 import inspect
+import time
 
 import pytest
-from goga_tool_pybuggy.sandbox.config import InstanceConfig
+from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig
 from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, InstanceAddress
+from goga_tool_pybuggy.sandbox.engines import base as base_module
 
 
 class FakeContainer:
@@ -33,13 +35,15 @@ class FakeEngine(BaseEngine):
 
     _container_port = 5432
 
-    def __init__(self, name: str = "db", kind: str = "postgresql") -> None:
-        super().__init__(InstanceConfig(name=name, kind=kind, image=None))
+    def __init__(self, name: str = "db", kind: str = "postgresql", probe: ProbeConfig | None = None) -> None:
+        super().__init__(ServiceConfig(name=name, kind=kind, probe=probe))
         self.calls: list[str] = []
         self.executed: list[DataOperation] = []
         self.containers: list[FakeContainer] = []
         self.fail_execute: str | None = None
         self.fail_open_plane = False
+        self.readiness_failure: str | None = None
+        self.wipe_failure: str | None = None
 
     def _build_container(self) -> FakeContainer:
         self.calls.append("build")
@@ -50,6 +54,9 @@ class FakeEngine(BaseEngine):
 
     def _wait_ready(self) -> None:
         self.calls.append("ready")
+
+        if self.readiness_failure is not None:
+            self._probe_until(0.1, 0.02, attempt=lambda: False, failure=self.readiness_failure)
 
     def _open_plane(self) -> None:
         self.calls.append("plane")
@@ -66,6 +73,9 @@ class FakeEngine(BaseEngine):
 
     def _wipe(self) -> None:
         self.calls.append("wipe")
+
+        if self.wipe_failure is not None:
+            self._probe_until(0.1, 0.02, attempt=lambda: False, failure=self.wipe_failure)
 
     def _close_plane(self) -> None:
         self.calls.append("close")
@@ -86,7 +96,7 @@ def operation(action: str = "insert") -> DataOperation:
         action: The action name carried by the built operation.
 
     Returns:
-        A sample ``DataOperation`` targeted at the ``db`` instance.
+        A sample ``DataOperation`` targeted at the ``db`` service.
     """
     return DataOperation(
         instance="db",
@@ -111,18 +121,19 @@ class TestBaseEngineContract:
         """``EngineError`` is the engine-specific ``RuntimeError`` subtype."""
         assert issubclass(EngineError, RuntimeError)
 
-    def test_base_engine_constructs_with_the_config(self):
-        """``BaseEngine`` takes the instance config and keeps it as ``config``."""
-        config = InstanceConfig(name="db", kind="postgresql", image=None)
+    def test_base_engine_constructs_with_the_service_config(self):
+        """``BaseEngine`` takes the service config and keeps it as ``config``."""
+        config = ServiceConfig(name="db", kind="postgresql")
         engine = BaseEngine(config)
 
         assert engine.config is config
 
     def test_base_engine_declares_the_contract_constructor(self):
-        """The constructor signature is ``__init__(self, config)``."""
+        """The constructor signature is ``__init__(self, config: ServiceConfig)``."""
         signature = inspect.signature(BaseEngine.__init__)
 
         assert list(signature.parameters) == ["self", "config"]
+        assert signature.parameters["config"].annotation is ServiceConfig
 
     def test_base_engine_declares_the_five_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` exist with the declared parameters."""
@@ -157,6 +168,22 @@ class TestBaseEngineContract:
         assert isinstance(address, property)
         assert inspect.signature(address.fget).return_annotation is InstanceAddress
 
+    def test_base_engine_declares_the_readiness_bounds_property(self):
+        """``_readiness_bounds`` is a property returning a ``(float, float)`` tuple."""
+        bounds = inspect.getattr_static(BaseEngine, "_readiness_bounds")
+
+        assert isinstance(bounds, property)
+        assert inspect.signature(bounds.fget).return_annotation == tuple[float, float]
+
+    def test_base_engine_declares_the_bounded_probe_loop(self):
+        """``_probe_until`` takes the declared bounds, the attempt and the failure fragment."""
+        signature = inspect.signature(BaseEngine._probe_until)
+
+        assert list(signature.parameters) == ["self", "timeout", "interval", "attempt", "failure"]
+        assert signature.parameters["timeout"].annotation is float
+        assert signature.parameters["interval"].annotation is float
+        assert signature.return_annotation is None
+
 
 class TestBaseEngineLogic:
     """Journal, ordering and failure behavior of the base, driven through the recording fake."""
@@ -171,6 +198,83 @@ class TestBaseEngineLogic:
         assert engine.calls == ["build", "ready", "plane", "execute:insert"]
         assert engine.journal == [startup]
         assert engine.started is True
+
+    def test_base_readiness_bounds_default_and_override(self):
+        """Without a probe the bounds are the 30.0/0.5 defaults; a probe overrides both (D6)."""
+        default_engine = FakeEngine(name="db", kind="postgresql")
+        declared_engine = FakeEngine(name="db", kind="postgresql", probe=ProbeConfig(timeout=45.0, interval=1.0))
+
+        assert default_engine._readiness_bounds == (30.0, 0.5)
+        assert declared_engine._readiness_bounds == (45.0, 1.0)
+
+    def test_probe_until_expires_naming_the_failure_and_deadline(self):
+        """An always-failing attempt expires at the deadline naming the check and ``{timeout:g}s``."""
+        engine = FakeEngine()
+        started = time.monotonic()
+
+        with pytest.raises(RuntimeError, match=r"db did not become ready within 0\.2s"):
+            engine._probe_until(0.2, 0.05, attempt=lambda: False, failure="db did not become ready")
+
+        elapsed = time.monotonic() - started
+        assert elapsed >= 0.2
+        assert elapsed < 1.0
+
+    def test_probe_until_returns_on_the_first_successful_attempt(self):
+        """The first successful attempt returns immediately — no interval sleep after success."""
+        engine = FakeEngine()
+        attempts: list[int] = []
+
+        def attempt() -> bool:
+            attempts.append(1)
+
+            return True
+
+        engine._probe_until(30.0, 0.5, attempt=attempt, failure="never ready")
+
+        assert attempts == [1]
+
+    def test_probe_until_honors_the_declared_interval(self, monkeypatch: pytest.MonkeyPatch):
+        """One interval sleep follows every failed attempt until one succeeds."""
+        sleeps: list[float] = []
+        monkeypatch.setattr(base_module, "sleep", sleeps.append)
+        attempts: list[int] = []
+
+        def attempt() -> bool:
+            attempts.append(1)
+
+            return len(attempts) == 3
+
+        engine = FakeEngine()
+        engine._probe_until(30.0, 0.05, attempt=attempt, failure="never ready")
+
+        assert len(attempts) == 3
+        assert sleeps == [0.05, 0.05]
+
+    def test_readiness_expiry_surfaces_as_engine_error_through_the_start_wrapper(self):
+        """A readiness deadline expiry wraps into ``EngineError`` naming service, step and check."""
+        engine = FakeEngine()
+        engine.readiness_failure = "the port did not accept connections"
+
+        with pytest.raises(
+            EngineError,
+            match=r"service 'db': start failed at readiness wait: the port did not accept connections within 0\.1s",
+        ):
+            engine.start([])
+
+        assert engine.containers[0].stops == 1
+        assert engine.started is False
+
+    def test_wipe_expiry_surfaces_as_engine_error_through_the_reset_wrapper(self):
+        """A wipe deadline expiry wraps into ``EngineError`` naming service, step and check."""
+        engine = FakeEngine()
+        engine.start([])
+        engine.wipe_failure = "the container did not restart"
+
+        with pytest.raises(
+            EngineError,
+            match=r"service 'db': reset failed at wipe: the container did not restart within 0\.1s",
+        ):
+            engine.reset()
 
     def test_apply_preserves_order_and_never_records(self):
         """Applied operations execute in order and never land in the journal."""
@@ -239,7 +343,7 @@ class TestBaseEngineLogic:
         assert engine.executed == []
 
     def test_stop_is_safe_twice(self):
-        """Stopping a stopped instance is safe and stops the container exactly once."""
+        """Stopping a stopped service is safe and stops the container exactly once."""
         engine = FakeEngine()
         engine.start([])
 
@@ -258,12 +362,12 @@ class TestBaseEngineLogic:
         assert engine.started is False
 
     def test_raising_execute_surfaces_as_engine_error(self):
-        """A raising ``_execute`` wraps into ``EngineError`` naming instance, action and cause."""
+        """A raising ``_execute`` wraps into ``EngineError`` naming service, action and cause."""
         engine = FakeEngine()
         engine.fail_execute = "insert"
         engine.start([])
 
-        with pytest.raises(EngineError, match=r"instance 'db': insert failed: boom") as excinfo:
+        with pytest.raises(EngineError, match=r"service 'db': insert failed: boom") as excinfo:
             engine.apply([operation()])
 
         assert isinstance(excinfo.value.__cause__, RuntimeError)
@@ -274,7 +378,7 @@ class TestBaseEngineLogic:
         engine = FakeEngine()
         engine.fail_execute = "insert"
 
-        with pytest.raises(EngineError, match=r"instance 'db': insert failed: boom"):
+        with pytest.raises(EngineError, match=r"service 'db': insert failed: boom"):
             engine.start([operation()])
 
         assert engine.containers[0].stops == 1
@@ -286,7 +390,7 @@ class TestBaseEngineLogic:
         engine = FakeEngine()
         engine.fail_open_plane = True
 
-        with pytest.raises(EngineError, match=r"instance 'db': start failed at data-plane open: plane refused"):
+        with pytest.raises(EngineError, match=r"service 'db': start failed at data-plane open: plane refused"):
             engine.start([])
 
         assert engine.containers[0].stops == 1
@@ -305,7 +409,7 @@ class TestBaseEngineLogic:
         assert isinstance(address.port, int)
 
     def test_address_before_start_fails_readably(self):
-        """Reading the address before start names the instance and the state."""
+        """Reading the address before start names the service and the state."""
         engine = FakeEngine()
 
         with pytest.raises(EngineError, match="before start"):
@@ -315,8 +419,8 @@ class TestBaseEngineLogic:
         """Executing operations before start completes fails with a readable error."""
         engine = FakeEngine()
 
-        with pytest.raises(EngineError, match=r"instance 'db': apply failed: .*not started"):
+        with pytest.raises(EngineError, match=r"service 'db': apply failed: .*not started"):
             engine.apply([operation()])
 
-        with pytest.raises(EngineError, match=r"instance 'db': reset failed: .*not started"):
+        with pytest.raises(EngineError, match=r"service 'db': reset failed: .*not started"):
             engine.reset()

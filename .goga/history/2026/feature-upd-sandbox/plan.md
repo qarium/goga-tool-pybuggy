@@ -1069,25 +1069,32 @@ engine reuses; `runtime.py` and `operation.py` follow the vocabulary. Design sce
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 5 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/engines/test_base.py`, `test_runtime.py`,
+- [x] **Declaration**: state that Task 5 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/engines/test_base.py`, `test_runtime.py`,
   `test_operation.py`): `BaseEngine(config: ServiceConfig)` signature; `_readiness_bounds`
   returns `(float, float)`; `build_engine(config: ServiceConfig)`; `DataOperation` action
   vocabulary (`instance` = target service name)
-- [ ] **REPL prototype (R4)**: in the venv REPL drive a minimal fake subclass on
+  (reworked first; failed against the old code on the `InstanceConfig` constructor annotation —
+  TDD red confirmed before implementation)
+- [x] **REPL prototype (R4)**: in the venv REPL drive a minimal fake subclass on
   `ServiceConfig(name="db", kind="postgresql")`: read `_readiness_bounds` with and without a
   probe — `(30.0, 0.5)` / `(45.0, 1.0)`; call `_probe_until(0.2, 0.05, attempt=lambda:
   False, failure="db did not become ready")` with a wall-clock assertion (~0.2s) and read the
   expiry message ("within 0.2s"); call it with an attempt succeeding on the 3rd try and count
   sleeps; then migrate
-- [ ] **Code**: rework `goga_tool_pybuggy/sandbox/engines/base.py` — ServiceConfig import and
+  (observed live in a venv heredoc REPL: bounds (30.0, 0.5) / (45.0, 1.0); expiry message
+  "db did not become ready within 0.2s" at 0.212s wall clock; 3 attempts → exactly 2 sleeps of
+  the declared 0.05 interval; `{timeout:g}` renders 0.2 → "0.2", 30.0 → "30"; then migrated)
+- [x] **Code**: rework `goga_tool_pybuggy/sandbox/engines/base.py` — ServiceConfig import and
   signature, `_readiness_bounds` (D6), `_probe_until` (D5), `EngineError` deadline clause, D8
   log vocabulary
-- [ ] **Code**: rework `runtime.py` (`build_engine(config: ServiceConfig)`, debug extra) and
+- [x] **Code**: rework `runtime.py` (`build_engine(config: ServiceConfig)`, debug extra) and
   `operation.py` (docstring) to the vocabulary
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_base.py
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_base.py
   tests/sandbox/engines/test_runtime.py tests/sandbox/engines/test_operation.py -x -v` — pass
-- [ ] **Logic tests** (scenarios 16, 23, transferred verbatim):
+  (54 passed across the three suites; fresh-interpreter facade + signature check ok — both
+  `config` annotations are `ServiceConfig`, default bounds (30.0, 0.5) by construction)
+- [x] **Logic tests** (scenarios 16, 23, transferred verbatim):
   16. `test_base_readiness_bounds_default_and_override` (test_base.py) — a minimal
       `ServiceConfig(name="db", kind="postgresql")` without probe, and one with
       `probe=ProbeConfig(timeout=45.0, interval=1.0)` on a stub engine → `_readiness_bounds`
@@ -1100,15 +1107,31 @@ engine reuses; `runtime.py` and `operation.py` follow the vocabulary. Design sce
       branch and no `"spec"` entry in an `_execute` dispatch mapping anywhere in the engines
       package source (a raw substring grep over the package does NOT work — the retained
       `SPEC_MOUNT_DIR` constant and migration-note docstrings legitimately contain the word)
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (both landed by name plus the retained branches — `_probe_until` expiry wall-clock ≥ 0.2s
+  and < 1.0s, first-True immediate return, interval sleep counting via a patched module
+  `sleep`, start-wrapper and reset-wrapper `EngineError` conversions; the dispatch scan is an
+  AST walk over every `_execute` method of the package with a coverage guard; enabling
+  minimal deletion: `KafkaEngine._execute`'s spec no-op branch removed here — scenario 23
+  requires no spec dispatch anywhere in the package while test_operation.py is authoritative
+  from this task on; the remaining spec plumbing (`_spec_paths`, `_specs`, start's extraction,
+  `_patch_specs`) stays untouched until Task 8)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/test_base.py tests/sandbox/engines/test_runtime.py
   tests/sandbox/engines/test_operation.py -x` green; kind-engine suites are known-red until
   Tasks 6–8 (Migration Ledger)
-- [ ] **Contract re-verification**: base obligations (journal, lifecycle wrappers, stop
+  (178 green; ledger blast radius verified — full tree collects 1521 tests, red list exactly
+  the scheduled suites: kind engines + sandbox cell + plugin, all failing on the old
+  constructor shapes at runtime/collection; data suites unaffected at 64 green)
+- [x] **Contract re-verification**: base obligations (journal, lifecycle wrappers, stop
   safety), the deadline-expiry clause, and the D8 vocabulary hold
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked against the engines CODEMANIFEST annotations — `BaseEngine(config: ServiceConfig)`,
+  the EngineError deadline sentence, `build_engine` carrying image/topics/probe, the
+  DataOperation action set without spec)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (one PLW0108, one E501, and format drift in test_operation.py corrected; both gates exit 0;
+  authoritative suites re-run green after the fixes)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 6: `PostgresEngine` — engine-owned readiness bounded by the declared deadline (TDD)
 

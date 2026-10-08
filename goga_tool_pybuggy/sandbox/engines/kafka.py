@@ -178,16 +178,12 @@ class KafkaEngine(BaseEngine):
     def _execute(self, operation: DataOperation) -> None:
         """Execute one kafka operation through the producer.
 
-        A ``spec`` operation is a replay-safe no-op — the spec was consumed at container build.
         A ``produce`` operation sends the message and awaits its delivery future within the
         per-message deadline.
 
         Args:
-            operation: The ``spec`` or ``produce`` operation to execute.
+            operation: The ``produce`` operation to execute.
         """
-        if operation.action == "spec":
-            return
-
         future = self._producer.send(
             operation.payload["topic"],
             key=operation.payload.get("key"),
