@@ -355,6 +355,46 @@ class TestActivationBehavior:
 
         assert calls == ["markers", "sandbox:start", "prior", "sandbox:batch"]
 
+    def test_activation_prior_hook_narrower_signature(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
+        """A prior declaring fewer arguments than the hookspec receives only those."""
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        calls: list[str] = []
+        monkeypatch.setattr(activation_module, "Sandbox", stub_sandbox(calls, []))
+
+        def prior(exitstatus: int) -> None:
+            """Record the exit status alone — a legal narrower hookimpl signature."""
+            calls.append(("prior", exitstatus))
+
+        context: dict[str, object] = {"pytest_sessionfinish": prior}
+        activation_module.activate_sandbox(context)
+        context["pytest_sessionstart"](SessionStub(ConfigStub(calls)))
+
+        context["pytest_sessionfinish"](SessionStub(), 5)
+
+        assert calls == ["markers", "sandbox:start", ("prior", 5), "sandbox:stop"]
+        assert activation_module.active_sandbox() is None
+
+    def test_activation_prior_hook_keyword_variadics(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
+        """A prior declaring ``**kwargs`` receives the full hookspec arguments."""
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        calls: list[str] = []
+        monkeypatch.setattr(activation_module, "Sandbox", stub_sandbox(calls, []))
+
+        def prior(**hookspec: object) -> None:
+            """Record the names of every forwarded hookspec argument."""
+            calls.append(("prior", sorted(hookspec)))
+
+        context: dict[str, object] = {"pytest_sessionfinish": prior}
+        activation_module.activate_sandbox(context)
+        context["pytest_sessionstart"](SessionStub(ConfigStub(calls)))
+
+        context["pytest_sessionfinish"](SessionStub(), 5)
+
+        assert calls == ["markers", "sandbox:start", ("prior", ["exitstatus", "session"]), "sandbox:stop"]
+        assert activation_module.active_sandbox() is None
+
     def test_sessionfinish_stops_the_active_sandbox_and_clears_the_lookup(
         self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch
     ):
