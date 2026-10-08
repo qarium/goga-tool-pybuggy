@@ -6,31 +6,35 @@ Each semantic check (a name that must resolve against live state) runs in the li
 
 ## Full-grammar validation before side effects
 
-The complete accepted syntax of declarative values is enforced at load time — not a subset of it — with diagnostics naming the offending key, value, and location, so malformed input aborts the run before the first external side effect (such as starting a service). Strict runtime checks remain only as defense in depth, never as the primary guard.
+The complete accepted syntax of declarative values is enforced at load time — not a subset of it — so malformed input aborts the run before the first external side effect (such as starting a service). Strict runtime checks remain only as defense in depth, never as the primary guard. Diagnostics must stand on their own: they name the offending key, value, and location, and every user-facing validation or expiry message renders the value that actually drives the underlying logic (no unbound or ambiguous inputs), keeps sub-second magnitudes legible instead of rounding them away, is free of duplicated wording, and names the default that caused a constraint failure so the corrective action is implied.
 
-## Load-time reference resolution
+## Authoritative signatures over schematic forms
 
-Relative references in a configuration document are resolved exactly once, at load time, against the document's own directory — a purely lexical operation that reads nothing beyond the named document — and only fully resolved values travel downstream. Consumers never re-resolve and never depend on the process working directory, so behavior is independent of where the process is started.
+Declared signatures and construction conventions bind every piece of code, tests included: objects are built exactly per the defined surface, constraints are honored, and fields that are not constructor parameters are assigned after construction rather than passed in. Pseudocode and scenario shorthand in design documents are schematic and never override the declared surface. Paired constraints extend to every configuration and test setup: where a validator constrains two timing fields against each other and one carries an incompatible default, any setup declaring a sub-second value on the constrained field must also declare an explicit compliant value for the other — otherwise validation fires at construction time and the behavior the setup exists to exercise is never reached.
 
 ## Honest and normatively complete specifications
 
 Contract declarations, usage documentation, and specifications describe only what the engine actually consumes and enforces: declarations that can never execute are dropped, signatures are narrowed to live parameters, the real enforcement point is named when the engine silently discards a declared value, and flows that bypass the tooling entirely document the gap, so no reader is promised a delivery that never happens. Fixed per-category sets, deviations from uniform payload or behavior rules, and author-facing constraints implied by runtime mechanics (initialization that re-executes after every reset must be written idempotently) are recorded as explicit rules and exceptions in the specification itself — never as uniform claims contradicted in practice, undocumented exceptions, or implications buried in a single example.
 
-## Authoritative signatures over schematic forms
+## Documentation grounded in code and observed behavior
 
-Declared signatures and construction conventions bind every piece of code, tests included: objects are built exactly per the defined surface, constraints are honored, and fields that are not constructor parameters are assigned after construction rather than passed in. Pseudocode and scenario shorthand in design documents are schematic and never override the declared surface.
+Factual statements in design documents must match the code they describe: dependency lists must exclude modules the code never calls, exception-handling claims must reflect the actual catch tuples and exception inheritance, and module layouts must include every constant the code reads; a consistency fix must remain purely textual and never smuggle in a behavioral change. Measurable statements in a design and its tests — counts, uniqueness, enumerations — are taken from the observed behavior of the real mechanism rather than from assumption, so an implementer verifying them never meets a false discrepancy. Whenever a cell's behavior changes, three surfaces move in lockstep: the cell manifest, the cell-level usage files, and the public docs. Because stale fragments of old behavior hide in unexpected documents, a repository-wide text search for strings naming the old behavior is mandatory afterward; reviewing only the touched files is insufficient. Hand-authored usage guides are not derived from manifests, and sibling sections of a design drift when an edit changes its scope: a narrowly-worded acceptance criterion can pass while prose still describes a retired flow in retired vocabulary with stale counts, so review must compare every descriptive artifact against the current flow, extend the change past the literal criterion, and re-sync related sections after each applied edit.
+
+## Real-environment and legal-boundary test coverage
+
+An adapter that manages external services carries at least one integration test against a real environment (gated on its availability), exercising the full lifecycle — startup, readiness by port and by health endpoint, liveness, log retrieval, idempotent shutdown — in addition to fake-based unit paths. Boundary constraints get the same edge treatment: when a constraint permits equality at its boundary, parameterizing only invalid values leaves that boundary unguarded, so a positive case at the legal equality point is required — otherwise a comparator regression can silently reject valid documents while the whole suite stays green.
+
+## Migration and rename reference reconciliation
+
+When the canonical configuration document changes its location or key vocabulary, the design must carry a complete rework inventory of every artifact that mechanically references it — test suites, shared fixtures, supporting code — and the implementing change must update all of them at once; an artifact omitted from the inventory falls outside plan scope and only fails after implementation. The same reconciliation applies at smaller scale: renaming a usage group or dependency in the project config physically relocates the synced usage files but never rewrites the manifest references to them, so the manifest path entries must always be updated by hand after such a rename.
+
+## Load-time reference resolution
+
+Relative references in a configuration document are resolved exactly once, at load time, against the document's own directory — a purely lexical operation that reads nothing beyond the named document — and only fully resolved values travel downstream. Consumers never re-resolve and never depend on the process working directory, so behavior is independent of where the process is started.
 
 ## Exclusive ownership of registration and output slots
 
 Every shared namespace has exactly one owner, established before anything is written: framework markers and hooks are registered in a lifecycle phase that both precedes their first use and cannot be overwritten by other parties injecting hooks into the same namespace, with the injection order of those parties established before the phase is chosen. Likewise, each generated output slot has exactly one writer — when the generic engine writer would fill a slot first and thereby defeat a component's skip-if-exists gate, the session declares that slot skipped so the engine never writes it and the owning component's packaged asset lands instead. Relying on a gate to win a double-writer race, or on registration surviving a clobber, is rejected.
-
-## Documentation grounded in code and observed behavior
-
-Factual statements in design documents must match the code they describe: dependency lists must exclude modules the code never calls, exception-handling claims must reflect the actual catch tuples and exception inheritance, and module layouts must include every constant the code reads; a consistency fix must remain purely textual and never smuggle in a behavioral change. Measurable statements in a design and its tests — counts, uniqueness, enumerations — are taken from the observed behavior of the real mechanism rather than from assumption, so an implementer verifying them never meets a false discrepancy. Whenever a cell's behavior changes, three surfaces move in lockstep: the cell manifest, the cell-level usage files, and the public docs. Because stale fragments of old behavior hide in unexpected documents, a repository-wide text search for strings naming the old behavior is mandatory afterward; reviewing only the touched files is insufficient.
-
-## Real-environment coverage for infrastructure adapters
-
-An adapter that manages external services carries at least one integration test against a real environment (gated on its availability), exercising the full lifecycle — startup, readiness by port and by health endpoint, liveness, log retrieval, idempotent shutdown — in addition to fake-based unit paths.
 
 ## Explicit scope governance
 
@@ -55,7 +59,3 @@ The project's own runtime tool is always recorded in the generated configuration
 ## Post-hoc comment restoration for generated configs
 
 Config serialized through a data-only buffer cannot carry documentation comments, so commented examples for absent or optional members are re-inserted after writing by the owning side: idempotently via marker detection, in canonical key order anchored before the next active key, never touching active entries, and a no-op when the file is absent; emitting plain serialized data and dropping the examples is rejected.
-
-## Config-rename reference reconciliation
-
-Renaming a usage group or dependency in the project config physically relocates the synced usage files but never rewrites the manifest references to them, so the manifest path entries must always be updated by hand after such a rename.
