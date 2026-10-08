@@ -10,7 +10,7 @@ import pytest
 from goga_tool_pybuggy.plugin import ApiPlugin
 from goga_tool_pybuggy.plugin import plugin as plugin_module
 from goga_tool_pybuggy.plugin.loaders import PackageLoader
-from goga_tool_pybuggy.sandbox.config import SandboxConfig, ServiceConfig, StartupData
+from goga_tool_pybuggy.sandbox.config import InstanceConfig, SandboxConfig, StartupData
 
 # Jinja2 is a core dependency, so the render-path tests run unconditionally.
 
@@ -831,19 +831,23 @@ class TestApiPluginSandboxIntegration:
 
         assert plugin.base_url == "http://x/api"
 
-    def test_configure_fails_fast_on_cli_base_url_with_armed_sandbox(self, tmp_path, monkeypatch):
-        """A typed --base-url plus an armed sandbox raises pytest.UsageError naming both facts."""
+    def test_configure_rejects_base_url_with_active_sandbox(self, tmp_path, monkeypatch):
+        """A typed --base-url plus an armed sandbox raises pytest.UsageError naming both facts.
+
+        The message names the sandbox document path — the consumer sees exactly which file
+        armed the sandbox and owns the service address.
+        """
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("BASE_URL", raising=False)
 
         plugin = ApiPlugin(context={})
         plugin.sandbox_activation = SandboxConfig(
-            service=ServiceConfig(image="my-service:latest", env={}, port=8080, health=None),
-            instances={},
+            instance=InstanceConfig(image="my-service:latest", env={}, port=8080),
+            services={},
             data=StartupData(),
         )
 
-        with pytest.raises(pytest.UsageError, match=r"--base-url.*sandbox"):
+        with pytest.raises(pytest.UsageError, match=r"--base-url.*\.goga/tools/pybuggy/sandbox\.yml"):
             _lifecycle(plugin, args=["--base-url", "http://x"], options={"base_url": "http://x"})
 
     def test_configure_with_armed_sandbox_still_requires_the_base_url_option(self, tmp_path, monkeypatch):
@@ -858,8 +862,8 @@ class TestApiPluginSandboxIntegration:
 
         plugin = ApiPlugin(context={})
         plugin.sandbox_activation = SandboxConfig(
-            service=ServiceConfig(image="my-service:latest", env={}, port=8080, health=None),
-            instances={},
+            instance=InstanceConfig(image="my-service:latest", env={}, port=8080),
+            services={},
             data=StartupData(),
         )
 
@@ -877,7 +881,7 @@ class TestApiPluginSandboxIntegration:
         calls: list[object] = []
 
         class _DiedSandbox:
-            """Sandbox double whose service died before the request."""
+            """Sandbox double whose instance under test died before the request."""
 
             base_url = "http://10.0.0.1:9000"
 
@@ -887,7 +891,7 @@ class TestApiPluginSandboxIntegration:
             def ensure_service(self):
                 calls.append("ensure_service")
 
-                raise RuntimeError("the service under test (image my-service:latest) died; its output:\nOOM")
+                raise RuntimeError("the instance under test (image my-service:latest) died; its output:\nOOM")
 
         class _FakeApi:
             """Api double recording the request kwargs it receives."""

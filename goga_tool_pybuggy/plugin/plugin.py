@@ -218,7 +218,8 @@ class ApiPlugin:
         if cli_base_url is not None and self.sandbox_activation is not None:
             raise pytest.UsageError(
                 "--base-url was passed while the sandbox is active "
-                "(.sandbox.yml present); the sandbox owns the service address"
+                "(the sandbox document .goga/tools/pybuggy/sandbox.yml is present); "
+                "the sandbox owns the service address"
             )
 
         logger.debug("rendering base_url template", extra={"base_url": self.base_url})

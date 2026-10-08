@@ -1828,20 +1828,35 @@ touched surfaces are `goga_tool_pybuggy/plugin/__init__.py` `install` docstring,
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 13 is being executed
-- [ ] **Contract tests** (rework `tests/plugin/test_install.py` **and
+- [x] **Declaration**: state that Task 13 is being executed
+- [x] **Contract tests** (rework `tests/plugin/test_install.py` **and
   `tests/plugin/test_plugin.py`**): arming flows through the new path; the armed-sandbox
   tests of `test_plugin.py` construct the new model shapes (`SandboxConfig(instance=
   InstanceConfig(image=…, env=…, port=…), services={}, data=StartupData())` — replacing the
   old `service=`/`instances=`/`health=` constructions); the fail-fast message names the new
   document path
-- [ ] **REPL prototype (R4)**: in the REPL (tmp cwd, patched context) run `install(context=…)`
+  (reworked first — exactly the 3 ledger-scheduled red tests; the scenario-31 rename stayed
+  red on the old fail-fast text until the plugin.py change landed — TDD red confirmed; the
+  `ServiceConfig` → `InstanceConfig` import swap and the died-instance double wording follow
+  the Task 11 vocabulary)
+- [x] **REPL prototype (R4)**: in the REPL (tmp cwd, patched context) run `install(context=…)`
   with and without the document at the new path; observe `plugin.sandbox_activation` and the
   registered hooks; then migrate the texts
-- [ ] **Code**: apply the three companion texts (`plugin/__init__.py`, `plugin/plugin.py`,
+  (observed live in a venv heredoc REPL: armed leg — three hooks registered, activation is
+  `SandboxConfig` with `instance.image` / `services=['db']`; inert leg — no lifecycle hooks,
+  `sandbox_activation is None`; then the three texts migrated and re-verified in a fresh
+  interpreter — docstring, fail-fast source, annotation all carry the new path)
+- [x] **Code**: apply the three companion texts (`plugin/__init__.py`, `plugin/plugin.py`,
   `commands/init/init.py`)
-- [ ] **Interface verification**: `.venv/bin/pytest tests/plugin/ -x -v` — pass
-- [ ] **Logic tests** (scenarios 30, 31, transferred verbatim):
+  (install docstring names `.goga/tools/pybuggy/sandbox.yml` in the CWD; the configure
+  fail-fast reads "(the sandbox document .goga/tools/pybuggy/sandbox.yml is present); the
+  sandbox owns the service address"; the annotation reads "…for authoring
+  `.goga/tools/pybuggy/sandbox.yml`: the instance entry, dependency services, and startup
+  data.")
+- [x] **Interface verification**: `.venv/bin/pytest tests/plugin/ -x -v` — pass
+  (122 passed across the plugin tree incl. loaders/render; fresh-interpreter checks ok — the
+  three texts verified verbatim via inspect)
+- [x] **Logic tests** (scenarios 30, 31, transferred verbatim):
   30. `test_install_arms_sandbox_through_new_path` — tmp_path repo with
       `.goga/tools/pybuggy/sandbox.yml`; `monkeypatch.chdir`; `install(context=ctx)`:
       `activate_sandbox` reads the new path → armed → plugin constructed with
@@ -1852,16 +1867,27 @@ touched surfaces are `goga_tool_pybuggy/plugin/__init__.py` `install` docstring,
       class — where the existing configure fail-fast test lives) — armed plugin + passed
       `--base-url` → `pytest.UsageError` naming the new document path (the companion text
       change)
-- [ ] **Debugging — full-suite checkpoint**: `.venv/bin/pytest tests/
+  (both landed by name — scenario 30 carries both legs in one test with the `_ARMED` reset
+  retained; scenario 31 matches `--base-url.*\.goga/tools/pybuggy/sandbox\.yml`; the
+  retained armed-sandbox suites reworked to the new shapes — required-option error, guard
+  forwarding, base_url substitution — all green)
+- [x] **Debugging — full-suite checkpoint**: `.venv/bin/pytest tests/
   --ignore=tests/sandbox/test_session_lifecycle.py -x` — green (the ignored file is the sole
   documented Ledger exception, reworked in Task 14; with plain `-x` the run would stop inside
   `tests/sandbox/` and the later suites — spec, statuses, root — would never execute); any
   OTHER red file is an implementation bug — fix implementation, never tests
-- [ ] **Contract re-verification**: plugin/init annotations carry forward verbatim — no
+  (1543 passed, 0 failed — every suite except the Ledger exception green, docker-gated live
+  cases executing; re-run green after the format fix)
+- [x] **Contract re-verification**: plugin/init annotations carry forward verbatim — no
   contract change, texts only
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked — the plugin CODEMANIFEST is untouched (git diff clean of manifest paths), the
+  public surface unchanged, the three texts are the design's companion wording verbatim)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files (the full pytest gate resumes at Task 14, M-R3.4)
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (one E501 in the fail-fast message and one format drift in test_install.py corrected —
+  the message split across the implicit concatenation, the document literal collapsed by
+  `ruff format`; both gates exit 0; plugin suite + full checkpoint re-run green)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 14: Integration tests — the armed session lifecycle over the new document (integration tests)
 

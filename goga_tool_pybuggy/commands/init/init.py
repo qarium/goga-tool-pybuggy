@@ -83,7 +83,8 @@ PYBUGGY_ANNOTATIONS: dict[str, str] = {
         "Use `pybuggy-sandbox-session` for the sandbox consumer fixtures: activation, baseline, reset, and api usage."
     ),
     "sandbox-file": (
-        "Use `pybuggy-sandbox-file` for authoring `.sandbox.yml`: service entry, instances, and startup data."
+        "Use `pybuggy-sandbox-file` for authoring `.goga/tools/pybuggy/sandbox.yml`: "
+        "the instance entry, dependency services, and startup data."
     ),
     "data-operations": (
         "Use `pybuggy-data-operations` for declaring lazy sandbox data from tests: rows, stubs, secrets, messages."

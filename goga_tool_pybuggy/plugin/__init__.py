@@ -20,10 +20,10 @@ def install(**kwargs: object) -> None:
     """Wire the ``ApiPlugin`` into pytest, arming the sandbox when its document is present.
 
     ``loaders`` defaults to ``[PackageLoader("api", required=False)]``; ``install(loaders=[])``
-    disables discovery. Before construction ``activate_sandbox(context)`` reads ``.sandbox.yml``
-    in the CWD — with a valid document it registers the session lifecycle hooks into the
-    context; the activation is kept on the plugin as ``sandbox_activation`` (``None`` when the
-    document is absent, leaving everything inert).
+    disables discovery. Before construction ``activate_sandbox(context)`` reads
+    ``.goga/tools/pybuggy/sandbox.yml`` in the CWD — with a valid document it registers the
+    session lifecycle hooks into the context; the activation is kept on the plugin as
+    ``sandbox_activation`` (``None`` when the document is absent, leaving everything inert).
 
     Args:
         kwargs: Forwarded to ``ApiPlugin``; ``context`` and ``loaders`` are defaulted here when omitted.

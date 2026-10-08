@@ -106,8 +106,8 @@ class TestInstallLogic:
         assert captured["plugin"].sandbox_activation is sentinel
 
     def test_install_without_document_leaves_plugin_unarmed(self, tmp_path, monkeypatch):
-        """Without `.sandbox.yml` the arming is inert and the plugin stays unarmed."""
-        monkeypatch.chdir(tmp_path)  # no .sandbox.yml in the empty cwd
+        """Without the tools-home document the arming is inert and the plugin stays unarmed."""
+        monkeypatch.chdir(tmp_path)  # no .goga/tools/pybuggy/sandbox.yml in the empty cwd
 
         context: dict[str, object] = {}
         captured: dict[str, object] = {}
@@ -121,16 +121,24 @@ class TestInstallLogic:
 
         assert captured["plugin"].sandbox_activation is None
 
-    def test_install_with_document_composes_real_activation(self, tmp_path, monkeypatch):
-        """A real `.sandbox.yml` composes: the lifecycle hooks land in the context, the plugin arms."""
+    def test_install_arms_sandbox_through_new_path(self, tmp_path, monkeypatch):
+        """A document under the pybuggy tools home arms the plugin; without it the arming is inert.
+
+        The armed leg pins the new resolution path (``.goga/tools/pybuggy/sandbox.yml`` under
+        the CWD): ``install`` composes the real activation — the lifecycle hooks land in the
+        context, the plugin is constructed with ``sandbox_activation`` set. The negative leg
+        pins full inertness: no document, no hooks, unarmed plugin.
+        """
         from goga_tool_pybuggy.sandbox import activation as activation_module
         from goga_tool_pybuggy.sandbox.config import SandboxConfig
 
-        monkeypatch.chdir(tmp_path)
-        (tmp_path / ".sandbox.yml").write_text(
-            "service:\n  image: my-service:latest\n  port: 8080\n  env: {}\ninstances:\n  db: { kind: postgresql }\n",
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text(
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  db: { kind: postgresql }\n",
             encoding="utf-8",
         )
+        monkeypatch.chdir(tmp_path)
 
         context: dict[str, object] = {}
         captured: dict[str, object] = {}
@@ -151,4 +159,16 @@ class TestInstallLogic:
         activation = captured["plugin"].sandbox_activation
 
         assert isinstance(activation, SandboxConfig)
-        assert activation.service.image == "my-service:latest"
+        assert activation.instance.image == "my-service:latest"
+
+        context = {}
+        captured.clear()
+        inert_cwd = tmp_path / "inert-cwd"
+        inert_cwd.mkdir()
+        monkeypatch.chdir(inert_cwd)
+
+        goga_tool_pybuggy.plugin.install(context=context)
+
+        assert captured["plugin"].sandbox_activation is None
+        for hook in ("pytest_sessionstart", "pytest_sessionfinish", "pytest_runtest_setup"):
+            assert hook not in context, hook
