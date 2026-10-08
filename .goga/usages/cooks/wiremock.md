@@ -55,19 +55,19 @@ requests.post(
 | `POST /__admin/mappings/reset` | drops API-created mappings, restores the loaded/persisted mapping set |
 | `POST /__admin/requests/reset` | clears the request journal only — stubs untouched |
 
-The sandbox reset for an http instance is `mappings/reset` + replay of the baseline mappings (the
-yaml startup mappings and the author's session baseline): reset returns the instance to an
+The sandbox reset for an http service is `mappings/reset` + replay of the baseline mappings (the
+document's startup mappings and the author's session baseline): reset returns the service to an
 effective empty state, replay re-establishes the declared baseline.
 
 ---
 
 ## Startup mappings and readiness
 
-- Startup mappings from `.sandbox.yml` are applied the same way — a sequence of
-  `POST /__admin/mappings` calls after the container is up, before the service under test starts.
+- Startup mappings from the sandbox document are applied the same way — a sequence of
+  `POST /__admin/mappings` calls after the container is up, before the instance under test starts.
 - Readiness: poll any admin GET (`GET /__admin/mappings`, or `GET /__admin/health` on wiremock 3.x)
   with a deadline; the mock is ready when the admin endpoint answers.
-- WireMock serves stub traffic and the admin API on the same port — one exposed port per instance.
+- WireMock serves stub traffic and the admin API on the same port — one exposed port per service.
 
 ---
 

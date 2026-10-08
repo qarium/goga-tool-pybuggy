@@ -1,15 +1,16 @@
 # Sandbox
 
 The **sandbox** is pybuggy's session-scoped isolated service testing capability: when the
-repository root holds a `.sandbox.yml` document, every pytest run starts the **service under
-test** plus its mocked dependencies (**postgresql**, **kafka**, **vault**, **http**) in
-containers, wires them into the service environment, and points the `api` fixture at the
-sandbox service. Without the document the product is fully inert — nothing starts, nothing
-changes.
+pybuggy tools home holds a `sandbox.yml` document, every pytest run starts the **instance
+under test** plus its mocked dependency **services** (**postgresql**, **kafka**,
+**vault**, **http**) in containers, wires them into the instance environment, and points
+the `api` fixture at the sandbox instance. Without the document the product is fully
+inert — nothing starts, nothing changes.
 
 ## Activation
 
-The sandbox activates by presence: `.sandbox.yml` at the repository root. The same plugin
+The sandbox activates by presence: `.goga/tools/pybuggy/sandbox.yml`, resolved from the
+current working directory only — resolution never searches elsewhere. The same plugin
 installation call that enables pybuggy arms the sandbox — nothing else is enabled:
 
 ```python
@@ -19,46 +20,71 @@ from goga_tool_pybuggy import plugin
 plugin.install()
 ```
 
-With the file present, every pytest run starts the sandbox before the first test (the
-progress is visible in the output); an invalid file fails the run before any container
-starts; without the file the suite behaves exactly as it would without the sandbox.
+With the document present, every pytest run starts the sandbox before the first test (the
+progress is visible in the output); an invalid document fails the run before any container
+starts; without the document the suite behaves exactly as it would without the sandbox. If
+the sandbox does not activate, verify the document sits at exactly this path and that the
+run starts from the repository root.
 
-## Authoring `.sandbox.yml`
+## Authoring the sandbox document
 
 ```yaml
-service:
-  image: my-service:latest        # required — the image under test
-  port: 8080                      # required — the container port the service serves on
-  health: /health                 # optional — readiness path; omit to wait for the port only
-  env:                            # required — environment values of the service
+# .goga/tools/pybuggy/sandbox.yml
+instance:                           # the entry under test
+  image: my-service:latest          # required — the image under test
+  port: 8080                        # required — the container port the service serves on
+  probe:                            # optional — readiness declaration
+    path: /health                   # health path; omit to wait for the port only
+    timeout: 60.0                   # readiness deadline seconds; default 30.0
+    interval: 1.0                   # seconds between attempts; default 0.5
+  env:                              # required — environment values of the instance
     DATABASE_URL: "postgres://{{db.host}}:{{db.port}}/app"
     KAFKA_BOOTSTRAP: "{{events.host}}:{{events.port}}"
     VAULT_ADDR: "http://{{secrets.host}}:{{secrets.port}}"
 
-instances:                        # named dependency instances; several of one kind are allowed
-  db:       { kind: postgresql }
-  events:   { kind: kafka }
-  secrets:  { kind: vault }
-  payments: { kind: http }
+services:                           # named dependency services; several of one kind are allowed
+  db:
+    kind: postgresql
+    image: postgres:16-alpine       # optional image override
+  events:
+    kind: kafka
+    probe:
+      timeout: 45.0                 # wait bounds apply to the fixed probe endpoint
+    topics:                         # the mocked kafka topology — inline, on the service entry
+      - name: orders.events
+      - name: payments.events
+        partitions: 6               # optional; default 1
+  secrets:
+    kind: vault
+  payments:
+    kind: http
 
-data:                             # startup data layer, applied before the service starts
+data:                               # startup data layer, applied before the instance starts
   vault:
     secrets:
-      - { path: "payment/api-key", data: { api_key: "test-key", ttl: "1h" } }
+      - path: payment/api-key
+        data:
+          api_key: test-key
+          ttl: 1h
   http:
     payments:
-      - request:  { method: POST, urlPath: /v1/charge }
-        response: { status: 200, jsonBody: { status: "captured" } }
-  kafka:
-    events: "asyncapi.yaml"       # AsyncAPI document path — defines the mocked topics
+      - request:
+          method: POST
+          urlPath: /v1/charge
+        response:
+          status: 200
+          jsonBody:
+            status: captured
   postgres:
     db:
       - "CREATE TABLE IF NOT EXISTS orders (id bigint PRIMARY KEY, customer text, total numeric)"
 ```
 
-- Instance names are template identifiers (letters, digits, underscores; not starting with a
-  digit) — they name the `{{<instance>.host}}` / `{{<instance>.port}}` placeholders the
-  service env values resolve to. Placeholders resolve only for configured instance names.
+- Every service has a name (the key) and a `kind`: `postgresql`, `kafka`, `vault`, or
+  `http`. Service names are template identifiers (letters, digits, underscores; not
+  starting with a digit) — they name the `{{<service>.host}}` / `{{<service>.port}}`
+  placeholders the instance env values resolve to. Placeholders resolve only for
+  configured service names; an unknown name fails validation.
 - Every kind has a product-pinned default image; `image` overrides it:
 
 | kind | default image | reset strategy |
@@ -68,9 +94,55 @@ data:                             # startup data layer, applied before the servi
 | `vault` | `hashicorp/vault:1.17` | container restart (dev-mode in-memory storage) + journal replay |
 | `http` | `wiremock/wiremock:3.13.0` | `POST /__admin/mappings/reset` + journal replay |
 
-- Postgres init statements replay on every per-test reset — write them idempotent (e.g.
-  `CREATE TABLE IF NOT EXISTS`).
 - A `grpc` kind is rejected with an explicit "not supported yet" error.
+
+### Kafka topics
+
+The kafka topology is a property of the kafka service entry — declared inline, like
+`image` and `kind`:
+
+- `topics` is required on every kafka entry and holds at least one declaration; an entry
+  without topics fails before any container starts.
+- Each declaration carries `name` (required) and `partitions` (optional, default 1);
+  topic names are unique within the service entry.
+- Topics exist only on kafka entries — a `topics` list on any other kind is rejected.
+- The AsyncAPI document the mock consumes is generated internally from the declared
+  topics; no spec file is read or written, and nothing generated is exposed to authors.
+
+### Readiness probes
+
+Readiness is declared per target, Kubernetes-probe-like, as an optional `probe` block:
+
+| field | applies to | default | meaning |
+|---|---|---|---|
+| `timeout` | every target | 30.0 | readiness deadline seconds; expiry fails with an actionable error |
+| `interval` | every target | 0.5 | seconds between attempts |
+| `path` | the instance entry only | — | health path; omit to wait for the port only |
+
+- The probe endpoints of the kafka/vault/http services are fixed by the tool; `timeout`
+  and `interval` are the only knobs they accept — a `path` there is rejected.
+- Omitting the block (or any field) keeps the established behavior — the defaults
+  reproduce it exactly. No global defaults block exists; readiness is declared per target
+  only.
+
+### Startup data
+
+The `data` sections are applied in a fixed order after all services are up and before the
+instance starts — vault secrets, then http mappings, then postgres init:
+
+| section | target | declarations |
+|---|---|---|
+| `vault` | vault services | `{path, data}` secret writes |
+| `http` | http services | WireMock mapping objects (`request` + `response`) |
+| `postgres` | postgresql services | SQL statements (schema/bootstrap SQL) |
+
+- A `kafka` section does not exist — declaring one fails; the kafka topology lives on the
+  service entry.
+- Within a section, declarations apply in the order written — for dependent rows (foreign
+  keys), declare parents before children.
+- Postgres init statements are raw sql: they resolve no `$ref` / `$lookup` references, and
+  they replay on every per-test reset — write them idempotent (e.g. `CREATE TABLE IF NOT
+  EXISTS`); the TRUNCATE-based reset keeps tables, only data is wiped.
 
 ## Session fixture and baseline
 
@@ -89,7 +161,7 @@ def sandbox():
 ```
 
 Operations inside the baseline boundary apply immediately and become the session baseline:
-after every reset the instances return to exactly this state.
+after every reset the services return to exactly this state.
 
 ## Per-test reset
 
@@ -101,9 +173,9 @@ def _sandbox_reset(sandbox):
     yield
 ```
 
-Reset returns every dependency instance to the baseline — test order cannot change outcomes.
-Only dependency data resets; the service container keeps running (service in-memory state
-not resetting is an accepted v1 limitation).
+Reset returns every dependency service to the baseline — test order cannot change
+outcomes. Only dependency data resets; the instance container keeps running (instance
+in-memory state not resetting is an accepted v1 limitation).
 
 ## Calling the service
 
@@ -127,12 +199,12 @@ def test_checkout(checkout, sandbox):
 - A typed `--base-url` flag together with an active sandbox fails fast with an explicit
   usage error — the sandbox owns the service address.
 - Declared operations apply automatically as one batch before the first service call.
-- A crashed service fails the affected tests with an indication that the service died and
-  its output attached.
+- A crashed instance fails the affected tests with an indication that the instance died
+  and its output attached.
 
 ## Declaring dependency data
 
-Every configured instance is reachable by name through the session fixture, kind-named.
+Every configured service is reachable by name through the session fixture, kind-named.
 Nothing is executed at declaration time — the sandbox applies the accumulated batch
 automatically before the first call to the service under test:
 
@@ -145,6 +217,9 @@ sandbox.http("payments").stub({
 sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
 sandbox.kafka("events").produce("orders.events", {"id": 1}, key="1")
 ```
+
+A produced topic must be declared on the kafka service entry of the sandbox document — an
+undeclared topic fails the operation.
 
 Data can also be declared directly on the test as a **preset** (each declaration carries
 the same fields as the matching view operation; presets apply on top of the reset state,
@@ -162,7 +237,7 @@ def test_checkout(api):
     ...
 ```
 
-Operations apply in the order declared, per instance: presets first, then in-test
+Operations apply in the order declared, per service: presets first, then in-test
 operations in call order; foreign-key chains are expressed by declaring parents before
 children — one `insert` call targets one table (the database constraint still requires the
 parent row first).
@@ -212,7 +287,7 @@ Common rules:
   executes.
 - Resolution happens at apply time, right before the first service call; declarations are
   never rewritten, so baseline replay re-resolves references after every reset.
-- References resolve within one postgres instance; rows created by raw sql startup
+- References resolve within one postgres service; rows created by raw sql startup
   statements are addressable only through `$lookup`.
 
 ## Preconditions and side effects
@@ -247,14 +322,14 @@ docker run \
   without it the client aims at the container-network gateway and every connection is refused.
   `host.docker.internal` is the Docker Desktop name; on a plain Linux host use the host's
   address or `host-gateway`.
-- One shared address space results: the mapped instance addresses the tests bootstrap on, the
-  kafka broker advertises in metadata, and the `{{instance.host}}`/`{{instance.port}}`
-  placeholders inject into the service env are the same `host:port` — every consumer (runner,
-  service container) reaches every dependency through it.
-- Every session gets its **own docker network**: all containers the sandbox starts (dependency
-  instances and the service under test) join it, and it is removed at teardown. Parallel
-  sandboxes on one daemon are network-isolated from each other; the runner keeps consuming
-  the published host ports as before.
+- One shared address space results: the mapped service addresses the tests bootstrap on, the
+  kafka broker advertises in metadata, and the `{{<service>.host}}`/`{{<service>.port}}`
+  placeholders inject into the instance env are the same `host:port` — every consumer (runner,
+  instance container) reaches every dependency through it.
+- Every session gets its **own docker network**: all containers the sandbox starts (the
+  dependency services and the instance under test) join it, and it is removed at teardown.
+  Parallel sandboxes on one daemon are network-isolated from each other; the runner keeps
+  consuming the published host ports as before.
 - Alternative — a docker-in-docker daemon inside a privileged runner — needs neither the socket
   nor the override, at the cost of `--privileged` and a private image cache; the sandbox works
   unchanged in both topologies.

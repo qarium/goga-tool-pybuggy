@@ -3,8 +3,8 @@
 ## Domain
 
 `hashicorp/vault` in **dev mode** is the secrets dependency mock of the pybuggy sandbox
-capability. The service under test reads secrets from it; the sandbox puts secrets over the KV v2
-HTTP API with plain `requests` — no `hvac` client dependency.
+capability. The instance under test reads secrets from this vault service; the sandbox puts
+secrets over the KV v2 HTTP API with plain `requests` — no `hvac` client dependency.
 
 ---
 
@@ -20,8 +20,8 @@ Equivalent env form (what the sandbox passes as container env): `VAULT_DEV_ROOT_
 
 Dev mode properties the sandbox relies on:
 
-- **In-memory storage** — nothing persists; a container restart returns the instance to a pristine
-  state (the reset mechanism, followed by baseline replay).
+- **In-memory storage** — nothing persists; a container restart returns the vault service to a
+  pristine state (the reset mechanism, followed by baseline replay).
 - **Plain HTTP** — TLS is disabled; the API is `http://<host>:<port>/v1/...`.
 - **Auto-initialized and auto-unsealed** — no operator steps; ready when the health endpoint says
   so.
@@ -76,5 +76,5 @@ requests.get(f"http://{host}:{port}/v1/secret/data/payment/api-key", headers=hea
 - Readiness: poll `GET /v1/sys/health` — it returns `200` when the server is initialized, unsealed,
   and active.
 - Reset: restart the container (in-memory storage wipes) + replay the baseline journal (the same
-  `POST /v1/secret/data/...` path). Services under test must tolerate the vault instance
+  `POST /v1/secret/data/...` path). The instance under test must tolerate the vault service
   reappearing — the accepted trade-off of the reset strategy.

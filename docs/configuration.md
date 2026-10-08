@@ -3,8 +3,8 @@
 pybuggy reads a single YAML file — `.goga/tools/pybuggy/config.yml` — from a **fixed
 path** relative to the project root. There is no `--config` option; every command loads
 the config itself. (The sandbox capability reads a separate, fixed-path document —
-`.sandbox.yml` at the repository root — described in [Sandbox](sandbox.md); it is not
-part of this file.)
+`.goga/tools/pybuggy/sandbox.yml` under the pybuggy tools home — described in
+[Sandbox](sandbox.md); it is not part of this file.)
 
 The file carries four concerns: the **plugin options** (feed the `api` fixture), the
 **`specs`** section (what the CLI commands operate on), the optional **`loader`**
@@ -36,8 +36,9 @@ Each option resolves by the first non-empty source:
 So the config file overrides env, env overrides the CLI flag, the flag overrides the
 default. **`base_url` is the exception** — when you actually type `--base-url`, its value
 wins over the config file and `BASE_URL`. A typed `--base-url` additionally **fails
-fast** with a usage error when the sandbox is active (`.sandbox.yml` present) — the
-sandbox owns the service address, so remove the flag or the sandbox document.
+fast** with a usage error when the sandbox is active (`.goga/tools/pybuggy/sandbox.yml`
+present) — the sandbox owns the service address, so remove the flag or the sandbox
+document.
 
 ### `base_url` as a Jinja2 template
 

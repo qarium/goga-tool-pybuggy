@@ -3,7 +3,7 @@
 ## Domain
 
 `testcontainers` (the `testcontainers-python` package) is the container engine of the pybuggy sandbox
-capability. It starts and removes the service under test and every mock dependency instance
+capability. It starts and removes the instance under test and every mocked dependency service
 (postgres, mokapi, vault, wiremock), checks container-runtime availability before the first start,
 and provides the crash-safe cleanup guarantee ("no leftover containers on any exit path").
 
@@ -35,7 +35,7 @@ an external requirement of the environment running the tests (developer machine 
 
 ## Postgres module container
 
-The postgres instance is a real postgres container (ADR decision) started through the dedicated
+The postgres service is a real postgres container (ADR decision) started through the dedicated
 module — it pins the image, sets user/password/dbname env, and waits for the server to accept
 connections before `start()` returns:
 
@@ -54,13 +54,15 @@ url = postgres.get_connection_url()  # SQLAlchemy-style: postgresql+psycopg://us
 - User/password/dbname default to `test`/`test`/`test` unless overridden via constructor env
   (`POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB` are applied by the module).
 - Module containers have built-in readiness: `start()` returns only after the server accepts
-  connections — no extra wait loop is needed for postgres.
+  connections — no extra wait loop is needed for postgres. The sandbox nonetheless disables this
+  internal wait and runs its own probe loop, so the declared readiness deadline and interval reach
+  the postgres wait too.
 
 ---
 
 ## Generic containers (mokapi, vault, wiremock, service under test)
 
-Mock instances and the service under test use the generic container:
+Mock services and the instance under test use the generic container:
 
 ```python
 container = (
@@ -78,9 +80,12 @@ port = container.get_exposed_port(8080)
 - `with_exposed_ports(...)` publishes the container port on a random free host port — always read
   the mapped port back via `get_exposed_port(...)`; never assume a fixed host port.
 - `with_env(...)` / `with_command(...)` set container env and the entrypoint arguments (this is how
-  the AsyncAPI spec path, vault dev flags, and wiremock options are passed).
-- Spec/config files reach the container through a volume mount; pass the mounted path as a command
-  argument.
+  the generated AsyncAPI document's in-container path, vault dev flags, and wiremock options are
+  passed).
+- The AsyncAPI document is generated in memory from the topics declared inline on the kafka
+  service entry and transferred through the docker API (no bind mount — host paths resolve on the
+  daemon's filesystem and break when the engine itself runs inside a container); its in-container
+  path is passed as the start argument.
 - `with_labels(...)` stamps containers with identification labels — useful to find and clean up
   sandbox containers.
 
@@ -94,7 +99,7 @@ wait_for(container=container, condition=lambda c: probe_is_ready(c), timeout=30,
 ```
 
 - `wait_for(...)` polls the condition with a timeout — use it for log-based or socket-based checks.
-- HTTP readiness (vault `/v1/sys/health`, wiremock admin, service health path) is a plain
+- HTTP readiness (vault `/v1/sys/health`, wiremock admin, the instance health path) is a plain
   retry-loop over the mapped host/port — the sandbox already owns HTTP probing; prefer an explicit
   probe loop with a deadline over open-ended waiting.
 

@@ -29,16 +29,18 @@ variables win).
 existing file is kept (bare mode: unless you confirm the overwrite) — see
 [CLI — init](../cli/init.md).
 
-The same `install()` call arms the **sandbox**: when `.sandbox.yml` exists in the project
-root, it starts before the first test, the `api` fixture's address resolves to the sandbox
-service, and every request first applies the test's pending sandbox data (see
+The same `install()` call arms the **sandbox**: when
+`.goga/tools/pybuggy/sandbox.yml` exists under the pybuggy tools home, it starts before
+the first test, the `api` fixture's address resolves to the sandbox service, and every
+request first applies the test's pending sandbox data (see
 [Sandbox](../sandbox.md)).
 
 ## What enabling wires
 
 - **CLI options** — `--base-url` (resolves `base_url`, required; a typed flag overrides
   the config-file and `BASE_URL` value; it fails fast with a usage error when the sandbox
-  is active — `.sandbox.yml` present — because the sandbox owns the service address),
+  is active — `.goga/tools/pybuggy/sandbox.yml` present — because the sandbox owns the
+  service address),
   `--api-timeout` (resolves `timeout`),
   `--retries` (the flaky rerun count), `--api-assert-timeout` / `--api-assert-delay`
   (the assert-polling baseline). The remaining options (`headers`,
@@ -92,9 +94,9 @@ loader:
 
 ## Preconditions and side effects
 
-- A `.sandbox.yml` at the project root activates the sandbox on the same `install()`
-  call; the environment then needs a docker-compatible container runtime (see
-  [Sandbox](../sandbox.md)).
+- A sandbox document at `.goga/tools/pybuggy/sandbox.yml` activates the sandbox on the
+  same `install()` call; the environment then needs a docker-compatible container
+  runtime (see [Sandbox](../sandbox.md)).
 - The `api/` tree is discovered by default; a missing tree is tolerated
   (`required=False`).
 - The plugin reads `.goga/tools/pybuggy/config.yml` at import; a missing file is

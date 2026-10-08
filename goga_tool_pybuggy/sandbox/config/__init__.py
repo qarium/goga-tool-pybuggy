@@ -1,4 +1,4 @@
-"""`goga_tool_pybuggy.sandbox.config` cell facade — declarative model of ``.sandbox.yml``."""
+"""`goga_tool_pybuggy.sandbox.config` cell facade — declarative model of the sandbox document."""
 
 from .instance import InstanceConfig
 from .loader import load_sandbox_config

@@ -1979,16 +1979,45 @@ repo-wide sweep check. Docs must not break test collection.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Rewrite `docs/sandbox.md` per the design details
-- [ ] Apply the point edits to `docs/configuration.md`, `README.md`, `docs/getting-started.md`,
+- [x] Rewrite `docs/sandbox.md` per the design details
+  (full rewrite mirroring the canonical cell `.usages/` references — new path with the
+  cwd-only resolution note, `instance:`/`services:` keys, inline topics with partitions,
+  the probe field table (path instance-only), the startup-data order table without a kafka
+  section, block-style YAML throughout; the migration pointer reads "if the sandbox does not
+  activate, verify the document sits at exactly this path and that the run starts from the
+  repository root" — the former location is never named; service/instance vocabulary
+  swapped in prose, placeholders `{{<service>.host}}`/`{{<service>.port}}`, produce
+  declared-topics note added)
+- [x] Apply the point edits to `docs/configuration.md`, `README.md`, `docs/getting-started.md`,
   `docs/index.md`, `docs/pipelines/api-fix.md`, `docs/plugin/index.md`, `mkdocs.yml`
-- [ ] Apply the four cooks edits (testcontainers, wiremock, mokapi, vault-dev)
-- [ ] Repo-wide sweep check: `grep -rn "\.sandbox\.yml"` over `docs/`, `README.md`,
+  (all seven: the sandbox-document mentions now name `.goga/tools/pybuggy/sandbox.yml` under
+  the pybuggy tools home; the stale-root and repository-root phrasings gone; mkdocs
+  site_description updated)
+- [x] Apply the four cooks edits (testcontainers, wiremock, mokapi, vault-dev)
+  (testcontainers — the two generic-container bullets now describe the in-memory generated
+  AsyncAPI document transferred through the docker API with its in-container path as the
+  start argument, plus the D3 note that the sandbox disables the module wait and probes
+  within the declared bounds, and dependency-vocabulary touches; wiremock — "Startup
+  mappings from the sandbox document are applied the same way", former document name
+  dropped; mokapi — declaration-model wording throughout (topology generated in memory from
+  inline topics, no author spec file, kafka-service-without-topics fails fast,
+  `{{<service>.host}}`/`{{<service>.port}}` placeholders with the instance as the entry
+  under test, "re-created from the generated document on boot"); vault-dev — "vault
+  service" / "the instance under test" vocabulary)
+- [x] Repo-wide sweep check: `grep -rn "\.sandbox\.yml"` over `docs/`, `README.md`,
   `mkdocs.yml`, `goga_tool_pybuggy/**/*.usages/`, `.goga/usages/cooks/` → **empty** (the
   `.usages/` files were verified clean by the design; the sweep proves the docs joined them)
-- [ ] Run validation: `.venv/bin/pytest tests/ -x` — still green (docs must not break
+  (empty on every scope — docs, README, mkdocs, the cell `.usages/` directories, the cooks,
+  and the whole `goga_tool_pybuggy/` tree of the Validation Commands sweep, which also
+  required dropping the former name from the config cell facade docstring — facade `__all__`
+  untouched; stale-key sweep over docs/cooks (`instances:`, `health:`, `{{instance.`, former
+  document phrasings) also empty)
+- [x] Run validation: `.venv/bin/pytest tests/ -x` — still green (docs must not break
   collection)
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+  (1552 passed, 0 failed — docker-gated live cases executing with the recorded
+  TESTCONTAINERS_HOST_OVERRIDE prefix)
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+  (exit 0; `ruff format --check` clean on the one touched .py file)
 
 ### Task 16: Final validation gate — full suite, facades, contract lint, default equivalence (acceptance)
 
