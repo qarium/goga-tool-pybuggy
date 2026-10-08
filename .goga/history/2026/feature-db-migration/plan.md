@@ -1073,27 +1073,31 @@ MigrationsConfig | None`.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 5 is being executed
-- [ ] **Contract tests** (new `test_migrations.py` + reworked contract section of
+- [x] **Declaration**: stated in the iteration output and the progress log
+- [x] **Contract tests** (new `test_migrations.py` + reworked contract section of
   `test_service.py`; expected to fail now): `GitSource` and `MigrationsConfig` importable from
   `goga_tool_pybuggy.sandbox.config`; kw_only construction; property types `url -> str`,
   `ref -> str | None`, `location -> str`, `git -> GitSource | None`; `ServiceConfig.migrations
-  -> MigrationsConfig | None` present on the facade type
-- [ ] **REPL prototype (R4)**: in the venv REPL construct `MigrationsConfig(location="db/
-  migrations")`, `MigrationsConfig(location="db/migrations", git=GitSource(url="https://…
-  /s.git", ref="release-branch"))`, `GitSource(url=…)` with the `ref` default; observe
-  `ServiceConfig(name="db", kind="postgresql")` → `migrations is None`; a config built with
-  the raw `migrations={"location": "x"}` dict coercing into the typed model; the
-  `extra="forbid"` rejection of `journal=True`; kw_only `TypeError` on positional
-  construction; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/config/migrations.py` with the two models;
-  add the `migrations` field + docstring entry to `service.py`; grow the facade `__all__` to
-  9 names
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/test_migrations.py
-  tests/sandbox/config/test_service.py -x -v` — pass; fresh-interpreter facade check:
-  `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.config import GitSource,
-  MigrationsConfig, ServiceConfig"`
-- [ ] **Logic tests** (design scenarios, transferred):
+  -> MigrationsConfig | None` present on the facade type — observed failing on import first
+  (TDD: `ImportError: cannot import name 'GitSource'`), passing after the code landed; the
+  reworked `ServiceConfig` contract section now asserts the six-field set, the after-`probe`
+  position, and the typed `migrations` property
+- [x] **REPL prototype (R4)**: in the venv REPL constructed both declaration shapes (local
+  `MigrationsConfig(location="db/migrations")`, remote with `GitSource(url=…, ref=
+  "release-branch")`), observed the `ref`/`git` None defaults, the raw `git={"url": …}`
+  mapping coercing into the typed `GitSource`, the `extra="forbid"` rejection of `journal=True`
+  (ValidationError naming the key), kw_only positional `TypeError`, and both required-field
+  rejections; then migrated
+- [x] **Code**: created `goga_tool_pybuggy/sandbox/config/migrations.py` with the two models
+  (`kw_only=True, extra="forbid`"); added the `migrations: MigrationsConfig | None = None`
+  field + docstring entry to `service.py` (import `from .migrations import MigrationsConfig`;
+  `_probe_carries_no_path` untouched); grew the facade `__all__` to the 9 alphabetical names
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/test_migrations.py
+  tests/sandbox/config/test_service.py -x -v` — 33 passed; fresh-interpreter facade check:
+  `GitSource`, `MigrationsConfig`, `ServiceConfig` import cleanly and `__all__` holds exactly
+  the 9 names; `ServiceConfig(name="db", kind="postgresql").migrations is None` and the raw
+  dict coerces
+- [x] **Logic tests** (design scenarios, transferred):
   1. `test_service_config_migrations_default_is_none` — `ServiceConfig(name="db",
      kind="postgresql")` → `config.migrations is None`; a config built with
      `migrations={"location": "x"}` yields `isinstance(config.migrations, MigrationsConfig)`
@@ -1103,14 +1107,19 @@ MigrationsConfig | None`.
      constraint)
   3. Model units: kw_only (positional raises `TypeError`); `ref`/`git` default None;
      `GitSource` requires `url`; `MigrationsConfig` requires `location`
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green (additive optional
-  field); REPL-reproduce any failure first (M-R4.5)
-- [ ] **Contract re-verification**: both entity declarations (properties, requirements,
+
+  All present — 17 tests in `test_migrations.py` (8 contract + 9 logic, incl. the raw-git-
+  mapping coercion unit) and the `migrations` units inside `test_service.py`
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — 1651 passed, 17 skipped (Task 4 baseline
+  1631 + 20 new), fully green on the first run (additive optional field; no failures to
+  reproduce)
+- [x] **Contract re-verification**: both entity declarations (properties, requirements,
   constraints) and the `ServiceConfig` signature/property match the manifest; the facade holds
-  9 names
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
-  `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  9 names — field order after `probe`, the SHA-ref and placement constraints documented in the
+  docstrings, placement left to the loader (Task 6), no CODEMANIFEST modified
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  `ruff format --check` on touched files — clean on the first pass
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 6: Config cell II — `loader.py` `_validate_migrations`: placement, model build, source checks, the wrap chain (TDD)
 

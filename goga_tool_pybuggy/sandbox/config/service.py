@@ -2,6 +2,7 @@
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
+from .migrations import MigrationsConfig
 from .probe import ProbeConfig
 from .topic import TopicConfig
 
@@ -20,6 +21,9 @@ class ServiceConfig(BaseModel):
             every other kind.
         probe: Readiness declaration — the wait bounds for this service's readiness check; the
             path is accepted only on the instance-under-test entry.
+        migrations: Migrations declaration — accepted on the postgresql kind only; a declaration
+            on any other kind fails at document load with the entry named; ``None`` — no
+            migrations.
     """
 
     model_config = ConfigDict(kw_only=True, extra="forbid")
@@ -29,6 +33,7 @@ class ServiceConfig(BaseModel):
     image: str | None = None
     topics: list[TopicConfig] = []
     probe: ProbeConfig | None = None
+    migrations: MigrationsConfig | None = None
 
     @model_validator(mode="after")
     def _probe_carries_no_path(self) -> "ServiceConfig":

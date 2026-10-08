@@ -3,7 +3,7 @@
 import inspect
 
 import pytest
-from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig, TopicConfig
+from goga_tool_pybuggy.sandbox.config import MigrationsConfig, ProbeConfig, ServiceConfig, TopicConfig
 from pydantic import BaseModel, ValidationError
 
 
@@ -26,8 +26,21 @@ class TestServiceConfigContract:
             assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
 
     def test_service_config_declares_the_contract_fields(self):
-        """The model declares the ``name``, ``kind``, ``image``, ``topics`` and ``probe`` fields."""
-        assert set(ServiceConfig.model_fields) == {"name", "kind", "image", "topics", "probe"}
+        """The model declares the ``name``, ``kind``, ``image``, ``topics``, ``probe`` and ``migrations`` fields."""
+        assert set(ServiceConfig.model_fields) == {"name", "kind", "image", "topics", "probe", "migrations"}
+
+    def test_service_config_declares_migrations_after_probe(self):
+        """The ``migrations`` field sits after ``probe`` in the declaration order."""
+        fields = list(ServiceConfig.model_fields)
+
+        assert fields.index("migrations") == fields.index("probe") + 1
+
+    def test_service_config_migrations_returns_declared_type(self):
+        """``ServiceConfig.migrations`` carries the optional ``MigrationsConfig`` declaration."""
+        service = ServiceConfig(name="db", kind="postgresql", migrations=MigrationsConfig(location="db/migrations"))
+
+        assert isinstance(service.migrations, MigrationsConfig)
+        assert service.migrations.location == "db/migrations"
 
     def test_service_config_properties_return_declared_types(self):
         """Construction with sample data exposes the declared property types."""
@@ -43,6 +56,7 @@ class TestServiceConfigContract:
         assert isinstance(service.topics, list)
         assert all(isinstance(topic, TopicConfig) for topic in service.topics)
         assert service.probe is None
+        assert service.migrations is None
 
     def test_service_config_accepts_an_image_override(self):
         """``image`` overrides the product-pinned default of the kind."""
@@ -76,6 +90,17 @@ class TestServiceConfigLogic:
         service = ServiceConfig(name="db", kind="postgresql")
 
         assert service.probe is None
+
+    def test_service_config_migrations_default_is_none(self):
+        """``migrations`` defaults to ``None``; a raw mapping coerces into the typed model."""
+        service = ServiceConfig(name="db", kind="postgresql")
+
+        assert service.migrations is None
+
+        coerced = ServiceConfig(name="db", kind="postgresql", migrations={"location": "x"})
+
+        assert isinstance(coerced.migrations, MigrationsConfig)
+        assert coerced.migrations.location == "x"
 
     def test_service_config_accepts_a_probe_without_path(self):
         """A service probe declares wait bounds only and constructs cleanly."""
