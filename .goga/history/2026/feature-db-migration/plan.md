@@ -1382,22 +1382,32 @@ IDENTITY CASCADE) → journal replay → seed re-inserted; the migrated tables s
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Add `test_reset_keeps_migrated_schema_and_replays_only_seed` to the docker-gated
+- [x] Add `test_reset_keeps_migrated_schema_and_replays_only_seed` to the docker-gated
   harness of `tests/sandbox/engines/test_postgres.py`: a `tmp_path` folder with
   `00001_init.sql` (`CREATE TABLE customers (id serial PRIMARY KEY, email text); CREATE TABLE
   orders (id serial PRIMARY KEY, customer int);`); `ServiceConfig(name="db",
   kind="postgresql", migrations=MigrationsConfig(location=str(folder)))`; startup op
   `sql_op("INSERT INTO customers (email) VALUES ('ann@x.io')")`; a spy-counting wrapper around
-  `run_migrations`; `engine.start([...seed...])` then `engine.reset()`
-- [ ] Assert the role split: after reset — `SELECT count(*) FROM customers` == 1 (seed
+  `run_migrations`; `engine.start([...seed...])` then `engine.reset()` — added to
+  `TestPostgresEngineContainer` beside the reset-semantics tests; the goose fixture text and
+  the spy seam were verified live in the venv REPL first (the file parses into exactly the
+  two DDL statements; the counting wrapper around `postgres_module.run_migrations`
+  intercepts `_migrate`'s module-global lookup and forwards to the real apply over the
+  engine's connection)
+- [x] Assert the role split: after reset — `SELECT count(*) FROM customers` == 1 (seed
   replayed); `SELECT count(*) FROM orders` == 0 (no seed); both tables still exist (schema
   survived the TRUNCATE); `run_migrations` called exactly once across start+reset (never
-  re-applied, never journaled)
-- [ ] Run validation: `.venv/bin/pytest tests/sandbox/engines/test_postgres.py -v` — the
+  re-applied, never journaled) — the existence proof is an `information_schema.tables` query
+  returning both migrated names, plus the single spy call carrying the declared absolute
+  location (a journaled re-run would fail the replay on the already-existing tables)
+- [x] Run validation: `.venv/bin/pytest tests/sandbox/engines/test_postgres.py -v` — the
   gated case skips cleanly without a runtime (docker unavailable here); then
-  `.venv/bin/pytest tests/ -x` — green
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
-  `ruff format --check` on touched files
+  `.venv/bin/pytest tests/ -x` — green — 52 passed, 11 skipped on the focused file (the new
+  gated case among the skips); full suite 1673 passed, 18 skipped (Task 7 baseline 1673 + 17,
+  the +1 skip is the new docker-gated case)
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  `ruff format --check` on touched files — clean on the first pass (the only touched file is
+  `tests/sandbox/engines/test_postgres.py`: one stdlib import added + the test)
 
 ### Task 9: Author docs — the migrations declaration in `docs/sandbox.md` and `docs/configuration.md` (documentation)
 

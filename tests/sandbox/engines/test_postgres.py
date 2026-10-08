@@ -1,6 +1,7 @@
 """Contract and logic tests for the ``PostgresEngine`` entity."""
 
 import inspect
+from pathlib import Path
 from typing import ClassVar
 from unittest import mock
 
@@ -933,6 +934,53 @@ class TestPostgresEngineContainer:
             assert self.fetch_rows(engine) == []
         finally:
             engine.stop()
+
+    def test_reset_keeps_migrated_schema_and_replays_only_seed(self, tmp_path: Path):
+        """Reset keeps the migrated schema and replays only the journaled seed.
+
+        The declared set applies exactly once — at start, over the session connection,
+        before the startup seed. Reset truncates the migrated tables — their data is
+        wiped, the schema survives — and replays only the journaled seed:
+        ``run_migrations`` is never re-applied and the migration statements never
+        join the baseline journal (a journaled re-run would fail the start or the
+        replay on the already-existing tables).
+        """
+        folder = tmp_path / "migrations"
+        folder.mkdir()
+        (folder / "00001_init.sql").write_text(
+            "-- +goose Up\n"
+            "\n"
+            "CREATE TABLE customers (id serial PRIMARY KEY, email text);\n"
+            "\n"
+            "CREATE TABLE orders (id serial PRIMARY KEY, customer int);\n",
+            encoding="utf-8",
+        )
+
+        engine = db_engine(migrations=MigrationsConfig(location=str(folder)))
+        calls: list[dict[str, object]] = []
+        applied = postgres_module.run_migrations
+
+        def counting_run_migrations(**kwargs: object) -> None:
+            calls.append(kwargs)
+            applied(**kwargs)
+
+        with mock.patch.object(postgres_module, "run_migrations", counting_run_migrations):
+            engine.start([sql_op("INSERT INTO customers (email) VALUES ('ann@x.io')")])
+
+            try:
+                engine.reset()
+
+                assert self.fetch_pairs(engine, "SELECT count(*) FROM customers") == [(1,)]
+                assert self.fetch_pairs(engine, "SELECT count(*) FROM orders") == [(0,)]
+                assert self.fetch_pairs(
+                    engine,
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_schema = 'public' AND table_name IN ('customers', 'orders') ORDER BY table_name",
+                ) == [("customers",), ("orders",)]
+                assert len(calls) == 1
+                assert calls[0]["location"] == str(folder)
+            finally:
+                engine.stop()
 
     def test_ref_resolves_the_generated_parent_key(self):
         """A ``$ref`` carries the serial-generated parent key into the child insert."""
