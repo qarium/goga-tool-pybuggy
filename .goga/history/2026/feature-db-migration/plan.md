@@ -711,14 +711,14 @@ importable from `goga_tool_pybuggy.sandbox.migrations`.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 2 is being executed
-- [ ] **Contract tests** (new `tests/sandbox/migrations/test_goose.py`; expected to fail now —
+- [x] **Declaration**: stated in the iteration output and the progress log
+- [x] **Contract tests** (new `tests/sandbox/migrations/test_goose.py`; expected to fail now —
   the package does not exist): all four names importable from
   `goga_tool_pybuggy.sandbox.migrations`; `MigrationError` subclasses `RuntimeError`;
   `MigrationFile` kw_only construction with the four property types (`version -> int`,
   `filename -> str`, `statements -> list[str]`, `no_transaction -> bool`); signatures
   `parse_migration_file(filename: str, text: str)`, `load_migration_set(folder: Path)`
-- [ ] **REPL prototype (R4)**: in the venv REPL parse every scenario text live before
+- [x] **REPL prototype (R4)**: in the venv REPL parse every scenario text live before
   migrating — the simple Up/Down file (observe the two statements without terminating
   semicolons), the function body with interior semicolons (one verbatim statement), the mixed
   fragment-then-body file (observe `[CREATE TABLE, body, CREATE INDEX]` — file order), NO
@@ -726,15 +726,15 @@ importable from `goga_tool_pybuggy.sandbox.migrations`.
   failure text (missing Up, Down before Up, unknown annotation in header and in up,
   NO TRANSACTION after Up, unclosed body, stray StatementEnd, interpolation) reading each
   `MigrationError` message; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/migrations/errors.py` and `goose.py` per the
+- [x] **Code**: create `goga_tool_pybuggy/sandbox/migrations/errors.py` and `goose.py` per the
   design details (grammar + `_split_fragments` + the region scan + the set loader)
-- [ ] **Code**: create the cell facade `__init__.py` with the four `__all__` names and the
+- [x] **Code**: create the cell facade `__init__.py` with the four `__all__` names and the
   module docstring
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/migrations/test_goose.py -x
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/migrations/test_goose.py -x
   -v` — pass; fresh-interpreter facade check (M-R4.3): `.venv/bin/python -c "from
   goga_tool_pybuggy.sandbox.migrations import MigrationError, MigrationFile,
   parse_migration_file, load_migration_set"`
-- [ ] **Logic tests** (design scenarios, transferred with their Setup/Input/Assertions):
+- [x] **Logic tests** (design scenarios, transferred with their Setup/Input/Assertions):
   1. `test_parse_simple_up_statements` — the canonical goose file (CREATE TABLE + CREATE
      INDEX, then Down); `version == 3`; `no_transaction is False`; `statements` exactly the
      two bodies **without** terminating semicolons; Down statements absent
@@ -774,15 +774,19 @@ importable from `goga_tool_pybuggy.sandbox.migrations`.
       statements contain `SELECT 1` and `SELECT 2`; no statement consists solely of a comment;
       leading comment lines inside a kept piece stay part of the statement text
   18. `test_parse_crlf_file` — `\r\n` endings → the statement equals the clean body (no `\r`)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green (additive change);
-  reproduce any failure in the REPL with the exact fixture text first (M-R4.5)
-- [ ] **Contract re-verification**: the parser Algorithm steps 1–6, the Requirements (pure
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — 1594 passed, 17 skipped (baseline 1566 + 28 new). One
+  initial failure (test_parse_drops_comment_only_fragments) was a wrong test expectation, not
+  an implementation bug — the REPL prototype had already shown the correct semantics: a
+  comment line inside a kept piece (between two semicolons) stays part of that statement's
+  text per the design's "leading comment lines inside a kept piece stay" rule; expectation
+  fixed to the verified behavior
+- [x] **Contract re-verification**: the parser Algorithm steps 1–6, the Requirements (pure
   function, no I/O; every failure names the file), the Constraints (no SQL semantics
   validated), and `load_migration_set`'s deterministic order hold
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files (decompose via `_split_fragments`/region helpers if
   C90/PLR trip — M-R3.6)
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Completion**: checkboxes marked; submitted to the external review loop
 
 ### Task 3: Migrations cell II — `source.py`: `check_local_migrations`, `check_git_url` (TDD)
 
