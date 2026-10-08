@@ -1,7 +1,7 @@
 Imports:
   - Types:
       - SandboxConfig
-      - ServiceConfig
+      - InstanceConfig
       - StartupData
       - load_sandbox_config
     Usages:
@@ -11,6 +11,7 @@ Imports:
       - BaseEngine
       - build_engine
       - DataOperation
+      - EngineError
       - InstanceAddress
       - check_runtime
     From: goga_tool_pybuggy/sandbox/engines
@@ -34,18 +35,18 @@ Usages:
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `conventions` for structured logging and the docstring rules.
-  Use `testcontainers` for the service container lifecycle: the generic container, readiness
+  Use `testcontainers` for the instance container lifecycle: the generic container, readiness
   waiting, labels, and the removal guarantee on every exit path.
-  Use `jinja2` for rendering the service environment values.
+  Use `jinja2` for rendering the instance environment values.
   Use `requests` for health-path readiness probing.
   Use `pluginator` for registering the session lifecycle hooks into the caller namespace.
 
   Session runtime of the sandbox. One sandbox owns one pytest-session environment: the ordered
-  startup of the dependency instances and the service under test, the readiness gates, the baseline
-  boundary, the per-test reset, and the guaranteed removal on every exit path. Activation is
-  presence-gated — without the configuration document nothing is registered and nothing runs.
-  Startup progress is visible, and the startup output names the base_url source. Use relative
-  imports inside the cell.
+  startup of the dependency services and the instance under test, the readiness gates, the
+  baseline boundary, the per-test reset, and the guaranteed removal on every exit path.
+  Activation is presence-gated — without the configuration document nothing is registered and
+  nothing runs. Startup progress is visible, and the startup output names the base_url source.
+  Use relative imports inside the cell.
 
 ---
 
@@ -60,17 +61,17 @@ Annotations: |
     - Stop removes everything on every exit path — success, failure, interruption.
     - The service address is readable as the base_url after start.
     - Start creates one sandbox network — the per-session isolation boundary — and every
-    container the session starts (instance engines and the service) joins it; stop removes
+    container the session starts (service engines and the instance) joins it; stop removes
     the network after the containers left it. Mapped-address consumption is unchanged: the
     network isolates parallel sessions, the runner keeps using the published host ports.
     - The session lifecycle owns one `DataBatch` per test: the registered per-test hook creates a
-    fresh batch before the test, the instance views returned by postgresql/kafka/vault/http bind
+    fresh batch before the test, the service views returned by postgresql/kafka/vault/http bind
     to it, and apply_pending takes exactly that batch; a new test never sees a previous test's
     operations.
 
     Constraints:
     - Do not start anything when the configuration is absent — activation owns the gate.
-    - Do not restart the service container on reset — only dependency instance data resets.
+    - Do not restart the instance container on reset — only dependency service data resets.
 
     Use `sandbox-file` for the configuration semantics.
     Use `conventions` for type hints and testing.
@@ -86,13 +87,15 @@ Annotations: |
       1. Probe the container runtime availability via `check_runtime`.
       2. Create the sandbox network — the per-session isolation boundary every container the
       session starts joins.
-      3. Start every configured instance engine — built with `build_engine` — with its startup
+      3. Start every configured service engine — built with `build_engine` — with its startup
       data as `DataOperation` entries taken from the `StartupData` sections in the fixed order —
-      vault secrets, http mappings, the kafka spec, then postgres init.
-      4. Render the service environment values against the started instance addresses.
-      5. Start the service container and wait for readiness — the port, or the health path when
-      configured.
-      6. Log the startup progress at every step, and the resolved service address with its source.
+      vault secrets, http mappings, then postgres init.
+      4. Render the instance environment values against the started service addresses.
+      5. Start the instance container and wait for readiness — the port, or the health path when
+      declared — within the readiness declaration's deadline at its interval; an expired
+      deadline fails with an actionable error.
+      6. Log the startup progress at every step, and the resolved service address with its
+      source.
 
       Requirements:
       - Visible startup progress; tests run only after readiness.
@@ -102,17 +105,17 @@ Annotations: |
       Requirements:
       - Runs on every exit path; safe when already stopped.
     "clear()": |
-      Return every dependency instance to its baseline.
+      Return every dependency service to its baseline.
 
       Algorithm:
-      1. Reset every instance engine — wipe and journal replay.
+      1. Reset every service engine — wipe and journal replay.
 
       Requirements:
-      - After clear the instances hold exactly the baseline state; test order cannot change
+      - After clear the services hold exactly the baseline state; test order cannot change
       outcomes.
 
       Constraints:
-      - The service container keeps running.
+      - The instance container keeps running.
     "baseline() -> boundary: BaselineBoundary": |
       Open the session baseline boundary. Author fixture code runs inside the boundary; the
       boundary semantics belong to `BaselineBoundary`.
@@ -121,8 +124,8 @@ Annotations: |
 
       Algorithm:
       1. Take the accumulated `DataBatch`.
-      2. Group the operations by instance, preserving accumulation order.
-      3. Apply each group to the instance's `BaseEngine`.
+      2. Group the operations by service, preserving accumulation order.
+      3. Apply each group to the service's `BaseEngine`.
 
       Requirements:
       - Runs before the first service call of a test.
@@ -130,47 +133,47 @@ Annotations: |
 
       Use `data-operations` for the laziness contract.
     "ensure_service()": |
-      Fail fast with a readable error when the service container has died — the error names the
-      died service and attaches its output read from `ServiceContainer`; a no-op while the service
-      runs.
+      Fail fast with a readable error when the instance container has died — the error names the
+      died service and attaches its output read from `ServiceContainer`; a no-op while the
+      instance runs.
 
       Requirements:
       - Called on the request path — the api fixture's first-request guard invokes it — so a
-      crashed service surfaces as an explicit died-service indication, never as a hang or an
+      crashed instance surfaces as an explicit died-service indication, never as a hang or an
       opaque connection failure.
     "new_test_batch()": |
       Create the fresh data batch of the next test.
 
       Called by the registered per-test lifecycle hook before every test, ahead of the preset
-      enqueue — a new test never sees a previous test's operations; the instance views returned
+      enqueue — a new test never sees a previous test's operations; the service views returned
       afterwards bind to the new batch.
     "postgresql(name: str) -> instance: PostgresInstance": |
-      The test-facing view of the named postgresql instance.
+      The test-facing view of the named postgresql service.
 
-      `name`: the instance name; an unknown name or a kind mismatch fails fast listing the
-      configured instances.
+      `name`: the service name; an unknown name or a kind mismatch fails fast listing the
+      configured services.
     "kafka(name: str) -> instance: KafkaInstance": |
-      The test-facing view of the named kafka instance.
+      The test-facing view of the named kafka service.
 
-      `name`: the instance name; an unknown name or a kind mismatch fails fast listing the
-      configured instances.
+      `name`: the service name; an unknown name or a kind mismatch fails fast listing the
+      configured services.
     "vault(name: str) -> instance: VaultInstance": |
-      The test-facing view of the named vault instance.
+      The test-facing view of the named vault service.
 
-      `name`: the instance name; an unknown name or a kind mismatch fails fast listing the
-      configured instances.
+      `name`: the service name; an unknown name or a kind mismatch fails fast listing the
+      configured services.
     "http(name: str) -> instance: HttpInstance": |
-      The test-facing view of the named http instance.
+      The test-facing view of the named http service.
 
-      `name`: the instance name; an unknown name or a kind mismatch fails fast listing the
-      configured instances.
+      `name`: the service name; an unknown name or a kind mismatch fails fast listing the
+      configured services.
 
 "BaselineBoundary(sandbox: Sandbox)":
   location: baseline.py
   annotations: |
     The marked baseline boundary of the session.
 
-    `sandbox`: the session sandbox whose instances the boundary governs.
+    `sandbox`: the session sandbox whose services the boundary governs.
 
     Requirements:
     - Inside the boundary, declared operations apply immediately and are recorded into the
@@ -181,58 +184,61 @@ Annotations: |
     - Do not accumulate lazily inside the boundary — operations apply at declaration time.
   methods:
     "open()": |
-      Enter the boundary: instance operations switch to immediate apply and journal recording.
+      Enter the boundary: service operations switch to immediate apply and journal recording.
     "close()": |
-      Leave the boundary: journals freeze as the baseline; operations return to lazy accumulation.
+      Leave the boundary: journals freeze as the baseline; operations return to lazy
+      accumulation.
 
-"ServiceContainer(config: ServiceConfig)":
+"ServiceContainer(config: InstanceConfig)":
   location: service_container.py
   annotations: |
-    The running service under test.
+    The running instance under test.
 
-    `config`: the service entry — image, env, port, optional health path.
+    `config`: the instance entry — image, env, port, readiness declaration.
 
     Requirements:
-    - Readiness completes before start returns — the port, or the health path when configured.
+    - Readiness completes before start returns — the port, or the health path when declared,
+    within the declared deadline at the declared interval; an expired deadline fails as
+    `EngineError` — an actionable failure naming the instance and the waited check, never a hang.
     - The container is labeled for sandbox identification and removed on stop.
-    - A died service is detectable and its output is readable for diagnostics.
+    - A died instance is detectable and its output is readable for diagnostics.
 
     Constraints:
-    - Do not restart the service on reset.
+    - Do not restart the instance on reset.
 
     Use `testcontainers` for the generic container and readiness waiting.
     Use `requests` for health-path probing.
   properties:
     "host -> str": |
-      The mapped host of the service.
+      The mapped host of the instance.
     "port -> int": |
-      The published port of the service.
+      The published port of the instance.
   methods:
     "start(env: dict[str, str], network: Network | None)": |
-      Start the service image with the rendered environment.
+      Start the instance image with the rendered environment.
 
       `env`: fully rendered values — placeholders already resolved.
-      `network`: the sandbox network the service container joins, side by side with the
-      dependency instances of the same sandbox; absent keeps the service standalone.
+      `network`: the sandbox network the instance container joins, side by side with the
+      dependency services of the same sandbox; absent keeps the instance standalone.
     "stop()": |
       Remove the container; safe when already stopped.
     "alive() -> alive: bool": |
-      Whether the service container still runs — the input of the died-service indication carried
-      by `Sandbox`.
+      Whether the instance container still runs — the input of the died-service indication
+      carried by `Sandbox`.
     "logs() -> output: str": |
-      The service output, attached to the died-service indication carried by `Sandbox`.
+      The instance output, attached to the died-service indication carried by `Sandbox`.
 
 "render_service_env(env: dict[str, str], addresses: dict[str, InstanceAddress]) -> rendered: dict[str, str]":
   location: env_render.py
   annotations: |
-    Render the service environment values against the started instance addresses.
+    Render the instance environment values against the started service addresses.
 
-    `env`: the raw environment values of the service entry.
-    `addresses`: instance name → mapped address.
-    `rendered`: the values with every instance placeholder resolved.
+    `env`: the raw environment values of the instance entry.
+    `addresses`: service name → mapped address.
+    `rendered`: the values with every service placeholder resolved.
 
     Algorithm:
-    1. Build the rendering context — one entry per instance name, exposing host and port.
+    1. Build the rendering context — one entry per service name, exposing host and port.
     2. Render every value strictly — an unknown placeholder fails naming the value.
 
     Use `jinja2` for the rendering engine and the strict undefined behavior.
@@ -245,12 +251,12 @@ Annotations: |
     installation entry.
 
     `context`: the caller namespace the lifecycle hooks land in.
-    `config`: the validated configuration — the armed activation; None when the document is absent
-    and nothing is registered.
+    `config`: the validated configuration — the armed activation; None when the document is
+    absent and nothing is registered.
 
     Algorithm:
-    1. Read and validate the configuration document via `load_sandbox_config`; an invalid document
-    fails before anything starts.
+    1. Read and validate the configuration document via `load_sandbox_config`; an invalid
+    document fails before anything starts.
     2. Register the session lifecycle into `context` — start before the first test with visible
     progress, stop at session end on every exit path.
     3. Register the per-test enqueue of marked presets ahead of the test's own operations.
@@ -287,5 +293,5 @@ Annotations: |
 Author: Goga
 CreatedAt: 06/10/26
 Description: |
-  Session runtime of the sandbox — ordered lifecycle orchestration, the service container, and
-  pytest activation.
+  Session runtime of the sandbox — ordered lifecycle orchestration, the instance container,
+  and pytest activation.

@@ -7,137 +7,212 @@ Annotations: |
   Use `conventions` for the pydantic kw_only data models and the docstring rules.
   Use `ruamel-yaml` for reading the sandbox configuration document.
 
-  Sandbox configuration cell. Owns the declarative model of .sandbox.yml — the service-under-test
-  entry, the named dependency instances, and the startup data layer — and its fail-fast reading.
-  An invalid document fails before anything starts, with an error naming the file location and the
-  offending entry. Use relative imports inside the cell.
+  Sandbox configuration cell. Owns the declarative model of the sandbox document — the
+  instance-under-test entry, the named dependency services, and the startup data layer — and its
+  fail-fast reading. An invalid document fails before anything starts, with an error naming the
+  document location and the offending entry. Use relative imports inside the cell.
 
 ---
 
-"SandboxConfig(service: ServiceConfig, instances: dict[str, InstanceConfig], data: StartupData)":
+"SandboxConfig(instance: InstanceConfig, services: dict[str, ServiceConfig], data: StartupData)":
   location: sandbox_config.py
   annotations: |
-    Root model of the sandbox configuration: the service under test, the dependency instances keyed
-    by name, and the startup data layer.
+    Root model of the sandbox configuration: the instance under test, the dependency services
+    keyed by name, and the startup data layer.
 
-    `service`: the service-under-test entry.
-    `instances`: dependency instance entries keyed by instance name; several instances of one kind
+    `instance`: the instance-under-test entry.
+    `services`: dependency service entries keyed by service name; several services of one kind
     are allowed.
     `data`: the startup data layer declarations.
 
     Requirements:
-    - pydantic model, kw_only; the data sections default empty; the service entry is required.
+    - pydantic model, kw_only; the data sections default empty; the instance entry is required.
 
     Use `conventions` for the data-model rules.
   properties:
-    "service -> ServiceConfig": |
-      The service-under-test entry.
-    "instances -> dict[str, InstanceConfig]": |
-      Dependency instance entries keyed by instance name.
+    "instance -> InstanceConfig": |
+      The instance-under-test entry.
+    "services -> dict[str, ServiceConfig]": |
+      Dependency service entries keyed by service name.
     "data -> StartupData": |
       The startup data layer declarations.
 
-"ServiceConfig(image: str, env: dict[str, str], port: int, health: str | None)":
-  location: service.py
-  annotations: |
-    Service-under-test entry.
-
-    `image`: the container image of the service under test.
-    `env`: environment values; values may carry instance address placeholders resolved at sandbox
-    start.
-    `port`: the container port the service serves on.
-    `health`: optional health path for readiness; None waits for the port only.
-  properties:
-    "image -> str": |
-      Container image of the service under test.
-    "env -> dict[str, str]": |
-      Environment values; values may carry instance address placeholders.
-    "port -> int": |
-      Container port the service serves on.
-    "health -> str | None": |
-      Health path for readiness; None means port readiness only.
-
-"InstanceConfig(name: str, kind: str, image: str | None)":
+"InstanceConfig(image: str, env: dict[str, str], port: int, probe: ProbeConfig | None)":
   location: instance.py
   annotations: |
-    One named dependency instance declaration.
+    Instance-under-test entry.
 
-    `name`: the instance name — the key tests address the instance by and the placeholder name used
-    inside service env values.
+    `image`: the container image of the instance under test.
+    `env`: environment values; values may carry service address placeholders resolved at sandbox
+    start.
+    `port`: the container port the service serves on.
+    `probe`: optional readiness declaration — the health path and the wait bounds; absent keeps
+    the default wait — port readiness with the default deadline and interval.
+
+    Requirements:
+    - pydantic model, kw_only.
+
+    Constraints:
+    - The probe path applies only here — the single readiness check with a configurable path.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "image -> str": |
+      Container image of the instance under test.
+    "env -> dict[str, str]": |
+      Environment values; values may carry service address placeholders.
+    "port -> int": |
+      Container port the service serves on.
+    "probe -> ProbeConfig | None": |
+      Readiness declaration; None keeps the default wait.
+
+"ServiceConfig(name: str, kind: str, image: str | None, topics: list[TopicConfig], probe: ProbeConfig | None)":
+  location: service.py
+  annotations: |
+    One named dependency service declaration.
+
+    `name`: the service name — the key tests address the service by and the placeholder name
+    used inside the instance env values.
     `kind`: the dependency kind — postgresql, kafka, vault, or http.
     `image`: optional image override; absent keeps the product-pinned default of the kind.
+    `topics`: the kafka topic declarations — required and non-empty for the kafka kind, rejected
+    for every other kind.
+    `probe`: optional readiness declaration — the wait bounds for this service's readiness
+    check.
+
+    Requirements:
+    - pydantic model, kw_only.
+    - A kafka entry without topics is invalid — the mock would open no listener.
 
     Constraints:
     - Do not accept any kind outside the four supported ones.
+    - Do not accept a probe path here — the path belongs to the instance-under-test entry only.
+
+    Use `conventions` for the data-model rules.
   properties:
     "name -> str": |
-      Instance name — the addressable key and the placeholder name.
+      Service name — the addressable key and the placeholder name.
     "kind -> str": |
       Dependency kind: postgresql, kafka, vault, or http.
     "image -> str | None": |
       Image override; None keeps the product-pinned default.
+    "topics -> list[TopicConfig]": |
+      The kafka topic declarations of the service entry.
+    "probe -> ProbeConfig | None": |
+      Readiness declaration; None keeps the default wait.
 
-"StartupData(vault: dict[str, list[dict[str, object]]], http: dict[str, list[dict[str, object]]], kafka: dict[str, str], postgres: dict[str, list[str]])":
+"StartupData(vault: dict[str, list[dict[str, object]]], http: dict[str, list[dict[str, object]]], postgres: dict[str, list[str]])":
   location: startup_data.py
   annotations: |
-    Startup data layer declarations, in the fixed section order — vault secrets, http mappings, the
-    kafka spec, then postgres init.
+    Startup data layer declarations, in the fixed section order — vault secrets, http mappings,
+    then postgres init.
 
-    `vault`: instance name → secret declarations (path, data).
-    `http`: instance name → stub mapping declarations (request, response).
-    `kafka`: instance name → AsyncAPI spec file path; the section converts to one startup spec
-    operation per kafka instance, the payload carrying the document path.
-    `postgres`: instance name → init SQL statements.
+    `vault`: service name → secret declarations (path, data).
+    `http`: service name → stub mapping declarations (request, response).
+    `postgres`: service name → init SQL statements.
 
     Requirements:
-    - Sections default empty; declarations target instances by name.
+    - Sections default empty; declarations target services by name.
     - Within a section, the declaration order is the application order.
 
     Constraints:
     - Do not reorder declarations — data dependencies are expressed by declaration order.
+    - Do not accept a kafka section — the kafka topology is declared inline on the service entry.
 
     Use `conventions` for the data-model rules.
   properties:
     "vault -> dict[str, list[dict[str, object]]]": |
-      Instance name → secret declarations (path, data).
+      Service name → secret declarations (path, data).
     "http -> dict[str, list[dict[str, object]]]": |
-      Instance name → stub mapping declarations (request, response).
-    "kafka -> dict[str, str]": |
-      Instance name → AsyncAPI spec file path.
+      Service name → stub mapping declarations (request, response).
     "postgres -> dict[str, list[str]]": |
-      Instance name → init SQL statements; the section converts each statement to one startup
-      insert operation whose payload carries the sql key (executed as given).
+      Service name → init SQL statements; each statement converts to one startup insert operation
+      whose payload carries the sql key (executed as given).
+
+"ProbeConfig(timeout: float = 30.0, interval: float = 0.5, path: str | None = None)":
+  location: probe.py
+  annotations: |
+    Per-target readiness declaration.
+
+    `timeout`: the readiness deadline in seconds; an expired deadline fails with an actionable
+    error.
+    `interval`: the seconds between readiness attempts.
+    `path`: the health-check path — accepted only on the instance-under-test entry.
+
+    Requirements:
+    - pydantic model, kw_only.
+    - The defaults reproduce the established wait exactly: timeout 30.0, interval 0.5.
+    - Both bounds are positive; the interval never exceeds the timeout.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "timeout -> float": |
+      The readiness deadline in seconds.
+    "interval -> float": |
+      The seconds between readiness attempts.
+    "path -> str | None": |
+      The health-check path; valid only on the instance-under-test entry.
+
+"TopicConfig(name: str, partitions: int = 1)":
+  location: topic.py
+  annotations: |
+    One kafka topic declaration.
+
+    `name`: the topic name the mock opens and tests produce into.
+    `partitions`: the topic partition count; 1 when omitted.
+
+    Requirements:
+    - pydantic model, kw_only; a non-empty topic name.
+    - `partitions` is a positive integer.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "name -> str": |
+      The topic name.
+    "partitions -> int": |
+      The partition count; the tool default is 1.
 
 "load_sandbox_config(path: str | None) -> config: SandboxConfig | None":
   location: loader.py
   annotations: |
-    Read and validate the sandbox configuration document .sandbox.yml at the root of the consumer
-    service test repository.
+    Read and validate the sandbox configuration document .goga/tools/pybuggy/sandbox.yml under
+    the pybuggy tools home of the consumer service test repository.
 
-    `path`: explicit document location; None resolves .sandbox.yml in the current working
-    directory.
+    `path`: explicit document location; None resolves .goga/tools/pybuggy/sandbox.yml in the
+    current working directory.
     `config`: the validated configuration model; None when the document is absent — the sandbox
     stays fully inert.
 
     Algorithm:
-    1. Resolve the document location; an absent document returns None.
-    2. Parse the document; an unparsable document fails with an error naming the location and the
-    parse problem.
-    3. Validate the service entry — image, env, port are required; health is optional.
-    4. Validate every instance entry — a non-empty unique name and a kind of postgresql, kafka,
-    vault, or http; the grpc kind fails with an explicit "not supported yet" error; an image
-    override is optional.
-    5. Validate the startup data sections — every declaration targets an existing instance of the
-    matching kind.
-    6. Validate the service env values — every instance placeholder name references a configured
-    instance.
-    7. Return the model.
+    1. Resolve the document location — the current working directory only, no upward search; an
+    absent document returns None.
+    2. Parse the document; an unparsable document fails with an error naming the location and
+    the parse problem.
+    3. Apply the top-level key diagnostics — a "service" key fails naming the rename to
+    "instance"; an "instances" key fails naming the rename to "services"; any other unknown
+    top-level key fails as unknown.
+    4. Validate the instance entry — image, env, port are required; the probe is optional with
+    the path confined to this entry.
+    5. Validate every service entry — a non-empty unique name matching the template identifier
+    grammar — letters, digits, underscores, not starting with a digit (it names the
+    `{{<name>.host}}` / `{{<name>.port}}` placeholders); a kind of postgresql, kafka,
+    vault, or http; the grpc kind fails with an explicit "not supported yet" error; an optional
+    image override; kafka entries declare a non-empty topics list; non-kafka entries declare
+    none; the probe carries no path.
+    6. Validate the startup data sections — every declaration targets an existing service of
+    the matching kind; a kafka section fails as removed — the topology is declared inline on
+    the service entry.
+    7. Validate the instance env values — every service placeholder name references a
+    configured service.
+    8. Return the model.
 
     Requirements:
     - Validation completes fully before anything is started — no container is created for an
     invalid document.
-    - The service env placeholder names resolve against the configured instances — an unknown
+    - The instance env placeholder names resolve against the configured services — an unknown
     name fails before any container starts.
+    - The probe bounds are validated — a positive timeout and interval, the interval never
+    exceeding the timeout.
     - Every failure message names the document location and the offending entry.
 
     Constraints:
@@ -152,4 +227,5 @@ Annotations: |
 Author: Goga
 CreatedAt: 06/10/26
 Description: |
-  Sandbox configuration cell — the declarative .sandbox.yml models and their fail-fast reading.
+  Sandbox configuration cell — the declarative sandbox document models and their fail-fast
+  reading.

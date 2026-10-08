@@ -10,17 +10,17 @@ service under test.
 
 ## Reaching an instance
 
-Every configured instance is reachable by name through the session fixture, kind-named:
+Every configured service is reachable by name through the session fixture, kind-named:
 
 ```python
-sandbox.postgresql("db").insert(...)  # a postgresql instance named db
-sandbox.http("payments").stub(...)  # an http instance named payments
-sandbox.vault("secrets").put(...)  # a vault instance named secrets
-sandbox.kafka("events").produce(...)  # a kafka instance named events
+sandbox.postgresql("db").insert(...)  # a postgresql service named db
+sandbox.http("payments").stub(...)  # an http service named payments
+sandbox.vault("secrets").put(...)  # a vault service named secrets
+sandbox.kafka("events").produce(...)  # a kafka service named events
 ```
 
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped address the
-service env placeholders resolved to.
+env placeholders of the instance under test resolve to.
 
 ## Declaring operations
 
@@ -41,6 +41,9 @@ sandbox.kafka("events").produce("orders.events", {"id": 1}, key="1")
 
 Nothing is executed at declaration time. The sandbox applies the accumulated batch automatically
 before the first call to the service under test — there is no manual apply.
+
+- A produced topic must be declared on the kafka service in the sandbox document — an undeclared
+  topic fails the operation.
 
 ## Per-test presets
 
@@ -74,7 +77,7 @@ test declaring them, on top of the reset state, ahead of the test's own operatio
 
 ## Ordering and foreign keys
 
-Operations apply in the order declared, per instance: presets first, then in-test operations in
+Operations apply in the order declared, per service: presets first, then in-test operations in
 call order; rows within one insert apply in list order. Foreign-key chains follow the declaration
 order — parents before children, one `insert` call targeting one table (the database constraint
 still needs the parent row applied first). Reset-side cleanup needs no ordering from the author.
@@ -122,11 +125,12 @@ Rules common to both forms:
 - The grammar is validated at declaration — a malformed reference fails before anything executes.
 - Resolution happens at apply time, right before the first service call; references never rewrite
   the declaration.
-- References resolve within one postgres instance; rows created by raw sql startup statements are
+- References resolve within one postgres service; rows created by raw sql startup statements are
   addressable only through `$lookup`.
 
 ## Preconditions and side effects
 
-- Instance names and kinds come from `.sandbox.yml`; an unknown name fails fast.
+- Service names and kinds come from the sandbox document
+  (`.goga/tools/pybuggy/sandbox.yml`); an unknown name fails fast.
 - A failed operation fails the test with a readable error identifying the operation.
 - Read-back of dependency state is not part of this iteration — assert on service responses.

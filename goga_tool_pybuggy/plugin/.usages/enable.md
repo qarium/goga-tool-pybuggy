@@ -101,9 +101,10 @@ loader:
 
 ## Sandbox activation
 
-The same `plugin.install()` call also arms the pybuggy sandbox: when the consumer repository root
-holds a `.sandbox.yml` document, the sandbox starts before the first test of every pytest session
-(mock dependency instances and the service under test, with visible progress), and the api
-fixture's address resolves to the sandbox's service. Without the document nothing changes — the
-suite runs exactly as without the sandbox. A typed `--base-url` flag together with an active
-sandbox fails fast with an explicit error: the sandbox owns the service address.
+The same `plugin.install()` call also arms the pybuggy sandbox: when the test repository holds
+the sandbox document at `.goga/tools/pybuggy/sandbox.yml` (under the pybuggy tools home), the
+sandbox starts before the first test of every pytest session (mock dependency services and the
+instance under test, with visible progress), and the api fixture's address resolves to the
+sandbox's service. Without the document nothing changes — the suite runs exactly as without the
+sandbox. A typed `--base-url` flag together with an active sandbox fails fast with an explicit
+error: the sandbox owns the service address.
