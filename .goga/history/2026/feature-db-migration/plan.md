@@ -954,25 +954,31 @@ None)` (`apply.py`) — importable from `goga_tool_pybuggy.sandbox.migrations`.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 4 is being executed
-- [ ] **Contract tests** (new `tests/sandbox/migrations/test_apply.py` + `conftest.py`;
+- [x] **Declaration**: stated in the iteration output and the progress log
+- [x] **Contract tests** (new `tests/sandbox/migrations/test_apply.py` + `conftest.py`;
   expected to fail now): both names importable from the facade; signatures match the contract
   (`conn: Connection`, `migrations: list[MigrationFile]` / `conn`, `location: str`,
   `git_url: str | None`, `git_ref: str | None`); the facade `__all__` is exactly the 8 names
-- [ ] **REPL prototype (R4)**: re-confirm the external facts live (M-R4.5) — inspect
-  `git.Repo.clone_from` (the `branch=None` kwarg semantics) and `psycopg.Connection.
-  transaction()` on an autocommit connection against the installed wheels; in the REPL drive
-  the doubles: apply a default two-statement file (observe begin/execute…/commit), a
-  NO TRANSACTION file (observe no transaction markers), a failing statement (observe the
-  wrapped `MigrationError` and the stopped loop); drive the local and remote orchestration
-  over a `tmp_path` set and a pseudo-clone side effect; then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/migrations/apply.py` per the design details;
-  extend the facade `__all__` to the final 8 names
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/migrations/ -x -v` — pass;
-  fresh-interpreter facade check: `.venv/bin/python -c "from
-  goga_tool_pybuggy.sandbox.migrations import apply_migrations, run_migrations"` and the full
-  8-name import
-- [ ] **Logic tests** (design scenarios, transferred):
+  — observed failing on import first (TDD: `ImportError: cannot import name
+  'apply_migrations'`), passing after the code landed
+- [x] **REPL prototype (R4)**: re-confirmed the external facts live (M-R4.5) — inspected
+  `git.Repo.clone_from` (the `branch=None` kwarg semantics: `Git.transform_kwarg` returns
+  `[]` for None → `--branch` omitted, default branch) with a live local shallow-clone
+  roundtrip, `psycopg.Connection.transaction()` signature, `GitCommandError` shape, and the
+  `diag.message_primary or str(exc)` fallback on a constructed error; drove the doubles:
+  default two-file apply (begin/execute…/commit), NO TRANSACTION file (no transaction
+  markers), failing statement (wrapped `MigrationError`, rollback, stopped loop); drove the
+  clone-location resolution (resolve/missing/escape) over fresh temp targets; then migrated
+- [x] **Code**: created `goga_tool_pybuggy/sandbox/migrations/apply.py` per the design
+  details (`_run_local`/`_run_remote` orchestration, `_shallow_clone`,
+  `_resolve_clone_location` with the containment check, `_apply_in_transaction` /
+  `_apply_in_autocommit`, local `_server_message`); extended the facade `__all__` to the
+  final 8 names
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/migrations/ -x -v` — 65
+  passed; fresh-interpreter facade checks: `.venv/bin/python -c "from
+  goga_tool_pybuggy.sandbox.migrations import apply_migrations, run_migrations"` and the
+  full 8-name import — both succeed
+- [x] **Logic tests** (design scenarios, transferred):
   1. `test_apply_executes_each_file_in_its_own_transaction` — two default migrations over
      `FakeConnection`; `fake.statements == [("transaction","begin",None), ("execute",
      "CREATE TABLE t (id int)",None), ("transaction","commit",None), ("transaction",
@@ -1012,15 +1018,22 @@ None)` (`apply.py`) — importable from `goga_tool_pybuggy.sandbox.migrations`.
       default file → `fake.statements == [("transaction","begin",None), ("transaction",
       "commit",None)]`; exactly one INFO `"migration applied"` record with `record.migration ==
       "00009_empty.sql"` (the design-review R7 pin)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green; REPL-reproduce any
-  failure with the exact fixture first (M-R4.5)
-- [ ] **Contract re-verification**: both Algorithms, the Requirements (caller's order
+
+  All 13 present (17 apply tests total with the 4 contract tests); scenario 11 drives the
+  escape through a sibling temp dir (`../<escape-root>/migrations`) so the containment
+  check fires against an existing valid `.sql` folder outside the clone root.
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — 1631 passed, 17 skipped (Task 3 baseline
+  1614 + 17 new), fully green after the lint-driven reformat; no logic failures occurred
+- [x] **Contract re-verification**: both Algorithms, the Requirements (caller's order
   preserved; one apply per call; every failure names the failed step; nothing journaled), and
-  the Constraints (no version table; no clone caching; no Down execution) hold; the engines
-  import is untouched (no upward import from the leaf — M-R5.5)
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
-  `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  the Constraints (no version table; no clone caching — fresh `TemporaryDirectory` per call;
+  no Down execution) hold; the engines import is untouched (no upward import from the leaf —
+  M-R5.5; the only stdlib additions are `logging`, `tempfile`, `pathlib.Path`)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  `ruff format --check` on touched files — clean (initial pass fixed 9 findings in the test
+  file: SIM117 nested `with` combinations, E501 wraps via `ruff format`, one docstring
+  shortening — no decomposition needed, no C90/PLR trips)
+- [x] **Completion**: checkboxes marked; submitted to the external review loop
 
 ### Task 5: Config cell I — `migrations.py` models, `ServiceConfig.migrations`, facade to 9 names (TDD)
 
