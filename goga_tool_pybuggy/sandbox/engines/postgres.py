@@ -7,6 +7,7 @@ from psycopg.rows import dict_row
 from testcontainers.community.postgres import PostgresContainer
 
 from ..config.service import ServiceConfig
+from ..migrations import run_migrations
 from .base import BaseEngine
 from .operation import DataOperation
 from .refs import LOOKUP_KEY, REF_KEY, is_reference, parse_ref_address
@@ -59,13 +60,24 @@ class PostgresEngine(BaseEngine):
     is one session-scoped autocommit connection. Reset discovers the user tables from the
     catalog and truncates them all in one statement — the container is never restarted.
 
+    Migrations: when the service declaration carries a migrations entry, the declared
+    migration set applies exactly once per session — after the container reaches readiness
+    and the data-plane connection opens, before the startup data operations. The apply runs
+    through ``run_migrations`` over the engine's session connection, with the declared
+    location and git source; each applied file is reported as one progress line. A failed
+    migration stops start — the failure surfaces as ``EngineError`` naming the service and
+    the migration file, with ``MigrationError`` as the cause. Applied migrations never enter
+    the baseline journal: the migrated schema survives the wipe, and only journaled data
+    replays on reset.
+
     Row inserts resolve ``$ref`` / ``$lookup`` values at execution time and capture every
     applied row (``RETURNING``) into a per-table symbol stream — the address space later
     ``$ref`` declarations resolve against. The stream lives since the last wipe: reset clears
     it and the journal replay rebuilds it.
 
     Attributes:
-        config: The service declaration — name, kind, image override, probe.
+        config: The service declaration — name, kind, image override, probe, migrations
+            declaration.
     """
 
     _container_port = CONTAINER_PORT
@@ -158,6 +170,37 @@ class PostgresEngine(BaseEngine):
             autocommit=True,
         )
         logger.debug("postgres plane open", extra={"service": self.config.name})
+
+    def _migrate(self) -> None:
+        """Apply the declared migration set once over the session connection.
+
+        Nothing declared — no call, no log: the absence of a migrations declaration
+        reproduces the established startup. A declared set flattens into the
+        ``run_migrations`` scalars — the declared location and, when a git source is
+        declared, its URL and ref; the apply runs over the engine's session connection
+        between the data-plane open and the startup data, so startup statements run against
+        the migrated schema. Applied migrations never enter the baseline journal — the
+        migrated schema survives the wipe and only journaled data replays on reset.
+
+        Raises:
+            MigrationError: A migration step failed — the source resolution, the set load or
+                a statement; the start lifecycle wrapper converts it into ``EngineError``
+                naming the service and the step.
+        """
+        declaration = self.config.migrations
+
+        if declaration is None:
+            return
+
+        git_url = declaration.git.url if declaration.git else None
+        git_ref = declaration.git.ref if declaration.git else None
+
+        run_migrations(
+            conn=self._connection,
+            location=declaration.location,
+            git_url=git_url,
+            git_ref=git_ref,
+        )
 
     def _execute(self, operation: DataOperation) -> None:
         """Execute one postgresql operation through the session connection.

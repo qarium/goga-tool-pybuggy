@@ -2,28 +2,35 @@
 
 import inspect
 from typing import ClassVar
+from unittest import mock
 
 import psycopg
 import pytest
-from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig
-from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, PostgresEngine
+from goga_tool_pybuggy.sandbox.config import GitSource, MigrationsConfig, ProbeConfig, ServiceConfig
+from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, PostgresEngine, build_engine
 from goga_tool_pybuggy.sandbox.engines import base as base_module
 from goga_tool_pybuggy.sandbox.engines import postgres as postgres_module
+from goga_tool_pybuggy.sandbox.migrations import MigrationError
 
 from ..conftest import requires_docker
 
 
-def db_engine(image: str | None = None, probe: ProbeConfig | None = None) -> PostgresEngine:
+def db_engine(
+    image: str | None = None,
+    probe: ProbeConfig | None = None,
+    migrations: MigrationsConfig | None = None,
+) -> PostgresEngine:
     """Build a postgres engine of the sample ``db`` service.
 
     Args:
         image: The optional image override of the service declaration.
         probe: The optional readiness declaration of the service entry.
+        migrations: The optional migrations declaration of the service entry.
 
     Returns:
         The engine of a service named ``db`` of kind ``postgresql``.
     """
-    return PostgresEngine(ServiceConfig(name="db", kind="postgresql", image=image, probe=probe))
+    return PostgresEngine(ServiceConfig(name="db", kind="postgresql", image=image, probe=probe, migrations=migrations))
 
 
 def insert_op(rows: list[dict[str, object]], table: str = "orders") -> DataOperation:
@@ -262,6 +269,21 @@ class TestPostgresEngineContract:
     def test_postgres_engine_declares_the_engine_owned_readiness_wait(self):
         """The kind engine overrides ``_wait_ready`` — readiness probing is engine-owned."""
         assert PostgresEngine._wait_ready is not BaseEngine._wait_ready
+
+    def test_postgres_engine_declares_the_migrate_override(self):
+        """The kind engine overrides ``_migrate`` — the declared set applies at startup."""
+        assert PostgresEngine._migrate is not BaseEngine._migrate
+
+    def test_build_engine_carries_the_migrations_declaration(self):
+        """``build_engine`` maps postgresql onto ``PostgresEngine`` carrying the whole config."""
+        declaration = MigrationsConfig(location="db/migrations", git=GitSource(url="https://x/r.git", ref="rel"))
+        config = ServiceConfig(name="db", kind="postgresql", migrations=declaration)
+
+        engine = build_engine(config)
+
+        assert isinstance(engine, PostgresEngine)
+        assert engine.config is config
+        assert engine.config.migrations is declaration
 
 
 class TestPostgresEngineBuild:
@@ -722,6 +744,102 @@ class TestPostgresEnginePlane:
         engine._wipe()
 
         assert engine._symbols == {}
+
+
+class TestPostgresEngineMigrations:
+    """The declared-migrations apply step, driven through the patched ``run_migrations`` seam."""
+
+    def test_migrate_hook_applies_declared_set_with_flattened_args(self):
+        """A declared remote set flattens into the exact ``run_migrations`` kwargs.
+
+        The connection is the engine's own session connection — a signature drift between the
+        cells surfaces here.
+        """
+        declaration = MigrationsConfig(location="db/migrations", git=GitSource(url="https://x/r.git", ref="rel"))
+        engine = db_engine(migrations=declaration)
+        connection = FakeConnection()
+        engine._connection = connection
+
+        with mock.patch.object(postgres_module, "run_migrations") as run:
+            engine._migrate()
+
+        run.assert_called_once_with(
+            conn=connection,
+            location="db/migrations",
+            git_url="https://x/r.git",
+            git_ref="rel",
+        )
+
+    def test_migrate_hook_flattens_local_source_to_none_git_scalars(self):
+        """A declared local set carries no git source — both git scalars flatten to None."""
+        engine = db_engine(migrations=MigrationsConfig(location="db/migrations"))
+        connection = FakeConnection()
+        engine._connection = connection
+
+        with mock.patch.object(postgres_module, "run_migrations") as run:
+            engine._migrate()
+
+        run.assert_called_once_with(conn=connection, location="db/migrations", git_url=None, git_ref=None)
+
+    def test_migrate_hook_is_noop_without_declaration(self):
+        """Without a migrations declaration nothing runs — the established startup stands."""
+        engine = db_engine()
+        engine._connection = FakeConnection()
+
+        with mock.patch.object(postgres_module, "run_migrations") as run:
+            result = engine._migrate()
+
+        run.assert_not_called()
+        assert result is None
+
+    def test_start_runs_migrations_between_plane_open_and_startup_data(self, monkeypatch: pytest.MonkeyPatch):
+        """Startup data runs against the migrated schema — the apply precedes the seed."""
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
+        monkeypatch.setattr(postgres_module, "psycopg", FakePsycopg())
+        engine = db_engine(migrations=MigrationsConfig(location="db/migrations"))
+        connection = FakeConnection()
+
+        def open_plane() -> None:
+            engine._connection = connection
+
+        engine._open_plane = open_plane
+
+        with mock.patch.object(postgres_module, "run_migrations") as run:
+            run.side_effect = lambda **_kwargs: connection.statements.append(("execute", "MIGRATIONS", None))
+            engine.start([sql_op("INSERT INTO seed VALUES (1)")], network=None)
+
+        assert ("execute", "MIGRATIONS", None) in connection.statements
+        assert ("execute", "INSERT INTO seed VALUES (1)", None) in connection.statements
+        assert connection.statements.index(("execute", "MIGRATIONS", None)) < connection.statements.index(
+            ("execute", "INSERT INTO seed VALUES (1)", None)
+        )
+
+    def test_migrate_failure_maps_to_engine_error_naming_service(self, monkeypatch: pytest.MonkeyPatch):
+        """A failed migration stops start — ``EngineError`` names service, step, file and cause."""
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
+        monkeypatch.setattr(postgres_module, "psycopg", FakePsycopg())
+        engine = db_engine(migrations=MigrationsConfig(location="db/migrations"))
+
+        def open_plane() -> None:
+            engine._connection = FakeConnection()
+
+        engine._open_plane = open_plane
+        failure = MigrationError('00002_bad.sql: relation "ghost" does not exist')
+
+        with (
+            mock.patch.object(postgres_module, "run_migrations", side_effect=failure),
+            pytest.raises(EngineError) as excinfo,
+        ):
+            engine.start([])
+
+        message = str(excinfo.value)
+        assert "service 'db'" in message
+        assert "start failed at migrations" in message
+        assert "00002_bad.sql" in message
+        assert 'relation "ghost" does not exist' in message
+        assert excinfo.value.__cause__ is failure
+        assert FakePostgresContainer.built[-1].stops == 1
+        assert engine._started is False
 
 
 def schema_ops() -> list[DataOperation]:

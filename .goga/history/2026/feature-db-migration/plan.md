@@ -1284,26 +1284,34 @@ implementation detail — NOT added to any manifest (M-R5.5).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 7 is being executed
-- [ ] **Contract tests** (extend `test_base.py` + `test_postgres.py`; expected to fail now):
+- [x] **Declaration**: stated in the iteration output and the progress log
+- [x] **Contract tests** (extend `test_base.py` + `test_postgres.py`; expected to fail now):
   `BaseEngine` exposes the protected `_migrate` (no-op default); `PostgresEngine._migrate`
   calls `run_migrations` with the flattened kwargs; `build_engine` still maps
-  postgresql → `PostgresEngine` carrying the whole `ServiceConfig`
-- [ ] **REPL prototype (R4)**: in the venv REPL drive the override over a started-shaped
-  engine with `engine._connection = FakeConnection()` and the patched `run_migrations` —
-  declared remote source (observe the exact kwargs incl. `conn is engine._connection`),
-  declared local source (`git_url=None, git_ref=None`), and no declaration
-  (`assert_not_called`); drive the full `start` over fakes and observe the statements order
-  (MIGRATIONS before the seed); drive the failure leg and read the `EngineError` message and
-  its `__cause__`; then migrate
-- [ ] **Code**: add the `_migrate` no-op hook + the insertion + the docstring enumeration to
-  `base.py`; add the `_migrate` override + the `run_migrations` import to `postgres.py`;
-  update the `build_engine` docstring in `runtime.py`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_base.py
-  tests/sandbox/engines/test_postgres.py -x -v` — pass; fresh-interpreter facade check:
-  `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.engines import BaseEngine,
-  PostgresEngine, build_engine, EngineError"` (11 names byte-stable)
-- [ ] **Logic tests** (design scenarios, transferred):
+  postgresql → `PostgresEngine` carrying the whole `ServiceConfig` — the `_migrate` pair
+  observed red first (TDD: `AttributeError: type object 'PostgresEngine' has no attribute
+  '_migrate'`); `db_engine` grew the optional `migrations` parameter; the build_engine
+  contract test asserts `engine.config is config` with the declaration carried
+- [x] **REPL prototype (R4)**: drove the exact override body live in the venv over a
+  simulated post-change namespace — declared remote source (observed the exact kwargs incl.
+  `conn is engine._connection`), declared local source (`git_url=None, git_ref=None`), and
+  no declaration (never called, returns None); drove the failure leg through the real
+  `_run_step` (observed `service 'db': start failed at migrations: 00002_bad.sql: relation
+  "ghost" does not exist` as `EngineError` with the `MigrationError` cause preserved);
+  confirmed `GitSource(url=...).ref` defaults None; then migrated
+- [x] **Code**: added the `_migrate` no-op hook + the start insertion
+  (`_run_step("start failed at migrations", self._migrate)` between plane open and
+  `_apply_operations`) + the config docstring enumeration ("migrations declaration
+  (consumed by the postgres kind)") + the start docstring sentence to `base.py`; added the
+  `_migrate` override + the Migrations class-docstring paragraph + `from ..migrations
+  import run_migrations` (only — R5 import discipline) to `postgres.py`; updated the
+  `build_engine` Returns enumeration in `runtime.py`
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_base.py
+  tests/sandbox/engines/test_postgres.py -x -v` — 88 passed, 10 docker-gated skips;
+  fresh-interpreter facade check: `BaseEngine`, `PostgresEngine`, `build_engine`,
+  `EngineError` import cleanly — `__all__` byte-stable at 11 names; `BaseEngine._migrate`
+  signature `(self) -> None`, the override distinct
+- [x] **Logic tests** (design scenarios, transferred):
   1. `test_migrate_hook_applies_declared_set_with_flattened_args` — `ServiceConfig(name="db",
      kind="postgresql", migrations=MigrationsConfig(location="db/migrations",
      git=GitSource(url="https://x/r.git", ref="rel")))`; patched
@@ -1322,20 +1330,34 @@ implementation detail — NOT added to any manifest (M-R5.5).
      `MigrationError('00002_bad.sql: relation "ghost" does not exist')`; `pytest.raises(
      EngineError)` → message contains `service 'db'`, `start failed at migrations`,
      `00002_bad.sql`, and the server text; `excinfo.value.__cause__` is the `MigrationError`
-     (the cross-family mapping — the author-facing failure surface)
+     (the cross-family mapping — the author-facing failure surface); the failed start stops
+     the container (stops == 1) and leaves `_started` False
   5. Base-hook unit: the default `BaseEngine._migrate` is a no-op (a minimal stub subclass —
-     no declaration consumed, no error)
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green; REPL-reproduce any
-  failure first (M-R4.5)
-- [ ] **Contract re-verification**: the PostgresEngine Migrations paragraph holds clause by
-  clause — once per session, after readiness + plane open, before startup data, through
-  `run_migrations` over the session connection, one progress line per file (the
-  `migration-set` progress), failure → `EngineError` naming service + file with
-  `MigrationError` as cause, never journaled; `build_engine`'s extended requirement;
-  `start returns only after the set is applied`
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
-  `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+     no declaration consumed, no error) — plus `MigratingFakeEngine` pins the insertion
+     point (`["build", "ready", "plane", "migrate", "execute:insert"]`) and
+     `test_migrate_hook_flattens_local_source_to_none_git_scalars` pins the git-less
+     flattening branch
+
+  All 5 present (7 engine logic tests + 3 contract tests; 10 new tests total)
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — 1673 passed, 17 skipped (Task 6 baseline
+  1663 + 10 new), fully green; no logic failures to reproduce — the only fixes were the
+  three lint findings below
+- [x] **Contract re-verification**: the PostgresEngine Migrations paragraph holds clause by
+  clause — once per session (`reset` never re-runs the hook: wipe + journal replay only),
+  after readiness + plane open, before startup data, through `run_migrations` over the
+  session connection, one progress line per file (the `migration-set` progress — the
+  engine adds none of its own), failure → `EngineError` naming service + file with
+  `MigrationError` as cause, never journaled (the hook sits before
+  `_journal.extend(startup)` and never touches the journal); `build_engine`'s extended
+  requirement (the whole `ServiceConfig` reaches the kind engine by construction);
+  `start returns only after the set is applied` (the synchronous step); `_migrate` absent
+  from every manifest (git status: only base.py, postgres.py, runtime.py + the two test
+  files touched)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  `ruff format --check` on touched files — clean (initial pass fixed 3 findings in the test
+  file: one E501 overlong URL, one ARG005 unused lambda argument (`**_kwargs`), one SIM117
+  nested `with` combined — no production findings, no decomposition needed)
+- [x] **Completion**: checkboxes marked; submitted to the external review loop
 
 ### Task 8: Integration test — the reset role split over a real container (integration tests)
 

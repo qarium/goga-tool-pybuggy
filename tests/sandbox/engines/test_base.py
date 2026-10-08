@@ -112,6 +112,13 @@ class FakeEngine(BaseEngine):
         return self._started
 
 
+class MigratingFakeEngine(FakeEngine):
+    """Fake engine recording the migrations step — pins the start insertion point."""
+
+    def _migrate(self) -> None:
+        self.calls.append("migrate")
+
+
 def operation(action: str = "insert") -> DataOperation:
     """Build one sample operation of the postgresql insert shape.
 
@@ -207,6 +214,13 @@ class TestBaseEngineContract:
         assert signature.parameters["interval"].annotation is float
         assert signature.return_annotation is None
 
+    def test_base_engine_declares_the_protected_migrate_hook(self):
+        """``_migrate`` exists on the base — the no-op default with the ``(self)`` signature."""
+        signature = inspect.signature(BaseEngine._migrate)
+
+        assert list(signature.parameters) == ["self"]
+        assert signature.return_annotation is None
+
 
 class TestBaseEngineLogic:
     """Journal, ordering and failure behavior of the base, driven through the recording fake."""
@@ -221,6 +235,21 @@ class TestBaseEngineLogic:
         assert engine.calls == ["build", "ready", "plane", "execute:insert"]
         assert engine.journal == [startup]
         assert engine.started is True
+
+    def test_start_runs_the_migrations_step_between_plane_open_and_startup(self):
+        """The migrations step runs after the data-plane open and before the startup data."""
+        engine = MigratingFakeEngine()
+
+        engine.start([operation()])
+
+        assert engine.calls == ["build", "ready", "plane", "migrate", "execute:insert"]
+
+    def test_the_default_migrate_hook_is_a_noop(self):
+        """The base ``_migrate`` default consumes no declaration and raises nothing."""
+        engine = FakeEngine()
+
+        assert engine._migrate() is None
+        assert engine.calls == []
 
     def test_base_readiness_bounds_default_and_override(self):
         """Without a probe the bounds are the 30.0/0.5 defaults; a probe overrides both (D6)."""

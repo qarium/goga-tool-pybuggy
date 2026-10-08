@@ -53,8 +53,8 @@ def build_engine(config: ServiceConfig) -> BaseEngine:
 
     Returns:
         The engine of the service's kind, constructed with the declaration — the image
-        override, the topic declarations, and the readiness declaration reach the engine
-        via ``config``.
+        override, the topic declarations, the readiness declaration, and the migrations
+        declaration reach the engine via ``config``.
 
     Raises:
         EngineError: The service kind has no engine; the message lists the supported kinds.

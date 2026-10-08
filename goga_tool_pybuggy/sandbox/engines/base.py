@@ -37,10 +37,12 @@ class BaseEngine:
     on reset, and stop safely. Each kind engine implements the internal kind hooks:
     ``_build_container``, ``_wait_ready``, ``_open_plane``, ``_execute``, ``_wipe`` and
     ``_close_plane``, plus the ``_container_port`` class attribute carrying the kind's service
-    port the ``address`` property publishes.
+    port the ``address`` property publishes. The ``_migrate`` hook is the exception — a no-op
+    default overridden only by kinds that own migrations.
 
     Attributes:
-        config: The service declaration — name, kind, image override, topics, probe.
+        config: The service declaration — name, kind, image override, topics, probe,
+            migrations declaration (consumed by the postgres kind).
     """
 
     _container_port: int
@@ -49,7 +51,8 @@ class BaseEngine:
         """Initialize the engine of one configured dependency service.
 
         Args:
-            config: The service declaration — name, kind, image override, topics, probe.
+            config: The service declaration — name, kind, image override, topics, probe,
+                migrations declaration (consumed by the postgres kind).
         """
         self.config = config
         self._journal: list[DataOperation] = []
@@ -93,9 +96,11 @@ class BaseEngine:
         """Start the service container and bring it to readiness.
 
         Readiness completes before start returns — within the declared deadline at the declared
-        interval. The startup operations apply in declaration order and join the journal as the
-        initial baseline entries. A failed start leaves nothing behind — the started parts are
-        removed and the failure re-raises.
+        interval. Declared migrations apply between the data-plane open and the startup data —
+        through the protected ``_migrate`` hook, a no-op default — so startup statements run
+        against the migrated schema. The startup operations apply in declaration order and join
+        the journal as the initial baseline entries. A failed start leaves nothing behind — the
+        started parts are removed and the failure re-raises.
 
         Args:
             startup: The startup data of this service, in declaration order.
@@ -116,6 +121,7 @@ class BaseEngine:
             self._run_step("start failed at container start", self._container.start)
             self._run_step("start failed at readiness wait", self._wait_ready)
             self._run_step("start failed at data-plane open", self._open_plane)
+            self._run_step("start failed at migrations", self._migrate)
             self._apply_operations(startup)
         except Exception:
             logger.error("service start failed", extra={"service": self.config.name, "kind": self.config.kind})
@@ -210,6 +216,15 @@ class BaseEngine:
             NotImplementedError: The kind engine did not override the hook.
         """
         raise NotImplementedError("the kind engine did not override _open_plane")
+
+    def _migrate(self) -> None:
+        """Apply the service's declared migrations — a no-op default.
+
+        Kinds without migrations override nothing: the default consumes no declaration and
+        raises nothing, so the absence of a migrations declaration reproduces the established
+        startup. A kind that owns migrations overrides the hook to run its declared set once
+        per session, over the open data-plane connection, before the startup data.
+        """
 
     def _execute(self, operation: DataOperation) -> None:
         """Execute one operation through the kind's data plane.
