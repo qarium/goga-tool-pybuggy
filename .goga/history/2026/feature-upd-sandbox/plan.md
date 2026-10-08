@@ -1550,18 +1550,34 @@ safety) unchanged; vocabulary in docstrings/logs ("instance").
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 10 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/test_service_container.py`): constructed with
+- [x] **Declaration**: state that Task 10 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/test_service_container.py`): constructed with
   the new `InstanceConfig`; `EngineError` importable and raised on expiry
-- [ ] **REPL prototype (R4)**: in the REPL (patched socket/requests) drive both loops —
+  (reworked first; the constructor-annotation test failed against the old
+  `ServiceConfig`-typed parameter — TDD red confirmed before implementation)
+- [x] **REPL prototype (R4)**: in the REPL (patched socket/requests) drive both loops —
   port-only with the default probe (30.0/0.5 constants asserted) and `path="/healthz"` with a
   2xx stub; drive the expiry `{timeout: 0.2, interval: 0.05}` with a never-opening port and
   read the `EngineError` message (image, port check, deadline); then migrate
-- [ ] **Code**: rework `goga_tool_pybuggy/sandbox/service_container.py` per D10; delete the
+  (all legs observed live in venv heredoc REPLs over fakes: default-port expiry at 60
+  attempts / 60 sleeps of 0.5 with the "within 30s" message; 3rd-try success with exactly 2
+  sleeps; health 2xx at declared 45.0/1.0 bounds with 3 probes of `timeout=5`; health expiry
+  at 0.25/0.125; real-wall-clock expiry of 0.2/0.05 at 0.222s raising `EngineError`; then
+  migrated and re-verified in a fresh interpreter — annotation, EngineError identity,
+  constants gone, both expiry messages reproduced)
+- [x] **Code**: rework `goga_tool_pybuggy/sandbox/service_container.py` per D10; delete the
   readiness `RuntimeError` constants
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_service_container.py
+  (`from .config import InstanceConfig, ProbeConfig` + `from .engines import EngineError`;
+  `READINESS_TIMEOUT`/`READINESS_INTERVAL` deleted; `_wait_ready` reads
+  `probe = self.config.probe or ProbeConfig()` and dispatches on `probe.path is None`; both
+  loops bounded by the declared timeout/interval raising the D10 `EngineError`; log events
+  "instance starting"/"instance ready"/"instance stopped" with image extras — distinct from
+  the engine events, stable and unique)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_service_container.py
   -x -v` — pass
-- [ ] **Logic tests** (scenarios 26, 27, transferred verbatim):
+  (26 passed incl. both docker-gated live cases executing for real — default port branch and
+  health-path branch against the pinned wiremock image; fresh-interpreter checks ok)
+- [x] **Logic tests** (scenarios 26, 27, transferred verbatim):
   26. `test_service_container_port_only_default_and_health_path` — FakeSocket/requests: no
       probe → TCP loop with 30.0/0.5; probe with `path: /healthz` → GET loop until 2xx;
       assertions on probe calls and bounds (the path knob applies only to the instance entry;
@@ -1570,13 +1586,28 @@ safety) unchanged; vocabulary in docstrings/logs ("instance").
       interval: 0.05}`, port never opens → `EngineError` naming the image, the port check,
       and the deadline; and never a bare `RuntimeError` (assert `isinstance(exc,
       EngineError)`) — the new `ServiceContainer` contract clause
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (both landed by name — scenario 26 pins the default bounds via expiry at 60 sleeps of 0.5
+  plus the success path and the declared-bounds GET loop; scenario 27 asserts the full
+  escaped D10 message, `type(exc) is EngineError`, and the 0.2–2.0s wall-clock window on the
+  real clock; also retained — port/health deadline variants at exact-binary intervals, the
+  refused-health-probe-is-one-attempt branch, and the full build/liveness/logs/stop suites
+  on the new shapes)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/ tests/sandbox/data/ tests/sandbox/test_service_container.py -x` green
-- [ ] **Contract re-verification**: readiness-before-return, never-restart-on-reset,
+  (440 green = 124 config + 224 engines + 66 data + 26 service container, live cases
+  executing; ledger blast radius verified — full tree collects 1543, red files exactly the
+  scheduled suites: sandbox test_sandbox/test_baseline + test_activation + plugin +
+  test_session_lifecycle, all on the old shapes)
+- [x] **Contract re-verification**: readiness-before-return, never-restart-on-reset,
   died-instance detectability unchanged
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked against the ServiceContainer CODEMANIFEST annotation clause by clause —
+  InstanceConfig constructor, the EngineError expiry sentence, sandbox labels, removal on
+  stop, died-instance detectability; no restart path exists on the container)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (one N813, one F401, and one format drift corrected in the test file; both gates exit 0;
+  authoritative suites re-run green after the fixes)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 11: `Sandbox` — wiring swap, fixed startup-data order, private rename (TDD)
 

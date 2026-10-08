@@ -1,27 +1,32 @@
 """Contract and logic tests for the ``ServiceContainer`` entity."""
 
 import inspect
+import re
 import time
 
 import pytest
 import requests
-from goga_tool_pybuggy.sandbox.config import ServiceConfig
+from goga_tool_pybuggy.sandbox.config import InstanceConfig, ProbeConfig
+from goga_tool_pybuggy.sandbox.engines import EngineError
 from goga_tool_pybuggy.sandbox.service_container import ServiceContainer
 
 from .conftest import requires_docker
 
+SAMPLE_IMAGE = "wiremock/wiremock:3.13.0"
 
-def service_config(health: str | None = None, port: int = 8080) -> ServiceConfig:
-    """Build the service declaration of the sample service under test.
+
+def instance_config(probe: ProbeConfig | None = None, port: int = 8080) -> InstanceConfig:
+    """Build the instance-under-test declaration of the sample instance.
 
     Args:
-        health: The optional health path of the declaration; ``None`` selects port readiness.
-        port: The container port the service serves on.
+        probe: The readiness declaration of the entry; ``None`` keeps the default wait — port
+            readiness at the 30.0s deadline and 0.5s interval.
+        port: The container port the instance serves on.
 
     Returns:
-        A ``ServiceConfig`` of the pinned wiremock sample image.
+        An ``InstanceConfig`` of the pinned wiremock sample image.
     """
-    return ServiceConfig(image="wiremock/wiremock:3.13.0", env={}, port=port, health=health)
+    return InstanceConfig(image=SAMPLE_IMAGE, env={}, port=port, probe=probe)
 
 
 class FakeWrappedContainer:
@@ -103,15 +108,17 @@ class FakeRequests:
 
 
 class FakeTime:
-    """Namespace double of ``time`` — instant monotonic, no sleeping."""
+    """Namespace double of ``time`` — instant monotonic, sleeps recorded and applied."""
 
     def __init__(self) -> None:
         self.now = 100.0
+        self.sleeps: list[float] = []
 
     def monotonic(self) -> float:
         return self.now
 
     def sleep(self, seconds: float) -> None:
+        self.sleeps.append(seconds)
         self.now += seconds
 
 
@@ -133,18 +140,18 @@ def started_container(
     monkeypatch: pytest.MonkeyPatch,
     fake_requests: FakeRequests | None = None,
     fake_probe: FakePortProbe | None = None,
-    config: ServiceConfig | None = None,
+    config: InstanceConfig | None = None,
 ) -> tuple[ServiceContainer, FakeDockerContainer]:
-    """Build a service container whose container, probe and HTTP seams are faked and start it.
+    """Build an instance container whose container, probe and HTTP seams are faked and start it.
 
     Args:
         monkeypatch: The pytest monkeypatch fixture swapping the module seams.
         fake_requests: The recording requests double serving the health probes.
         fake_probe: The recording port-probe double answering the port probes.
-        config: The service declaration; defaults to the port-readiness sample.
+        config: The instance declaration; defaults to the port-readiness sample.
 
     Returns:
-        The started service container and its fake container double.
+        The started instance container and its fake container double.
     """
     from goga_tool_pybuggy.sandbox import service_container as module
 
@@ -155,7 +162,7 @@ def started_container(
     if fake_requests is not None:
         monkeypatch.setattr(module, "requests", fake_requests)
 
-    container = ServiceContainer(config if config is not None else service_config())
+    container = ServiceContainer(config if config is not None else instance_config())
     container.start({"K": "v"})
 
     wrapped = container._container
@@ -171,10 +178,11 @@ class TestServiceContainerContract:
         assert ServiceContainer is not None
 
     def test_service_container_declares_the_contract_constructor(self):
-        """The constructor signature is ``__init__(self, config)``."""
+        """The constructor signature is ``__init__(self, config: InstanceConfig)``."""
         signature = inspect.signature(ServiceContainer.__init__)
 
         assert list(signature.parameters) == ["self", "config"]
+        assert signature.parameters["config"].annotation is InstanceConfig
 
     def test_service_container_declares_the_contract_methods(self):
         """``start`` / ``stop`` / ``alive`` / ``logs`` resolve with declared parameters."""
@@ -195,9 +203,16 @@ class TestServiceContainerContract:
 
             assert isinstance(attribute, property), name
 
+    def test_engine_error_is_importable_and_the_engine_failure_type(self):
+        """Readiness expiry fails as ``EngineError`` — importable from the engines facade."""
+        import goga_tool_pybuggy.sandbox.engines as engines_facade
+
+        assert engines_facade.EngineError is EngineError
+        assert issubclass(engines_facade.EngineError, RuntimeError)
+
 
 class TestServiceContainerStart:
-    """Container build and readiness of the service container, driven over the fakes."""
+    """Container build and readiness of the instance container, driven over the fakes."""
 
     def test_start_builds_image_labels_port_and_env_then_starts(self, monkeypatch: pytest.MonkeyPatch):
         """The build carries the declared image, the sandbox labels, the port and the rendered env."""
@@ -206,20 +221,20 @@ class TestServiceContainerStart:
         monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
         monkeypatch.setattr(module, "time", FakeTime())
         monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([True]))
-        container = ServiceContainer(service_config())
+        container = ServiceContainer(instance_config())
 
         container.start({"K": "v", "DATABASE_URL": "postgres://h:1/x"})
 
         wrapped = container._container
         assert wrapped is not None
-        assert wrapped.image == "wiremock/wiremock:3.13.0"
+        assert wrapped.image == SAMPLE_IMAGE
         assert wrapped.kwargs["labels"] == {"pybuggy-sandbox": "true"}
         assert wrapped.exposed_ports == [8080]
         assert wrapped.env == {"K": "v", "DATABASE_URL": "postgres://h:1/x"}
         assert wrapped.starts == 1
 
-    def test_start_waits_for_the_mapped_port_when_health_is_none(self, monkeypatch: pytest.MonkeyPatch):
-        """Without a health path readiness polls the mapped port until it accepts connections."""
+    def test_start_waits_for_the_mapped_port_when_no_probe_path_is_declared(self, monkeypatch: pytest.MonkeyPatch):
+        """Without a probe path readiness polls the mapped port until it accepts connections."""
         probe = FakePortProbe([False, False, True])
         _, wrapped = started_container(monkeypatch, fake_probe=probe)
 
@@ -227,39 +242,132 @@ class TestServiceContainerStart:
         assert probe.targets == [("127.0.0.2", 18080)] * 3
 
     def test_start_probes_the_health_path_until_2xx(self, monkeypatch: pytest.MonkeyPatch):
-        """With a health path readiness polls the mapped health endpoint until it answers 2xx."""
+        """With a probe path readiness polls the mapped health endpoint until it answers 2xx."""
         fake_requests = FakeRequests(statuses=[503, 500, 200])
-        config = service_config(health="/__admin/health")
+        config = instance_config(probe=ProbeConfig(path="/__admin/health"))
 
         _, wrapped = started_container(monkeypatch, fake_requests=fake_requests, config=config)
 
         assert wrapped is not None
         assert fake_requests.probes == [("http://127.0.0.2:18080/__admin/health", 5)] * 3
 
-    def test_start_port_readiness_fails_past_the_deadline(self, monkeypatch: pytest.MonkeyPatch):
-        """A port that never accepts connections fails within the deadline."""
+    def test_service_container_port_only_default_and_health_path(self, monkeypatch: pytest.MonkeyPatch):
+        """Scenario 26 — no probe keeps the TCP loop at 30.0/0.5; a probe path drives the GET loop."""
         from goga_tool_pybuggy.sandbox import service_container as module
 
         monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
-        monkeypatch.setattr(module, "time", FakeTime())
-        monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([False] * 100))
-        container = ServiceContainer(service_config())
 
-        with pytest.raises(RuntimeError, match=r"port.*did not accept.*30s"):
+        # No probe: the port loop expires at the default 30.0s deadline, sleeping the default
+        # 0.5s interval after every failed attempt.
+        fake_time = FakeTime()
+        monkeypatch.setattr(module, "time", fake_time)
+        monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([False] * 100))
+        container = ServiceContainer(instance_config())
+
+        with pytest.raises(EngineError, match=r"within 30s"):
             container.start({})
+
+        assert fake_time.sleeps == [0.5] * 60
+
+        # No probe, success path: attempts spaced by the default interval.
+        fake_time = FakeTime()
+        port_probe = FakePortProbe([False, False, True])
+        monkeypatch.setattr(module, "time", fake_time)
+        monkeypatch.setattr(module, "_tcp_port_open", port_probe)
+        container = ServiceContainer(instance_config())
+
+        container.start({})
+
+        assert port_probe.targets == [("127.0.0.2", 18080)] * 3
+        assert fake_time.sleeps == [0.5, 0.5]
+
+        # Declared probe with a path: the GET loop runs at the declared bounds.
+        fake_time = FakeTime()
+        fake_requests = FakeRequests(statuses=[503, 500, 200])
+        monkeypatch.setattr(module, "time", fake_time)
+        monkeypatch.setattr(module, "requests", fake_requests)
+        container = ServiceContainer(instance_config(probe=ProbeConfig(path="/healthz", timeout=45.0, interval=1.0)))
+
+        container.start({})
+
+        assert fake_requests.probes == [("http://127.0.0.2:18080/healthz", 5)] * 3
+        assert fake_time.sleeps == [1.0, 1.0]
+
+    def test_service_container_deadline_expires_as_engine_error(self, monkeypatch: pytest.MonkeyPatch):
+        """Scenario 27 — expiry fails as ``EngineError`` naming image, check and deadline."""
+        from goga_tool_pybuggy.sandbox import service_container as module
+
+        monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
+        monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([False] * 100))
+        container = ServiceContainer(instance_config(probe=ProbeConfig(timeout=0.2, interval=0.05)))
+        started = time.monotonic()
+
+        message = re.escape(
+            f"the instance under test (image {SAMPLE_IMAGE}) did not become ready: "
+            "port 127.0.0.2:18080 did not accept connections within 0.2s"
+        )
+
+        with pytest.raises(EngineError, match=message) as excinfo:
+            container.start({})
+
+        assert isinstance(excinfo.value, EngineError)
+        assert type(excinfo.value) is EngineError
+        assert 0.2 <= time.monotonic() - started < 2.0
+
+    def test_start_port_readiness_fails_past_the_deadline(self, monkeypatch: pytest.MonkeyPatch):
+        """A port that never accepts connections fails at the declared deadline and interval."""
+        from goga_tool_pybuggy.sandbox import service_container as module
+
+        fake_time = FakeTime()
+        monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
+        monkeypatch.setattr(module, "time", fake_time)
+        monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([False] * 100))
+        container = ServiceContainer(instance_config(probe=ProbeConfig(timeout=0.3, interval=0.25)))
+
+        with pytest.raises(EngineError, match=r"port 127\.0\.0\.2:18080 did not accept connections within 0\.3s"):
+            container.start({})
+
+        assert fake_time.sleeps == [0.25, 0.25]
 
     def test_start_health_readiness_fails_past_the_deadline(self, monkeypatch: pytest.MonkeyPatch):
-        """A health endpoint that never answers 2xx fails within the deadline."""
+        """A health endpoint that never answers 2xx fails at the declared deadline."""
         from goga_tool_pybuggy.sandbox import service_container as module
 
+        fake_time = FakeTime()
         monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
-        monkeypatch.setattr(module, "time", FakeTime())
-        fake_requests = FakeRequests(statuses=[503] * 100)
-        monkeypatch.setattr(module, "requests", fake_requests)
-        container = ServiceContainer(service_config(health="/healthz"))
+        monkeypatch.setattr(module, "time", fake_time)
+        monkeypatch.setattr(module, "requests", FakeRequests(statuses=[503] * 100))
+        container = ServiceContainer(instance_config(probe=ProbeConfig(path="/healthz", timeout=0.25, interval=0.125)))
 
-        with pytest.raises(RuntimeError, match=r"health.*did not succeed.*30s"):
+        with pytest.raises(EngineError, match=r"health endpoint http://127\.0\.0\.2:18080/healthz.*within 0\.25s"):
             container.start({})
+
+        assert fake_time.sleeps == [0.125, 0.125]
+
+    def test_start_health_probe_exception_is_one_failed_attempt(self, monkeypatch: pytest.MonkeyPatch):
+        """A refused health probe is one failed attempt, not an error — the loop retries."""
+
+        class RefusingRequests(FakeRequests):
+            """Requests double refusing once, then answering 200."""
+
+            def __init__(self) -> None:
+                super().__init__(statuses=[200])
+                self.calls = 0
+
+            def get(self, url: str, timeout: int | None = None) -> FakeResponse:
+                self.calls += 1
+
+                if self.calls == 1:
+                    raise requests.RequestException("connection refused")
+
+                return super().get(url, timeout=timeout)
+
+        fake_requests = RefusingRequests()
+        config = instance_config(probe=ProbeConfig(path="/healthz"))
+        _, wrapped = started_container(monkeypatch, fake_requests=fake_requests, config=config)
+
+        assert wrapped is not None
+        assert fake_requests.calls == 2
 
     def test_host_and_port_read_back_from_the_container_engine(self, monkeypatch: pytest.MonkeyPatch):
         """``host`` / ``port`` carry the mapped values, port as an ``int``."""
@@ -272,7 +380,7 @@ class TestServiceContainerStart:
 
     def test_host_and_port_fail_before_start(self):
         """Reading the mapped address before start fails — there is nothing mapped yet."""
-        container = ServiceContainer(service_config())
+        container = ServiceContainer(instance_config())
 
         with pytest.raises(RuntimeError, match=r"before start"):
             assert container.host
@@ -282,18 +390,18 @@ class TestServiceContainerStart:
 
 
 class TestServiceContainerLiveness:
-    """Liveness and diagnostics of the service container, driven over the fakes."""
+    """Liveness and diagnostics of the instance container, driven over the fakes."""
 
-    def test_alive_reloads_and_reports_a_running_service(self, monkeypatch: pytest.MonkeyPatch):
-        """``alive`` reloads the SDK status and reports True while the service runs."""
+    def test_alive_reloads_and_reports_a_running_instance(self, monkeypatch: pytest.MonkeyPatch):
+        """``alive`` reloads the SDK status and reports True while the instance runs."""
         container, wrapped = started_container(monkeypatch)
 
         assert wrapped is not None
         assert container.alive() is True
         assert wrapped.wrapped.reloads == 1
 
-    def test_alive_reports_a_dead_service(self, monkeypatch: pytest.MonkeyPatch):
-        """A non-running SDK status reports False — the died service is detectable."""
+    def test_alive_reports_a_dead_instance(self, monkeypatch: pytest.MonkeyPatch):
+        """A non-running SDK status reports False — the died instance is detectable."""
         container, wrapped = started_container(monkeypatch)
 
         assert wrapped is not None
@@ -305,12 +413,12 @@ class TestServiceContainerLiveness:
         """Without a started container liveness is False — before start and after stop alike."""
         from goga_tool_pybuggy.sandbox import service_container as module
 
-        assert ServiceContainer(service_config()).alive() is False
+        assert ServiceContainer(instance_config()).alive() is False
 
         monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
         monkeypatch.setattr(module, "time", FakeTime())
         monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([True]))
-        container = ServiceContainer(service_config())
+        container = ServiceContainer(instance_config())
         container.start({})
 
         container.stop()
@@ -318,8 +426,8 @@ class TestServiceContainerLiveness:
         assert container.alive() is False
 
     def test_logs_return_the_container_output_as_str(self, monkeypatch: pytest.MonkeyPatch):
-        """``logs`` decodes the container output — the died-service diagnostic payload."""
-        config = service_config()
+        """``logs`` decodes the container output — the died-instance diagnostic payload."""
+        config = instance_config()
         from goga_tool_pybuggy.sandbox import service_container as module
 
         monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
@@ -332,8 +440,8 @@ class TestServiceContainerLiveness:
 
         assert container.logs() == "OOMKilled after boot\n��"
 
-    def test_logs_of_a_stopped_service_are_empty(self, monkeypatch: pytest.MonkeyPatch):
-        """A stopped service has no readable output — ``logs`` answers an empty string."""
+    def test_logs_of_a_stopped_instance_are_empty(self, monkeypatch: pytest.MonkeyPatch):
+        """A stopped instance has no readable output — ``logs`` answers an empty string."""
         container, wrapped = started_container(monkeypatch)
 
         assert wrapped is not None
@@ -343,7 +451,7 @@ class TestServiceContainerLiveness:
 
 
 class TestServiceContainerStop:
-    """Teardown of the service container, driven over the fakes."""
+    """Teardown of the instance container, driven over the fakes."""
 
     def test_stop_removes_the_container(self, monkeypatch: pytest.MonkeyPatch):
         """``stop`` removes the started container exactly once."""
@@ -376,7 +484,7 @@ class TestServiceContainerStop:
                 raise RuntimeError("port bind conflict")
 
         monkeypatch.setattr(module, "DockerContainer", RefusingContainer)
-        container = ServiceContainer(service_config())
+        container = ServiceContainer(instance_config())
 
         with pytest.raises(RuntimeError, match="port bind conflict"):
             container.start({})
@@ -409,7 +517,7 @@ class TestServiceContainerStop:
 
 @requires_docker
 class TestServiceContainerContainer:
-    """Live behavior of the service container against a real container (docker-gated)."""
+    """Live behavior of the instance container against a real container (docker-gated)."""
 
     @staticmethod
     def _get_until_answer(url: str) -> requests.Response:
@@ -439,8 +547,8 @@ class TestServiceContainerContainer:
                 time.sleep(0.5)
 
     def test_service_container_readiness_and_liveness_port_branch(self):
-        """Variant A — port readiness: mapped address, liveness, output, stop safety."""
-        container = ServiceContainer(service_config(health=None))
+        """Variant A — default port readiness: mapped address, liveness, output, stop safety."""
+        container = ServiceContainer(instance_config())
 
         container.start({"K": "v"})
 
@@ -460,7 +568,7 @@ class TestServiceContainerContainer:
 
     def test_service_container_readiness_and_liveness_health_branch(self):
         """Variant B — health-path readiness against the wiremock admin health endpoint."""
-        container = ServiceContainer(service_config(health="/__admin/health"))
+        container = ServiceContainer(instance_config(probe=ProbeConfig(path="/__admin/health")))
 
         container.start({"K": "v"})
 
