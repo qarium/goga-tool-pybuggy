@@ -1358,21 +1358,46 @@ the produce gate (D9) plus the fail-fast empty-declaration check land. Design sc
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 8 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/engines/test_kafka.py`): `KafkaEngine`
+- [x] **Declaration**: state that Task 8 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/engines/test_kafka.py`): `KafkaEngine`
   importable; subclasses `BaseEngine`; constructed with a topics-carrying `ServiceConfig`
-- [ ] **REPL prototype (R4)**: in the venv REPL build the generator over `[("orders.events",
+  (reworked first; collection failed on the missing `_generate_document` import against the
+  old code — TDD red confirmed before implementation)
+- [x] **REPL prototype (R4)**: in the venv REPL build the generator over `[("orders.events",
   1), ("payments.events", 6)]` with host `localhost`, port `9093`; serialize with ruamel into
   `StringIO` and parse back — assert the D4 shape (`asyncapi == "2.6.0"`, server entry,
   channel keys, partitions, **no `messages` anywhere**); re-confirm `with_copy_into_container`
   accepts bytes (inspect the installed testcontainers signature, M-R4.5); then migrate
-- [ ] **Code**: rework `goga_tool_pybuggy/sandbox/engines/kafka.py` — delete the spec
+  (generator prototyped and roundtrip-verified live; `with_copy_into_container` signature
+  re-confirmed against the installed wheel — `transferable: Transferable` with bytes legal.
+  **Live deviation discovered and resolved (M-R4.5 debugging)**: docker-gated runs booted no
+  kafka listener — mokapi 0.52 binds the default 9092 and declares no topics under the 2.6
+  grammar (`host` field, channel key = topic). Four document variants were probed against the
+  live container reading its stderr: 2.6+host, 2.6+host+binding-topic, 2.6+url (boots, but
+  `partitions_for_topic` empty — auto-create only), 2.6+url+binding-topic (bootstrap timeout).
+  Only the **3.0 grammar** — `servers.<name>.host` (unchanged from D4) + channel `address` =
+  topic name (the design's own external-fact 3.0 form) — boots the declared topology with all
+  6 partitions arriving. Applied per the design's stated escape hatch "the AsyncAPI version is
+  an implementation detail; the docker-gated engine test verifies the topology boots and the
+  partitions arrive"; the CODEMANIFEST annotation (in-memory generation, servers rewritten to
+  the mapped address) is fully honored)
+- [x] **Code**: rework `goga_tool_pybuggy/sandbox/engines/kafka.py` — delete the spec
   plumbing; add the private in-memory document generator (D4); fail-fast empty-topics check;
   `_build_container` with docker-API transfer and command argument; D5 `_wait_ready`; D9
   produce gate; bounded re-wait in `_wipe`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_kafka.py -x
+  (`_spec_paths`/`_specs`/`_patch_specs`/`_resolve` plumbing and `pathlib`/`time` imports
+  deleted; `READINESS_TIMEOUT`/`READINESS_INTERVAL` deleted; `_generate_document` emits the
+  live-verified 3.0 shape with `ASYNCAPI_VERSION`/`DOCUMENT_VERSION`/`DOCUMENT_NAME`
+  constants; `start` fails fast with the verbatim message before `super().start()`; the
+  target `/data/sandbox.asyncapi.yaml` is both the transfer destination and the command
+  argument; D8 extras `{"service": ...}` throughout)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_kafka.py -x
   -v` — pass
-- [ ] **Logic tests** (scenarios 17, 18, 19, transferred verbatim):
+  (30 passed, 0 skipped — the docker-gated live cases ran for real: declared topology boots,
+  `payments.events` reports exactly partitions {0..5}, produce + restart-reset + baseline
+  replay over the generated document; fresh-interpreter check ok — `ServiceConfig`
+  constructor annotation, `_wait_ready` overridden, default bounds (30.0, 0.5))
+- [x] **Logic tests** (scenarios 17, 18, 19, transferred verbatim):
   17. `test_kafka_generated_document_shape` (unit) — `ServiceConfig` kafka with topics
       `[("orders.events", 1), ("payments.events", 6)]`; call the private generator with host
       `localhost`, port `9093`; assertions on the parsed document: `asyncapi == "2.6.0"`;
@@ -1388,14 +1413,33 @@ the produce gate (D9) plus the fail-fast empty-declaration check land. Design sc
       (bypassing the loader) → `start` raises `EngineError` mentioning "no topics" **before
       any docker call** (assert via a build-spy if unit, or docker-gated; defense in depth
       behind the loader)
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (all three landed by name plus the retained branches — scenario 17 asserts the 3.0 shape
+  with a docstring recording the live 2.6-rejection evidence, plus a never-written-to-disk
+  test spying on write-mode `open`; scenario 18 landed both as a unit case (exact D9 message
+  with sorted declared topics, producer untouched) and live; scenario 19 via a build spy
+  asserting zero container constructions and `_container is None`; also retained — build
+  pinned-image/labels/fixed-port/image-override, generated-document transfer + command,
+  started-engine producer bootstrap, readiness success/expiry/default-bounds, produce
+  send/await, flush boundary incl. empty group, wipe restart/re-wait/producer rebuild/close
+  safety, start-journal, reset-replay, stop-twice)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/ -x` green (engines cell complete; docker-gated cases skip cleanly)
-- [ ] **Contract re-verification**: the KafkaEngine annotation holds — generated document
+  (348 green — config 124 + engines 224 with every live case executing; two test-side bugs
+  fixed after REPL reproduction — an address assertion before start and a missing container
+  double in the reset test; ledger blast radius verified — full tree collects 1537 tests, red
+  files exactly the scheduled suites: sandbox cell + plugin, all on the old shapes)
+- [x] **Contract re-verification**: the KafkaEngine annotation holds — generated document
   internal (never written to the consumer repository), bootstrap = metadata = one address,
   restart wipe with surviving binding + document, delivery confirmed at the batch boundary
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked against the engines CODEMANIFEST annotation clause by clause; the in-memory
+  guarantee pinned by the write-mode `open` spy; the one-address criterion live-verified —
+  producer bootstraps, metadata advertises, and the env placeholders resolve to the same
+  reserved mapped host:port)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (one unused `socket` import removed; both gates exit 0; authoritative suites re-run green
+  after the fix)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ---
 

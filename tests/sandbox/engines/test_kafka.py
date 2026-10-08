@@ -2,56 +2,70 @@
 
 import inspect
 import json
-import pathlib
-import socket
 from typing import ClassVar
 
 import pytest
 import requests
-from goga_tool_pybuggy.sandbox.config import InstanceConfig
+from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig, TopicConfig
 from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, KafkaEngine
+from goga_tool_pybuggy.sandbox.engines import base as base_module
 from goga_tool_pybuggy.sandbox.engines import kafka as kafka_module
-from goga_tool_pybuggy.sandbox.engines.kafka import _serialize_value
+from goga_tool_pybuggy.sandbox.engines.kafka import _generate_document, _serialize_value
 from kafka import KafkaConsumer
 from kafka.serializer import Serializer
+from ruamel.yaml import YAML
 
 from ..conftest import requires_docker
 
 
-def events_engine(image: str | None = None) -> KafkaEngine:
-    """Build a kafka engine of the sample ``events`` instance.
-
-    Args:
-        image: The optional image override of the instance declaration.
+def sample_topics() -> list[TopicConfig]:
+    """The sample topic declarations of the ``events`` kafka service entry.
 
     Returns:
-        The engine of an instance named ``events`` of kind ``kafka``.
+        Two declarations — one carrying the partition default, one overriding it.
     """
-    return KafkaEngine(InstanceConfig(name="events", kind="kafka", image=image))
+    return [
+        TopicConfig(name="orders.events"),
+        TopicConfig(name="payments.events", partitions=6),
+    ]
 
 
-def spec_op(path: str) -> DataOperation:
-    """Build one kafka startup spec operation.
+def events_engine(
+    image: str | None = None,
+    probe: ProbeConfig | None = None,
+    topics: list[TopicConfig] | None = None,
+) -> KafkaEngine:
+    """Build a kafka engine of the sample ``events`` service.
 
     Args:
-        path: The absolute AsyncAPI document path resolved by the loader.
+        image: The optional image override of the service declaration.
+        probe: The optional readiness declaration of the service entry.
+        topics: The topic declarations of the service entry; the sample set when omitted.
 
     Returns:
-        A sample startup ``spec`` operation targeted at the ``events`` instance.
+        The engine of a service named ``events`` of kind ``kafka``.
     """
-    return DataOperation(instance="events", kind="kafka", action="spec", payload={"path": path})
+    return KafkaEngine(
+        ServiceConfig(
+            name="events",
+            kind="kafka",
+            image=image,
+            topics=topics if topics is not None else sample_topics(),
+            probe=probe,
+        )
+    )
 
 
 def produce_op(topic: str, value: object, key: str | None = None) -> DataOperation:
     """Build one kafka produce operation.
 
     Args:
-        topic: The target topic of the spec-defined topology.
+        topic: The target topic of the declared topology.
         value: The message value — a JSON mapping or a plain string.
         key: The optional partitioning key.
 
     Returns:
-        A sample ``produce`` operation targeted at the ``events`` instance.
+        A sample ``produce`` operation targeted at the ``events`` service.
     """
     return DataOperation(
         instance="events",
@@ -84,17 +98,35 @@ class FakeRequests:
         return FakeResponse(status)
 
 
-class FakeTime:
-    """Namespace double of ``time`` — instant monotonic, no sleeping."""
+class FakeClock:
+    """Clock double of the probe loop — instant monotonic, sleeps advance the clock."""
 
     def __init__(self) -> None:
         self.now = 100.0
+        self.slept: list[float] = []
 
     def monotonic(self) -> float:
         return self.now
 
     def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
         self.now += seconds
+
+
+def install_fake_clock(monkeypatch: pytest.MonkeyPatch) -> FakeClock:
+    """Patch the probe-loop clock of the engines base — no wall-clock waiting in unit tests.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture swapping the base seams.
+
+    Returns:
+        The installed clock double recording the interval sleeps.
+    """
+    clock = FakeClock()
+    monkeypatch.setattr(base_module, "monotonic", clock.monotonic)
+    monkeypatch.setattr(base_module, "sleep", clock.sleep)
+
+    return clock
 
 
 class FakeFuture:
@@ -227,40 +259,34 @@ def fake_build(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(kafka_module, "reserve_port", lambda: 19092)
 
 
-def write_spec(path: pathlib.Path, server_host: str = "localhost:9092", name: str = "asyncapi.yaml") -> str:
-    """Write one sample AsyncAPI kafka spec and return its path.
+def armed_engine(monkeypatch: pytest.MonkeyPatch, fake_requests: FakeRequests) -> KafkaEngine:
+    """Build a kafka engine whose container, requests and producer seams are faked.
 
     Args:
-        path: The writable directory of the test.
-        server_host: The ``servers.*.host`` value the author's document carries.
-        name: The document file name inside the directory.
+        monkeypatch: The pytest monkeypatch fixture swapping the module seams.
+        fake_requests: The recording requests double serving the health probes.
 
     Returns:
-        The path of the written spec document.
+        A kafka engine driven entirely over the fakes — no daemon, no network.
     """
-    path.mkdir(parents=True, exist_ok=True)
-    spec = path / name
-    spec.write_text(
-        f"""
-asyncapi: 3.0.0
-info:
-  title: events sandbox
-  version: 1.0.0
-servers:
-  production:
-    host: {server_host}
-    protocol: kafka
-channels:
-  orders.events:
-    bindings:
-      kafka:
-        topic: orders.events
-        partitions: 1
-""",
-        encoding="utf-8",
-    )
+    fake_build(monkeypatch)
+    monkeypatch.setattr(kafka_module, "requests", fake_requests)
+    monkeypatch.setattr(kafka_module, "KafkaProducer", FakeProducer)
+    install_fake_clock(monkeypatch)
 
-    return str(spec)
+    return events_engine()
+
+
+def parse_document(content: bytes) -> dict[str, object]:
+    """Parse the serialized AsyncAPI document back into a mapping.
+
+    Args:
+        content: The UTF-8 YAML bytes of a generated document.
+
+    Returns:
+        The parsed document mapping.
+    """
+    return YAML().load(content.decode("utf-8"))
 
 
 class TestKafkaEngineContract:
@@ -275,10 +301,20 @@ class TestKafkaEngineContract:
         assert issubclass(KafkaEngine, BaseEngine)
 
     def test_kafka_engine_declares_the_contract_constructor(self):
-        """The constructor signature is ``__init__(self, config)``."""
+        """The constructor signature is ``__init__(self, config)`` over ``ServiceConfig``."""
         signature = inspect.signature(KafkaEngine.__init__)
 
         assert list(signature.parameters) == ["self", "config"]
+        assert signature.parameters["config"].annotation is ServiceConfig
+
+    def test_kafka_engine_constructs_over_a_topics_carrying_service_config(self):
+        """The engine carries the service declaration — name, kind, image override, topics."""
+        topics = sample_topics()
+        engine = KafkaEngine(ServiceConfig(name="events", kind="kafka", topics=topics))
+
+        assert engine.config.name == "events"
+        assert engine.config.kind == "kafka"
+        assert engine.config.topics == topics
 
     def test_kafka_engine_inherits_the_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` resolve with declared parameters."""
@@ -299,6 +335,10 @@ class TestKafkaEngineContract:
 
         assert isinstance(address, property)
 
+    def test_kafka_engine_declares_the_engine_owned_readiness_wait(self):
+        """The kind engine overrides ``_wait_ready`` — readiness probing is engine-owned."""
+        assert KafkaEngine._wait_ready is not BaseEngine._wait_ready
+
 
 class TestKafkaEngineBuild:
     """Container build arguments of the kafka engine, driven through the patched constructor."""
@@ -314,11 +354,9 @@ class TestKafkaEngineBuild:
         assert container.kwargs["labels"] == {"pybuggy-sandbox": "true"}
         assert container.exposed_ports == [8080]
         assert container.bind_ports == [(19092, 19092)]
-        assert container.transfers == []
-        assert container.command is None
 
     def test_build_honors_the_image_override(self, monkeypatch: pytest.MonkeyPatch):
-        """The image override of the instance config reaches the container build."""
+        """The image override of the service declaration reaches the container build."""
         fake_build(monkeypatch)
         engine = events_engine(image="mokapi/mokapi:0.53.0")
 
@@ -326,161 +364,141 @@ class TestKafkaEngineBuild:
 
         assert container.image == "mokapi/mokapi:0.53.0"
 
-    def test_build_patches_the_startup_spec_and_transfers_it_as_command(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ):
-        """The spec's kafka server is rewritten to the mapped address and transferred, not mounted."""
+    def test_build_generates_the_document_and_transfers_it_as_command(self, monkeypatch: pytest.MonkeyPatch):
+        """The generated document carries the mapped address and rides the docker API, not a mount."""
         fake_build(monkeypatch)
-        monkeypatch.setattr(kafka_module, "requests", FakeRequests())
-        monkeypatch.setattr(kafka_module, "time", FakeTime())
-        monkeypatch.setattr(kafka_module, "KafkaProducer", FakeProducer)
         engine = events_engine()
 
-        engine.start([spec_op(write_spec(tmp_path))])
+        container = engine._build_container()
+
+        assert [target for _, target in container.transfers] == ["/data/sandbox.asyncapi.yaml"]
+        document = parse_document(container.transfers[0][0])
+        assert document["servers"] == {"kafka": {"protocol": "kafka", "host": "127.0.0.2:19092"}}
+        addresses = {channel["address"] for channel in document["channels"].values()}
+        assert addresses == {"orders.events", "payments.events"}
+        assert container.command == ["/data/sandbox.asyncapi.yaml"]
+
+    def test_start_consumes_the_declared_topics_and_opens_the_producer(self, monkeypatch: pytest.MonkeyPatch):
+        """A started engine probes health and bootstraps the producer at the mapped address."""
+        fake_requests = FakeRequests()
+        FakeProducer.built.clear()
+        engine = armed_engine(monkeypatch, fake_requests)
+
+        engine.start([produce_op("orders.events", {"id": 1})])
 
         try:
             container = engine._container
             assert container is not None
-            assert container.transfers[0][1] == "/data/asyncapi.yaml"
-            assert b"127.0.0.2:19092" in container.transfers[0][0]
-            assert b"localhost:9092" not in container.transfers[0][0]
-            assert container.command == ["/data/asyncapi.yaml"]
-            assert engine.address.port == 19092
+            assert container.starts == 1
+            assert fake_requests.probes[0] == ("http://127.0.0.2:18080/health", 5)
+            producer = engine._producer
+            assert isinstance(producer, FakeProducer)
+            assert producer.kwargs["bootstrap_servers"] == "127.0.0.2:19092"
+            assert producer.delivered == [("orders.events", None, {"id": 1}, 10)]
         finally:
             engine.stop()
 
-    def test_start_stashes_the_startup_specs_from_the_startup_operations(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: pathlib.Path
-    ):
-        """Every startup spec is patched and transferred in declaration order, command order matches."""
-        fake_build(monkeypatch)
-        monkeypatch.setattr(kafka_module, "requests", FakeRequests())
-        monkeypatch.setattr(kafka_module, "time", FakeTime())
-        monkeypatch.setattr(kafka_module, "KafkaProducer", FakeProducer)
-        engine = events_engine()
-        first = write_spec(tmp_path, name="first.yaml")
-        second = write_spec(tmp_path, name="second.yaml")
+    def test_start_fails_fast_without_topics_before_any_docker_call(self, monkeypatch: pytest.MonkeyPatch):
+        """Scenario 19: an empty topic declaration fails start before any docker call."""
+        builds: list[str] = []
 
-        engine.start([produce_op("orders.events", {"id": 1}), spec_op(first), spec_op(second)])
+        def build_spy(image: str, **kwargs: object) -> FakeDockerContainer:
+            builds.append(image)
 
-        try:
-            container = engine._container
-            assert container is not None
-            assert [target for _, target in container.transfers] == ["/data/first.yaml", "/data/second.yaml"]
-            assert all(b"127.0.0.2:19092" in content for content, _ in container.transfers)
-            assert container.command == ["/data/first.yaml", "/data/second.yaml"]
-        finally:
-            engine.stop()
+            return FakeDockerContainer(image, **kwargs)
 
-    def test_start_fails_fast_without_a_spec(self, monkeypatch: pytest.MonkeyPatch):
-        """A kafka instance without a spec fails before any container starts."""
-        fake_build(monkeypatch)
-        engine = events_engine()
+        monkeypatch.setattr(kafka_module, "DockerContainer", build_spy)
+        monkeypatch.setattr(kafka_module, "DockerClient", FakeDockerClient)
+        monkeypatch.setattr(kafka_module, "reserve_port", lambda: 19092)
+        engine = events_engine(topics=[])
 
-        with pytest.raises(EngineError, match=r"no AsyncAPI spec.*data\.kafka\.events"):
+        with pytest.raises(
+            EngineError,
+            match=r"service 'events': no topics declared.*mock opens no kafka listener",
+        ):
             engine.start([produce_op("orders.events", {"id": 1})])
 
+        assert builds == []
         assert engine._container is None
 
 
-class TestSpecPatching:
-    """Spec rewriting of the kafka engine: mapped-address kafka servers, strict failure modes."""
+class TestGeneratedDocument:
+    """Scenario 17: the in-memory AsyncAPI document of the declared topology."""
 
-    def test_patch_rewrites_only_the_kafka_servers(self, tmp_path: pathlib.Path):
-        """Kafka-protocol servers carry the mapped address; servers of other protocols stay."""
-        spec = tmp_path / "asyncapi.yaml"
-        spec.write_text(
-            """
-asyncapi: 3.0.0
-info:
-  title: events sandbox
-  version: 1.0.0
-servers:
-  production:
-    host: localhost:9092
-    protocol: kafka
-  admin:
-    host: localhost:8080
-    protocol: http
-channels:
-  orders.events:
-    bindings:
-      kafka:
-        topic: orders.events
-        partitions: 1
-""",
-            encoding="utf-8",
-        )
+    def test_kafka_generated_document_shape(self):
+        """The generated document carries the mapped server, declared channels, no messages.
 
-        patched = kafka_module._patch_specs("events", [str(spec)], "127.0.0.2", 19092)
+        The document is AsyncAPI 3.0 — the grammar the pinned mokapi parses (the channel
+        ``address`` carries the topic name; the 2.6 channel-key form was verified live to
+        bind the default port and declare no topics).
+        """
+        content = _generate_document("events", sample_topics(), "localhost", 9093)
+        document = parse_document(content)
 
-        content = patched[0][1].decode("utf-8")
-        assert "host: 127.0.0.2:19092" in content
-        assert "host: localhost:8080" in content
-        assert "localhost:9092" not in content
+        assert document["asyncapi"] == "3.0.0"
+        assert document["info"] == {"title": "events", "version": "1.0.0"}
+        assert document["servers"] == {"kafka": {"protocol": "kafka", "host": "localhost:9093"}}
 
-    def test_patch_fails_on_an_unreadable_document(self):
-        """A spec path that does not resolve fails with the instance and document named."""
-        with pytest.raises(EngineError, match=r"cannot read spec.*missing.yaml"):
-            kafka_module._patch_specs("events", ["/nonexistent/missing.yaml"], "127.0.0.2", 19092)
+        by_address = {channel["address"]: channel for channel in document["channels"].values()}
+        assert set(by_address) == {"orders.events", "payments.events"}
+        assert by_address["orders.events"]["bindings"]["kafka"]["partitions"] == 1
+        assert by_address["payments.events"]["bindings"]["kafka"]["partitions"] == 6
+        assert b"messages" not in content
 
-    def test_patch_fails_when_the_document_has_no_kafka_server(self, tmp_path: pathlib.Path):
-        """A spec whose servers carry no kafka protocol fails — mokapi would open no listener."""
-        spec = tmp_path / "asyncapi.yaml"
-        spec.write_text(
-            """
-asyncapi: 3.0.0
-info:
-  title: events sandbox
-  version: 1.0.0
-servers:
-  admin:
-    host: localhost:8080
-    protocol: http
-""",
-            encoding="utf-8",
-        )
+    def test_generated_document_is_never_written_to_disk(self, monkeypatch: pytest.MonkeyPatch, tmp_path):
+        """The generator touches no filesystem path — the document stays in memory."""
+        written: list[str] = []
+        real_open = open
 
-        with pytest.raises(EngineError, match=r"defines no kafka server"):
-            kafka_module._patch_specs("events", [str(spec)], "127.0.0.2", 19092)
+        def spying_open(file: object, mode: str = "r", *args: object, **kwargs: object) -> object:
+            if any(flag in mode for flag in ("w", "a", "x", "+")):
+                written.append(str(file))
 
-    def test_reserve_port_returns_a_bindable_port(self):
-        """The reserved port is free — binding it again succeeds immediately."""
-        port = kafka_module.reserve_port()
+            return real_open(file, mode, *args, **kwargs)
 
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-            probe.bind(("", port))
+        monkeypatch.setattr("builtins.open", spying_open)
+        monkeypatch.chdir(tmp_path)
+
+        content = _generate_document("events", sample_topics(), "localhost", 9093)
+
+        assert content
+        assert written == []
 
 
 class TestKafkaEngineReadiness:
     """Health probing of the kafka engine, driven over the fake requests namespace."""
 
     def test_wait_ready_probes_health_until_success(self, monkeypatch: pytest.MonkeyPatch):
-        """The probe polls the mapped HTTP health endpoint on the readiness interval."""
+        """The probe polls the mapped HTTP health endpoint on the declared interval."""
         fake_requests = FakeRequests(statuses=[503, 503])
-        fake_time = FakeTime()
+        clock = install_fake_clock(monkeypatch)
         monkeypatch.setattr(kafka_module, "requests", fake_requests)
-        monkeypatch.setattr(kafka_module, "time", fake_time)
         engine = events_engine()
         engine._container = FakeDockerContainer("mokapi/mokapi:0.52.0")
 
         engine._wait_ready()
 
         assert fake_requests.probes == [("http://127.0.0.2:18080/health", 5)] * 3
+        assert clock.slept == [0.5, 0.5]
 
-    def test_wait_ready_fails_past_the_deadline(self, monkeypatch: pytest.MonkeyPatch):
-        """A health endpoint that never answers fails within the 30s deadline."""
-        fake_requests = FakeRequests(statuses=[503] * 100)
-        fake_time = FakeTime()
+    def test_wait_ready_fails_past_the_declared_deadline(self, monkeypatch: pytest.MonkeyPatch):
+        """A health endpoint that never answers fails when the declared deadline expires."""
+        fake_requests = FakeRequests(statuses=[503] * 8)
+        clock = install_fake_clock(monkeypatch)
         monkeypatch.setattr(kafka_module, "requests", fake_requests)
-        monkeypatch.setattr(kafka_module, "time", fake_time)
-        engine = events_engine()
+        engine = events_engine(probe=ProbeConfig(timeout=0.2, interval=0.05))
         engine._container = FakeDockerContainer("mokapi/mokapi:0.52.0")
 
-        with pytest.raises(RuntimeError, match=r"health.*did not succeed"):
+        with pytest.raises(RuntimeError, match=r"health endpoint .*did not succeed within 0\.2s"):
             engine._wait_ready()
 
+        assert clock.slept == [0.05] * len(clock.slept)
+        assert len(clock.slept) >= 4
         assert fake_requests.probes[0] == ("http://127.0.0.2:18080/health", 5)
+
+    def test_wait_ready_without_a_probe_uses_the_default_bounds(self):
+        """No probe declared — the readiness bounds reproduce the established 30.0/0.5 wait."""
+        assert events_engine()._readiness_bounds == (30.0, 0.5)
 
 
 class TestKafkaEnginePlane:
@@ -508,15 +526,6 @@ class TestKafkaEnginePlane:
         assert _serialize_value({"id": 1, "ok": True}) == b'{"id": 1, "ok": true}'
         assert _serialize_value("plain") == b"plain"
 
-    def test_execute_spec_operation_is_a_noop(self):
-        """A replayed ``spec`` operation executes nothing — it was consumed at container build."""
-        engine = events_engine()
-        engine._producer = FakeProducer()
-
-        engine._execute(spec_op("/tmp/asyncapi.yaml"))
-
-        assert engine._producer.sent == []
-
     def test_execute_produce_sends_and_awaits_delivery(self):
         """A ``produce`` operation sends the message and awaits the delivery future."""
         engine = events_engine()
@@ -527,6 +536,21 @@ class TestKafkaEnginePlane:
 
         assert producer.sent == [("orders.events", "order-1", {"id": 1})]
         assert producer.delivered == [("orders.events", "order-1", {"id": 1}, 10)]
+
+    def test_execute_produce_into_undeclared_topic_fails_naming_the_declared_topics(self):
+        """A produce for an undeclared topic fails without touching the producer (D9)."""
+        engine = events_engine()
+        producer = FakeProducer()
+        engine._producer = producer
+
+        with pytest.raises(
+            EngineError,
+            match=r"service 'events': topic 'nope\.topic' is not declared on the kafka service entry "
+            r"\(declared topics: orders\.events, payments\.events\)",
+        ):
+            engine._execute(produce_op("nope.topic", {"id": 1}))
+
+        assert producer.sent == []
 
     def test_apply_flushes_once_after_the_group(self):
         """The apply group boundary flushes the producer once with the batch timeout."""
@@ -557,12 +581,12 @@ class TestKafkaEnginePlane:
         """Reset-wipe restarts the wrapped SDK container, re-probes health, rebuilds the producer."""
         fake_requests = FakeRequests()
         monkeypatch.setattr(kafka_module, "requests", fake_requests)
-        monkeypatch.setattr(kafka_module, "time", FakeTime())
+        install_fake_clock(monkeypatch)
         monkeypatch.setattr(kafka_module, "KafkaProducer", FakeProducer)
         FakeProducer.built.clear()
         engine = events_engine()
         engine._container = FakeDockerContainer("mokapi/mokapi:0.52.0")
-        engine._container_port = 9092
+        engine._container_port = 19092
         stale = FakeProducer()
         engine._producer = stale
 
@@ -589,6 +613,62 @@ class TestKafkaEnginePlane:
         assert engine._producer is None
 
 
+class TestKafkaEngineLifecycle:
+    """Full lifecycle of the kafka engine over the fakes — start, journal, reset, stop."""
+
+    def test_start_applies_startup_produces_and_journals_them(self, monkeypatch: pytest.MonkeyPatch):
+        """Startup produces execute in order and join the journal as the initial baseline."""
+        fake_requests = FakeRequests()
+        engine = armed_engine(monkeypatch, fake_requests)
+        startup = [produce_op("orders.events", {"id": 1}), produce_op("payments.events", {"id": 2})]
+
+        engine.start(startup)
+
+        try:
+            producer = engine._producer
+            assert isinstance(producer, FakeProducer)
+            assert producer.sent == [
+                ("orders.events", None, {"id": 1}),
+                ("payments.events", None, {"id": 2}),
+            ]
+            assert engine._journal == startup
+        finally:
+            engine.stop()
+
+        assert engine._container is None
+
+    def test_reset_replays_the_journal_after_the_restart(self, monkeypatch: pytest.MonkeyPatch):
+        """Reset restarts the container empty and replays the journaled baseline produces."""
+        fake_requests = FakeRequests(statuses=[503, 503, 200, 200])
+        engine = armed_engine(monkeypatch, fake_requests)
+        engine._container = FakeDockerContainer("mokapi/mokapi:0.52.0")
+        engine._container_port = 19092
+        engine._started = True
+        baseline = [produce_op("orders.events", {"id": 0}, key="baseline")]
+        engine._journal = list(baseline)
+
+        engine.reset()
+
+        producer = engine._producer
+        assert isinstance(producer, FakeProducer)
+        assert engine._container is not None
+        assert engine._container.wrapped.restarts == [10]
+        assert producer.sent == [("orders.events", "baseline", {"id": 0})]
+        assert producer.flushes[-1] == 30
+
+    def test_stop_is_safe_twice(self, monkeypatch: pytest.MonkeyPatch):
+        """A second stop touches nothing — the container is removed exactly once."""
+        engine = armed_engine(monkeypatch, FakeRequests())
+        engine.start([])
+
+        container = engine._container
+        engine.stop()
+        engine.stop()
+
+        assert container is not None
+        assert container.stops == 1
+
+
 @requires_docker
 class TestKafkaEngineContainer:
     """Live behavior of the kafka engine against a real container (docker-gated)."""
@@ -599,7 +679,7 @@ class TestKafkaEngineContainer:
 
         Args:
             engine: The started kafka engine owning the mapped broker address.
-            topic: The spec-defined topic to drain.
+            topic: A topic declared on the service entry.
 
         Returns:
             The JSON-deserialized message values currently held by the topic.
@@ -611,41 +691,44 @@ class TestKafkaEngineContainer:
             auto_offset_reset="earliest",
             enable_auto_commit=False,
             consumer_timeout_ms=5000,
-            value_deserializer=lambda raw: json.loads(raw.decode("utf-8")),
         )
 
         try:
-            return [message.value for message in consumer]
+            return [json.loads(message.value.decode("utf-8")) for message in consumer]
         finally:
             consumer.close()
 
-    def test_kafka_engine_spec_mount_and_restart_reset(self, tmp_path: pytest.TempPathFactory):
-        """Reset restarts the same container: address stable, messages wiped, baseline replayed."""
-        spec = tmp_path / "asyncapi.yaml"
-        spec.write_text(
-            """
-asyncapi: 3.0.0
-info:
-  title: events sandbox
-  version: 1.0.0
-servers:
-  production:
-    host: localhost:9092
-    protocol: kafka
-channels:
-  orders.events:
-    bindings:
-      kafka:
-        topic: orders.events
-        partitions: 1
-""",
-            encoding="utf-8",
-        )
+    def test_kafka_engine_produce_into_undeclared_topic_fails(self):
+        """Scenario 18: a produce for an undeclared topic fails listing the declared ones."""
         engine = events_engine()
-        engine.start([spec_op(str(spec))])
+        engine.start([])
+
+        try:
+            with pytest.raises(
+                EngineError,
+                match=r"service 'events': topic 'nope\.topic' is not declared.*orders\.events",
+            ):
+                engine.apply([produce_op("nope.topic", {"id": 1})])
+        finally:
+            engine.stop()
+
+        engine.stop()
+
+    def test_kafka_engine_inline_topics_and_restart_reset(self):
+        """Declared topics boot the topology with partitions; reset restarts and replays."""
+        engine = events_engine()
+        engine.start([])
 
         try:
             address_before = engine.address
+            probe = KafkaConsumer(bootstrap_servers=f"{address_before.host}:{address_before.port}")
+
+            try:
+                assert probe.partitions_for_topic("orders.events") is not None
+                assert len(probe.partitions_for_topic("payments.events")) == 6
+            finally:
+                probe.close()
+
             engine.apply([produce_op("orders.events", {"id": 1})])
 
             # record journals without applying — the baseline boundary is the applying seam.
