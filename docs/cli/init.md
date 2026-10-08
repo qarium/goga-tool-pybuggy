@@ -109,7 +109,7 @@ bootstrap is skipped, the code is propagated unchanged.
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged usages (`api.md`, `asserts.md`, `sandbox-session.md`, `sandbox-file.md`, `data-operations.md`) | template: skip existing (INFO); bare: overwrite |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged usages (`api.md`, `asserts.md`, `sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | template: skip existing (INFO); bare: overwrite |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted, idempotent, comment-only |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
@@ -234,5 +234,5 @@ The generated file is valid for [configuration](../configuration.md) loading.
   No; template/upgrade modes reach the template source (a git URL) through the engine.
 - Only the packaged usage roots are copied — the `api` cell root (its `asserts`
   sub-package rides along) and the `sandbox` subtree roots (`sandbox-session`,
-  `sandbox-file`, `data-operations`); the `plugin` and `commands` cells and internal
-  development cells (`config`/`spec`/`output`/…) are not copied.
+  `sandbox-file`, `data-operations`, `migration-set`); the `plugin` and `commands` cells and
+  internal development cells (`config`/`spec`/`output`/…) are not copied.

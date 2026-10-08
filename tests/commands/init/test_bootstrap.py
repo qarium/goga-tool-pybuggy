@@ -52,9 +52,8 @@ _PACKAGED_USAGES = {
     "migration-set": (_SANDBOX_PACKAGE / "migrations" / ".usages" / "migration-set.md").read_text(encoding="utf-8"),
 }
 
-# The three sandbox stems with hand-authored annotation lines; ``migration-set`` registers through
-# the bare-backtick fallback (no hand-authored line yet).
-_SANDBOX_STEMS = ("sandbox-session", "sandbox-file", "data-operations")
+# The four sandbox stems with hand-authored annotation lines.
+_SANDBOX_STEMS = ("sandbox-session", "sandbox-file", "data-operations", "migration-set")
 
 
 def _seed_bootstrap_target(root: Path) -> None:

@@ -151,9 +151,14 @@ class TestCheckGitUrl:
         [
             "https://user:token@host/repo.git",
             "https://user@host/repo.git",
+            "ssh://git:token@host/repo.git",
         ],
     )
     def test_check_git_url_rejects_embedded_credentials(self, url):
-        """A user or user:password in the netloc raises naming the URL and the credentials rule."""
+        """A user or user:password in the netloc raises naming the URL and the credentials rule.
+
+        A password is a credential in every scheme — the ssh exemption covers a bare
+        username only.
+        """
         with pytest.raises(MigrationError, match=rf"{re.escape(url)}.*must not embed credentials"):
             check_git_url(url)

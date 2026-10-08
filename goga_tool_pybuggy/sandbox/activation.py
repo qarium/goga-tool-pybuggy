@@ -1,5 +1,6 @@
 """activate_sandbox / active_sandbox routines: the presence-gated pytest activation."""
 
+import inspect
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -203,6 +204,23 @@ def _register_hook(context: dict[str, object], name: str, hook: Callable[..., An
     context[name] = hook
 
 
+def _call_prior(prior: Callable[..., Any], **arguments: Any) -> None:
+    """Call a prior hook with only the hookspec arguments it declares.
+
+    A pytest hook implementation may declare a subset of the hookspec arguments — the prior
+    conftest hook of a wrapped name receives exactly the parameters its signature names.
+
+    Args:
+        prior: The callable already present in the context.
+        **arguments: The full hookspec arguments of the wrapped call.
+    """
+    parameters = inspect.signature(prior).parameters
+    takes_keywords = any(parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+    declared = arguments if takes_keywords else {name: value for name, value in arguments.items() if name in parameters}
+
+    prior(**declared)
+
+
 def _wrap_session_start(prior: Callable[..., Any], hook: Callable[..., Any]) -> Callable[..., Any]:
     """Wrap two session-start hooks — the prior callable runs first.
 
@@ -216,7 +234,7 @@ def _wrap_session_start(prior: Callable[..., Any], hook: Callable[..., Any]) -> 
 
     def pytest_sessionstart(session: pytest.Session) -> None:
         """Run the prior hook first, then the sandbox session start."""
-        prior(session)
+        _call_prior(prior, session=session)
         hook(session)
 
     return pytest_sessionstart
@@ -239,7 +257,7 @@ def _wrap_session_finish(prior: Callable[..., Any], hook: Callable[..., Any]) ->
         A raising prior hook must not leak the sandbox — the sandbox stop runs regardless.
         """
         try:
-            prior(session, exitstatus)
+            _call_prior(prior, session=session, exitstatus=exitstatus)
         finally:
             hook(session, exitstatus)
 
@@ -259,7 +277,7 @@ def _wrap_runtest_setup(prior: Callable[..., Any], hook: Callable[..., Any]) -> 
 
     def pytest_runtest_setup(item: pytest.Item) -> None:
         """Run the prior hook first, then the sandbox test setup."""
-        prior(item)
+        _call_prior(prior, item=item)
         hook(item)
 
     return pytest_runtest_setup

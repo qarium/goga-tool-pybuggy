@@ -7,8 +7,9 @@ parameters, request body, URL variables) — and wires everything into the consu
 suite; **Sandbox** — session-scoped isolated service testing: when
 `.goga/tools/pybuggy/sandbox.yml` is present, every pytest run starts the service under
 test plus mocked dependencies (postgresql, kafka, vault, http) in containers, wires them
-into the service env, and points the `api` fixture at the sandbox service (requires a
-docker-compatible container runtime).
+into the service env, applies the declared goose-format SQL migrations once per session,
+and points the `api` fixture at the sandbox service (requires a docker-compatible
+container runtime).
 The package contains a pytest plugin and a CLI.
 
 **Documentation**: <https://qarium.github.io/goga-tool-pybuggy/>

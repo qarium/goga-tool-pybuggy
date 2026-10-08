@@ -120,8 +120,9 @@ File rules of the folder:
   postgres error named.
 
 Validation at document load, before any container starts: migrations on a non-postgresql
-service, missing local path, empty folder, no `.sql` files, duplicate version prefixes, a git
-URL outside the scheme allowlist (https/http/git/ssh) or with embedded credentials.
+service, missing local path, empty folder, no `.sql` files, an invalid migration filename,
+duplicate version prefixes, a git URL outside the scheme allowlist (https/http/git/ssh) or
+with embedded credentials.
 
 Remote sources: the repository is shallow-cloned for the apply and deleted afterwards —
 nothing is copied into your repository; each session downloads fresh.
@@ -208,8 +209,9 @@ Applied in a fixed order after all services are up and before the instance start
 - An invalid document (unknown kind, unknown service reference, missing or unknown entry key,
   malformed placeholder or declaration, kafka entry without topics, topics on a non-kafka
   entry, migrations on a non-postgresql entry, invalid migrations declaration — missing or
-  empty folder, no `.sql` files, duplicate version prefixes, git URL outside the allowlist or
-  with embedded credentials — probe `path` on a service or without its leading slash,
-  unparsable YAML) fails the run before any container starts, with an error naming the entry.
+  empty folder, no `.sql` files, invalid migration filename, duplicate version prefixes, git
+  URL outside the allowlist or with embedded credentials — probe `path` on a service or
+  without its leading slash, unparsable YAML) fails the run before any container starts,
+  with an error naming the entry.
 - Without the document the product is fully inert — nothing starts, nothing changes.
 - A container runtime must be available in the environment running the tests.

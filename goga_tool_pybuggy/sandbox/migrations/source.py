@@ -47,7 +47,7 @@ def check_git_url(url: str) -> None:
     The scheme must be one of git, http, https or ssh — an scp-style URL such as
     ``git@github.com:acme/r.git`` parses with an empty scheme and is rejected; authors
     rewrite it as ``ssh://git@host/path``. The URL must not embed credentials; an ssh
-    username is not a credential.
+    username is not a credential — a password always is, in every scheme.
 
     Args:
         url: The clone URL of the declared remote migrations source.
@@ -63,7 +63,7 @@ def check_git_url(url: str) -> None:
             f"{url}: disallowed git URL scheme '{parsed.scheme}' (allowed: {', '.join(ALLOWED_URL_SCHEMES)})"
         )
 
-    if "@" in parsed.netloc and parsed.scheme != "ssh":
+    if parsed.password is not None or ("@" in parsed.netloc and parsed.scheme != "ssh"):
         raise MigrationError(f"{url}: the git URL must not embed credentials")
 
 

@@ -64,12 +64,12 @@ See [Configuration](configuration.md).
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged usages (`api.md`, `asserts.md`, `sandbox-session.md`, `sandbox-file.md`, `data-operations.md`) | written (bare overwrites; template skips existing) |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged usages (`api.md`, `asserts.md`, `sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | written (bare overwrites; template skips existing) |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted (idempotent, comment-only) |
 | `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
 | `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version range is derived from the installed pybuggy version |
-| usage keys `pybuggy-api` / `pybuggy-asserts` / `pybuggy-sandbox-session` / `pybuggy-sandbox-file` / `pybuggy-data-operations` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
+| usage keys `pybuggy-api` / `pybuggy-asserts` / `pybuggy-sandbox-session` / `pybuggy-sandbox-file` / `pybuggy-data-operations` / `pybuggy-migration-set` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
 | root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
 The command requires a Dockerfile — and the session always creates one (the fixed

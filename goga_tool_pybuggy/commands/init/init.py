@@ -63,8 +63,8 @@ def _discover_packaged_usages() -> list[tuple[str, str]]:
     """Discover ``.usages/*.md`` files under every packaged usage root, roots in order.
 
     Returns:
-        The ``(stem, text)`` pairs of every packaged usage file — five stems today: api, asserts,
-        sandbox-session, sandbox-file, data-operations.
+        The ``(stem, text)`` pairs of every packaged usage file — six stems today: api, asserts,
+        sandbox-session, sandbox-file, data-operations, migration-set.
     """
     discovered: list[tuple[str, str]] = []
 
@@ -88,6 +88,10 @@ PYBUGGY_ANNOTATIONS: dict[str, str] = {
     ),
     "data-operations": (
         "Use `pybuggy-data-operations` for declaring lazy sandbox data from tests: rows, stubs, secrets, messages."
+    ),
+    "migration-set": (
+        "Use `pybuggy-migration-set` for declaring the schema migrations of a postgresql sandbox "
+        "service: source validation and the once-per-session apply."
     ),
 }
 

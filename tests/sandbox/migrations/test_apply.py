@@ -9,14 +9,17 @@ from unittest import mock
 
 import psycopg
 import pytest
+from git import Actor, Repo
 from git.exc import GitCommandError
 from goga_tool_pybuggy.sandbox.migrations import MigrationError, MigrationFile, apply_migrations, run_migrations
 from psycopg import Connection
 
-from .conftest import FailingConnection, FakeConnection
+from .conftest import FailingAfterFirstConnection, FailingConnection, FakeConnection
 
 APPLY_LOGGER = "goga_tool_pybuggy.sandbox.migrations.apply"
 CLONE_FROM = "goga_tool_pybuggy.sandbox.migrations.apply.Repo.clone_from"
+
+AUTHOR = Actor("pybuggy", "pybuggy@example.com")
 
 
 def migration(filename: str, statements: list[str], no_transaction: bool = False) -> MigrationFile:
@@ -173,6 +176,29 @@ class TestApplyMigrations:
             ("transaction", "rollback", None),
         ]
 
+    def test_apply_no_transaction_failure_keeps_applied_statements(self):
+        """A failed NO TRANSACTION statement stops the apply; the earlier statements stay applied.
+
+        The error names the file and the server message; no transaction markers appear —
+        the file runs statement-by-statement in autocommit, so nothing rolls back.
+        """
+        fake = FailingAfterFirstConnection()
+        migrations = [
+            migration(
+                "00005_seed.sql",
+                ["INSERT INTO t VALUES (1)", "INSERT INTO ghost VALUES (2)"],
+                no_transaction=True,
+            )
+        ]
+
+        with pytest.raises(MigrationError) as excinfo:
+            apply_migrations(conn=fake, migrations=migrations)
+
+        assert "00005_seed.sql" in str(excinfo.value)
+        assert 'relation "ghost" does not exist' in str(excinfo.value)
+        assert isinstance(excinfo.value.__cause__, psycopg.Error)
+        assert fake.statements == [("execute", "INSERT INTO t VALUES (1)", None)]
+
     def test_apply_empty_set_is_noop(self):
         """An empty set executes nothing and raises nothing."""
         fake = FakeConnection()
@@ -221,6 +247,41 @@ class TestRunMigrations:
 
         records = [record for record in caplog.records if record.message == "migrations source resolved"]
         assert [record.location for record in records] == [str(folder)]
+
+    def test_run_local_source_absolute_location_overrides_cwd(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """An absolute ``location`` overrides the cwd anchor — the declared folder applies as given."""
+        elsewhere = tmp_path / "elsewhere"
+        elsewhere.mkdir()
+        monkeypatch.chdir(elsewhere)
+        folder = tmp_path / "db" / "migrations"
+        folder.mkdir(parents=True)
+        (folder / "00001_init.sql").write_text("-- +goose Up\nSELECT 1;", encoding="utf-8")
+
+        fake = FakeConnection()
+
+        run_migrations(conn=fake, location=str(folder), git_url=None, git_ref=None)
+
+        assert ("execute", "SELECT 1", None) in fake.statements
+
+    def test_run_remote_source_clones_a_local_repository(self, tmp_path: Path):
+        """A real shallow clone of a local ``file://`` repository applies the committed set.
+
+        The GitPython seam runs end to end — no clone double: the committed migration file
+        loads from the clone and applies, and the clone target is deleted afterwards.
+        """
+        source = tmp_path / "service"
+        (source / "db" / "migrations").mkdir(parents=True)
+        (source / "db" / "migrations" / "00001_init.sql").write_text("-- +goose Up\nSELECT 1;", encoding="utf-8")
+
+        repo = Repo.init(source)
+        repo.index.add(["db/migrations/00001_init.sql"])
+        repo.index.commit("init", author=AUTHOR, committer=AUTHOR)
+
+        fake = FakeConnection()
+
+        run_migrations(conn=fake, location="db/migrations", git_url=f"file://{source}", git_ref=None)
+
+        assert ("execute", "SELECT 1", None) in fake.statements
 
     def test_run_remote_source_clones_and_applies(self):
         """A remote source shallow-clones into a fresh temp target and applies the cloned set.

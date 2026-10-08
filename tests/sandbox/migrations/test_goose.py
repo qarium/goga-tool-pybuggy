@@ -217,6 +217,39 @@ class TestParseMigrationFile:
         assert migration.statements == ["CREATE TABLE t (id int)"]
         assert "\r" not in "".join(migration.statements)
 
+    def test_parse_ignores_plain_header_lines_before_up(self):
+        """Plain header lines before ``+goose Up`` stay out of the parsed statements."""
+        migration = parse_migration_file("00020_header.sql", "-- header note\n-- +goose Up\nSELECT 1;")
+
+        assert migration.statements == ["SELECT 1"]
+
+    def test_parse_semicolon_in_string_literal_never_splits(self):
+        """A semicolon inside a single-quoted literal stays in the statement text — seed data pin."""
+        text = "-- +goose Up\nINSERT INTO slogans (text) VALUES ('stay; stay longer');\nSELECT 2;"
+
+        migration = parse_migration_file("00015_literal.sql", text)
+
+        assert migration.statements == [
+            "INSERT INTO slogans (text) VALUES ('stay; stay longer')",
+            "SELECT 2",
+        ]
+
+    def test_parse_semicolon_in_comment_never_splits(self):
+        """A semicolon inside a ``--`` comment stays in the comment; the statement parses whole."""
+        text = "\n".join(["-- +goose Up", "-- careful; no undo", "INSERT INTO t VALUES (1);"])
+
+        migration = parse_migration_file("00016_comment.sql", text)
+
+        assert migration.statements == ["-- careful; no undo\nINSERT INTO t VALUES (1)"]
+
+    def test_parse_trailing_line_comment_drops_with_its_semicolons(self):
+        """A ``--`` comment tail after a statement drops together with the semicolons it carries."""
+        text = "-- +goose Up\nCREATE TABLE t (id int); -- base table; indexes later"
+
+        migration = parse_migration_file("00017_trailing.sql", text)
+
+        assert migration.statements == ["CREATE TABLE t (id int)"]
+
 
 class TestParseMigrationFileFailures:
     """Logic of ``parse_migration_file`` — failure scenarios."""
@@ -285,6 +318,22 @@ class TestParseMigrationFileFailures:
 
         assert "interpolation is not supported" in str(excinfo.value)
 
+    def test_parse_without_goose_annotations(self):
+        """A plain SQL file without any +goose annotation raises naming the file — nothing applies."""
+        with pytest.raises(MigrationError, match=re.escape("00018_plain.sql")) as excinfo:
+            parse_migration_file("00018_plain.sql", "CREATE TABLE t (id int);")
+
+        assert "Up" in str(excinfo.value)
+
+    def test_parse_with_duplicate_up(self):
+        """A second ``+goose Up`` annotation inside the Up section raises naming the file."""
+        text = "-- +goose Up\nSELECT 1;\n-- +goose Up\nSELECT 2;"
+
+        with pytest.raises(MigrationError, match=re.escape("00019_twice.sql")) as excinfo:
+            parse_migration_file("00019_twice.sql", text)
+
+        assert "duplicate" in str(excinfo.value)
+
 
 class TestLoadMigrationSet:
     """Logic of ``load_migration_set``."""
@@ -317,3 +366,15 @@ class TestLoadMigrationSet:
 
         assert "1_a.sql" in str(excinfo.value)
         assert "0001_b.sql" in str(excinfo.value)
+
+    def test_load_with_missing_folder(self, tmp_path: Path):
+        """A missing folder raises ``MigrationError`` naming it — no ``FileNotFoundError`` leaks."""
+        with pytest.raises(MigrationError, match=re.escape(str(tmp_path / "nope"))):
+            load_migration_set(tmp_path / "nope")
+
+    def test_load_with_invalid_filename(self, tmp_path: Path):
+        """A file violating the naming grammar raises through the load path, naming the file."""
+        (tmp_path / "create_orders.sql").write_text("-- +goose Up\nSELECT 1;", encoding="utf-8")
+
+        with pytest.raises(MigrationError, match=re.escape("create_orders.sql")):
+            load_migration_set(tmp_path)

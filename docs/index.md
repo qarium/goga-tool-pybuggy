@@ -28,9 +28,11 @@ at `.goga/tools/pybuggy/sandbox.yml`. The package contains a pytest plugin and a
 - **Sandbox** — session-scoped isolated service testing: a sandbox document at
   `.goga/tools/pybuggy/sandbox.yml` makes every pytest run start the service under test
   plus mocked dependencies (postgresql, kafka, vault, http) in containers, wire them
-  into the service env, and point the `api` fixture at the sandbox service; per-test
-  data presets and baseline/reset fixtures keep tests order-independent. Requires a
-  docker-compatible container runtime (see [Sandbox](sandbox.md)).
+  into the service env, and point the `api` fixture at the sandbox service; the DB
+  schema is declared as goose-format SQL migrations applied once per session and kept
+  across per-test resets; per-test data presets and baseline/reset fixtures keep tests
+  order-independent. Requires a docker-compatible container runtime (see
+  [Sandbox](sandbox.md)).
 
 ## Quickstart
 

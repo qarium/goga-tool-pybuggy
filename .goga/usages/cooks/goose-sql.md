@@ -42,7 +42,8 @@ exactly this subset:
   apply.
 - **Statement bodies.** Between `StatementBegin` and `StatementEnd` the text is one statement —
   semicolons inside (function bodies, `DO` blocks, `$$`-quoted code) do not split it. Outside
-  such blocks, statements split on the terminating semicolon.
+  such blocks, statements split on the terminating semicolon — a semicolon inside a
+  single-quoted string literal or a `--` comment never terminates a statement.
 - **NO TRANSACTION.** Placed before the Up section, as goose produces it. When present, the
   file's statements execute one by one in autocommit — required by DDL such as
   `CREATE INDEX CONCURRENTLY`. Without it, the default applies: one transaction per file,

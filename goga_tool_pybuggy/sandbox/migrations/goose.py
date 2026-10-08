@@ -100,10 +100,13 @@ def load_migration_set(folder: Path) -> list[MigrationFile]:
         returned order.
 
     Raises:
-        MigrationError: The folder holds no `.sql` files, a name violates the naming
-            grammar, or two files share a version prefix; the message names the folder and
-            the offending files.
+        MigrationError: The folder is missing, holds no `.sql` files, a name violates the
+            naming grammar, or two files share a version prefix; the message names the
+            folder and the offending files.
     """
+    if not folder.is_dir():
+        raise MigrationError(f"{folder}: the migrations folder is missing")
+
     sql_files = sorted(path for path in folder.iterdir() if path.is_file() and path.suffix == ".sql")
 
     if not sql_files:
@@ -237,7 +240,10 @@ def _split_up_statements(filename: str, lines: list[str]) -> list[str]:
 def _split_fragments(lines: list[str]) -> list[str]:
     """Split buffered Up-section lines into statements on the terminating semicolon.
 
-    Pieces that are empty or comment-only are dropped; the kept pieces return stripped.
+    A semicolon terminates a statement only outside a single-quoted literal and outside a
+    ``--`` comment — semicolons inside either ride along in the statement text, as goose
+    itself treats them. Pieces that are empty or comment-only are dropped; the kept pieces
+    return stripped.
 
     Args:
         lines: The buffered non-annotation lines of one fragment run.
@@ -245,15 +251,66 @@ def _split_fragments(lines: list[str]) -> list[str]:
     Returns:
         The finished statement bodies, in buffer order.
     """
-    statements = []
+    statements: list[str] = []
+    text = ""
+    in_literal = False
 
-    for piece in "\n".join(lines).split(";"):
-        stripped = piece.strip()
+    for line in lines:
+        endings, in_literal = _statement_endings(line, in_literal)
+        start = 0
 
-        if not _is_comment_only(stripped):
-            statements.append(stripped)
+        for ending in endings:
+            finished = (text + line[start:ending]).strip()
+
+            if not _is_comment_only(finished):
+                statements.append(finished)
+
+            text = ""
+            start = ending + 1
+
+        text += line[start:] + "\n"
+
+    tail = text.strip()
+
+    if not _is_comment_only(tail):
+        statements.append(tail)
 
     return statements
+
+
+def _statement_endings(line: str, in_literal: bool) -> tuple[list[int], bool]:
+    """Locate the terminating semicolons of one Up-section line.
+
+    A semicolon terminates a statement only outside a single-quoted literal and before any
+    ``--`` comment — the rest of a comment line never terminates. A literal spanning lines
+    carries its open state to the next line.
+
+    Args:
+        line: The scanned Up-section line.
+        in_literal: Whether the line opens inside a single-quoted literal.
+
+    Returns:
+        The ``(endings, in_literal)`` pair — the indexes of the terminating semicolons and
+        whether the line ends inside a literal.
+    """
+    endings: list[int] = []
+    index = 0
+
+    while index < len(line):
+        char = line[index]
+
+        if in_literal:
+            in_literal = char != "'"
+        elif char == "'":
+            in_literal = True
+        elif line[index : index + 2] == "--":
+            return endings, in_literal
+        elif char == ";":
+            endings.append(index)
+
+        index += 1
+
+    return endings, in_literal
 
 
 def _is_comment_only(text: str) -> bool:

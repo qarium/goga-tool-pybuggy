@@ -22,8 +22,8 @@ from goga_tool_pybuggy.sandbox.migrations import check_git_url, check_local_migr
 
 # local source: the declared location resolved against the current working directory
 check_local_migrations(folder=Path("db/migrations"))
-# raises when the folder is missing, empty, holds no .sql files,
-# or two files share a numeric version prefix
+# raises when the folder is missing, empty, holds no .sql files, a name violates
+# the version grammar, or two files share a numeric version prefix
 
 # remote source: URL shape only — scheme allowlist https/http/git/ssh, no embedded credentials
 check_git_url(url="https://gitlab.example/acme/service.git")

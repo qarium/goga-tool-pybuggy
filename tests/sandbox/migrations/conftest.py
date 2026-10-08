@@ -3,7 +3,8 @@
 The doubles mirror the fake family of ``tests/sandbox/engines/test_postgres.py``: the
 connection records every ``transaction`` / ``execute`` call as a ``(kind, payload, params)``
 tuple, so the apply tests assert execution shape and ordering against the records; the
-failing variants raise the driver-shaped statement error on every execute.
+failing variants raise the driver-shaped statement error on every execute, or — the
+after-first family — on every execute after the connection's first recorded one.
 """
 
 import psycopg
@@ -68,3 +69,20 @@ class FailingConnection(FakeConnection):
 
     def cursor(self, row_factory: object = None) -> FailingCursor:
         return FailingCursor(self)
+
+
+class FailingAfterFirstCursor(FakeCursor):
+    """Cursor double failing every statement after the connection's first executed one."""
+
+    def execute(self, sql: str, params: object = None) -> None:
+        if self._connection.statements:
+            raise psycopg.errors.UndefinedTable('relation "ghost" does not exist')
+
+        self._connection.statements.append(("execute", sql, params))
+
+
+class FailingAfterFirstConnection(FakeConnection):
+    """Connection double whose cursors fail every statement after the first executed one."""
+
+    def cursor(self, row_factory: object = None) -> FailingAfterFirstCursor:
+        return FailingAfterFirstCursor(self)
