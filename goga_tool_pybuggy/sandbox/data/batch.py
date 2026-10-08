@@ -6,10 +6,10 @@ from ..engines import DataOperation
 class DataBatch:
     """The accumulated operations of the current test.
 
-    One batch exists per test. Instance views and presets append declared operations
+    One batch exists per test. Service views and presets append declared operations
     with ``add`` — nothing is executed at declaration time; the session facade drains
     the batch with ``take`` when the declared operations are applied. The accumulation
-    order is the application order per instance — presets precede in-test operations.
+    order is the application order per service — presets precede in-test operations.
     """
 
     def __init__(self) -> None:

@@ -20,6 +20,12 @@ class TestServicesContract:
         assert list(parameters) == ["presets"]
         assert parameters["presets"].kind is inspect.Parameter.VAR_KEYWORD
 
+    def test_services_annotation_is_the_tightened_contract_nesting(self):
+        """The value annotation is the tightened ``kind -> service name -> declaration list`` type."""
+        parameters = inspect.signature(services).parameters
+
+        assert parameters["presets"].annotation == dict[str, dict[str, list[dict[str, object]]]]
+
     def test_services_returns_a_decorator_from_keyword_presets(self):
         """Calling with kind keywords returns a callable decorator."""
         decorator = services(postgresql={"db": []})
@@ -57,6 +63,29 @@ class TestServicesLogic:
         assert matching[0].kwargs["presets"] == declarations
         assert sample_test() == 42
 
+    def test_presets_type_and_enqueue(self):
+        """Scenario 29, decoration half: the nested contract shape marks the test unchanged.
+
+        The tightened ``kind -> service name -> declaration list`` nesting reaches the
+        marker as given — the exact shape the activation enqueue loop iterates at setup
+        time. The enqueue half (names resolving against services, presets ahead of
+        in-test operations) asserts in the activation rework.
+        """
+        declarations = {
+            "postgresql": {"db": [{"table": "orders", "rows": [{"id": 1, "total": 100}]}]},
+            "kafka": {"events": [{"topic": "orders.events", "value": {"id": 1}, "key": "1"}]},
+        }
+
+        @services(**declarations)
+        def sample_test() -> int:
+            return 42
+
+        mark = next(mark for mark in sample_test.pytestmark if mark.name == "pybuggy_services")
+
+        assert mark.kwargs["presets"] == declarations
+        assert mark.kwargs["presets"]["kafka"]["events"][0]["topic"] == "orders.events"
+        assert sample_test() == 42
+
     def test_services_rejects_unknown_kind_at_decoration(self):
         """A preset key outside the supported kinds fails at decoration naming the kind."""
         with pytest.raises(ValueError, match="redis"):
@@ -68,8 +97,8 @@ class TestServicesLogic:
             services(grpc={"events": []})
 
     def test_services_rejects_kind_value_that_is_not_a_mapping(self):
-        """A kind value that is not an ``instance name -> declaration list`` mapping fails."""
-        with pytest.raises(ValueError, match=r"postgresql.*must map instance names"):
+        """A kind value that is not a ``service name -> declaration list`` mapping fails."""
+        with pytest.raises(ValueError, match=r"postgresql.*must map service names"):
             services(postgresql="db")
 
     def test_services_rejects_instance_value_that_is_not_a_list(self):

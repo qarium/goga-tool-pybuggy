@@ -1469,30 +1469,55 @@ placeholders of the instance under test resolve to", "per service"); no behavior
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 9 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/data/test_presets.py` + views tests where
+- [x] **Declaration**: state that Task 9 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/data/test_presets.py` + views tests where
   docstrings/assert vocabulary changed): `services` accepts the nested dict shape; the four
   view factories keep their signatures
-- [ ] **REPL prototype (R4)**: in the venv REPL apply `services(postgresql={"db": [{"table":
+  (annotation contract test added — `parameters["presets"].annotation ==
+  dict[str, dict[str, list[dict[str, object]]]]`; TDD red confirmed against the old
+  `dict[str, list[...]]` annotation before implementation; the four view suites keep their
+  contract signatures untouched; conftest fixture docstring to "service address")
+- [x] **REPL prototype (R4)**: in the venv REPL apply `services(postgresql={"db": [{"table":
   "orders", "rows": [...]}]})` to a dummy function and inspect the marker + the validated
   shape; apply an unsupported kind and read the error listing the supported kinds; then
   migrate
-- [ ] **Code**: correct the `presets.py` annotation; docstring vocabulary across
+  (observed live in a venv heredoc REPL: exactly one `pybuggy_services` marker carrying the
+  nested payload unchanged, function intact, unsupported-kind error listing all four kinds;
+  the stale annotation read out pre-migration; then migrated)
+- [x] **Code**: correct the `presets.py` annotation; docstring vocabulary across
   `presets.py`, `kafka.py` (declared-topics note), `postgres.py`, `vault.py`, `http.py`,
   `batch.py`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass
-- [ ] **Logic tests** (scenario 29, transferred verbatim): `test_presets_type_and_enqueue`
+  (annotation tightened to the contract nesting; docstrings to "kind -> service name ->
+  declaration list", "started <kind> service", "the env placeholders of the instance under
+  test resolve to", "per service"; `produce` topic note now "must be declared on the kafka
+  service entry of the sandbox document"; decoration-time error wording "must map service
+  names"; zero behavior change — validation logic and marker attach untouched)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/data/ -x -v` — pass
+  (66 passed — 64 retained + 2 new; fresh-interpreter check ok — facade 6 names, tightened
+  annotation string verified)
+- [x] **Logic tests** (scenario 29, transferred verbatim): `test_presets_type_and_enqueue`
   (test_presets.py + the activation loop) — `services(...)` with the nested dict shape marks
   the test; enqueue resolves names against services and orders preset declarations ahead of
   in-test operations (the enqueue half asserts fully in Task 12's activation rework; here the
   decoration-time validation and marker shape)
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (landed by name — the nested postgresql+kafka shape reaches the marker unchanged and the
+  marked test still executes; enqueue half deferred to Task 12 as planned)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/ tests/sandbox/data/ -x` green
-- [ ] **Contract re-verification**: laziness contract intact (nothing executes at declaration
+  (414 green = 124 config + 224 engines + 66 data, docker-gated live cases executing; ledger
+  blast radius verified — full tree collects 1539, and with the scheduled sandbox-cell/plugin
+  suites ignored the remaining 1337 all pass)
+- [x] **Contract re-verification**: laziness contract intact (nothing executes at declaration
   time); preset nesting matches the contract type
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked against the data CODEMANIFEST — services annotation, produce declared-topics note,
+  view/property docstring wording matched clause by clause; vocabulary grep over the cell
+  clean: only the contract-kept class names, the DataOperation field, and "instance under
+  test" remain; laziness pinned by the retained declaration-only suites)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (both gates exit 0 on the first run — no findings, no format drift across all 8 touched
+  files)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ---
 

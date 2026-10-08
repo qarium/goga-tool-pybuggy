@@ -45,5 +45,5 @@ def recording_batch() -> RecordingBatch:
 
 @pytest.fixture
 def address() -> InstanceAddress:
-    """A sample mapped instance address."""
+    """A sample mapped service address."""
     return InstanceAddress(host="127.0.0.5", port=5432)
