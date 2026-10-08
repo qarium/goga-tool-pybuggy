@@ -27,10 +27,11 @@ _KIND_ACTIONS = {"postgresql": "insert", "kafka": "produce", "vault": "put", "ht
 def activate_sandbox(context: dict[str, object]) -> SandboxConfig | None:
     """Arm the sandbox for the pytest session when the activation document is present.
 
-    Reads and validates ``.sandbox.yml`` in the current working directory; an invalid
-    document fails here, before anything is registered or started. With a valid document
-    the three session lifecycle hooks land in ``context`` — a pre-existing same-name
-    callable is wrapped, prior first. Without the document the call is fully inert.
+    Reads and validates ``.goga/tools/pybuggy/sandbox.yml`` under the pybuggy tools home
+    of the current working directory; an invalid document fails here, before anything is
+    registered or started. With a valid document the three session lifecycle hooks land in
+    ``context`` — a pre-existing same-name callable is wrapped, prior first. Without the
+    document the call is fully inert.
 
     Args:
         context: The caller namespace the lifecycle hooks land in.
@@ -51,7 +52,7 @@ def activate_sandbox(context: dict[str, object]) -> SandboxConfig | None:
     config = load_sandbox_config(None)
 
     if config is None:
-        logger.debug("sandbox inert", extra={"document": ".sandbox.yml"})
+        logger.debug("sandbox inert", extra={"document": ".goga/tools/pybuggy/sandbox.yml"})
 
         return None
 
@@ -61,7 +62,7 @@ def activate_sandbox(context: dict[str, object]) -> SandboxConfig | None:
     _register_hook(context, _SESSION_FINISH, _session_finish)
     _register_hook(context, _RUNTEST_SETUP, _runtest_setup)
 
-    logger.info("sandbox armed", extra={"image": config.service.image, "instances": list(config.instances)})
+    logger.info("sandbox armed", extra={"image": config.instance.image, "services": list(config.services)})
 
     return config
 
@@ -147,8 +148,8 @@ def _enqueue_presets(sandbox: Sandbox, item: pytest.Item) -> None:
         item: The test item being set up.
 
     Raises:
-        ValueError: A preset targets an unknown instance or one of another kind — the
-            message lists the configured instances.
+        ValueError: A preset targets an unknown service or one of another kind — the
+            message lists the configured services.
     """
     enqueued = 0
 
@@ -157,7 +158,7 @@ def _enqueue_presets(sandbox: Sandbox, item: pytest.Item) -> None:
 
         for kind, targets in presets.items():
             for name, declarations in targets.items():
-                sandbox._require_instance(kind, name)
+                sandbox._require_service(kind, name)
 
                 for declaration in declarations:
                     sandbox._batch.add(

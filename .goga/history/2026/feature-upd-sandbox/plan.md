@@ -1744,30 +1744,59 @@ names `.goga/tools/pybuggy/sandbox.yml`; `_enqueue_presets` calls `sandbox._requ
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 12 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/test_activation.py`): `activate_sandbox`
+- [x] **Declaration**: state that Task 12 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/test_activation.py`): `activate_sandbox`
   signature and `active_sandbox` lookup unchanged; arming through the new path
-- [ ] **REPL prototype (R4)**: in the REPL (tmp cwd with the document under the tools home —
+  (documents flipped to the `instance:`/`services:` keys, `fake_sandbox` to the new model
+  shapes; TDD red confirmed — the armed path crashed on the swapped-away `config.service`
+  field and the enqueue still called the deleted `_require_instance`)
+- [x] **REPL prototype (R4)**: in the REPL (tmp cwd with the document under the tools home —
   the Task 4 fixture shape) call `activate_sandbox({})` — observe the returned config and the
   three registered hooks; without the document → `None` and the namespace untouched; then
   migrate
-- [ ] **Code**: update `goga_tool_pybuggy/sandbox/activation.py` texts per the design
+  (observed live in a venv heredoc REPL: no-document and stale-root-only legs both return
+  None with the namespace untouched; the current code's armed-leg failure point read;
+  the migrated fragments — `config.instance.image` / `list(config.services)` and the
+  `_require_service` unknown-name error — exercised; then migrated and re-verified in a
+  fresh interpreter: inert, stale-root-unread, armed with the three hooks)
+- [x] **Code**: update `goga_tool_pybuggy/sandbox/activation.py` texts per the design
   details; `_enqueue_presets` → `_require_service`
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_activation.py -x -v`
+  (docstring names `.goga/tools/pybuggy/sandbox.yml` under the pybuggy tools home; the
+  inert-debug extra carries the same path; the armed log reads
+  `extra={"image": config.instance.image, "services": list(config.services)}`;
+  `_enqueue_presets` calls `sandbox._require_service` with the service-vocabulary Raises
+  clause; `_KIND_ACTIONS` and the hook machinery untouched)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_activation.py -x -v`
   — pass
-- [ ] **Logic tests** (scenario 28, transferred verbatim): `test_activation_arms_from_new_document_path`
+  (15 passed; fresh-interpreter facade check ok — 6 names, root re-exports, both
+  signatures, `_KIND_ACTIONS` unchanged)
+- [x] **Logic tests** (scenario 28, transferred verbatim): `test_activation_arms_from_new_document_path`
   — tmp_path with the document under the tools home; `activate_sandbox(context)` → config
   returned, three hooks registered; without the document → `None`, context untouched
   (inertness); plus the enqueue half of scenario 29 — preset declarations order ahead of
   in-test operations, unknown names list the configured services (over the fakes)
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (landed by name — the scenario-28 test also drops a stale root `.sandbox.yml` and
+  observes it never arm, pinning that arming rides the tools-home path only; the enqueue
+  half lives in the renamed `test_preset_enqueue_fails_unknown_service_listing_configured`
+  and `test_preset_enqueue_prepends_marker_presets_into_fresh_batch` — unknown name raises
+  "no postgresql service named 'ghost'; configured services: db (postgresql)", marker
+  presets apply ahead of the in-test insert)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/ tests/sandbox/data/ tests/sandbox/ -x` green except
   `test_session_lifecycle.py` (known-red until Task 14; Migration Ledger)
-- [ ] **Contract re-verification**: presence gate and full inertness hold — no hooks, no
+  (498 green with the docker-gated live cases executing; ledger blast radius verified —
+  full tree collects 1547, the runtime red list is exactly the scheduled suites: plugin
+  test_install/test_plugin + test_session_lifecycle, all on the old document keys / old
+  shapes)
+- [x] **Contract re-verification**: presence gate and full inertness hold — no hooks, no
   containers, no side effects without the document
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked against the activation CODEMANIFEST annotations — the signature, the lookup
+  seam, the constraint that no containers start here; vocabulary grep over the module
+  clean: no `.sandbox.yml`, no `_require_instance`, no old field reads)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (both gates exit 0 on the first run — no findings, no format drift)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ---
 

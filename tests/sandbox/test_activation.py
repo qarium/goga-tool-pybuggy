@@ -12,10 +12,20 @@ from goga_tool_pybuggy.sandbox.engines import DataOperation
 from .conftest import FakeEngine, FakeNetwork, FakeService
 
 MINIMAL_DOCUMENT = """\
-service:
+instance:
   image: my-service:latest
   env: {}
   port: 8080
+services:
+  db:
+    kind: postgresql
+"""
+
+STALE_ROOT_DOCUMENT = """\
+service:
+  image: former-service:latest
+  env: {}
+  port: 9000
 instances:
   db:
     kind: postgresql
@@ -149,15 +159,15 @@ def fake_sandbox(monkeypatch: pytest.MonkeyPatch) -> sandbox_module.Sandbox:
         The sandbox whose ``db`` engine is a recording fake.
     """
     engine = FakeEngine(name="db", kind="postgresql")
-    monkeypatch.setattr(sandbox_module, "build_engine", lambda _instance_config: engine)
-    monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _service_config: FakeService())
+    monkeypatch.setattr(sandbox_module, "build_engine", lambda _service_config: engine)
+    monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _instance_config: FakeService())
     monkeypatch.setattr(sandbox_module, "check_runtime", lambda: None)
     monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
 
     return sandbox_module.Sandbox(
         SandboxConfig(
-            service=ServiceConfig(image="my-service:latest", env={}, port=8080, health=None),
-            instances={"db": InstanceConfig(name="db", kind="postgresql", image=None)},
+            instance=InstanceConfig(image="my-service:latest", env={}, port=8080),
+            services={"db": ServiceConfig(name="db", kind="postgresql")},
             data=StartupData(),
         )
     )
@@ -204,6 +214,35 @@ class TestActivationBehavior:
         assert not any(name in context for name in HOOK_NAMES)
         assert activation_module.active_sandbox() is None
 
+    def test_activation_arms_from_new_document_path(self, sandbox_yaml):
+        """Scenario 28: arming reads the tools-home document; without it the call is inert.
+
+        A stale root ``.sandbox.yml`` is never read — with one present the call stays
+        inert, and only the document under ``.goga/tools/pybuggy/sandbox.yml`` arms the
+        three hooks.
+        """
+        context: dict[str, object] = {}
+
+        assert activation_module.activate_sandbox(context) is None
+        assert context == {}
+
+        pathlib.Path(".sandbox.yml").write_text(STALE_ROOT_DOCUMENT, encoding="utf-8")
+
+        assert activation_module.activate_sandbox(context) is None
+        assert context == {}
+        assert activation_module.active_sandbox() is None
+
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        config = activation_module.activate_sandbox(context)
+
+        assert isinstance(config, SandboxConfig)
+        assert config.instance.image == "my-service:latest"
+        assert list(config.services) == ["db"]
+
+        for name in HOOK_NAMES:
+            assert callable(context[name]), name
+
     def test_activation_registers_hooks_with_document(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
         """A valid document arms the three hooks; nothing starts until sessionstart runs."""
         sandbox_yaml(MINIMAL_DOCUMENT)
@@ -244,7 +283,7 @@ class TestActivationBehavior:
     def test_activation_invalid_document_fails_fast_registering_nothing(self, sandbox_yaml):
         """An invalid document fails before anything is registered or armed."""
         sandbox_yaml(
-            "service:\n  image: my-service:latest\n  port: 8080\n  env: {}\ninstances:\n  cache: { kind: redis }\n"
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  cache: { kind: redis }\n"
         )
 
         context: dict[str, object] = {}
@@ -369,10 +408,10 @@ class TestActivationBehavior:
 
         assert activation_module.active_sandbox() is None
 
-    def test_preset_enqueue_fails_unknown_instance_listing_configured(
+    def test_preset_enqueue_fails_unknown_service_listing_configured(
         self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch
     ):
-        """A preset targeting an unknown instance fails listing the configured ones."""
+        """A preset targeting an unknown service fails listing the configured ones."""
         sandbox_yaml(MINIMAL_DOCUMENT)
 
         context: dict[str, object] = {}
@@ -382,7 +421,7 @@ class TestActivationBehavior:
 
         marker = pytest.mark.pybuggy_services(presets={"postgresql": {"ghost": [{"table": "t", "rows": []}]}})
 
-        with pytest.raises(ValueError, match=r"ghost.*db"):
+        with pytest.raises(ValueError, match=r"no postgresql service named 'ghost'.*db \(postgresql\)"):
             context["pytest_runtest_setup"](ItemStub([marker]))
 
     def test_preset_enqueue_prepends_marker_presets_into_fresh_batch(
