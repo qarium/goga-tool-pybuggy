@@ -80,7 +80,7 @@ After the session (bare and template modes only), the command delivers the files
 
 | Artifact | Gate |
 |---|---|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages | template: skip existing (INFO); bare: overwrite |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged capability usages (the api cell and the sandbox subtree cells) | template: skip existing (INFO); bare: overwrite |
 | commented example records for the absent members of `.goga/tools/pybuggy/config.yml` | added when the file exists, idempotent |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |

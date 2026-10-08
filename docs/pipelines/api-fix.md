@@ -38,7 +38,9 @@ argument when they name a branch and/or an environment; otherwise it asks you:
 A feature branch combined with the standard environment triggers a warning question
 (the branch contract may not match the default SUT); the confirmed choice is recorded
 and holds for the entire cycle. Non-standard base URLs are passed to every run as
-`pytest --base-url <url>`.
+`pytest --base-url <url>` (a typed `--base-url` fails fast when the sandbox is active —
+`.goga/tools/pybuggy/sandbox.yml` present — because the sandbox owns the service
+address; see [Sandbox](../sandbox.md)).
 
 ## Stages
 

@@ -8,7 +8,9 @@ from unittest import mock
 
 import pytest
 from goga_tool_pybuggy.plugin import ApiPlugin
+from goga_tool_pybuggy.plugin import plugin as plugin_module
 from goga_tool_pybuggy.plugin.loaders import PackageLoader
+from goga_tool_pybuggy.sandbox.config import InstanceConfig, SandboxConfig, StartupData
 
 # Jinja2 is a core dependency, so the render-path tests run unconditionally.
 
@@ -185,6 +187,15 @@ class TestApiPluginContract:
 
         assert envvars.BASE_URL == "BASE_URL"
         assert envvars.API_TIMEOUT == "API_TIMEOUT"
+
+    def test_api_plugin_has_sandbox_activation_defaulting_to_none(self, tmp_path, monkeypatch):
+        """Plain construction leaves ``sandbox_activation`` at None; it is not a constructor kwarg."""
+        monkeypatch.chdir(tmp_path)
+
+        plugin = ApiPlugin(context={})
+
+        assert plugin.sandbox_activation is None
+        assert "sandbox_activation" not in inspect.signature(ApiPlugin.__init__).parameters
 
 
 class TestApiPluginLogic:
@@ -799,3 +810,170 @@ class TestApiPluginRetries:
         plugin.plugin_config = {"retries": 5}
 
         plugin.pytest_collection_modifyitems([])  # no items — must not raise
+
+
+class TestApiPluginSandboxIntegration:
+    """The armed-sandbox behavior of ``configure()`` and the ``api`` fixture.
+
+    ``sandbox_activation`` is assigned by ``install()`` (the arming seam); the tests below
+    follow the same post-construction assignment pattern.
+    """
+
+    def test_configure_renders_base_url_unchanged_without_sandbox(self, tmp_path, monkeypatch):
+        """Without an armed sandbox configure() renders base_url exactly as before."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("BASE_URL", "http://{{ ENV_X }}/api")
+        monkeypatch.setenv("ENV_X", "x")
+
+        plugin = ApiPlugin(context={})
+        assert plugin.sandbox_activation is None  # constructor leaves it unarmed
+        _lifecycle(plugin)
+
+        assert plugin.base_url == "http://x/api"
+
+    def test_configure_rejects_base_url_with_active_sandbox(self, tmp_path, monkeypatch):
+        """A typed --base-url plus an armed sandbox raises pytest.UsageError naming both facts.
+
+        The message names the sandbox document path — the consumer sees exactly which file
+        armed the sandbox and owns the service address.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BASE_URL", raising=False)
+
+        plugin = ApiPlugin(context={})
+        plugin.sandbox_activation = SandboxConfig(
+            instance=InstanceConfig(image="my-service:latest", env={}, port=8080),
+            services={},
+            data=StartupData(),
+        )
+
+        with pytest.raises(pytest.UsageError, match=r"--base-url.*\.goga/tools/pybuggy/sandbox\.yml"):
+            _lifecycle(plugin, args=["--base-url", "http://x"], options={"base_url": "http://x"})
+
+    def test_configure_with_armed_sandbox_still_requires_the_base_url_option(self, tmp_path, monkeypatch):
+        """The base_url option stays required with an armed sandbox — the contract keeps it.
+
+        The sandbox owns the address at read time only; the option itself is still rendered
+        in configure exactly as before, so a consumer without any base_url source fails on
+        the required-option error.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BASE_URL", raising=False)
+
+        plugin = ApiPlugin(context={})
+        plugin.sandbox_activation = SandboxConfig(
+            instance=InstanceConfig(image="my-service:latest", env={}, port=8080),
+            services={},
+            data=StartupData(),
+        )
+
+        with pytest.raises(ValueError, match=r'option "base_url" is required'):
+            _lifecycle(plugin)
+
+    def test_api_fixture_guard_forwards_kwargs_and_blocks_on_died_service(self, tmp_path, monkeypatch):
+        """The guard forwards request kwargs verbatim and the died-service error blocks the request."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("BASE_URL", "http://rendered/api")
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(plugin)
+
+        calls: list[object] = []
+
+        class _DiedSandbox:
+            """Sandbox double whose instance under test died before the request."""
+
+            base_url = "http://10.0.0.1:9000"
+
+            def apply_pending(self):
+                calls.append("apply_pending")
+
+            def ensure_service(self):
+                calls.append("ensure_service")
+
+                raise RuntimeError("the instance under test (image my-service:latest) died; its output:\nOOM")
+
+        class _FakeApi:
+            """Api double recording the request kwargs it receives."""
+
+            def __init__(self, *, base_url: str, **kwargs: object) -> None:
+                self.base_url = base_url
+
+            def request(self, method: str, url_path: str, **kwargs: object) -> object:
+                calls.append(("request", method, url_path, kwargs))
+
+                return "response"
+
+            def close(self) -> None:
+                pass
+
+        monkeypatch.setattr(plugin_module, "active_sandbox", _DiedSandbox)
+        monkeypatch.setattr(plugin_module, "Api", _FakeApi)
+
+        gen = ApiPlugin.api.__wrapped__(plugin)
+        api = next(gen)
+
+        with pytest.raises(RuntimeError, match="died"):
+            api.request("GET", "/x", headers={"h": "1"}, params={"q": "v"})
+
+        assert ("request", "GET", "/x", {"headers": {"h": "1"}, "params": {"q": "v"}}) not in calls
+        assert calls == ["apply_pending", "ensure_service"]
+
+    def test_api_fixture_substitutes_base_url_and_guards_first_request(self, tmp_path, monkeypatch):
+        """An active sandbox wins the fixture base_url and guards every request."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("BASE_URL", "http://rendered/api")
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(plugin)  # plugin.base_url rendered by configure()
+
+        calls: list[object] = []
+
+        class _FakeSandbox:
+            """Recording sandbox double: the guard runs its two checks."""
+
+            base_url = "http://10.0.0.1:9000"
+
+            def apply_pending(self):
+                calls.append("apply_pending")
+
+            def ensure_service(self):
+                calls.append("ensure_service")
+
+        class _FakeApi:
+            """Api double recording its construction base_url and requests."""
+
+            def __init__(self, *, base_url: str, **kwargs: object) -> None:
+                self.base_url = base_url
+
+            def request(self, method: str, url_path: str, **kwargs: object) -> object:
+                calls.append(("request", method, url_path, kwargs) if kwargs else ("request", method, url_path))
+                return "response"
+
+            def close(self) -> None:
+                pass
+
+        monkeypatch.setattr(plugin_module, "active_sandbox", _FakeSandbox)
+        monkeypatch.setattr(plugin_module, "Api", _FakeApi)
+
+        gen = ApiPlugin.api.__wrapped__(plugin)
+        api = next(gen)  # drive the fixture up to the yield
+
+        api.request("GET", "/x")
+        api.request("POST", "/y", headers={"h": "1"}, params={"q": "v"})  # kwargs forwarded verbatim
+
+        assert api.base_url == "http://10.0.0.1:9000"  # the sandbox address wins
+        # The guard ran both checks before each original request; the kwargs passed through.
+        assert calls == [
+            "apply_pending",
+            "ensure_service",
+            ("request", "GET", "/x"),
+            "apply_pending",
+            "ensure_service",
+            ("request", "POST", "/y", {"headers": {"h": "1"}, "params": {"q": "v"}}),
+        ]
+        # The read-time substitution leaves the option value untouched.
+        assert plugin.base_url == "http://rendered/api"
+
+        with pytest.raises(StopIteration):
+            next(gen)  # teardown

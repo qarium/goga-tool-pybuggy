@@ -4,7 +4,12 @@
 **API** — it turns OpenAPI/Swagger specifications into ready-made pytest fixtures — HTTP client,
 endpoint fixtures, response schemas, per-endpoint `meta.json` input contracts (query
 parameters, request body, URL variables) — and wires everything into the consumer's test
-suite. The package contains a pytest plugin and a CLI.
+suite; **Sandbox** — session-scoped isolated service testing: when
+`.goga/tools/pybuggy/sandbox.yml` is present, every pytest run starts the service under
+test plus mocked dependencies (postgresql, kafka, vault, http) in containers, wires them
+into the service env, and points the `api` fixture at the sandbox service (requires a
+docker-compatible container runtime).
+The package contains a pytest plugin and a CLI.
 
 **Documentation**: <https://qarium.github.io/goga-tool-pybuggy/>
 

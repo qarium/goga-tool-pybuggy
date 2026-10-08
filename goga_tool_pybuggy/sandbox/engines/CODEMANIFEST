@@ -1,0 +1,369 @@
+Imports:
+  - Types:
+      - ServiceConfig
+    From: goga_tool_pybuggy/sandbox/config
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  testcontainers: .goga/usages/cooks/testcontainers.md
+  psycopg: .goga/usages/cooks/psycopg.md
+  kafka-python: .goga/usages/cooks/kafka-python.md
+  mokapi: .goga/usages/cooks/mokapi.md
+  vault-dev: .goga/usages/cooks/vault-dev.md
+  wiremock: .goga/usages/cooks/wiremock.md
+  requests: .goga/usages/cooks/requests.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `conventions` for structured logging and the docstring rules.
+  Use `testcontainers` for the container lifecycle of every service: the runtime probe, module
+  and generic containers, readiness waiting, labels, and the stop guarantee.
+  Use `psycopg` for the postgresql data plane.
+  Use `kafka-python` for producing into the kafka mock.
+  Use `requests` for the HTTP data planes of the vault and http kinds.
+  Use `mokapi` for the kafka mock container contract.
+  Use `vault-dev` for the vault mock container contract.
+  Use `wiremock` for the http mock container contract.
+
+  Per-kind dependency service engines cell. One engine owns one started dependency service: its
+  container, its data plane, its baseline journal, and its reset. A common base carries the
+  journal replay every kind shares; each kind implements its own wipe. Readiness is bounded —
+  every wait honors the target's readiness declaration, and an expired deadline fails with an
+  actionable error. Every failure surfaces as a readable error identifying the service and the
+  failed operation. Use relative imports inside the cell.
+
+---
+
+"DataOperation(instance: str, kind: str, action: str, payload: dict[str, object])":
+  location: operation.py
+  annotations: |
+    One declared data operation targeted at a named service — the uniform unit of startup data,
+    per-test presets, in-test operations, and the baseline journal.
+
+    `instance`: the target service name.
+    `kind`: the dependency kind of the target.
+    `action`: the operation — insert, produce, put, or stub.
+    `payload`: the operation body — the same fields the matching service view operation accepts.
+
+    Requirements:
+    - pydantic model, kw_only; payloads are plain serializable data.
+    - The action set is fixed per kind: insert for postgresql, produce for kafka, put for vault,
+    stub for http. The startup-only postgresql insert carries a raw sql payload key instead of
+    table and rows — the statement executes as given, opaque: no reference resolution, no symbol
+    capture.
+    - Postgresql rows may carry $ref / $lookup dicts as top-level values — plain data here,
+    resolved only at execution; the payload is never rewritten, so journal replay re-resolves.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "instance -> str": |
+      The target service name.
+    "kind -> str": |
+      The dependency kind of the target.
+    "action -> str": |
+      The operation: insert, produce, put, or stub.
+    "payload -> dict[str, object]": |
+      The operation body.
+
+"InstanceAddress(host: str, port: int)":
+  location: address.py
+  annotations: |
+    The mapped address of one started service.
+
+    `host`: the host clients use to reach the service.
+    `port`: the published host-side port.
+
+    Requirements:
+    - pydantic model, kw_only.
+    - Addresses are read back from the container engine after start — a fixed host port is never
+    assumed.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "host -> str": |
+      The host clients use to reach the service.
+    "port -> int": |
+      The published host-side port.
+
+"check_runtime()":
+  location: runtime.py
+  annotations: |
+    Probe the container runtime availability before anything starts.
+
+    Algorithm:
+    1. Probe daemon reachability.
+    2. An unreachable runtime fails with an actionable error naming the requirement — a
+    docker-compatible container runtime must be available in the environment running the tests.
+
+    Requirements:
+    - The probe runs before the first container start of a session.
+    - The failure is immediate and actionable — tests never hang on a silent connection timeout.
+
+    Constraints:
+    - Do not start anything here — probe only.
+
+    Use `testcontainers` for the runtime requirement and the daemon communication.
+
+"build_engine(config: ServiceConfig) -> engine: BaseEngine":
+  location: runtime.py
+  annotations: |
+    Build the engine of the configured service kind.
+
+    `config`: the service declaration.
+    `engine`: the engine of the service's kind.
+
+    Algorithm:
+    1. Map the service kind to its engine — postgresql, kafka, vault, or http.
+    2. An unmapped kind fails with the supported kinds listed.
+
+    Requirements:
+    - The image override, the topic declarations, and the readiness declaration of `config`
+    reach the built engine.
+
+    Use `conventions` for type hints and testing.
+
+"EngineError()":
+  location: base.py
+  annotations: |
+    The failure type of every engine operation — the engine-specific RuntimeError subtype.
+
+    Every engine failure surfaces as this type; the message names the service, the failed
+    operation or lifecycle step, and the underlying cause. An expired readiness deadline
+    surfaces as this type — the message names the target, the waited check, and the expired
+    deadline. Exposed through the cell facade — the session runtime and consumer tests catch it
+    by name.
+
+    Use `conventions` for type hints and testing.
+
+"BaseEngine(config: ServiceConfig)":
+  location: base.py
+  annotations: |
+    Common per-service engine contract: start the service, execute operations, hold the baseline
+    journal, reset, stop. The reset behavior is shared — wipe to the kind's empty state, then
+    replay the journal.
+
+    `config`: the service declaration — name, kind, image override, topic declarations,
+    readiness declaration.
+
+    Requirements:
+    - The journal records the startup operations and every operation applied inside the baseline
+    boundary, in application order — the journal is the full session baseline.
+    - Readiness completes before start returns, bounded by the readiness declaration — expiry
+    is an actionable failure, never a hang.
+    - Stop removes the container and closes the data-plane connection; stopping a stopped
+    service is safe.
+
+    Constraints:
+    - Do not touch the instance under test — engines own dependency services only.
+    - Do not execute operations before start completes.
+
+    Use `testcontainers` for the container lifecycle and the cleanup safety net.
+    Use `conventions` for type hints and testing.
+  properties:
+    "address -> InstanceAddress": |
+      The mapped address of the started service, read back from the container engine — the value
+      the instance env placeholders and the service views consume.
+  methods:
+    "start(startup: list[DataOperation], network: Network | None)": |
+      Start the service container and bring it to readiness.
+
+      `startup`: the startup data of this service, in declaration order.
+      `network`: the sandbox network the container joins under its service-name alias — the
+      per-session isolation boundary between parallel sessions; absent keeps the engine
+      standalone.
+
+      Algorithm:
+      1. Build the kind's container — the product-pinned image unless the config overrides it,
+      labeled for sandbox identification, with the service port published, joined to `network`
+      when one is given.
+      2. Start the container and wait for readiness — within the declared deadline, at the
+      declared interval; an expired deadline fails with an actionable error naming the service
+      and the waited check.
+      3. Open the data-plane connection.
+      4. Apply the startup operations in order and record them into the journal as the initial
+      baseline entries — the startup data is part of the baseline every reset replays.
+
+      Requirements:
+      - Start returns only after the service is ready and the startup data is applied and
+      journaled.
+      - A failed start surfaces an actionable error and leaves nothing behind.
+
+      Use `testcontainers` for the container start and readiness waiting.
+    "apply(operations: list[DataOperation])": |
+      Execute operations against the service data plane, in order, as one consistent batch.
+
+      `operations`: operations of this service's kind, in application order.
+
+      Algorithm:
+      1. Execute each operation through the kind's data plane.
+      2. A failed operation raises a readable error identifying the service, the operation, and
+      the cause.
+
+      Requirements:
+      - Order is preserved — data dependencies (for example foreign-key chains) are expressed by
+      operation order.
+
+      Constraints:
+      - Do not record into the journal here — recording belongs to the baseline boundary.
+    "record(operations: list[DataOperation])": |
+      Append operations to the baseline journal.
+
+      `operations`: applied operations to remember as the baseline.
+
+      Requirements:
+      - The journal order is the application order; replay reproduces the baseline exactly.
+    "reset()": |
+      Return the service to its baseline.
+
+      Algorithm:
+      1. Wipe the service to the kind's empty state.
+      2. Replay the journal through the same execution path as apply.
+
+      Requirements:
+      - After reset the service holds exactly the baseline state — no test data remains.
+    "stop()": |
+      Remove the container and close the data-plane connection.
+
+      Requirements:
+      - Safe on an already-stopped service.
+      - Removal is guaranteed — the explicit stop plus the cleanup safety net.
+
+"validate_insert_rows(rows: object, context: str)":
+  location: refs.py
+  annotations: |
+    Declaration-time grammar validation of insert rows.
+
+    `rows`: the declared rows of one insert.
+    `context`: the declaration location naming the rows in error messages.
+
+    Algorithm:
+    1. Rows must be a list of mappings.
+    2. Every top-level row value carrying $ref or $lookup must match the reference grammar:
+    a $ref value is exactly one key holding a non-empty table.index.column address; a $lookup
+    value is exactly one key holding a mapping with the required table and where and the
+    optional column, nothing else, where a non-empty mapping of scalars.
+    3. Plain dict values pass through — references are recognized only as top-level row values.
+
+    Requirements:
+    - Shape only — no I/O, no resolution; resolution belongs to the postgres engine at
+    execution time.
+    - Every failure names the declaration location: `{context} rows[i].column`.
+
+    Use `conventions` for type hints and testing.
+
+"BaseEngine::PostgresEngine(config: ServiceConfig)":
+  location: postgres.py
+  annotations: |
+    postgresql kind — a real postgres service.
+
+    Container: the postgres module container with the product-pinned default image; module
+    readiness wrapped in the declared deadline — start returns after the server accepts
+    connections within the declared timeout at the declared interval.
+    Data plane: SQL over the postgres driver — a table + rows insert resolves $ref / $lookup
+    values, then applies the rows one by one inside one transaction with RETURNING; every
+    applied row joins the engine's per-table symbol stream — the address space $ref resolves
+    against (the stream covers the data plane's own applied rows since the last wipe: journal,
+    presets, in-test declarations, in application order; a later row may reference an earlier
+    row of the same insert). A $lookup resolves through one parameterized match query against
+    the current database state — exactly one match required, the column defaults to the table's
+    primary key discovered from the catalog. Startup raw sql statements execute as given,
+    opaque — no resolution, no symbol capture.
+    Wipe: clear the symbol stream, discover the user tables from the catalog at reset time,
+    then truncate them all with identity restart and cascade — the cascade carries the
+    foreign-key ordering; the container is never restarted. The journal replay rebuilds the
+    symbol stream and re-resolves the journaled references.
+
+    Requirements:
+    - One connection for the session in autocommit mode, closed on stop.
+    - Catalog discovery runs at every reset — the table set may change mid-session.
+    - One transaction per insert — a failing row leaves nothing applied, and the symbol stream
+    rolls back with it.
+    - Resolution never rewrites the declared payload.
+
+    Constraints:
+    - Do not format SQL with interpolated values — parameters are bound server-side.
+
+    Use `psycopg` for the data plane and the catalog-driven reset.
+    Use `testcontainers` for the postgres module container.
+
+"BaseEngine::KafkaEngine(config: ServiceConfig)":
+  location: kafka.py
+  annotations: |
+    kafka kind — the kafka mock service.
+
+    Container: the kafka mock image; the inline topic declarations of `config` are consumed at
+    build — the AsyncAPI document is generated in memory from the declared topics, its kafka
+    servers are rewritten to the client-reachable mapped address of a reserved fixed port, the
+    patched copy travels into the container through the docker api, and its in-container path is
+    passed as the start argument — topics come from the declaration, the mock binds and
+    advertises the patched address, and bootstrap, metadata and the instance env name one and
+    the same address; readiness waits for the HTTP health side within the declared deadline at
+    the declared interval. An empty topic declaration is an invalid state — the engine fails
+    fast, the mock would open no kafka listener; document validation rejects it first.
+    Data plane: the kafka protocol — messages are produced with the producer client against the
+    mapped bootstrap address; delivery is confirmed at the batch boundary. A produce into a
+    topic not declared on the entry fails with a readable error naming the service and its
+    declared topics.
+    Wipe: restart the container — all state is in-memory, the fixed port binding and the
+    generated document survive the restart, the topology returns on boot, and the baseline
+    replays on top.
+
+    Requirements:
+    - The producer is created against the mapped address and closed on stop.
+    - A broken bootstrap fails within the operation deadline — never hangs.
+    - The generated document stays internal — never written to the consumer repository, never
+    exposed to authors.
+
+    Use `mokapi` for the container contract and the two planes.
+    Use `kafka-python` for producing.
+    Use `testcontainers` for the generic container, the reserved fixed port and the
+    restart-based wipe.
+
+"BaseEngine::VaultEngine(config: ServiceConfig)":
+  location: vault.py
+  annotations: |
+    vault kind — the secrets mock service in dev mode.
+
+    Container: the official vault image in dev mode — in-memory storage, plain HTTP,
+    auto-initialized, auto-unsealed, with the fixed dev root token; the vault port is published
+    on a reserved fixed host port, so the mapped address survives the restart-based reset;
+    readiness waits for the health endpoint within the declared deadline at the declared
+    interval.
+    Data plane: KV v2 over HTTP with the token header — put writes a secret at a path; startup
+    declarations write the same way.
+    Wipe: restart the container (storage is in-memory) and replay the baseline.
+
+    Requirements:
+    - The dev token is a fixed test credential — never a real secret, never logged.
+    - A failed write maps to a readable error naming the path.
+
+    Use `vault-dev` for the container contract and the KV v2 paths.
+    Use `requests` for the HTTP data plane.
+    Use `testcontainers` for the generic container and the restart-based wipe.
+
+"BaseEngine::HttpEngine(config: ServiceConfig)":
+  location: http.py
+  annotations: |
+    http kind — the http mock service.
+
+    Container: the http mock image with the admin port published; readiness waits for the admin
+    endpoint within the declared deadline at the declared interval.
+    Data plane: stub mappings created over the admin API — unmatched requests get a visible
+    near-miss response, so wiring mistakes surface in test failures.
+    Wipe: reset the mappings over the admin API and replay the baseline journal.
+
+    Requirements:
+    - Mapping declarations pass through as mapping objects — matching, priority, delays, and
+    faults stay available to authors.
+
+    Use `wiremock` for the admin API and the reset endpoints.
+    Use `requests` for the HTTP data plane.
+    Use `testcontainers` for the generic container.
+
+---
+
+Author: Goga
+CreatedAt: 06/10/26
+Description: |
+  Per-kind dependency service engines of the sandbox — containers, data planes, baseline
+  journals, and resets.

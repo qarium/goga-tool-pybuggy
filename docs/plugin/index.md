@@ -29,10 +29,19 @@ variables win).
 existing file is kept (bare mode: unless you confirm the overwrite) — see
 [CLI — init](../cli/init.md).
 
+The same `install()` call arms the **sandbox**: when
+`.goga/tools/pybuggy/sandbox.yml` exists under the pybuggy tools home, it starts before
+the first test, the `api` fixture's address resolves to the sandbox service, and every
+request first applies the test's pending sandbox data (see
+[Sandbox](../sandbox.md)).
+
 ## What enabling wires
 
 - **CLI options** — `--base-url` (resolves `base_url`, required; a typed flag overrides
-  the config-file and `BASE_URL` value), `--api-timeout` (resolves `timeout`),
+  the config-file and `BASE_URL` value; it fails fast with a usage error when the sandbox
+  is active — `.goga/tools/pybuggy/sandbox.yml` present — because the sandbox owns the
+  service address),
+  `--api-timeout` (resolves `timeout`),
   `--retries` (the flaky rerun count), `--api-assert-timeout` / `--api-assert-delay`
   (the assert-polling baseline). The remaining options (`headers`,
   `assert_field_class`, `assert_response_class`) have no CLI flag —
@@ -45,8 +54,12 @@ existing file is kept (bare mode: unless you confirm the overwrite) — see
   The reruns take effect when the `flaky` package is installed in the consumer suite; a
   programmatic default can be passed as `install(default_retries=N)`.
 - **The `api` fixture** — function-scoped, yields the HTTP client built from
-  the resolved options and closes it after the test. Generated endpoint fixtures depend
-  on it; pytest resolves `api` automatically — no extra wiring:
+  the resolved options and closes it after the test. With an active sandbox the
+  sandbox's service address wins `base_url` at read time (the option value stays
+  untouched) and every request passes the sandbox guard first — pending data is
+  applied, the service liveness is ensured, then the original request runs; a died
+  service fails the request with the service output attached. Generated endpoint
+  fixtures depend on it; pytest resolves `api` automatically — no extra wiring:
 
   ```python
   @pytest.fixture(scope="function")
@@ -81,6 +94,9 @@ loader:
 
 ## Preconditions and side effects
 
+- A sandbox document at `.goga/tools/pybuggy/sandbox.yml` activates the sandbox on the
+  same `install()` call; the environment then needs a docker-compatible container
+  runtime (see [Sandbox](../sandbox.md)).
 - The `api/` tree is discovered by default; a missing tree is tolerated
   (`required=False`).
 - The plugin reads `.goga/tools/pybuggy/config.yml` at import; a missing file is

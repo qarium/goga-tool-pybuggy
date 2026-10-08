@@ -4,7 +4,8 @@
 it turns OpenAPI/Swagger specifications into ready-made pytest fixtures — HTTP client,
 endpoint fixtures, response schemas, per-endpoint `meta.json` input contracts (query
 parameters, request body, URL variables) — and wires everything into the consumer's test
-suite. The package contains a pytest plugin and a CLI.
+suite; **Sandbox** — session-scoped isolated service testing driven by a sandbox document
+at `.goga/tools/pybuggy/sandbox.yml`. The package contains a pytest plugin and a CLI.
 
 ## What you get
 
@@ -24,6 +25,12 @@ suite. The package contains a pytest plugin and a CLI.
 - **Topic statuses** — every design artifact of the automate and fix chains marks a
   `pybuggy.*` status on the goga topic status scale: `goga history status` shows the
   latest reached stage of the automate line and the fix line — one status per line.
+- **Sandbox** — session-scoped isolated service testing: a sandbox document at
+  `.goga/tools/pybuggy/sandbox.yml` makes every pytest run start the service under test
+  plus mocked dependencies (postgresql, kafka, vault, http) in containers, wire them
+  into the service env, and point the `api` fixture at the sandbox service; per-test
+  data presets and baseline/reset fixtures keep tests order-independent. Requires a
+  docker-compatible container runtime (see [Sandbox](sandbox.md)).
 
 ## Quickstart
 
@@ -47,5 +54,7 @@ fine-grained control: [CLI Reference](cli/init.md).
 - [Pipelines](pipelines/index.md) — the automated API-test lifecycle.
 - [CLI Reference](cli/init.md) — every command with options and behavior.
 - [Configuration](configuration.md) — `.goga/tools/pybuggy/config.yml`.
+- [Sandbox](sandbox.md) — `.goga/tools/pybuggy/sandbox.yml` and session-scoped service
+  testing.
 - [Matchers](matchers/index.md) — assertions and the matcher catalog.
 - [Pytest Plugin](plugin/index.md) — enabling, fixtures, options.

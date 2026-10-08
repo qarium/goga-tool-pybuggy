@@ -1,6 +1,7 @@
 """Tests for the seven bootstrap writers — contract surface, round-trip guarantees, deltas.
 
-Covers the writers relocated from the 1.x ``init.py``, the two migration deltas, and the 2.0.1 restoration.
+Covers the writers relocated from the 1.x ``init.py``, the two migration deltas, the 2.0.1
+restoration, and the ``run_bootstrap`` packaged-usage distribution over the sandbox subtree.
 """
 
 import importlib.metadata
@@ -8,6 +9,7 @@ import importlib.resources
 import logging
 from pathlib import Path
 
+import click
 import pytest
 from goga_tool_pybuggy.commands.init import (
     document_config_examples,
@@ -15,6 +17,7 @@ from goga_tool_pybuggy.commands.init import (
     install_pybuggy,
     register_annotations,
     register_usages,
+    run_bootstrap,
     write_pybuggy_conftest,
     write_test_convention,
 )
@@ -35,6 +38,33 @@ _ANNOTATION_INPUT = {
     "pybuggy-api": "Use `pybuggy-api` for executing HTTP requests from test fixtures.",
     "conventions": "Use `conventions` for test code: pytest configuration, logging, and Allure reporting.",
 }
+
+# The packaged usage texts the bootstrap distributes — the api root (incl. ``asserts``) plus the
+# sandbox subtree; stems are unique across the two roots.
+_API_PACKAGE = importlib.resources.files("goga_tool_pybuggy.api")
+_SANDBOX_PACKAGE = importlib.resources.files("goga_tool_pybuggy.sandbox")
+_PACKAGED_USAGES = {
+    "api": (_API_PACKAGE / ".usages" / "api.md").read_text(encoding="utf-8"),
+    "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
+    "sandbox-session": (_SANDBOX_PACKAGE / ".usages" / "sandbox-session.md").read_text(encoding="utf-8"),
+    "sandbox-file": (_SANDBOX_PACKAGE / "config" / ".usages" / "sandbox-file.md").read_text(encoding="utf-8"),
+    "data-operations": (_SANDBOX_PACKAGE / "data" / ".usages" / "data-operations.md").read_text(encoding="utf-8"),
+}
+
+# The three sandbox stems gaining distribution and registration (annotation lines are hand-authored).
+_SANDBOX_STEMS = ("sandbox-session", "sandbox-file", "data-operations")
+
+
+def _seed_bootstrap_target(root: Path) -> None:
+    """Seed a minimal bootstrappable consumer project — config plus the declared Dockerfile.
+
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
+    """
+    goga = root / ".goga"
+    goga.mkdir(exist_ok=True)
+    (goga / "config.yml").write_text("language: python\ndockerfile: Dockerfile\n", encoding="utf-8")
+    (root / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
 
 class TestBootstrapContract:
@@ -448,3 +478,77 @@ class TestFixedAssetWriters:
 
         assert conftest.read_text(encoding="utf-8") == _EXPECTED_CONFTEST
         assert slot.read_text(encoding="utf-8") == packaged
+
+
+class TestRunBootstrapUsages:
+    """The ``run_bootstrap`` packaged-usage distribution — two roots, five stems, one registration path."""
+
+    def test_bootstrap_contract_distributes_and_registers_five_stems(self, tmp_path, monkeypatch):
+        """After a template-mode bootstrap the five stems exist and the three sandbox keys register."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+
+        assert run_bootstrap(template_mode=True) == 0
+
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert sorted(path.name[:-3] for path in usages.iterdir()) == sorted(_PACKAGED_USAGES)
+
+        config = YAML().load(tmp_path / ".goga" / "config.yml")
+        for stem in _SANDBOX_STEMS:
+            assert config["codemanifest"]["usages"][f"pybuggy-{stem}"] == f".goga/usages/cooks/pybuggy/{stem}.md"
+            assert f"`pybuggy-{stem}`" in config["codemanifest"]["annotations"]
+
+    def test_bootstrap_copies_and_registers_sandbox_usages(self, tmp_path, monkeypatch):
+        """All five usage files land byte-identical with keys and annotation lines registered.
+
+        The scope constraint holds: nothing beyond the two packaged roots is copied — the plugin
+        and commands usage files never reach the target.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+
+        assert run_bootstrap(template_mode=False) == 0
+
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert sorted(path.name for path in usages.iterdir()) == sorted(f"{stem}.md" for stem in _PACKAGED_USAGES)
+
+        for stem, text in _PACKAGED_USAGES.items():
+            assert (usages / f"{stem}.md").read_text(encoding="utf-8") == text
+
+        config = YAML().load(tmp_path / ".goga" / "config.yml")
+        registered = config["codemanifest"]["usages"]
+        annotations = config["codemanifest"]["annotations"]
+
+        for stem in _PACKAGED_USAGES:
+            assert registered[f"pybuggy-{stem}"] == f".goga/usages/cooks/pybuggy/{stem}.md"
+
+        for stem in _SANDBOX_STEMS:
+            assert f"Use `pybuggy-{stem}`" in annotations
+
+    def test_bootstrap_template_mode_skips_existing_targets(self, tmp_path, monkeypatch, caplog):
+        """Template mode keeps an existing sandbox-usage sentinel across reruns; bare mode overwrites it."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+        target = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox-session.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("sentinel\n", encoding="utf-8")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=True) == 0
+
+        assert target.read_text(encoding="utf-8") == "sentinel\n"
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=True) == 0
+
+        assert target.read_text(encoding="utf-8") == "sentinel\n"
+        assert any(
+            record.message == "existing file kept untouched" and record.path == str(target) for record in caplog.records
+        )
+
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
+        assert run_bootstrap(template_mode=False) == 0
+        assert target.read_text(encoding="utf-8") == _PACKAGED_USAGES["sandbox-session"]

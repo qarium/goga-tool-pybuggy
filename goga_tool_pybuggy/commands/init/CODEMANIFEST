@@ -142,9 +142,10 @@ Annotations: |
 
     Algorithm:
     1. Resolve the output root as the current working directory.
-    2. Discover every .usages/*.md under api/.usages of the installed package; copy each into
-       .goga/usages/cooks/pybuggy/<stem>.md — template mode: an existing target is skipped with an INFO log; bare
-       mode: an existing target is overwritten.
+    2. Discover every .usages/*.md under the packaged usage roots — the api cell and the cells of
+    the sandbox subtree that carry usage files; copy each into
+    .goga/usages/cooks/pybuggy/<stem>.md — template mode: an existing target is skipped with an INFO log; bare
+    mode: an existing target is overwritten.
     3. Document the absent plugin members of .goga/tools/pybuggy/config.yml as commented example records via
        `document_config_examples` — idempotent; a no-op when the session wrote no tool config.
     4. Deliver the `conventions` slot: when .goga/usages/conventions.md does not exist, call `write_test_convention`;
@@ -164,12 +165,16 @@ Annotations: |
       annotation lines are registered; the packaged usages are copied; the tool config carries the commented examples
       of its absent optional members (when the session wrote it); the `conventions` slot is occupied when it was
       absent; the root conftest exists.
+    - The sandbox capability usage files land in the same cooks directory and register under the
+    same pybuggy-<stem> usage keys and annotation lines — one distribution path, one registration
+    path.
     - The pure writers always (over)write when called — every existence check and confirmation lives here.
     - Every step is idempotent; a repeat run changes nothing.
     - A write failure in any step is logged (ERROR) and fails the command with a non-zero exit.
 
     Constraints:
-    - Do not copy usages beyond the api/.usages directory of the installed package.
+    - Do not copy usages beyond the packaged usage roots (the api cell and the sandbox subtree
+    cells).
     - Do not merge into an existing conftest — either a confirmed overwrite (bare) or a skip.
     - Do not prompt about existing files in template mode — the template expresses the user's intent.
     - Do not create the Dockerfile when the engine did not write it — report and fail.

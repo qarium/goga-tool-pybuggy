@@ -1,0 +1,178 @@
+Imports:
+  - Types:
+      - DataOperation
+      - InstanceAddress
+      - validate_insert_rows
+    From: goga_tool_pybuggy/sandbox/engines
+
+Usages:
+  conventions: .goga/usages/conventions.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `conventions` for the docstring rules.
+
+  Data declaration surface of the sandbox. Instance views declare dependency-data operations
+  from tests; presets declare them on the test itself; the batch accumulates the declared
+  operations and hands them over as one consistent unit. Declarations are lazy — nothing is
+  executed at declaration time. Use relative imports inside the cell.
+
+---
+
+"DataBatch()":
+  location: batch.py
+  annotations: |
+    The accumulated operations of the current test.
+
+    Requirements:
+    - One batch per test; the batch empties when taken.
+    - The accumulation order is the application order per service — presets precede in-test
+    operations.
+
+    Use `conventions` for type hints and testing.
+  methods:
+    "add(operation: DataOperation)": |
+      Append one operation to the batch. Nothing is executed.
+    "take() -> operations: list[DataOperation]": |
+      Drain the batch in accumulation order; the batch is empty afterwards.
+
+"PostgresInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: postgres.py
+  annotations: |
+    Test-facing view of a started postgresql service.
+
+    `name`: the service name from the sandbox document.
+    `address`: the mapped address of the started service.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured service name.
+    "host -> str": |
+      The mapped host — the value the env placeholders of the instance under test resolve to.
+    "port -> int": |
+      The published port — the value the env placeholders of the instance under test resolve to.
+  methods:
+    "insert(table: str, rows: list[dict[str, object]])": |
+      Declare row inserts into one table. One call targets one table; rows apply in list order.
+      Foreign-key chains follow the declaration order — parents first — while generated parent
+      keys resolve through row values: a $ref addresses the data plane's own applied rows, a
+      $lookup matches the current database state. The row grammar is validated by
+      `validate_insert_rows` — a malformed reference fails at declaration.
+
+      `table`: the target table.
+      `rows`: the rows to insert, in order.
+
+"KafkaInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: kafka.py
+  annotations: |
+    Test-facing view of a started kafka service.
+
+    `name`: the service name from the sandbox document.
+    `address`: the mapped address of the started service.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured service name.
+    "host -> str": |
+      The mapped host — the value the env placeholders of the instance under test resolve to.
+    "port -> int": |
+      The published port — the value the env placeholders of the instance under test resolve to.
+  methods:
+    "produce(topic: str, value: dict[str, object] | str, key: str | None)": |
+      Declare one message produce.
+
+      `topic`: the target topic — it must be declared on the kafka service entry of the sandbox
+      document.
+      `value`: the message value.
+      `key`: the optional partition key.
+
+"VaultInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: vault.py
+  annotations: |
+    Test-facing view of a started vault service.
+
+    `name`: the service name from the sandbox document.
+    `address`: the mapped address of the started service.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured service name.
+    "host -> str": |
+      The mapped host — the value the env placeholders of the instance under test resolve to.
+    "port -> int": |
+      The published port — the value the env placeholders of the instance under test resolve to.
+  methods:
+    "put(path: str, data: dict[str, object])": |
+      Declare one secret write.
+
+      `path`: the secret path.
+      `data`: the secret data.
+
+"HttpInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: http.py
+  annotations: |
+    Test-facing view of a started http service.
+
+    `name`: the service name from the sandbox document.
+    `address`: the mapped address of the started service.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured service name.
+    "host -> str": |
+      The mapped host — the value the env placeholders of the instance under test resolve to.
+    "port -> int": |
+      The published port — the value the env placeholders of the instance under test resolve to.
+  methods:
+    "stub(mapping: dict[str, object])": |
+      Declare one stub mapping. Matching, priority, delays, and faults pass through as given.
+
+      `mapping`: the mapping object of the http mock.
+
+"services(...presets: dict[str, dict[str, list[dict[str, object]]]]) -> decorator: Callable":
+  location: presets.py
+  annotations: |
+    Per-test data-preset decorator: kind-named arguments carrying service-targeted declarations.
+
+    `presets`: kind → service name → declaration list; every declaration carries the same fields
+    as the matching service view operation.
+    `decorator`: the marker applied to the test.
+
+    Algorithm:
+    1. Validate the declarations at decoration — only the four supported kinds; anything else
+    fails listing the supported kinds. Postgresql rows run the `validate_insert_rows` grammar
+    validation — a malformed $ref / $lookup fails naming the declaration location.
+    2. Mark the test with the presets.
+    3. At the test's start the marked presets enqueue into that test's batch, ahead of any
+    in-test operation — service names resolve there against the sandbox document; an unknown
+    name fails listing the configured services.
+
+    Requirements:
+    - Presets apply only to the test declaring them.
+    - Declaration order within one service is the application order — parents before children
+    for foreign-key chains; $ref / $lookup row values resolve the generated keys.
+
+    Constraints:
+    - Do not execute anything at decoration time.
+
+    Use `conventions` for type hints and testing.
+
+---
+
+Author: Goga
+CreatedAt: 06/10/26
+Description: |
+  Data declaration surface of the sandbox — instance views, the lazy batch, and per-test
+  presets.
