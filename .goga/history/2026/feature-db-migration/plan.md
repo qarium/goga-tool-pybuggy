@@ -1450,9 +1450,11 @@ task's implementation.
 **Usages relevant to this task:**
 - `conventions`: the validation command table (virtualenv, pytest, ruff, facade checks).
 
-- [ ] Run the full suite: `.venv/bin/pytest tests/ -x` — green; the docker-gated
+- [x] Run the full suite: `.venv/bin/pytest tests/ -x` — green; the docker-gated
   `test_reset_keeps_migrated_schema_and_replays_only_seed` skips cleanly without a runtime
-- [ ] Facade checks (fresh interpreter): `.venv/bin/python -c "from
+  — 1673 passed, 18 skipped in 28.28s; the focused file reports the gated case SKIPPED by
+  name (52 passed, 11 skipped)
+- [x] Facade checks (fresh interpreter): `.venv/bin/python -c "from
   goga_tool_pybuggy.sandbox.migrations import MigrationError, MigrationFile,
   apply_migrations, check_git_url, check_local_migrations, load_migration_set,
   parse_migration_file, run_migrations"` (8 names); `.venv/bin/python -c "from
@@ -1460,15 +1462,20 @@ task's implementation.
   ServiceConfig, load_sandbox_config"` (9 names); `.venv/bin/python -c "from
   goga_tool_pybuggy.sandbox.engines import BaseEngine, PostgresEngine, build_engine,
   EngineError"` (byte-stable 11); root re-exports `active_sandbox` / `services` unchanged
-- [ ] Contract lint: `goga lint` — 24 cells, 0 errors (same count as the Task 1 baseline: no
+  — all four succeed; `__all__` verified exactly: migrations 8 (contract list), config 9
+  (alphabetical incl. GitSource + MigrationsConfig), engines 11 (byte-stable)
+- [x] Contract lint: `goga lint` — 24 cells, 0 errors (same count as the Task 1 baseline: no
   new cells)
-- [ ] Lint + format gate: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
-  `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` — no drift on plan-touched files
-- [ ] Discipline sweep: `git diff --stat` over the three CODEMANIFEST paths and the two
+- [x] Lint + format gate: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0 ("All
+  checks passed!"); `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` — 315 files
+  already formatted, exit 0 (no drift)
+- [x] Discipline sweep: `git diff --stat` over the three CODEMANIFEST paths and the two
   `.usages/` files since the Task 1 contract commit — empty (the contract was not modified
   during implementation); `grep -n "_migrate" goga_tool_pybuggy/sandbox/engines/CODEMANIFEST`
-  — absent (the protected hook never entered the manifest)
-- [ ] Commit gate (M-R3.4, full): lint + format + `pytest tests/ -x` green before the final
+  — absent (the protected hook never entered the manifest) — plus: `pyproject.toml` diff
+  since `57ba2d6` empty (no dependencies added) and the migrations leaf holds no upward
+  import (every .py import intra-cell relative or stdlib/third-party absolute)
+- [x] Commit gate (M-R3.4, full): lint + format + `pytest tests/ -x` green before the final
   commit
 
 ---
@@ -1496,33 +1503,33 @@ task's implementation.
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location` (the four migrations-cell
+- [x] Every contract entity is implemented in the correct `location` (the four migrations-cell
       files + `config/migrations.py`; the changed entities in `service.py`, `loader.py`,
       `base.py`, `postgres.py`, `runtime.py`)
-- [ ] Every contract entity is accessible from its facade (migrations 8 names; config 9 names;
+- [x] Every contract entity is accessible from its facade (migrations 8 names; config 9 names;
       engines 11 names byte-stable; root re-exports unchanged)
-- [ ] Properties and methods match the declared API; descriptions are reflected in behavior —
+- [x] Properties and methods match the declared API; descriptions are reflected in behavior —
       decision A (strict schemes), the parser file-order invariant, the loader guards, the
       wrap chains (`MigrationError` → `ValueError` / `EngineError` with causes preserved),
       the start ordering (migrations between plane open and startup data), journal isolation,
       reset semantics (schema survives, seed replays)
-- [ ] Contract dependencies are met (`check_local_migrations` / `check_git_url` /
+- [x] Contract dependencies are met (`check_local_migrations` / `check_git_url` /
       `MigrationError` edges config ← migrations; `run_migrations` edge engines ← migrations;
       `ServiceConfig` edge engines ← config; no reverse dependencies)
-- [ ] Every coding task followed the TDD workflow (contract tests → code → interface
+- [x] Every coding task followed the TDD workflow (contract tests → code → interface
       verification → logic tests → debugging → contract re-verification → lint) with the REPL
       loop inside implementation and debugging (R4)
-- [ ] All 58 named design test scenarios plus the facade/model-level units exist and pass;
+- [x] All 58 named design test scenarios plus the facade/model-level units exist and pass;
       boundary tables include each boundary (scheme allowlist, raw-value table, timestamp
       versions, numeric ordering)
-- [ ] The integration test covers the reset role split end-to-end; the docker-gated case
+- [x] The integration test covers the reset role split end-to-end; the docker-gated case
       skips cleanly without a runtime
-- [ ] No package boundary was expanded; no new cells; no new dependencies; the protected
+- [x] No package boundary was expanded; no new cells; no new dependencies; the protected
       `_migrate` hook never entered a manifest
-- [ ] `CODEMANIFEST` files were not modified (the working-tree contract committed unchanged in
+- [x] `CODEMANIFEST` files were not modified (the working-tree contract committed unchanged in
       Task 1)
-- [ ] All validation commands pass — full suite green, ruff check + format clean, facades
+- [x] All validation commands pass — full suite green, ruff check + format clean, facades
       importable, `goga lint` 24 cells / 0 errors
-- [ ] Every Usages entry is exercised in at least one task (conventions throughout; goose-sql
+- [x] Every Usages entry is exercised in at least one task (conventions throughout; goose-sql
       Tasks 2–4; psycopg Tasks 4/7/8; gitpython Tasks 3–4; migration-set Tasks 6–8;
       ruamel-yaml Task 6; sandbox-file Task 9)
