@@ -49,9 +49,11 @@ _PACKAGED_USAGES = {
     "sandbox-session": (_SANDBOX_PACKAGE / ".usages" / "sandbox-session.md").read_text(encoding="utf-8"),
     "sandbox-file": (_SANDBOX_PACKAGE / "config" / ".usages" / "sandbox-file.md").read_text(encoding="utf-8"),
     "data-operations": (_SANDBOX_PACKAGE / "data" / ".usages" / "data-operations.md").read_text(encoding="utf-8"),
+    "migration-set": (_SANDBOX_PACKAGE / "migrations" / ".usages" / "migration-set.md").read_text(encoding="utf-8"),
 }
 
-# The three sandbox stems gaining distribution and registration (annotation lines are hand-authored).
+# The three sandbox stems with hand-authored annotation lines; ``migration-set`` registers through
+# the bare-backtick fallback (no hand-authored line yet).
 _SANDBOX_STEMS = ("sandbox-session", "sandbox-file", "data-operations")
 
 
@@ -481,10 +483,10 @@ class TestFixedAssetWriters:
 
 
 class TestRunBootstrapUsages:
-    """The ``run_bootstrap`` packaged-usage distribution — two roots, five stems, one registration path."""
+    """The ``run_bootstrap`` packaged-usage distribution — two roots, six stems, one registration path."""
 
-    def test_bootstrap_contract_distributes_and_registers_five_stems(self, tmp_path, monkeypatch):
-        """After a template-mode bootstrap the five stems exist and the three sandbox keys register."""
+    def test_bootstrap_contract_distributes_and_registers_six_stems(self, tmp_path, monkeypatch):
+        """After a template-mode bootstrap the six stems exist and the three sandbox keys register."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_bootstrap_target(tmp_path)
@@ -500,7 +502,7 @@ class TestRunBootstrapUsages:
             assert f"`pybuggy-{stem}`" in config["codemanifest"]["annotations"]
 
     def test_bootstrap_copies_and_registers_sandbox_usages(self, tmp_path, monkeypatch):
-        """All five usage files land byte-identical with keys and annotation lines registered.
+        """All six usage files land byte-identical with keys and annotation lines registered.
 
         The scope constraint holds: nothing beyond the two packaged roots is copied — the plugin
         and commands usage files never reach the target.
