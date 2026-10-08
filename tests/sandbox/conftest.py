@@ -70,18 +70,18 @@ class FakeEngine:
 
     The double mirrors the ``BaseEngine`` surface the ``Sandbox`` drives — lifecycle, apply,
     record, reset, address — without touching containers: every call is recorded, so tests
-    assert ordering, grouping and cleanup against the records instead of live instances.
+    assert ordering, grouping and cleanup against the records instead of live services.
 
     Attributes:
-        name: The instance name the sandbox resolves this engine by.
-        kind: The configured instance kind — the view factories and the preset enqueue
+        name: The service name the sandbox resolves this engine by.
+        kind: The configured service kind — the view factories and the preset enqueue
             validate against it.
-        address: The mapped address the instance views bind to.
+        address: The mapped address the service views bind to.
         events: An optional shared sink recording the lifecycle call sequence across fakes.
         applied: Operations executed through ``apply``, in call order.
         journaled: Operations that joined the baseline journal — startup and recorded.
         reset_count: The number of ``reset`` calls.
-        started: Whether the last lifecycle call left the instance started.
+        started: Whether the last lifecycle call left the service started.
         stopped: Whether ``stop`` was called.
     """
 
@@ -96,9 +96,9 @@ class FakeEngine:
         """Initialize the recording engine.
 
         Args:
-            name: The instance name the sandbox resolves this engine by.
-            kind: The configured instance kind.
-            address: The mapped address the instance views bind to; defaults to a sample address.
+            name: The service name the sandbox resolves this engine by.
+            kind: The configured service kind.
+            address: The mapped address the service views bind to; defaults to a sample address.
             fail_start: Make ``start`` raise — the failed-start cleanup scenarios.
             events: An optional shared sink recording the lifecycle call sequence across fakes.
         """
@@ -117,7 +117,7 @@ class FakeEngine:
         """Record a start; the startup operations join the journal as the initial baseline.
 
         Args:
-            startup: The startup data of this instance, in declaration order.
+            startup: The startup data of this service, in declaration order.
             network: The sandbox network handed through — recorded, never used.
 
         Raises:
@@ -126,7 +126,7 @@ class FakeEngine:
         self._emit("start")
 
         if self.fail_start:
-            raise RuntimeError(f"instance '{self.name}': start failed: fake refused to start")
+            raise RuntimeError(f"service '{self.name}': start failed: fake refused to start")
 
         self.started = True
         self.stopped = False
@@ -136,7 +136,7 @@ class FakeEngine:
         """Record operations as applied, in order; they never join the journal.
 
         Args:
-            operations: Operations of this instance's kind, in application order.
+            operations: Operations of this service's kind, in application order.
         """
         self._emit("apply")
         self.applied.extend(operations)
@@ -172,15 +172,15 @@ class FakeEngine:
 
 
 class FakeService:
-    """Recording service double for the sandbox cell unit tests.
+    """Recording instance double for the sandbox cell unit tests.
 
     The double mirrors the ``ServiceContainer`` surface the ``Sandbox`` drives — start with the
     rendered env, stop, liveness, logs — with liveness and output configurable, so the
-    died-service diagnostics are assertable without containers.
+    died-instance diagnostics are assertable without containers.
 
     Attributes:
         events: An optional shared sink recording the lifecycle call sequence across fakes.
-        started: Whether the last lifecycle call left the service started.
+        started: Whether the last lifecycle call left the instance started.
         stopped: Whether ``stop`` was called.
         started_env: The rendered env of the last ``start`` call; None before the first.
         host: The mapped host the sandbox ``base_url`` reads resolve to.
@@ -195,7 +195,7 @@ class FakeService:
         port: int = 9000,
         events: list[str] | None = None,
     ) -> None:
-        """Initialize the recording service.
+        """Initialize the recording instance container.
 
         Args:
             alive: The value every ``alive()`` probe returns.
@@ -218,7 +218,7 @@ class FakeService:
         """Record a start carrying the rendered env.
 
         Args:
-            env: The rendered service environment.
+            env: The rendered instance environment.
             network: The sandbox network handed through — recorded for the lifecycle assertions.
         """
         self._emit("start")
@@ -256,18 +256,18 @@ class FakeService:
             event: The event name of the recorded call.
         """
         if self.events is not None:
-            self.events.append(f"service:{event}")
+            self.events.append(f"instance:{event}")
 
 
 @pytest.fixture
 def fake_engine() -> FakeEngine:
-    """A fresh recording engine of the default ``db`` instance — postgresql kind."""
+    """A fresh recording engine of the default ``db`` service — postgresql kind."""
     return FakeEngine()
 
 
 @pytest.fixture
 def fake_service() -> FakeService:
-    """A fresh recording service — running, with empty output."""
+    """A fresh recording instance container — running, with empty output."""
     return FakeService()
 
 

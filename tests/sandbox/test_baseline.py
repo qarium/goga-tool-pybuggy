@@ -14,14 +14,14 @@ from .conftest import FakeEngine, FakeNetwork, FakeService
 def started(
     monkeypatch: pytest.MonkeyPatch,
 ) -> tuple[sandbox_module.Sandbox, FakeEngine, FakeService, list[str]]:
-    """A started sandbox over one recording postgresql engine and one recording service.
+    """A started sandbox over one recording postgresql engine and one recording instance.
 
     The scenario carries no startup data, so the engine journal starts empty — every
     journaled entry a test observes was declared inside a baseline boundary.
 
     Returns:
-        The started sandbox, its recording engine, its recording service, and the shared
-        lifecycle event sink of the fakes.
+        The started sandbox, its recording engine, its recording instance container, and the
+        shared lifecycle event sink of the fakes.
     """
     events: list[str] = []
     engine = FakeEngine(
@@ -32,14 +32,14 @@ def started(
     )
     service = FakeService(host="127.0.0.9", port=9000, events=events)
 
-    monkeypatch.setattr(sandbox_module, "build_engine", lambda _instance_config: engine)
-    monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _service_config: service)
+    monkeypatch.setattr(sandbox_module, "build_engine", lambda _service_config: engine)
+    monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _instance_config: service)
     monkeypatch.setattr(sandbox_module, "check_runtime", lambda: None)
     monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
 
     config = SandboxConfig(
-        service=ServiceConfig(image="my-service:latest", env={}, port=8080, health=None),
-        instances={"db": InstanceConfig(name="db", kind="postgresql", image=None)},
+        instance=InstanceConfig(image="my-service:latest", env={}, port=8080),
+        services={"db": ServiceConfig(name="db", kind="postgresql")},
         data=StartupData(),
     )
 

@@ -23,14 +23,15 @@ class Sandbox:
     """The running session sandbox.
 
     One sandbox owns one pytest-session environment: the ordered startup of the dependency
-    instance engines and the service under test, the readiness gates, the per-test data
-    batch the instance views declare into, and the guaranteed removal on every exit path.
-    The service container is never restarted on reset — only dependency instance data resets.
+    service engines and the instance under test, the readiness gates, the per-test data
+    batch the service views declare into, and the guaranteed removal on every exit path.
+    The instance container is never restarted on reset — only dependency service data
+    resets.
 
     Attributes:
         config: The validated sandbox configuration.
-        engines: The dependency instance engines, keyed by instance name in declaration order.
-        service: The service-under-test container.
+        engines: The dependency service engines, keyed by service name in declaration order.
+        service: The instance-under-test container.
     """
 
     def __init__(self, config: SandboxConfig) -> None:
@@ -41,9 +42,9 @@ class Sandbox:
         """
         self.config = config
         self.engines: dict[str, BaseEngine] = {
-            name: build_engine(instance_config) for name, instance_config in config.instances.items()
+            name: build_engine(service_config) for name, service_config in config.services.items()
         }
-        self.service = ServiceContainer(config.service)
+        self.service = ServiceContainer(config.instance)
         self._batch = DataBatch()
         self._boundary_open = False
         self._boundary_batch: DataBatch | None = None
@@ -54,8 +55,8 @@ class Sandbox:
         """The service address of the running sandbox.
 
         Returns:
-            The mapped service address — the value the api fixture uses while a sandbox
-            is active; readable once the service has started.
+            The mapped instance address — the value the api fixture uses while a sandbox
+            is active; readable once the instance has started.
         """
         return f"http://{self.service.host}:{self.service.port}"
 
@@ -63,16 +64,18 @@ class Sandbox:
         """Bring the sandbox up in the ordered sequence.
 
         Probes the container runtime, creates the sandbox network — the per-session isolation
-        boundary every container joins — starts every configured instance engine in
-        declaration order, each with its startup data, renders the service env against the
-        started instance addresses, then starts the service container to readiness.
-        A failure at any step removes everything started so far and re-raises.
+        boundary every container joins — starts every configured service engine in
+        declaration order, each with its startup data, renders the instance env against the
+        started service addresses, then starts the instance container and waits for its
+        readiness — the port, or the health path when declared — within the readiness
+        declaration's deadline at its interval. A failure at any step removes everything
+        started so far and re-raises.
 
         Raises:
-            RuntimeError: The container runtime is unavailable or the service did not
-                become ready; engines wrap their own failures into ``EngineError``.
+            RuntimeError: The container runtime is unavailable; engines wrap their own
+                failures into ``EngineError``, and the instance readiness expiry raises it.
         """
-        logger.info("sandbox starting", extra={"image": self.config.service.image, "instances": list(self.engines)})
+        logger.info("sandbox starting", extra={"image": self.config.instance.image, "services": list(self.engines)})
 
         try:
             check_runtime()
@@ -81,12 +84,12 @@ class Sandbox:
             self._network.create()
 
             addresses = self._start_engines()
-            rendered = render_service_env(self.config.service.env, addresses)
-            logger.info("service env rendered", extra={"values": len(rendered)})
+            rendered = render_service_env(self.config.instance.env, addresses)
+            logger.info("instance env rendered", extra={"values": len(rendered)})
 
             self.service.start(rendered, self._network)
         except Exception:
-            logger.error("sandbox start failed", extra={"image": self.config.service.image})
+            logger.error("sandbox start failed", extra={"image": self.config.instance.image})
             self.stop()
 
             raise
@@ -96,7 +99,7 @@ class Sandbox:
     def stop(self) -> None:
         """Remove everything the sandbox started.
 
-        The service stops first, then the engines in reverse start order — each guarded,
+        The instance stops first, then the engines in reverse start order — each guarded,
         so one failing removal never blocks the remaining ones — then the sandbox network
         goes. Safe when already stopped.
 
@@ -109,24 +112,24 @@ class Sandbox:
             try:
                 self.engines[name].stop()
             except Exception:
-                logger.error("engine stop failed", extra={"instance": name})
+                logger.error("engine stop failed", extra={"service": name})
 
         self._remove_network()
 
-        logger.info("sandbox stopped", extra={"image": self.config.service.image})
+        logger.info("sandbox stopped", extra={"image": self.config.instance.image})
 
     def clear(self) -> None:
-        """Return every dependency instance to its baseline.
+        """Return every dependency service to its baseline.
 
-        Resets every engine — wipe and journal replay — in declaration order. The service
-        container keeps running: only dependency instance data resets.
+        Resets every engine — wipe and journal replay — in declaration order. The instance
+        container keeps running: only dependency service data resets.
 
         Raises:
             EngineError: An engine reset failed.
         """
         for name, engine in self.engines.items():
             engine.reset()
-            logger.info("instance reset", extra={"instance": name})
+            logger.info("service reset", extra={"service": name})
 
     def baseline(self) -> BaselineBoundary:
         """Open the session baseline boundary.
@@ -140,8 +143,8 @@ class Sandbox:
     def apply_pending(self) -> None:
         """Apply the current test's accumulated operations as one consistent batch.
 
-        Takes the accumulated data batch, groups the operations by instance preserving
-        accumulation order, and applies each group to the instance's engine. Runs before
+        Takes the accumulated data batch, groups the operations by service preserving
+        accumulation order, and applies each group to the service's engine. Runs before
         the first service call of a test; a second call applies nothing — the batch
         drained.
 
@@ -155,22 +158,23 @@ class Sandbox:
         for operation in operations:
             groups.setdefault(operation.instance, []).append(operation)
 
-        for instance, group in groups.items():
-            self.engines[instance].apply(group)
-            logger.debug("pending operations applied", extra={"instance": instance, "operations": len(group)})
+        for service, group in groups.items():
+            self.engines[service].apply(group)
+            logger.debug("pending operations applied", extra={"service": service, "operations": len(group)})
 
     def ensure_service(self) -> None:
-        """Fail fast when the service container has died.
+        """Fail fast when the instance container has died.
 
         Raises:
-            RuntimeError: The service under test is no longer running — the message names
-                the service image and attaches its output; a no-op while the service runs.
+            RuntimeError: The instance under test is no longer running — the message names
+                the instance image and attaches its output; a no-op while the instance
+                runs.
         """
         if not self.service.alive():
-            logger.error("service under test died", extra={"image": self.config.service.image})
+            logger.error("instance under test died", extra={"image": self.config.instance.image})
 
             raise RuntimeError(
-                f"the service under test (image {self.config.service.image}) died; its output:\n{self.service.logs()}"
+                f"the instance under test (image {self.config.instance.image}) died; its output:\n{self.service.logs()}"
             )
 
     def new_test_batch(self) -> None:
@@ -182,72 +186,72 @@ class Sandbox:
         self._batch = DataBatch()
 
     def postgresql(self, name: str) -> PostgresInstance:
-        """The test-facing view of the named postgresql instance.
+        """The test-facing view of the named postgresql service.
 
         Args:
-            name: The instance name from the sandbox configuration.
+            name: The service name from the sandbox configuration.
 
         Returns:
-            The view of the instance, bound to the current batch.
+            The view of the service, bound to the current batch.
 
         Raises:
             ValueError: Unknown name or kind mismatch — the message lists the configured
-                instances.
+                services.
         """
         return self._view(PostgresInstance, "postgresql", name)
 
     def kafka(self, name: str) -> KafkaInstance:
-        """The test-facing view of the named kafka instance.
+        """The test-facing view of the named kafka service.
 
         Args:
-            name: The instance name from the sandbox configuration.
+            name: The service name from the sandbox configuration.
 
         Returns:
-            The view of the instance, bound to the current batch.
+            The view of the service, bound to the current batch.
 
         Raises:
             ValueError: Unknown name or kind mismatch — the message lists the configured
-                instances.
+                services.
         """
         return self._view(KafkaInstance, "kafka", name)
 
     def vault(self, name: str) -> VaultInstance:
-        """The test-facing view of the named vault instance.
+        """The test-facing view of the named vault service.
 
         Args:
-            name: The instance name from the sandbox configuration.
+            name: The service name from the sandbox configuration.
 
         Returns:
-            The view of the instance, bound to the current batch.
+            The view of the service, bound to the current batch.
 
         Raises:
             ValueError: Unknown name or kind mismatch — the message lists the configured
-                instances.
+                services.
         """
         return self._view(VaultInstance, "vault", name)
 
     def http(self, name: str) -> HttpInstance:
-        """The test-facing view of the named http instance.
+        """The test-facing view of the named http service.
 
         Args:
-            name: The instance name from the sandbox configuration.
+            name: The service name from the sandbox configuration.
 
         Returns:
-            The view of the instance, bound to the current batch.
+            The view of the service, bound to the current batch.
 
         Raises:
             ValueError: Unknown name or kind mismatch — the message lists the configured
-                instances.
+                services.
         """
         return self._view(HttpInstance, "http", name)
 
     def _start_engines(self) -> dict[str, InstanceAddress]:
-        """Start every instance engine with its startup data, in declaration order.
+        """Start every service engine with its startup data, in declaration order.
 
         Each engine's container joins the sandbox network.
 
         Returns:
-            The mapped address of every started instance, keyed by instance name.
+            The mapped address of every started service, keyed by service name.
         """
         addresses: dict[str, InstanceAddress] = {}
 
@@ -256,7 +260,7 @@ class Sandbox:
 
             engine.start(startup, self._network)
             addresses[name] = engine.address
-            logger.info("startup data applied", extra={"instance": name, "operations": len(startup)})
+            logger.info("startup data applied", extra={"service": name, "operations": len(startup)})
 
         return addresses
 
@@ -276,23 +280,25 @@ class Sandbox:
         try:
             network.remove()
         except Exception:
-            logger.error("sandbox network removal failed", extra={"instances": list(self.engines)})
+            logger.error("sandbox network removal failed", extra={"services": list(self.engines)})
 
             return
 
-        logger.debug("sandbox network removed", extra={"instances": list(self.engines)})
+        logger.debug("sandbox network removed", extra={"services": list(self.engines)})
 
     def _startup_operations(self, name: str) -> list[DataOperation]:
-        """Assemble the startup operations of one instance from the startup data sections.
+        """Assemble the startup operations of one service from the startup data sections.
 
-        The fixed section order is vault secrets, http mappings, the kafka spec, then
-        postgres init — within a section the declaration order is the application order.
+        The fixed section order is vault secrets, http mappings, then postgres init —
+        within a section the declaration order is the application order. Kafka services
+        carry no startup operations: their topology is declared inline on the service
+        entry and consumed at container build.
 
         Args:
-            name: The instance name whose startup data is assembled.
+            name: The service name whose startup data is assembled.
 
         Returns:
-            The instance's startup operations, in application order.
+            The service's startup operations, in application order.
         """
         data = self.config.data
         operations: list[DataOperation] = []
@@ -310,11 +316,6 @@ class Sandbox:
         for mapping in data.http.get(name, []):
             operations.append(DataOperation(instance=name, kind="http", action="stub", payload=mapping))
 
-        spec_path = data.kafka.get(name)
-
-        if spec_path is not None:
-            operations.append(DataOperation(instance=name, kind="kafka", action="spec", payload={"path": spec_path}))
-
         for statement in data.postgres.get(name, []):
             operations.append(
                 DataOperation(instance=name, kind="postgresql", action="insert", payload={"sql": statement})
@@ -331,41 +332,41 @@ class Sandbox:
         """
         return self._boundary_batch if self._boundary_open else self._batch
 
-    def _require_instance(self, kind: str, name: str) -> None:
-        """Validate that ``name`` names a configured instance of ``kind``.
+    def _require_service(self, kind: str, name: str) -> None:
+        """Validate that ``name`` names a configured service of ``kind``.
 
         Args:
-            kind: The required instance kind.
-            name: The requested instance name.
+            kind: The required service kind.
+            name: The requested service name.
 
         Raises:
             ValueError: Unknown name or kind mismatch — the message lists the configured
-                instances.
+                services.
         """
-        instances = self.config.instances
+        services = self.config.services
 
-        if name not in instances or instances[name].kind != kind:
+        if name not in services or services[name].kind != kind:
             listing = ", ".join(
-                f"{instance_name} ({instance_config.kind})" for instance_name, instance_config in instances.items()
+                f"{service_name} ({service_config.kind})" for service_name, service_config in services.items()
             )
 
-            raise ValueError(f"no {kind} instance named '{name}'; configured instances: {listing}")
+            raise ValueError(f"no {kind} service named '{name}'; configured services: {listing}")
 
     def _view(self, view_class: type[ViewT], kind: str, name: str) -> ViewT:
-        """Build the view of one configured instance, validating kind and name.
+        """Build the view of one configured service, validating kind and name.
 
         Args:
             view_class: The view class of the requested kind.
-            kind: The requested instance kind — the factory's kind.
-            name: The requested instance name.
+            kind: The requested service kind — the factory's kind.
+            name: The requested service name.
 
         Returns:
-            The view of the instance, bound to the current batch.
+            The view of the service, bound to the current batch.
 
         Raises:
             ValueError: Unknown name or kind mismatch — the message lists the configured
-                instances.
+                services.
         """
-        self._require_instance(kind, name)
+        self._require_service(kind, name)
 
         return view_class(name=name, address=self.engines[name].address, batch=self._current_batch())

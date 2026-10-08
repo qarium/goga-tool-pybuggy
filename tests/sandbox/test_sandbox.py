@@ -4,7 +4,13 @@ import inspect
 
 import pytest
 from goga_tool_pybuggy.sandbox import sandbox as sandbox_module
-from goga_tool_pybuggy.sandbox.config import InstanceConfig, SandboxConfig, ServiceConfig, StartupData
+from goga_tool_pybuggy.sandbox.config import (
+    InstanceConfig,
+    SandboxConfig,
+    ServiceConfig,
+    StartupData,
+    TopicConfig,
+)
 from goga_tool_pybuggy.sandbox.data import PostgresInstance
 from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 
@@ -14,28 +20,34 @@ from .conftest import FakeEngine, FakeNetwork, FakeService
 def sandbox_config() -> SandboxConfig:
     """Build the sample sandbox configuration of the harness scenario.
 
-    The scenario carries one postgresql and one http dependency — each with startup data —
-    and one service env placeholder per instance, so start exercises the startup-op
-    assembly, the address render and the env hand-off end to end.
+    The scenario carries one service of every kind — vault, http, kafka with inline topics,
+    postgresql — each of the data-carrying kinds with its startup data — and one instance
+    env placeholder per service, so start exercises the startup-op assembly, the address
+    render and the env hand-off end to end.
 
     Returns:
-        A ``SandboxConfig`` declaring the ``db`` and ``payments`` instances and one service.
+        A ``SandboxConfig`` declaring the ``secrets``, ``payments``, ``events`` and ``db``
+        services and one instance under test.
     """
     return SandboxConfig(
-        service=ServiceConfig(
+        instance=InstanceConfig(
             image="my-service:latest",
             env={
-                "DATABASE_URL": "postgres://{{db.host}}:{{db.port}}/x",
+                "VAULT_ADDR": "http://{{secrets.host}}:{{secrets.port}}",
                 "PAYMENTS_URL": "http://{{payments.host}}:{{payments.port}}/pay",
+                "KAFKA_BOOTSTRAP": "{{events.host}}:{{events.port}}",
+                "DATABASE_URL": "postgres://{{db.host}}:{{db.port}}/x",
             },
             port=8080,
-            health=None,
         ),
-        instances={
-            "db": InstanceConfig(name="db", kind="postgresql", image=None),
-            "payments": InstanceConfig(name="payments", kind="http", image=None),
+        services={
+            "secrets": ServiceConfig(name="secrets", kind="vault"),
+            "payments": ServiceConfig(name="payments", kind="http"),
+            "events": ServiceConfig(name="events", kind="kafka", topics=[TopicConfig(name="orders.events")]),
+            "db": ServiceConfig(name="db", kind="postgresql"),
         },
         data=StartupData(
+            vault={"secrets": [{"path": "kv/app", "data": {"token": "abc"}}]},
             http={"payments": [{"request": {"method": "GET", "url": "/pay"}, "response": {"status": 200}}]},
             postgres={"db": ["CREATE TABLE orders (id int PRIMARY KEY)"]},
         ),
@@ -57,7 +69,7 @@ class RefusingStopEngine(FakeEngine):
         """
         self._emit("stop")
 
-        raise RuntimeError(f"instance '{self.name}': stop failed: fake refused to stop")
+        raise RuntimeError(f"service '{self.name}': stop failed: fake refused to stop")
 
 
 class SandboxHarness:
@@ -66,7 +78,7 @@ class SandboxHarness:
     Attributes:
         config: The sample configuration the sandbox was built from.
         engines: The fake engines injected through the ``build_engine`` seam, keyed by name.
-        service: The fake service injected through the ``ServiceContainer`` seam.
+        service: The fake instance container injected through the ``ServiceContainer`` seam.
         events: The shared sink recording the lifecycle call sequence across the fakes.
         sandbox: The wired session sandbox; set by ``wire``.
     """
@@ -83,18 +95,19 @@ class SandboxHarness:
         Args:
             fail_payments_start: Make the payments engine's ``start`` raise — the failed-start
                 cleanup scenario.
-            service_alive: The liveness every ``alive()`` probe of the fake service reports.
-            service_logs: The diagnostic output every ``logs()`` call of the fake service reports.
+            service_alive: The liveness every ``alive()`` probe of the fake instance reports.
+            service_logs: The diagnostic output every ``logs()`` call of the fake instance
+                reports.
             fail_db_stop: Make the db engine's ``stop`` raise — the guarded-teardown scenario.
         """
         self.events: list[str] = []
         self.config = sandbox_config()
         db_engine = RefusingStopEngine if fail_db_stop else FakeEngine
         self.engines: dict[str, FakeEngine] = {
-            "db": db_engine(
-                name="db",
-                kind="postgresql",
-                address=InstanceAddress(host="127.0.0.2", port=5432),
+            "secrets": FakeEngine(
+                name="secrets",
+                kind="vault",
+                address=InstanceAddress(host="127.0.0.4", port=8200),
                 events=self.events,
             ),
             "payments": FakeEngine(
@@ -103,6 +116,18 @@ class SandboxHarness:
                 address=InstanceAddress(host="127.0.0.3", port=8080),
                 events=self.events,
                 fail_start=fail_payments_start,
+            ),
+            "events": FakeEngine(
+                name="events",
+                kind="kafka",
+                address=InstanceAddress(host="127.0.0.5", port=9092),
+                events=self.events,
+            ),
+            "db": db_engine(
+                name="db",
+                kind="postgresql",
+                address=InstanceAddress(host="127.0.0.2", port=5432),
+                events=self.events,
             ),
         }
         self.service = FakeService(
@@ -118,8 +143,8 @@ class SandboxHarness:
         Returns:
             The session sandbox built over the recording fakes.
         """
-        monkeypatch.setattr(sandbox_module, "build_engine", lambda instance_config: self.engines[instance_config.name])
-        monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _service_config: self.service)
+        monkeypatch.setattr(sandbox_module, "build_engine", lambda service_config: self.engines[service_config.name])
+        monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _instance_config: self.service)
         monkeypatch.setattr(sandbox_module, "check_runtime", lambda: self.events.append("runtime-check"))
         monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
         FakeNetwork.created.clear()
@@ -193,30 +218,32 @@ class TestSandboxContract:
             assert parameters == ["self", "name"], name
 
     def test_sandbox_base_url_readable_after_start(self, started: SandboxHarness):
-        """``base_url`` resolves from the started service address right after start."""
+        """``base_url`` resolves from the started instance address right after start."""
         assert started.sandbox.base_url == "http://127.0.0.9:9000"
 
 
 class TestSandboxStart:
     """Startup composition of the session runtime."""
 
-    def test_start_runs_runtime_check_then_engines_then_service(self, started: SandboxHarness):
-        """Start probes the runtime, starts the engines in declaration order, then the service."""
+    def test_start_runs_runtime_check_then_engines_then_instance(self, started: SandboxHarness):
+        """Start probes the runtime, starts the engines in declaration order, then the instance."""
         assert started.events == [
             "runtime-check",
-            "engine:db:start",
+            "engine:secrets:start",
             "engine:payments:start",
-            "service:start",
+            "engine:events:start",
+            "engine:db:start",
+            "instance:start",
         ]
 
     def test_start_passes_startup_operations_assembled_from_startup_data(self, started: SandboxHarness):
         """Each engine starts with its startup data converted to operations per the section mapping."""
-        assert started.engines["db"].journaled == [
+        assert started.engines["secrets"].journaled == [
             DataOperation(
-                instance="db",
-                kind="postgresql",
-                action="insert",
-                payload={"sql": "CREATE TABLE orders (id int PRIMARY KEY)"},
+                instance="secrets",
+                kind="vault",
+                action="put",
+                payload={"path": "kv/app", "data": {"token": "abc"}},
             )
         ]
         assert started.engines["payments"].journaled == [
@@ -227,16 +254,124 @@ class TestSandboxStart:
                 payload={"request": {"method": "GET", "url": "/pay"}, "response": {"status": 200}},
             )
         ]
+        assert started.engines["db"].journaled == [
+            DataOperation(
+                instance="db",
+                kind="postgresql",
+                action="insert",
+                payload={"sql": "CREATE TABLE orders (id int PRIMARY KEY)"},
+            )
+        ]
 
-    def test_start_renders_env_and_hands_it_to_the_service(self, started: SandboxHarness):
-        """The service env placeholders render against the started instance addresses."""
-        assert started.service.started_env == {
-            "DATABASE_URL": "postgres://127.0.0.2:5432/x",
+    def test_sandbox_start_applies_startup_data_in_fixed_order(self, monkeypatch: pytest.MonkeyPatch):
+        """Startup data reaches each engine in the fixed vault -> http -> postgres order.
+
+        The kafka engine's startup list is empty — its topology comes from the inline topic
+        declaration at container build; the render consumes the mapped service addresses;
+        the instance container starts last with the rendered env.
+        """
+        harness = SandboxHarness()
+        captured: list[dict[str, InstanceAddress]] = []
+        real_render = sandbox_module.render_service_env
+
+        def recording_render(env: dict[str, str], addresses: dict[str, InstanceAddress]) -> dict[str, str]:
+            captured.append(addresses)
+
+            return real_render(env, addresses)
+
+        monkeypatch.setattr(sandbox_module, "render_service_env", recording_render)
+
+        harness.wire(monkeypatch).start()
+
+        assert captured == [
+            {
+                "secrets": InstanceAddress(host="127.0.0.4", port=8200),
+                "payments": InstanceAddress(host="127.0.0.3", port=8080),
+                "events": InstanceAddress(host="127.0.0.5", port=9092),
+                "db": InstanceAddress(host="127.0.0.2", port=5432),
+            }
+        ]
+        assert [(op.action, op.kind) for op in harness.engines["secrets"].journaled] == [("put", "vault")]
+        assert [(op.action, op.kind) for op in harness.engines["payments"].journaled] == [("stub", "http")]
+        assert [(op.action, op.kind) for op in harness.engines["db"].journaled] == [("insert", "postgresql")]
+        assert harness.engines["events"].journaled == []
+        assert harness.events[-1] == "instance:start"
+        assert harness.service.started_env == {
+            "VAULT_ADDR": "http://127.0.0.4:8200",
             "PAYMENTS_URL": "http://127.0.0.3:8080/pay",
+            "KAFKA_BOOTSTRAP": "127.0.0.5:9092",
+            "DATABASE_URL": "postgres://127.0.0.2:5432/x",
         }
 
-    def test_start_creates_one_labeled_network_and_hands_it_to_the_service(self, started: SandboxHarness):
-        """One labeled network per session: created at start, carried into the service start."""
+    def test_startup_operations_assemble_put_stub_sql_within_one_service(self):
+        """One service name under all three data sections assembles put -> stub -> sql."""
+        config = SandboxConfig(
+            instance=InstanceConfig(image="my-service:latest", env={}, port=8080),
+            services={"multi": ServiceConfig(name="multi", kind="vault")},
+            data=StartupData(
+                vault={"multi": [{"path": "kv/a", "data": {"x": 1}}]},
+                http={"multi": [{"request": {"method": "GET", "url": "/a"}, "response": {"status": 200}}]},
+                postgres={"multi": ["SELECT 1"]},
+            ),
+        )
+
+        operations = sandbox_module.Sandbox(config)._startup_operations("multi")
+
+        assert [(op.action, op.kind) for op in operations] == [
+            ("put", "vault"),
+            ("stub", "http"),
+            ("insert", "postgresql"),
+        ]
+
+    def test_sandbox_uses_instance_and_services_keys(self, monkeypatch: pytest.MonkeyPatch):
+        """The constructor builds the engines from ``config.services`` and the container from
+        ``config.instance``; the view factories resolve names against the services."""
+        harness = SandboxHarness()
+        built_from: list[str] = []
+        built_container_configs: list[InstanceConfig] = []
+
+        def build_spy(service_config: ServiceConfig) -> FakeEngine:
+            built_from.append(service_config.name)
+
+            return harness.engines[service_config.name]
+
+        def container_spy(instance_config: InstanceConfig) -> FakeService:
+            built_container_configs.append(instance_config)
+
+            return harness.service
+
+        monkeypatch.setattr(sandbox_module, "build_engine", build_spy)
+        monkeypatch.setattr(sandbox_module, "ServiceContainer", container_spy)
+        monkeypatch.setattr(sandbox_module, "check_runtime", lambda: None)
+        monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
+
+        sandbox = sandbox_module.Sandbox(harness.config)
+        sandbox.start()
+
+        assert built_from == ["secrets", "payments", "events", "db"]
+        assert built_container_configs == [harness.config.instance]
+
+        view = sandbox.postgresql("db")
+
+        assert isinstance(view, PostgresInstance)
+        assert (view.name, view.host, view.port) == ("db", "127.0.0.2", 5432)
+
+        view.insert("orders", [{"id": 3}])
+        sandbox.apply_pending()
+
+        assert harness.engines["db"].applied[-1].payload == {"table": "orders", "rows": [{"id": 3}]}
+
+    def test_start_renders_env_and_hands_it_to_the_instance(self, started: SandboxHarness):
+        """The instance env placeholders render against the started service addresses."""
+        assert started.service.started_env == {
+            "VAULT_ADDR": "http://127.0.0.4:8200",
+            "PAYMENTS_URL": "http://127.0.0.3:8080/pay",
+            "KAFKA_BOOTSTRAP": "127.0.0.5:9092",
+            "DATABASE_URL": "postgres://127.0.0.2:5432/x",
+        }
+
+    def test_start_creates_one_labeled_network_and_hands_it_to_the_instance(self, started: SandboxHarness):
+        """One labeled network per session: created at start, carried into the instance start."""
         [network] = FakeNetwork.created
 
         assert network.docker_network_kw == {"labels": {"pybuggy-sandbox": "true"}}
@@ -244,7 +379,7 @@ class TestSandboxStart:
         assert started.service.started_network is network
 
     def test_start_failure_stops_started_parts_and_reraises(self, monkeypatch: pytest.MonkeyPatch):
-        """A failing instance start propagates and removes everything started so far."""
+        """A failing service start propagates and removes everything started so far."""
         harness = SandboxHarness(fail_payments_start=True)
         sandbox = harness.wire(monkeypatch)
 
@@ -253,19 +388,21 @@ class TestSandboxStart:
 
         assert harness.events == [
             "runtime-check",
-            "engine:db:start",
+            "engine:secrets:start",
             "engine:payments:start",
-            "service:stop",
-            "engine:payments:stop",
+            "instance:stop",
             "engine:db:stop",
+            "engine:events:stop",
+            "engine:payments:stop",
+            "engine:secrets:stop",
         ]
 
 
 class TestSandboxApplyPending:
     """Batch draining of the session runtime."""
 
-    def test_apply_pending_groups_by_instance_preserving_order(self, started: SandboxHarness):
-        """Declared operations apply per instance, in accumulation order."""
+    def test_apply_pending_groups_by_service_preserving_order(self, started: SandboxHarness):
+        """Declared operations apply per service, in accumulation order."""
         started.sandbox.postgresql("db").insert("orders", [{"id": 1}])
         started.sandbox.http("payments").stub({"request": {"method": "GET", "url": "/x"}, "response": {"status": 200}})
         started.sandbox.postgresql("db").insert("customers", [{"id": 7}])
@@ -303,7 +440,7 @@ class TestSandboxViews:
     """View factories of the session runtime."""
 
     def test_view_factories_bind_views_to_the_current_batch(self, started: SandboxHarness):
-        """A view carries the instance identity and address, and declares into the live batch."""
+        """A view carries the service identity and address, and declares into the live batch."""
         view = started.sandbox.postgresql("db")
 
         assert isinstance(view, PostgresInstance)
@@ -315,13 +452,13 @@ class TestSandboxViews:
         assert started.engines["db"].applied[-1].payload == {"table": "orders", "rows": [{"id": 3}]}
 
     def test_sandbox_view_kind_mismatch_lists_configured(self, started: SandboxHarness):
-        """A factory of another kind fails fast naming the instance and the configured ones."""
-        with pytest.raises(ValueError, match=r"kafka.*db"):
+        """A factory of another kind fails fast naming the service and the configured ones."""
+        with pytest.raises(ValueError, match=r"no kafka service named 'db'"):
             started.sandbox.kafka("db")
 
     def test_sandbox_view_unknown_name_lists_configured(self, started: SandboxHarness):
-        """An unknown instance name fails fast listing the configured instances."""
-        with pytest.raises(ValueError, match=r"postgresql.*ghost.*db \(postgresql\)"):
+        """An unknown service name fails fast listing the configured services."""
+        with pytest.raises(ValueError, match=r"no postgresql service named 'ghost'.*db \(postgresql\)"):
             started.sandbox.postgresql("ghost")
 
 
@@ -343,13 +480,18 @@ class TestSandboxLifecycle:
             )
         ]
 
-    def test_clear_resets_every_engine_and_never_touches_the_service(self, started: SandboxHarness):
-        """Clear resets every engine in declaration order; the service keeps running."""
+    def test_clear_resets_every_engine_and_never_touches_the_instance(self, started: SandboxHarness):
+        """Clear resets every engine in declaration order; the instance keeps running."""
         started.events.clear()
 
         started.sandbox.clear()
 
-        assert started.events == ["engine:db:reset", "engine:payments:reset"]
+        assert started.events == [
+            "engine:secrets:reset",
+            "engine:payments:reset",
+            "engine:events:reset",
+            "engine:db:reset",
+        ]
         assert started.service.stopped is False
         assert started.service.started is True
 
@@ -362,16 +504,18 @@ class TestSandboxLifecycle:
         assert FakeNetwork.removed == [network]
         assert started.sandbox._network is None
 
-    def test_stop_stops_service_then_engines_in_reverse_order_and_is_idempotent(self, started: SandboxHarness):
-        """Stop removes the service first, then the engines in reverse start order; twice is safe."""
+    def test_stop_stops_instance_then_engines_in_reverse_order_and_is_idempotent(self, started: SandboxHarness):
+        """Stop removes the instance first, then the engines in reverse start order; twice is safe."""
         started.events.clear()
 
         started.sandbox.stop()
 
         assert started.events == [
-            "service:stop",
-            "engine:payments:stop",
+            "instance:stop",
             "engine:db:stop",
+            "engine:events:stop",
+            "engine:payments:stop",
+            "engine:secrets:stop",
         ]
 
         started.sandbox.stop()
@@ -387,7 +531,13 @@ class TestSandboxLifecycle:
 
         harness.sandbox.stop()  # must not raise although the db engine's stop fails
 
-        assert harness.events == ["service:stop", "engine:payments:stop", "engine:db:stop"]
+        assert harness.events == [
+            "instance:stop",
+            "engine:db:stop",
+            "engine:events:stop",
+            "engine:payments:stop",
+            "engine:secrets:stop",
+        ]
         assert harness.service.stopped is True
         assert harness.engines["payments"].stopped is True
 
@@ -395,10 +545,10 @@ class TestSandboxLifecycle:
 
 
 class TestSandboxEnsureService:
-    """Died-service guard of the session runtime."""
+    """Died-instance guard of the session runtime."""
 
-    def test_ensure_service_raises_naming_service_and_logs_when_died(self, monkeypatch: pytest.MonkeyPatch):
-        """A died service fails fast naming the service image and attaching its output."""
+    def test_ensure_service_raises_naming_instance_and_logs_when_died(self, monkeypatch: pytest.MonkeyPatch):
+        """A died instance fails fast naming the instance image and attaching its output."""
         harness = SandboxHarness(service_alive=False, service_logs="OOMKilled after 3s")
 
         harness.wire(monkeypatch).start()
@@ -410,5 +560,5 @@ class TestSandboxEnsureService:
         assert "OOMKilled after 3s" in str(excinfo.value)
 
     def test_ensure_service_is_noop_while_alive(self, started: SandboxHarness):
-        """While the service runs the guard returns without raising."""
+        """While the instance runs the guard returns without raising."""
         assert started.sandbox.ensure_service() is None

@@ -17,7 +17,7 @@ class BoundaryBatch(DataBatch):
     """The immediate-apply batch of an open baseline boundary.
 
     Internal to the sandbox cell. While the boundary is open, the sandbox hands this
-    batch to the instance views: every declared operation applies to its instance's
+    batch to the service views: every declared operation applies to its service's
     engine and joins the engine journal at declaration time — the declaration itself
     is the execution. ``take`` never yields operations; nothing is ever pending
     inside the boundary.
@@ -27,7 +27,7 @@ class BoundaryBatch(DataBatch):
         """Initialize the boundary batch over the sandbox engines.
 
         Args:
-            engines: The started instance engines, keyed by instance name.
+            engines: The started service engines, keyed by service name.
         """
         super().__init__()
         self._engines = engines
@@ -36,14 +36,14 @@ class BoundaryBatch(DataBatch):
         """Apply one operation immediately and journal it as baseline.
 
         Args:
-            operation: The declared operation; its instance identifies the engine.
+            operation: The declared operation; its target service identifies the engine.
         """
         engine = self._engines[operation.instance]
 
         engine.apply([operation])
         engine.record([operation])
 
-        logger.debug("boundary operation applied and journaled", extra={"instance": operation.instance})
+        logger.debug("boundary operation applied and journaled", extra={"service": operation.instance})
 
     def take(self) -> list[DataOperation]:
         """Never yield operations; the boundary applies at declaration time.
@@ -81,14 +81,14 @@ class BaselineBoundary:
         self._sandbox._boundary_batch = BoundaryBatch(self._sandbox.engines)
         self._sandbox._boundary_open = True
 
-        logger.info("baseline boundary opened", extra={"instances": list(self._sandbox.engines)})
+        logger.info("baseline boundary opened", extra={"services": list(self._sandbox.engines)})
 
     def close(self) -> None:
         """Freeze the session baseline and restore lazy declaration routing."""
         self._sandbox._boundary_open = False
         self._sandbox._boundary_batch = None
 
-        logger.info("baseline boundary closed", extra={"instances": list(self._sandbox.engines)})
+        logger.info("baseline boundary closed", extra={"services": list(self._sandbox.engines)})
 
     def __enter__(self) -> "BaselineBoundary":
         """Open the boundary on entry of the ``with`` form.

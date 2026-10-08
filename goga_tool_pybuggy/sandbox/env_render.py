@@ -1,4 +1,4 @@
-"""Strict rendering of the service env values against the mapped instance addresses."""
+"""Strict rendering of the instance env values against the mapped service addresses."""
 
 import logging
 
@@ -11,17 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 def render_service_env(env: dict[str, str], addresses: dict[str, InstanceAddress]) -> dict[str, str]:
-    """Render the service env values with strict placeholder resolution.
+    """Render the instance env values with strict placeholder resolution.
 
     Each value renders through a ``StrictUndefined`` Jinja2 environment against the context
-    ``{name: {"host", "port"}}`` built from the mapped instance addresses; a value without
+    ``{service: {"host", "port"}}`` built from the mapped service addresses; a value without
     placeholders renders to itself. Unlike the configure-phase ``render_base_url``, results are
     not whitespace-stripped — env values are not URLs.
 
     Args:
-        env: The raw service env mapping; values may carry ``{{<name>.host}}`` /
-            ``{{<name>.port}}`` placeholders.
-        addresses: The mapped address of every started instance, keyed by instance name.
+        env: The raw instance env mapping; values may carry ``{{<service>.host}}`` /
+            ``{{<service>.port}}`` placeholders.
+        addresses: The mapped address of every started service, keyed by service name.
 
     Returns:
         The rendered env mapping with every placeholder resolved.
@@ -42,6 +42,6 @@ def render_service_env(env: dict[str, str], addresses: dict[str, InstanceAddress
         except (TemplateSyntaxError, UndefinedError) as exc:
             raise ValueError("env key '" + key + "': cannot render value '" + value + "': " + str(exc)) from exc
 
-        logger.debug("service env value rendered", extra={"env_key": key})
+        logger.debug("instance env value rendered", extra={"env_key": key})
 
     return rendered

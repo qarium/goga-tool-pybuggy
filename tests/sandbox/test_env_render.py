@@ -35,10 +35,10 @@ class TestRenderServiceEnvContract:
 
 
 class TestRenderServiceEnvLogic:
-    """Rendering behavior of the service env values."""
+    """Rendering behavior of the instance env values."""
 
     def test_render_service_env_resolves_placeholders(self):
-        """``{{<name>.host}}`` / ``{{<name>.port}}`` render from the mapped addresses."""
+        """``{{<service>.host}}`` / ``{{<service>.port}}`` render from the mapped addresses."""
         from goga_tool_pybuggy.sandbox.env_render import render_service_env
 
         env = {"DATABASE_URL": "postgres://{{db.host}}:{{db.port}}/test", "PLAIN": "no-placeholders"}

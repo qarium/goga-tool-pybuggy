@@ -1648,22 +1648,42 @@ Algorithm quoted verbatim in § Contract Surface.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 11 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/test_sandbox.py`; vocabulary touch-ups in
+- [x] **Declaration**: state that Task 11 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/test_sandbox.py`; vocabulary touch-ups in
   `test_baseline.py`, `test_env_render.py`): `Sandbox(config)` over the new `SandboxConfig`;
   view factories and lifecycle surface unchanged
-- [ ] **REPL prototype (R4)**: in the REPL build a `SandboxConfig` with vault + http + kafka +
+  (reworked first; the wiring tests failed against the old code on
+  `SandboxConfig object has no attribute 'instances'` — TDD red confirmed; the four
+  shape-neutral contract tests pass unchanged since the public surface never moved)
+- [x] **REPL prototype (R4)**: in the REPL build a `SandboxConfig` with vault + http + kafka +
   postgres services over FakeEngine/FakeService (patched runtime probe and container) and
   drive `start()` — observe engines built from `config.services` in declaration order, the
   container from `config.instance` started last with the rendered env, and each engine's
   startup list ordered put → stub → sql for its kind with kafka empty; then migrate
-- [ ] **Code**: rework `goga_tool_pybuggy/sandbox/sandbox.py` per the design details; update
+  (observed live in a venv heredoc REPL over scratch recording fakes: declaration order
+  secrets → payments → events → db, container config identity `is config.instance`,
+  rendered env with all four placeholders resolved, kafka startup list empty, one name under
+  all three data sections assembling put → stub → sql, `StartupData` carrying no kafka
+  field, and the `_require_service` error shape "no postgresql service named 'ghost';
+  configured services: …"; then migrated and re-verified in a fresh interpreter — facade 6
+  names, `_require_service` present / `_require_instance` gone, no `data.kafka` or old
+  field reads in the module source)
+- [x] **Code**: rework `goga_tool_pybuggy/sandbox/sandbox.py` per the design details; update
   `_startup_operations` (no kafka; fixed order); rename `_require_instance` →
   `_require_service`; D8 vocabulary; vocabulary-only touches in `baseline.py`,
   `env_render.py`, and the conftest doubles' docstrings
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_sandbox.py
+  (engines from `config.services`, container from `config.instance` with the `service`
+  attribute name kept; kafka section gone from `_startup_operations` with a docstring note
+  that the topology comes from the inline declaration; log extras swapped to
+  `{"service": ...}` / `{"services": [...]}` with events "instance env rendered" /
+  "service reset" / "instance under test died"; the under-test wording follows D10
+  ("the instance under test (image …) died"); conftest FakeEngine/FakeService docstrings
+  to the service vocabulary, the D8 "service '<name>'" fake failure wording, and the
+  FakeService sink prefix flipped to `instance:` — the under-test double)
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/test_sandbox.py
   tests/sandbox/test_baseline.py tests/sandbox/test_env_render.py -x -v` — pass
-- [ ] **Logic tests** (scenarios 24, 25, transferred verbatim):
+  (43 passed = 25 sandbox + 9 baseline + 9 env_render)
+- [x] **Logic tests** (scenarios 24, 25, transferred verbatim):
   24. `test_sandbox_start_applies_startup_data_in_fixed_order` (unit with FakeEngine
       recording) — config with vault + http + postgres services and all three data sections;
       FakeEngine records `start(startup)`; `sandbox.start()` (runtime probe and container
@@ -1676,15 +1696,34 @@ Algorithm quoted verbatim in § Contract Surface.
       `config.services` and the container from `config.instance` (FakeEngine/FakeService
       spies); `postgresql("db")` returns the view bound to the current batch; unknown name /
       kind mismatch lists configured services
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (both landed by name — scenario 24 spies on `render_service_env` to pin the mapped-address
+  context and asserts the full rendered env hand-off plus `instance:start` last; a retained
+  branch pins the intra-engine section order with one service name under all three data
+  sections assembling put → stub → sql; scenario 25 asserts the build spy order and the
+  container-config identity; also retained — the full lifecycle/teardown/failure suites on
+  the four-service harness, grouping/draining, batch replacement, boundary interplay, the
+  guarded failing stop, and the died-instance guard)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/ tests/sandbox/data/ tests/sandbox/test_sandbox.py
   tests/sandbox/test_baseline.py tests/sandbox/test_env_render.py
   tests/sandbox/test_service_container.py -x` green
-- [ ] **Contract re-verification**: the `start()` Algorithm steps and requirements (visible
+  (483 green with the docker-gated live cases executing; ledger blast radius verified over
+  four full-tree runs — red files exactly the scheduled suites: plugin, test_activation,
+  test_session_lifecycle, all failing on the old document keys / old shapes; one transient
+  kafka fixed-port bind race appeared in a single back-to-back full run and never
+  reproduced across three clean re-runs with zero leaked sandbox-labeled containers —
+  environmental, not a regression of this task)
+- [x] **Contract re-verification**: the `start()` Algorithm steps and requirements (visible
   progress; tests run only after readiness; stop removes everything) hold
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked clause by clause against the Sandbox CODEMANIFEST annotation — the six
+  Algorithm steps, the one-network requirement, the per-test batch ownership, both
+  constraints, and the view-factory failure wording; public surface unchanged per M-R5.5 —
+  same class names, factories, 6-name facade)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (both gates exit 0 on the first run — one E501 in a test fixed during the TDD phase; all
+  7 touched files format-clean)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 12: `activation.py` — new-path vocabulary and the enqueue rename (TDD)
 
