@@ -87,7 +87,8 @@ class PostgresEngine(BaseEngine):
         """Initialize the postgres engine of one configured dependency service.
 
         Args:
-            config: The service declaration — name, kind, image override, probe.
+            config: The service declaration — name, kind, image override, probe, migrations
+                declaration.
         """
         super().__init__(config)
         self._connection: psycopg.Connection | None = None

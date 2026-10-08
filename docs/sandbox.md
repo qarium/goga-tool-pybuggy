@@ -126,9 +126,10 @@ entry, the same way topics are a property of the kafka service:
   `-- +goose NO TRANSACTION` (the file runs statement-by-statement, required by DDL such
   as `CREATE INDEX CONCURRENTLY`); anything else from goose fails with the file named.
 - The declaration is validated at document load, before any container starts: a missing
-  local folder, an empty folder, no `.sql` files, an invalid migration filename, duplicate
-  version prefixes, or a git URL outside the scheme allowlist or with embedded credentials
-  fail the run naming the entry.
+  local folder, an empty folder, no `.sql` files, an invalid migration filename, or
+  duplicate version prefixes (local sources — a remote source checks its URL shape at load
+  and its folder at apply), or a git URL outside the scheme allowlist or with embedded
+  credentials fail the run naming the entry.
 - A remote source is shallow-cloned for the apply and deleted afterwards — nothing is
   copied into your repository; each session downloads fresh. No version-tracking table
   is created; a failed migration stops startup naming the file and the postgres error.

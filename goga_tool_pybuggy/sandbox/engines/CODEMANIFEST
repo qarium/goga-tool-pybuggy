@@ -186,7 +186,10 @@ Annotations: |
       declared interval; an expired deadline fails with an actionable error naming the service
       and the waited check.
       3. Open the data-plane connection.
-      4. Apply the startup operations in order and record them into the journal as the initial
+      4. Apply the declared migrations through the kind's migrate hook — a no-op default the
+      kinds without migrations keep; a kind that owns migrations applies its declared set once
+      per session over the open connection, before the startup data.
+      5. Apply the startup operations in order and record them into the journal as the initial
       baseline entries — the startup data is part of the baseline every reset replays.
 
       Requirements:

@@ -21,7 +21,7 @@ Annotations: |
 
 ---
 
-"MigrationFile(version: int, filename: str, statements: list[str], no_transaction: bool)":
+"MigrationFile(version: int, filename: str, statements: list[str] = [], no_transaction: bool = False)":
   location: goose.py
   annotations: |
     One parsed goose-format migration file — the apply-ready unit of the set.
