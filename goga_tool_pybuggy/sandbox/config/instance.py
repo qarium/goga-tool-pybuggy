@@ -17,7 +17,7 @@ class InstanceConfig(BaseModel):
             default wait: port readiness with the default deadline and interval.
     """
 
-    model_config = ConfigDict(kw_only=True)
+    model_config = ConfigDict(kw_only=True, extra="forbid")
 
     image: str
     env: dict[str, str] = {}

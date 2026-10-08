@@ -599,12 +599,29 @@ class TestPostgresEnginePlane:
             )
 
     def test_execute_wraps_driver_errors_with_the_server_message(self):
-        """A failed statement surfaces as a plain error carrying the driver message."""
+        """A failed statement surfaces as a plain error carrying the driver message.
+
+        The symbol stream rolls back with the failed insert — no phantom row stays
+        addressable by a later ``$ref``.
+        """
         engine = db_engine()
         engine._connection = FailingConnection()
 
         with pytest.raises(RuntimeError, match='relation "ghost" does not exist'):
             engine._execute(insert_op([{"id": 1}]))
+
+        assert engine._symbols == {}
+
+    def test_failing_insert_rolls_the_symbol_stream_back_to_the_earlier_rows(self):
+        """A failing insert leaves the symbol stream at its pre-insert state — earlier rows stay."""
+        engine = db_engine()
+        engine._connection = FailingConnection()
+        engine._symbols["orders"] = [{"id": 7, "total": 100}]
+
+        with pytest.raises(RuntimeError, match='relation "ghost" does not exist'):
+            engine._execute(insert_op([{"id": 8}]))
+
+        assert engine._symbols == {"orders": [{"id": 7, "total": 100}]}
 
     @pytest.mark.parametrize(
         "payload",
@@ -634,7 +651,11 @@ class TestPostgresEnginePlane:
             engine.apply([operation])
 
     def test_wipe_truncates_every_discovered_table_in_one_statement(self):
-        """Wipe discovers the catalog at reset time and truncates all tables in one statement."""
+        """Wipe discovers the catalog at reset time and truncates all tables in one statement.
+
+        The truncate runs inside one transaction behind a session-local lock timeout at the
+        declared deadline — a blocked reset fails instead of hanging.
+        """
         engine = db_engine()
         connection = FakeConnection(catalog=[("public", "orders"), ("app", "customers")])
         engine._connection = connection
@@ -643,11 +664,24 @@ class TestPostgresEnginePlane:
 
         assert connection.statements[0][1].startswith("SELECT table_schema, table_name")
         assert "information_schema.tables" in connection.statements[0][1]
-        assert connection.statements[1] == (
+        assert connection.statements[1] == ("transaction", "begin", None)
+        assert connection.statements[2] == ("execute", "SET LOCAL lock_timeout = %s", ("30000ms",))
+        assert connection.statements[3] == (
             "execute",
             'TRUNCATE TABLE "public"."orders", "app"."customers" RESTART IDENTITY CASCADE',
             None,
         )
+        assert connection.statements[4] == ("transaction", "commit", None)
+
+    def test_wipe_bounds_the_truncate_at_the_declared_deadline(self):
+        """The lock timeout of the wipe tracks the declared readiness deadline of the service."""
+        engine = db_engine(probe=ProbeConfig(timeout=5.0))
+        connection = FakeConnection(catalog=[("public", "orders")])
+        engine._connection = connection
+
+        engine._wipe()
+
+        assert connection.statements[2] == ("execute", "SET LOCAL lock_timeout = %s", ("5000ms",))
 
     def test_wipe_skips_truncate_without_user_tables(self):
         """An empty catalog skips the truncate — the replay-only reset."""

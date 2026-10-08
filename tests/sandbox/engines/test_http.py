@@ -287,6 +287,18 @@ class TestHttpEngineBuild:
 
         assert container.image == "wiremock/wiremock:3.14.0"
 
+    def test_build_joins_the_sandbox_network_under_the_service_name_alias(self, monkeypatch: pytest.MonkeyPatch):
+        """With a network set, the built container joins it under the service-name alias."""
+        monkeypatch.setattr(http_module, "DockerContainer", FakeDockerContainer)
+        engine = payments_engine()
+        network = object()
+        engine._network = network
+
+        container = engine._build_container()
+
+        assert container.network is network
+        assert container.network_aliases == ["payments"]
+
 
 class TestHttpEngineReadiness:
     """Admin-endpoint probing of the http engine, driven over the fake requests namespace."""
@@ -381,6 +393,29 @@ class TestHttpEnginePlane:
         engine._container = FakeDockerContainer("wiremock/wiremock:3.13.0")
 
         with pytest.raises(RuntimeError, match=r"/v1/status.*400"):
+            engine._execute(stub_op(status_mapping()))
+
+    def test_execute_failed_post_falls_back_to_the_response_text_on_a_non_json_body(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A non-JSON error body surfaces its text — a proxy page instead of a server detail."""
+
+        class HtmlResponse(FakeResponse):
+            """Response double whose body is not JSON — ``json()`` raises like ``requests``."""
+
+            def __init__(self, status_code: int, text: str) -> None:
+                super().__init__(status_code)
+                self.text = text
+
+            def json(self) -> dict[str, object]:
+                raise ValueError("Expecting value")
+
+        fake_requests = FakeRequests(post_responses=[HtmlResponse(502, "<html>Bad Gateway</html>")])
+        monkeypatch.setattr(http_module, "requests", fake_requests)
+        engine = payments_engine()
+        engine._container = FakeDockerContainer("wiremock/wiremock:3.13.0")
+
+        with pytest.raises(RuntimeError, match=r"/v1/status.*502.*Bad Gateway"):
             engine._execute(stub_op(status_mapping()))
 
     def test_execute_failed_post_wraps_into_engine_error_through_apply(self, monkeypatch: pytest.MonkeyPatch):

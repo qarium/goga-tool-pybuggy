@@ -397,6 +397,33 @@ class TestSandboxStart:
             "engine:secrets:stop",
         ]
 
+    def test_start_failure_at_the_runtime_check_stops_clean(self, monkeypatch: pytest.MonkeyPatch):
+        """A runtime probe failure before any engine started propagates and removes the network."""
+        harness = SandboxHarness()
+        sandbox = harness.wire(monkeypatch)
+
+        def refusing_runtime_check() -> None:
+            harness.events.append("runtime-check")
+            raise RuntimeError("no docker-compatible container runtime")
+
+        monkeypatch.setattr(sandbox_module, "check_runtime", refusing_runtime_check)
+
+        with pytest.raises(RuntimeError, match="no docker-compatible container runtime"):
+            sandbox.start()
+
+        assert harness.events == [
+            "runtime-check",
+            "instance:stop",
+            "engine:db:stop",
+            "engine:events:stop",
+            "engine:payments:stop",
+            "engine:secrets:stop",
+        ]
+        assert FakeNetwork.removed == FakeNetwork.created
+        assert all(not engine.started for engine in harness.engines.values())
+
+        sandbox.stop()  # still safe after the failed start
+
 
 class TestSandboxApplyPending:
     """Batch draining of the session runtime."""
@@ -542,6 +569,32 @@ class TestSandboxLifecycle:
         assert harness.engines["payments"].stopped is True
 
         harness.sandbox.stop()  # still idempotent after the failed removal
+
+    def test_stop_survives_a_failing_network_removal(self, monkeypatch: pytest.MonkeyPatch, started: SandboxHarness):
+        """A failing network removal never blocks the teardown of the remaining parts."""
+        from .conftest import FakeNetwork as BaseFakeNetwork
+
+        class RefusingNetwork(BaseFakeNetwork):
+            """Network double whose removal fails like a daemon-side error."""
+
+            def remove(self) -> None:
+                raise RuntimeError("network removal refused")
+
+        started.events.clear()
+        monkeypatch.setattr(sandbox_module, "Network", RefusingNetwork)
+
+        started.sandbox.stop()  # must not raise although the network removal fails
+
+        assert started.events == [
+            "instance:stop",
+            "engine:db:stop",
+            "engine:events:stop",
+            "engine:payments:stop",
+            "engine:secrets:stop",
+        ]
+        assert started.sandbox._network is None
+
+        started.sandbox.stop()  # still idempotent after the failed removal
 
 
 class TestSandboxEnsureService:

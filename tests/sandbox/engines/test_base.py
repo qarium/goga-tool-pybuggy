@@ -1,6 +1,7 @@
 """Contract and logic tests for the ``BaseEngine`` entity and ``EngineError``."""
 
 import inspect
+import socket
 import time
 
 import pytest
@@ -16,12 +17,34 @@ class FakeContainer:
         self.host = host
         self.port = port
         self.stops = 0
+        self.network: object | None = None
+        self.network_aliases: list[str] = []
 
     def start(self) -> "FakeContainer":
         return self
 
     def stop(self, force: bool = True, delete_volume: bool = True) -> None:
         self.stops += 1
+
+    def with_network(self, network: object) -> "FakeContainer":
+        """Record the network join.
+
+        Args:
+            network: The sandbox network handed to the container.
+        """
+        self.network = network
+
+        return self
+
+    def with_network_aliases(self, *aliases: str) -> "FakeContainer":
+        """Record the network aliases.
+
+        Args:
+            aliases: The aliases the container joins the network under.
+        """
+        self.network_aliases.extend(aliases)
+
+        return self
 
     def get_container_host_ip(self) -> str:
         return self.host
@@ -249,6 +272,47 @@ class TestBaseEngineLogic:
 
         assert len(attempts) == 3
         assert sleeps == [0.05, 0.05]
+
+
+class TestAttachNetwork:
+    """The sandbox-network join of the built container — the shared helper of the kind engines."""
+
+    def test_attach_joins_the_network_under_the_service_name_alias(self):
+        """A built container joins the network under its service-name alias — the in-network
+        DNS name the sandbox network hands it."""
+        engine = FakeEngine(name="db")
+        container = FakeContainer()
+        network = object()
+
+        engine._network = network
+        engine._attach_network(container)
+
+        assert container.network is network
+        assert container.network_aliases == ["db"]
+
+    def test_attach_without_a_network_is_a_no_op(self):
+        """Without a network the container stays unjoined — engines stay usable standalone."""
+        engine = FakeEngine()
+        container = FakeContainer()
+
+        engine._attach_network(container)
+
+        assert container.network is None
+        assert container.network_aliases == []
+
+
+class TestReservePort:
+    """The free-port reservation probe of the restart-stable engines."""
+
+    def test_reserve_port_returns_a_free_tcp_port(self):
+        """The reserved port is a bindable int in the TCP range — the reservation contract."""
+        port = base_module.reserve_port()
+
+        assert isinstance(port, int)
+        assert 0 < port < 65536
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as bind:
+            bind.bind(("", port))
 
     def test_readiness_expiry_surfaces_as_engine_error_through_the_start_wrapper(self):
         """A readiness deadline expiry wraps into ``EngineError`` naming service, step and check."""

@@ -22,7 +22,7 @@ class ServiceConfig(BaseModel):
             path is accepted only on the instance-under-test entry.
     """
 
-    model_config = ConfigDict(kw_only=True)
+    model_config = ConfigDict(kw_only=True, extra="forbid")
 
     name: str
     kind: str

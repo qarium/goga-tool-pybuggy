@@ -370,6 +370,27 @@ class TestVaultEnginePlane:
         with pytest.raises(RuntimeError, match=r"payment/api-key.*400.*permission denied"):
             engine._execute(put_op("payment/api-key", {"api_key": "test-key"}))
 
+    def test_execute_failed_write_without_a_json_body_names_the_status(self, monkeypatch: pytest.MonkeyPatch):
+        """A non-JSON error body (a proxy's HTML page) still yields the readable failure."""
+
+        class HtmlResponse(FakeResponse):
+            """Response double whose body is not JSON — ``json()`` raises like ``requests``."""
+
+            def __init__(self, status_code: int, text: str) -> None:
+                super().__init__(status_code)
+                self.text = text
+
+            def json(self) -> dict[str, object]:
+                raise ValueError("Expecting value")
+
+        fake_requests = FakeRequests(write_responses=[HtmlResponse(502, "<html>Bad Gateway</html>")])
+        monkeypatch.setattr(vault_module, "requests", fake_requests)
+        engine = secrets_engine()
+        engine._container = FakeDockerContainer("hashicorp/vault:1.17")
+
+        with pytest.raises(RuntimeError, match=r"write at 'payment/api-key' failed with status 502$"):
+            engine._execute(put_op("payment/api-key", {"api_key": "test-key"}))
+
     def test_execute_failed_write_wraps_into_engine_error_through_apply(self, monkeypatch: pytest.MonkeyPatch):
         """Through the base apply path the failed write names the service and the action."""
         fake_requests = FakeRequests(write_responses=[FakeResponse(403, {"errors": ["forbidden"]})])

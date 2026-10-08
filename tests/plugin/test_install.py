@@ -77,13 +77,18 @@ class TestInstallLogic:
         assert "pytest_plugins" in namespace.__dict__
 
     def test_install_outside_api_tree_does_not_raise(self, tmp_path, monkeypatch):
-        # Without an `api/` tree the import-time `install()` must not raise (the default package is optional).
+        # Without an `api/` tree the default package loader is optional — `install()` must not raise.
         monkeypatch.chdir(tmp_path)
 
-        # Re-execute the module body so the top-level `install()` runs against this cwd.
+        # Re-import the module against this cwd, then run a real install into a fresh namespace.
         importlib.reload(goga_tool_pybuggy.plugin)
 
-        assert getattr(goga_tool_pybuggy.plugin, "pytest_plugins", []) == []
+        namespace = types.ModuleType("ctx")
+        goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+
+        assert callable(namespace.pytest_addoption)
+        assert callable(namespace.pytest_configure)
+        assert namespace.__dict__["pytest_plugins"] == []
 
     def test_install_arms_sandbox_and_keeps_activation_on_plugin(self, tmp_path, monkeypatch):
         """The activation returned by `activate_sandbox` is kept on the constructed plugin."""

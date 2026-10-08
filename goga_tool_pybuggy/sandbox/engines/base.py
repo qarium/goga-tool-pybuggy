@@ -345,7 +345,7 @@ class BaseEngine:
             raise EngineError(f"service '{self.config.name}': {action} failed: the service is not started")
 
     def _attach_network(self, container: DockerContainer) -> None:
-        """Join the built container to the sandbox network.
+        """Join the built container to the sandbox network under its service-name alias.
 
         A no-op without a network — engines stay usable standalone.
 
@@ -356,6 +356,7 @@ class BaseEngine:
             return
 
         container.with_network(self._network)
+        container.with_network_aliases(self.config.name)
 
 
 def reserve_port() -> int:

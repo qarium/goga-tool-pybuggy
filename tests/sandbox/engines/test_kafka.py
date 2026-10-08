@@ -526,6 +526,27 @@ class TestKafkaEnginePlane:
         assert _serialize_value({"id": 1, "ok": True}) == b'{"id": 1, "ok": true}'
         assert _serialize_value("plain") == b"plain"
 
+    def test_serialize_key_utf8_encodes_keys_and_keeps_keyless_messages_keyless(self):
+        """Keys encode as UTF-8; a keyless message stays keyless — the wire contract."""
+        assert kafka_module._serialize_key("order-1") == b"order-1"
+        assert kafka_module._serialize_key(None) is None
+
+    def test_value_serializer_implements_the_serializer_interface_dispatch(self):
+        """The ``Serializer`` adapter carries the mapping/string encoding through the ABI."""
+        serializer = kafka_module._ValueSerializer()
+
+        assert isinstance(serializer, Serializer)
+        assert serializer.serialize("orders.events", [], {"id": 1}) == b'{"id": 1}'
+        assert serializer.serialize("orders.events", [], "plain") == b"plain"
+
+    def test_key_serializer_implements_the_serializer_interface_dispatch(self):
+        """The key ``Serializer`` adapter carries the UTF-8/keyless encoding through the ABI."""
+        serializer = kafka_module._KeySerializer()
+
+        assert isinstance(serializer, Serializer)
+        assert serializer.serialize("orders.events", [], "order-1") == b"order-1"
+        assert serializer.serialize("orders.events", [], None) is None
+
     def test_execute_produce_sends_and_awaits_delivery(self):
         """A ``produce`` operation sends the message and awaits the delivery future."""
         engine = events_engine()

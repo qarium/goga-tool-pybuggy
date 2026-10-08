@@ -44,6 +44,8 @@ before the first call to the service under test — there is no manual apply.
 
 - A produced topic must be declared on the kafka service in the sandbox document — an undeclared
   topic fails the operation.
+- The kafka wire encoding is fixed: a mapping value arrives as JSON bytes, a plain string value
+  as UTF-8 bytes, and the key (when given) as UTF-8.
 
 ## Per-test presets
 

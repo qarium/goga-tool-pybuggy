@@ -6,8 +6,11 @@ every docker-gated test in the plan reuses (``from ..conftest import requires_do
 the same way, or take the ``fake_engine`` / ``fake_service`` fixtures for the default shapes.
 """
 
+import contextlib
 import functools
 import pathlib
+import socket
+import time
 from collections.abc import Callable
 from typing import ClassVar
 
@@ -15,20 +18,100 @@ import docker
 import pytest
 from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 
+# The data-plane probe reuses the pinned postgres image the docker-gated tests need anyway.
+PROBE_IMAGE = "postgres:16-alpine"
+PROBE_CONTAINER_PORT = 5432
+PROBE_CONNECT_TIMEOUT = 2.0
+PROBE_CONNECT_WINDOW = 8.0
+
 
 @functools.lru_cache(maxsize=1)
 def docker_available() -> bool:
     """Probe the container-runtime availability once per test session.
 
-    Pings the daemon through the docker SDK client — the same client testcontainers drives — and
-    treats any failure as unavailability, so container-dependent tests skip instead of hanging on
-    a silent connection timeout.
+    Pings the daemon through the docker SDK client — the same client testcontainers drives —
+    then verifies the data plane the container tests depend on: a throwaway container of the
+    pinned postgres image must expose a published port this process can connect to. A daemon
+    that answers the ping while its published ports are unroutable (a sandboxed runner on a
+    shared, unreachable docker network) would fail every container test at its readiness
+    deadline — the probe turns that topology into a skip. When the probe container cannot be
+    created at all (image absent, creation refused) the ping verdict stands alone.
 
     Returns:
-        True when a docker-compatible daemon answers the ping, False otherwise.
+        True when a docker-compatible daemon answers and its published ports are reachable,
+        False otherwise.
     """
     try:
-        return bool(docker.from_env().ping())
+        client = docker.from_env()
+
+        if not client.ping():
+            return False
+    except Exception:
+        return False
+
+    return _published_ports_reachable(client)
+
+
+def _published_ports_reachable(client: docker.DockerClient) -> bool:
+    """Check that a started container's published port accepts a connection from here.
+
+    Args:
+        client: The docker SDK client of the answered ping.
+
+    Returns:
+        True when the probe container's published port accepted a TCP connect within the
+        window; False when it never did. A container that could not be created at all keeps
+        the ping verdict (True) — a missing probe image is not daemon unavailability.
+    """
+    try:
+        container = client.containers.run(
+            PROBE_IMAGE,
+            detach=True,
+            ports={f"{PROBE_CONTAINER_PORT}/tcp": None},
+            labels={"pybuggy-sandbox": "true"},
+        )
+    except Exception:
+        return True
+
+    try:
+        deadline = time.monotonic() + PROBE_CONNECT_WINDOW
+
+        while time.monotonic() < deadline:
+            if _connect_to_published_port(container):
+                return True
+
+            time.sleep(0.5)
+
+        return False
+    finally:
+        with contextlib.suppress(Exception):
+            container.remove(force=True)
+
+
+def _connect_to_published_port(container: docker.models.containers.Container) -> bool:
+    """Try one TCP connect against the container's published probe port.
+
+    Args:
+        container: The running probe container.
+
+    Returns:
+        True when the connect succeeded; False while the binding is absent or the connect
+        was refused or timed out.
+    """
+    try:
+        container.reload()
+
+        binding = (container.attrs.get("NetworkSettings", {}).get("Ports") or {}).get(f"{PROBE_CONTAINER_PORT}/tcp")
+        entry = binding[0] if binding else None
+
+        if not entry:
+            return False
+
+        host_ip = entry.get("HostIp") or ""
+        host = "127.0.0.1" if host_ip in ("", "0.0.0.0", "::") else host_ip
+
+        with socket.create_connection((host, int(entry["HostPort"])), timeout=PROBE_CONNECT_TIMEOUT):
+            return True
     except Exception:
         return False
 

@@ -26,10 +26,13 @@ _REQUIRED_INSTANCE_FIELDS = ("image", "env", "port")
 _SECTION_KINDS = {"vault": "vault", "http": "http", "postgres": "postgresql"}
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
-_PLACEHOLDER_ATTRIBUTE = re.compile(r"^(?P<name>[^.\s]+)\.(?P<attribute>host|port)$")
+_PLACEHOLDER_ATTRIBUTE = re.compile(r"^(?P<name>[^.\s]+)\.(?:host|port)$")
 
 # A service name doubles as the Jinja2 identifier of the {{<name>.host}} /
 # {{<name>.port}} placeholders — anything else breaks template parsing at render time.
+# The Jinja2 literal names parse as constants, not variables, so a placeholder over
+# them can never resolve — they are rejected up front with the same grammar error.
+_LITERAL_NAMES = frozenset({"true", "false", "none", "True", "False", "None"})
 _SERVICE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
@@ -166,7 +169,7 @@ def _read_services(document: dict[str, object], location: Path) -> dict[str, Ser
         if not isinstance(name, str) or not name.strip():
             raise ValueError(f"{scope}: the service name must be a non-empty string")
 
-        if not _SERVICE_NAME.fullmatch(name):
+        if not _SERVICE_NAME.fullmatch(name) or name in _LITERAL_NAMES:
             raise ValueError(
                 f"{scope}: the service name must be a template identifier "
                 f"(letters, digits, underscores; not starting with a digit) — it names the "
@@ -350,7 +353,9 @@ def _validate_placeholders(instance: InstanceConfig, services: dict[str, Service
     """Validate every service placeholder in the instance env values against the full grammar.
 
     Every ``{{ … }}`` occurrence must be ``{{ <name>.host }}`` or ``{{ <name>.port }}`` with
-    ``<name>`` a configured service.
+    ``<name>`` a configured service. Jinja2 statement and comment blocks (``{% … %}``,
+    ``{# … #}``) carry no placeholder and would execute at render time — they are rejected
+    here so the render can never produce something this validation did not reason about.
 
     Args:
         instance: The validated instance-under-test entry.
@@ -358,11 +363,19 @@ def _validate_placeholders(instance: InstanceConfig, services: dict[str, Service
         location: The resolved document location.
 
     Raises:
-        ValueError: A placeholder is malformed or names an unconfigured service.
+        ValueError: A placeholder is malformed, names an unconfigured service, or the value
+            carries Jinja2 statement or comment syntax.
     """
     configured = set(services)
 
     for key, value in instance.env.items():
+        if "{" + "%" in value or "{" + "#" in value:
+            raise ValueError(
+                f"{location}: instance.env.{key}: invalid value '{value}' — Jinja2 statement or "
+                f"comment syntax is not part of the placeholder grammar; only "
+                f"{{{{<name>.host}}}} / {{{{<name>.port}}}} placeholders are accepted"
+            )
+
         if "{{" in _PLACEHOLDER.sub("", value):
             raise ValueError(
                 f"{location}: instance.env.{key}: invalid placeholder — an unterminated '{{{{' in value '{value}'"

@@ -52,6 +52,7 @@ class FakeDockerContainer:
         self.kwargs = kwargs
         self.exposed_ports: list[int] = []
         self.env: dict[str, str] = {}
+        self.network: object | None = None
         self.wrapped = FakeWrappedContainer()
         self.stops = 0
         self.starts = 0
@@ -68,6 +69,16 @@ class FakeDockerContainer:
 
     def with_env(self, key: str, value: str) -> "FakeDockerContainer":
         self.env[key] = value
+
+        return self
+
+    def with_network(self, network: object) -> "FakeDockerContainer":
+        """Record the sandbox network join.
+
+        Args:
+            network: The sandbox network handed to the instance container.
+        """
+        self.network = network
 
         return self
 
@@ -388,6 +399,21 @@ class TestServiceContainerStart:
         with pytest.raises(RuntimeError, match=r"before start"):
             assert container.port
 
+    def test_start_joins_the_instance_container_to_the_sandbox_network(self, monkeypatch: pytest.MonkeyPatch):
+        """With a network the instance container joins it — the documented isolation boundary."""
+        from goga_tool_pybuggy.sandbox import service_container as module
+
+        monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
+        monkeypatch.setattr(module, "time", FakeTime())
+        monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([True]))
+        container = ServiceContainer(instance_config())
+        network = object()
+
+        container.start({}, network)
+
+        assert container._container is not None
+        assert container._container.network is network
+
 
 class TestServiceContainerLiveness:
     """Liveness and diagnostics of the instance container, driven over the fakes."""
@@ -446,6 +472,49 @@ class TestServiceContainerLiveness:
 
         assert wrapped is not None
         container.stop()
+
+        assert container.logs() == ""
+
+    def test_alive_survives_a_failing_status_reload(self, monkeypatch: pytest.MonkeyPatch):
+        """A docker SDK failure during the status reload reports a dead instance, not a raise.
+
+        A removed container or a gone daemon must not crash the died-instance guard.
+        """
+
+        class RefusingWrapped(FakeWrappedContainer):
+            """Wrapped double whose reload fails like the SDK on a removed container."""
+
+            def reload(self) -> None:
+                raise RuntimeError("container gone")
+
+        from goga_tool_pybuggy.sandbox import service_container as module
+
+        monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
+        monkeypatch.setattr(module, "time", FakeTime())
+        monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([True]))
+        container = ServiceContainer(instance_config())
+        container.start({})
+        container._container.wrapped = RefusingWrapped()
+
+        assert container.alive() is False
+
+    def test_logs_survive_a_failing_output_read(self, monkeypatch: pytest.MonkeyPatch):
+        """A docker SDK failure during the output read answers an empty string, not a raise."""
+
+        class RefusingWrapped(FakeWrappedContainer):
+            """Wrapped double whose logs read fails like the SDK on a removed container."""
+
+            def logs(self, **kwargs: object) -> bytes:
+                raise RuntimeError("container gone")
+
+        from goga_tool_pybuggy.sandbox import service_container as module
+
+        monkeypatch.setattr(module, "DockerContainer", FakeDockerContainer)
+        monkeypatch.setattr(module, "time", FakeTime())
+        monkeypatch.setattr(module, "_tcp_port_open", FakePortProbe([True]))
+        container = ServiceContainer(instance_config())
+        container.start({})
+        container._container.wrapped = RefusingWrapped()
 
         assert container.logs() == ""
 

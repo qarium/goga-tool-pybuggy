@@ -484,6 +484,74 @@ class TestLoadSandboxConfigLogic:
             load_sandbox_config(None)
 
     @pytest.mark.parametrize(
+        "value",
+        [
+            "{% set db = {'host': 'h'} %}x",
+            "{# a comment #}x",
+        ],
+    )
+    def test_load_fails_on_jinja_statement_or_comment_syntax(self, sandbox_yaml, value):
+        """Jinja2 statement/comment blocks are not placeholders — they never reach render time."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env:\n"
+            f'    DATABASE_URL: "{value}"\n'
+            "services:\n"
+            "  db: { kind: postgresql }\n"
+        )
+
+        with pytest.raises(
+            ValueError, match=r"DATABASE_URL.*statement or comment syntax is not part of the placeholder grammar"
+        ):
+            load_sandbox_config(None)
+
+    @pytest.mark.parametrize(
+        ("document", "match"),
+        [
+            (
+                "instance:\n  image: i\n  port: 1\n  env: {}\n  replicas: 2\nservices: {}",
+                r"instance.*replicas.*Extra inputs are not permitted",
+            ),
+            (
+                "instance:\n  image: i\n  port: 1\n  env: {}\n  prob: {path: /health}\nservices: {}",
+                r"instance.*prob.*Extra inputs are not permitted",
+            ),
+            (
+                "instance:\n  image: i\n  port: 1\n  env: {}\nservices:\n  db: { kind: postgresql, imag: postgres:17 }",
+                r"services\.db.*imag.*Extra inputs are not permitted",
+            ),
+            (
+                "instance:\n  image: i\n  port: 1\n  env: {}\nservices:\n"
+                "  events: { kind: kafka, topics: [{name: t, partition: 6}] }",
+                r"services\.events\.topics.*partition.*Extra inputs are not permitted",
+            ),
+            (
+                "instance:\n  image: i\n  port: 1\n  env: {}\n  probe: {path: health, timeout: 3}\nservices: {}",
+                r"instance.*probe.*path must start with '/'",
+            ),
+        ],
+    )
+    def test_load_fails_on_unknown_or_malformed_entry_keys(self, sandbox_yaml, document, match):
+        """A mistyped entry key (``imag`` for ``image``) fails at load instead of silently
+        dropping the declaration; a health path without the leading slash fails the same way."""
+        sandbox_yaml(document)
+
+        with pytest.raises(ValueError, match=match):
+            load_sandbox_config(None)
+
+    @pytest.mark.parametrize("name", ["true", "false", "none", "True", "None"])
+    def test_load_fails_on_jinja_literal_service_names(self, sandbox_yaml, name):
+        """The Jinja2 literal names parse as constants, not variables — placeholders over them
+        could never resolve, so the names are rejected with the identifier-grammar error.
+        The name is quoted so YAML hands the loader a string, not a native bool or null."""
+        sandbox_yaml(f"instance:\n  image: i\n  port: 1\n  env: {{}}\nservices:\n  '{name}': {{ kind: postgresql }}\n")
+
+        with pytest.raises(ValueError, match=rf"services\.{name}.*template identifier"):
+            load_sandbox_config(None)
+
+    @pytest.mark.parametrize(
         ("declaration", "match"),
         [
             ("- { data: {k: v} }", r"data\.vault\.secrets.*non-empty string 'path'"),

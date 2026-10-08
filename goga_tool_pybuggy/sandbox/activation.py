@@ -161,7 +161,7 @@ def _enqueue_presets(sandbox: Sandbox, item: pytest.Item) -> None:
                 sandbox._require_service(kind, name)
 
                 for declaration in declarations:
-                    sandbox._batch.add(
+                    sandbox._current_batch().add(
                         DataOperation(instance=name, kind=kind, action=_KIND_ACTIONS[kind], payload=declaration)
                     )
                     enqueued += 1
@@ -234,9 +234,14 @@ def _wrap_session_finish(prior: Callable[..., Any], hook: Callable[..., Any]) ->
     """
 
     def pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
-        """Run the prior hook first, then the sandbox session finish."""
-        prior(session, exitstatus)
-        hook(session, exitstatus)
+        """Run the prior hook first, then the sandbox session finish.
+
+        A raising prior hook must not leak the sandbox — the sandbox stop runs regardless.
+        """
+        try:
+            prior(session, exitstatus)
+        finally:
+            hook(session, exitstatus)
 
     return pytest_sessionfinish
 

@@ -453,3 +453,54 @@ class TestActivationBehavior:
                 instance="db", kind="postgresql", action="insert", payload={"table": "orders", "rows": [{"id": 2}]}
             ),
         ]
+
+    def test_preset_enqueue_routes_through_the_open_boundary_batch(self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch):
+        """While a baseline boundary is open, marked presets apply immediately and journal —
+        the same routing the service views use inside the boundary."""
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        context: dict[str, object] = {}
+        activation_module.activate_sandbox(context)
+
+        sandbox = fake_sandbox(monkeypatch)
+        engine = sandbox.engines["db"]
+        activation_module._ACTIVE = sandbox
+
+        with sandbox.baseline():
+            marker = pytest.mark.pybuggy_services(
+                presets={"postgresql": {"db": [{"table": "customers", "rows": [{"id": 1}]}]}}
+            )
+
+            context["pytest_runtest_setup"](ItemStub([marker]))
+
+            operation = DataOperation(
+                instance="db", kind="postgresql", action="insert", payload={"table": "customers", "rows": [{"id": 1}]}
+            )
+
+            assert engine.applied == [operation]
+            assert engine.journaled == [operation]
+            assert sandbox._batch.take() == []
+
+    def test_sessionfinish_stops_the_sandbox_when_the_prior_hook_raises(
+        self, sandbox_yaml, monkeypatch: pytest.MonkeyPatch
+    ):
+        """A raising prior ``pytest_sessionfinish`` cannot leak the sandbox — the stop runs too."""
+        sandbox_yaml(MINIMAL_DOCUMENT)
+
+        calls: list[str] = []
+        monkeypatch.setattr(activation_module, "Sandbox", stub_sandbox(calls, []))
+
+        def prior(session: SessionStub, exitstatus: int) -> None:
+            """Record the prior hook, then fail."""
+            calls.append("prior")
+            raise RuntimeError("prior hook failed")
+
+        context: dict[str, object] = {"pytest_sessionfinish": prior}
+        activation_module.activate_sandbox(context)
+        context["pytest_sessionstart"](SessionStub(ConfigStub(calls)))
+
+        with pytest.raises(RuntimeError, match="prior hook failed"):
+            context["pytest_sessionfinish"](SessionStub(), 1)
+
+        assert calls == ["markers", "sandbox:start", "prior", "sandbox:stop"]
+        assert activation_module.active_sandbox() is None

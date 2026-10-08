@@ -11,7 +11,7 @@ class TopicConfig(BaseModel):
         partitions: Topic partition count; 1 when omitted.
     """
 
-    model_config = ConfigDict(kw_only=True)
+    model_config = ConfigDict(kw_only=True, extra="forbid")
 
     name: str = Field(min_length=1)
     partitions: int = Field(default=1, gt=0)

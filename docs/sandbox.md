@@ -38,9 +38,10 @@ instance:                           # the entry under test
     timeout: 60.0                   # readiness deadline seconds; default 30.0
     interval: 1.0                   # seconds between attempts; default 0.5
   env:                              # required — environment values of the instance
-    DATABASE_URL: "postgres://{{db.host}}:{{db.port}}/app"
+    DATABASE_URL: "postgres://test:test@{{db.host}}:{{db.port}}/test"
     KAFKA_BOOTSTRAP: "{{events.host}}:{{events.port}}"
     VAULT_ADDR: "http://{{secrets.host}}:{{secrets.port}}"
+    VAULT_TOKEN: "sandbox-root"
 
 services:                           # named dependency services; several of one kind are allowed
   db:
@@ -121,6 +122,10 @@ Readiness is declared per target, Kubernetes-probe-like, as an optional `probe` 
 
 - The probe endpoints of the kafka/vault/http services are fixed by the tool; `timeout`
   and `interval` are the only knobs they accept — a `path` there is rejected.
+- The health `path` must start with `/` (it is appended to `http://<host>:<port>`); a
+  path without the leading slash fails at document load.
+- The `interval` must not exceed the `timeout` — declare a smaller interval alongside a
+  sub-second timeout.
 - Omitting the block (or any field) keeps the established behavior — the defaults
   reproduce it exactly. No global defaults block exists; readiness is declared per target
   only.
@@ -219,7 +224,9 @@ sandbox.kafka("events").produce("orders.events", {"id": 1}, key="1")
 ```
 
 A produced topic must be declared on the kafka service entry of the sandbox document — an
-undeclared topic fails the operation.
+undeclared topic fails the operation. The wire encoding is fixed: a mapping value arrives as
+JSON bytes, a plain string value as UTF-8 bytes, and the key (when given) as UTF-8 — the
+service under test consumes exactly that.
 
 Data can also be declared directly on the test as a **preset** (each declaration carries
 the same fields as the matching view operation; presets apply on top of the reset state,
@@ -297,6 +304,11 @@ Common rules:
 - The sandbox pulls the container/DB/Kafka stack into the environment
   (`testcontainers`, `psycopg`, `kafka-python`, `requests` — main dependencies of the
   package).
+- The dependency mocks carry fixed test credentials the instance env must match: the
+  postgres mock accepts user `test`, password `test`, database `test` (all created by the
+  container — connect with `postgres://test:test@{{db.host}}:{{db.port}}/test`); the vault
+  mock runs in dev mode with the root token `sandbox-root` (send it as `VAULT_TOKEN` /
+  `X-Vault-Token`; secrets live on the default KV v2 `secret/` mount).
 - After the session — including failed or interrupted runs — nothing remains; a rerun
   starts fresh.
 - `base_url` stays a required plugin option even with an armed sandbox (the render

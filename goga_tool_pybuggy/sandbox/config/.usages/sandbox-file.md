@@ -20,9 +20,10 @@ instance:
     timeout: 60.0                   # readiness deadline seconds; default 30.0
     interval: 1.0                   # seconds between attempts; default 0.5
   env:                              # required — environment values of the service
-    DATABASE_URL: "postgres://{{db.host}}:{{db.port}}/app"
+    DATABASE_URL: "postgres://test:test@{{db.host}}:{{db.port}}/test"
     KAFKA_BOOTSTRAP: "{{events.host}}:{{events.port}}"
     VAULT_ADDR: "http://{{secrets.host}}:{{secrets.port}}"
+    VAULT_TOKEN: "sandbox-root"
 
 services:                           # named dependency services; several of one kind are allowed
   db:
@@ -104,7 +105,12 @@ Readiness is declared per target, Kubernetes-probe-like, as an optional `probe` 
 
 - The probe endpoints of the kafka/vault/http services are fixed by the tool; `timeout` and
   `interval` are the only knobs they accept — a `path` there is rejected.
-- The postgresql service keeps its module readiness wrapped in the declared deadline.
+- The postgresql service readiness is an engine-owned driver connection probe bounded by
+  the declared timeout and interval.
+- The health `path` must start with `/` — it is appended to `http://<host>:<port>`; a path
+  without the leading slash fails at document load.
+- The `interval` must not exceed the `timeout` — declare a smaller interval alongside a
+  sub-second timeout.
 - Omitting the block (or any field) keeps the established behavior — defaults reproduce it
   exactly.
 - No global defaults block exists; readiness is declared per target only.
@@ -117,6 +123,11 @@ Instance env values are Jinja2 templates over the started service addresses:
   service — e.g. `{{db.host}}` / `{{db.port}}` for the service named `db`.
 - Placeholders resolve only for configured service names; an unknown name fails validation.
 - Values without placeholders pass through unchanged.
+- The dependency mocks carry fixed test credentials the instance env must match: postgres
+  accepts user `test`, password `test`, database `test`
+  (`postgres://test:test@{{db.host}}:{{db.port}}/test`); vault runs in dev mode with the
+  root token `sandbox-root` (send it as `VAULT_TOKEN` / `X-Vault-Token`; secrets live on
+  the default KV v2 `secret/` mount).
 
 ## Startup data layer
 
@@ -145,9 +156,9 @@ Applied in a fixed order after all services are up and before the instance start
 
 ## Preconditions and constraints
 
-- An invalid document (unknown kind, unknown service reference, missing required field,
-  malformed placeholder or declaration, kafka entry without topics, topics on a non-kafka
-  entry, probe `path` on a service, unparsable YAML) fails the run before any container
-  starts, with an error naming the entry.
+- An invalid document (unknown kind, unknown service reference, missing or unknown entry
+  key, malformed placeholder or declaration, kafka entry without topics, topics on a
+  non-kafka entry, probe `path` on a service or without its leading slash, unparsable YAML)
+  fails the run before any container starts, with an error naming the entry.
 - Without the document the product is fully inert — nothing starts, nothing changes.
 - A container runtime must be available in the environment running the tests.

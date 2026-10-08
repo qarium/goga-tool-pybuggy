@@ -377,7 +377,10 @@ class PostgresEngine(BaseEngine):
 
         One statement over all discovered tables — cascade carries the foreign-key ordering,
         restart identity resets the sequences. The symbol stream clears with the tables: the
-        rows it addressed are gone. Skipped when the catalog holds no user tables.
+        rows it addressed are gone. Skipped when the catalog holds no user tables. The
+        truncate carries a lock timeout at the declared readiness deadline: the instance
+        under test may hold table locks of its own, and a blocked reset fails with the
+        server's lock-timeout message instead of hanging the session.
 
         Raises:
             RuntimeError: The discovery or the truncate failed; the message carries the server
@@ -393,9 +396,11 @@ class PostgresEngine(BaseEngine):
             return
 
         targets = ", ".join(f'"{schema}"."{name}"' for schema, name in tables)
+        timeout_ms = int(self._readiness_bounds[0] * 1000)
 
         try:
-            with self._connection.cursor() as cursor:
+            with self._connection.transaction(), self._connection.cursor() as cursor:
+                cursor.execute("SET LOCAL lock_timeout = %s", (f"{timeout_ms}ms",))
                 cursor.execute(f"TRUNCATE TABLE {targets} RESTART IDENTITY CASCADE")
         except psycopg.Error as exc:
             raise RuntimeError(_server_message(exc)) from exc

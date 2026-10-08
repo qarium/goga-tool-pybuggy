@@ -1,6 +1,6 @@
 """ProbeConfig entity: the readiness declaration of the sandbox configuration."""
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class ProbeConfig(BaseModel):
@@ -16,7 +16,7 @@ class ProbeConfig(BaseModel):
         path: Health-check path; ``None`` keeps port readiness.
     """
 
-    model_config = ConfigDict(kw_only=True)
+    model_config = ConfigDict(kw_only=True, extra="forbid")
 
     timeout: float = Field(default=30.0, gt=0)
     interval: float = Field(default=0.5, gt=0)
@@ -38,3 +38,26 @@ class ProbeConfig(BaseModel):
             )
 
         return self
+
+    @field_validator("path")
+    @classmethod
+    def _path_starts_with_a_slash(cls, value: str | None) -> str | None:
+        """Require the leading slash of the health path.
+
+        The readiness wait concatenates the path onto ``http://<host>:<port>`` — a path
+        without the slash misforms every health URL and fails only at the readiness
+        deadline, so the malformed form is rejected here, at load time.
+
+        Args:
+            value: The declared health path; ``None`` keeps port readiness.
+
+        Returns:
+            The validated health path.
+
+        Raises:
+            ValueError: The path does not start with ``/``.
+        """
+        if value is not None and not value.startswith("/"):
+            raise ValueError("the probe path must start with '/' — it is appended to http://<host>:<port>")
+
+        return value
