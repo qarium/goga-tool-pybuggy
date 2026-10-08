@@ -665,7 +665,11 @@ class TestPostgresEnginePlane:
         assert connection.statements[0][1].startswith("SELECT table_schema, table_name")
         assert "information_schema.tables" in connection.statements[0][1]
         assert connection.statements[1] == ("transaction", "begin", None)
-        assert connection.statements[2] == ("execute", "SET LOCAL lock_timeout = %s", ("30000ms",))
+        assert connection.statements[2] == (
+            "execute",
+            "SELECT set_config('lock_timeout', %s, true)",
+            ("30000ms",),
+        )
         assert connection.statements[3] == (
             "execute",
             'TRUNCATE TABLE "public"."orders", "app"."customers" RESTART IDENTITY CASCADE',
@@ -681,7 +685,11 @@ class TestPostgresEnginePlane:
 
         engine._wipe()
 
-        assert connection.statements[2] == ("execute", "SET LOCAL lock_timeout = %s", ("5000ms",))
+        assert connection.statements[2] == (
+            "execute",
+            "SELECT set_config('lock_timeout', %s, true)",
+            ("5000ms",),
+        )
 
     def test_wipe_skips_truncate_without_user_tables(self):
         """An empty catalog skips the truncate — the replay-only reset."""

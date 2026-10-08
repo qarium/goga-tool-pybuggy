@@ -400,7 +400,9 @@ class PostgresEngine(BaseEngine):
 
         try:
             with self._connection.transaction(), self._connection.cursor() as cursor:
-                cursor.execute("SET LOCAL lock_timeout = %s", (f"{timeout_ms}ms",))
+                # SET does not accept bound parameters; set_config with is_local=true
+                # is the parameterized equivalent of SET LOCAL within the transaction.
+                cursor.execute("SELECT set_config('lock_timeout', %s, true)", (f"{timeout_ms}ms",))
                 cursor.execute(f"TRUNCATE TABLE {targets} RESTART IDENTITY CASCADE")
         except psycopg.Error as exc:
             raise RuntimeError(_server_message(exc)) from exc
