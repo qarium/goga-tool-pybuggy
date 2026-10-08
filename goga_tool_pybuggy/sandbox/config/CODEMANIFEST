@@ -1,3 +1,12 @@
+Imports:
+  - Types:
+      - check_local_migrations
+      - check_git_url
+      - MigrationError
+    Usages:
+      - migration-set
+    From: goga_tool_pybuggy/sandbox/migrations
+
 Usages:
   conventions: .goga/usages/conventions.md
   ruamel-yaml: .goga/usages/cooks/ruamel-yaml.md
@@ -66,7 +75,7 @@ Annotations: |
     "probe -> ProbeConfig | None": |
       Readiness declaration; None keeps the default wait.
 
-"ServiceConfig(name: str, kind: str, image: str | None, topics: list[TopicConfig], probe: ProbeConfig | None)":
+"ServiceConfig(name: str, kind: str, image: str | None, topics: list[TopicConfig], probe: ProbeConfig | None, migrations: MigrationsConfig | None)":
   location: service.py
   annotations: |
     One named dependency service declaration.
@@ -79,6 +88,8 @@ Annotations: |
     for every other kind.
     `probe`: optional readiness declaration — the wait bounds for this service's readiness
     check.
+    `migrations`: the optional migrations declaration — accepted on the postgresql kind only;
+    a declaration on any other kind fails at document load with the entry named.
 
     Requirements:
     - pydantic model, kw_only.
@@ -100,6 +111,8 @@ Annotations: |
       The kafka topic declarations of the service entry.
     "probe -> ProbeConfig | None": |
       Readiness declaration; None keeps the default wait.
+    "migrations -> MigrationsConfig | None": |
+      The migrations declaration; None — no migrations.
 
 "StartupData(vault: dict[str, list[dict[str, object]]], http: dict[str, list[dict[str, object]]], postgres: dict[str, list[str]])":
   location: startup_data.py
@@ -172,6 +185,55 @@ Annotations: |
     "partitions -> int": |
       The partition count; the tool default is 1.
 
+"GitSource(url: str, ref: str | None = None)":
+  location: migrations.py
+  annotations: |
+    The optional remote source of a service's migrations.
+
+    `url`: the clone URL of the repository holding the migration folder — no embedded
+    credentials; access relies on ambient git credentials.
+    `ref`: the branch or tag to clone; None clones the remote default branch.
+
+    Requirements:
+    - pydantic model, kw_only.
+
+    Constraints:
+    - A bare commit SHA is not a valid ref — shallow clones resolve branch and tag names only.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "url -> str": |
+      The clone URL — no embedded credentials.
+    "ref -> str | None": |
+      The branch or tag to clone; None — the remote default branch.
+
+"MigrationsConfig(location: str, git: GitSource | None = None)":
+  location: migrations.py
+  annotations: |
+    The migrations declaration of one postgresql service — the schema source applied once per
+    session by the sandbox.
+
+    `location`: the migrations folder — a path relative to the current working directory (the
+    same anchor the document itself uses) when `git` is absent; a path inside the repository
+    when `git` is set.
+    `git`: the optional remote source; None keeps the source local.
+
+    Requirements:
+    - pydantic model, kw_only.
+    - Valid only on a postgresql service entry — placement is checked at document load.
+
+    Constraints:
+    - Do not accept version-tracking or journaling options here — the apply semantics are
+    fixed.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "location -> str": |
+      The migrations folder — cwd-relative, or a path inside the repository when `GitSource`
+      is set.
+    "git -> GitSource | None": |
+      The optional remote source; None — the source is local.
+
 "load_sandbox_config(path: str | None) -> config: SandboxConfig | None":
   location: loader.py
   annotations: |
@@ -198,7 +260,12 @@ Annotations: |
     `{{<name>.host}}` / `{{<name>.port}}` placeholders); a kind of postgresql, kafka,
     vault, or http; the grpc kind fails with an explicit "not supported yet" error; an optional
     image override; kafka entries declare a non-empty topics list; non-kafka entries declare
-    none; the probe carries no path.
+    none; the probe carries no path. A migrations declaration is accepted on the postgresql
+    kind only — any other kind fails naming the entry; a declared local source resolves its
+    location against the current working directory and passes through `check_local_migrations`
+    from Imports; a declared remote source passes its URL through `check_git_url` from Imports.
+    A `MigrationError` raised by either check is wrapped into the reader's ValueError naming
+    the scope and the offending path or URL, with the original error as the cause.
     6. Validate the startup data sections — every declaration targets an existing service of
     the matching kind; a kafka section fails as removed — the topology is declared inline on
     the service entry.
@@ -213,6 +280,8 @@ Annotations: |
     name fails before any container starts.
     - The probe bounds are validated — a positive timeout and interval, the interval never
     exceeding the timeout.
+    - A migrations declaration is validated fully at load for local sources (folder checks)
+    and by URL shape for remote sources — remote content resolves at engine startup.
     - Every failure message names the document location and the offending entry.
 
     Constraints:
@@ -221,6 +290,7 @@ Annotations: |
 
     Use `ruamel-yaml` for document parsing.
     Use `conventions` for type hints and testing.
+    Use `migration-set` from Imports for the load-time check semantics.
 
 ---
 

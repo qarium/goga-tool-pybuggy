@@ -4,7 +4,8 @@
 
 `psycopg` (version 3) is the postgres driver of the pybuggy sandbox capability. It executes the
 data operations against the real postgres container: row inserts for preconditions, the catalog
-query that discovers tables for reset, `TRUNCATE` reset, and baseline-journal replay.
+query that discovers tables for reset, `TRUNCATE` reset, baseline-journal replay, and the
+once-per-session apply of goose-format DB migrations.
 
 Import in code:
 ```python
@@ -66,6 +67,28 @@ Every applied operation that raises must surface as a readable error identifying
 operation (the requirement applies at the sandbox layer; psycopg provides the cause):
 psycopg exceptions live in `psycopg.errors` (`UndefinedTable`, `UniqueViolation`, …) and carry
 `.diag.message_primary` with the server-side message.
+
+---
+
+## Migrations — executing parsed goose SQL bodies
+
+The migration runner executes the statement lists parsed from goose-format files (see the
+`goose-sql` cook) over the same per-session connection:
+
+- **Parameter-free DDL.** The bodies are read from migration files and run as given —
+  `cur.execute(body)` with no placeholders, no interpolation, no symbol capture. Migration SQL
+  is opaque schema text, not data operations.
+- **One transaction per file by default.** Wrap the file's statements in
+  `with conn.transaction():` — a failure rolls the whole migration back, leaving nothing
+  partially applied.
+- **`-- +goose NO TRANSACTION` files run statement-by-statement in autocommit** — the explicit
+  opt-out required by DDL such as `CREATE INDEX CONCURRENTLY`, which cannot run inside a
+  transaction block.
+- **Failure surfacing.** A failed statement raises an error naming the migration file and the
+  server-side message — the author sees `00003_create_orders.sql: <server message>`, with the
+  psycopg exception as the cause (`.diag.message_primary` carries the server text).
+- Migrations apply once per session, after the container is ready and before the service under
+  test starts; they never replay on reset and never enter the baseline journal.
 
 ---
 

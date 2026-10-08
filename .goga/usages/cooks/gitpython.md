@@ -1,8 +1,8 @@
-# GitPython — cloning the specs repository for `endpoint pull`
+# GitPython — shallow-cloning remote sources for pybuggy
 
 ## Domain
 
-This document describes a pattern for accessing a remote git repository that stores specifications for the `pybuggy endpoint pull` command. `pybuggy` treats the repository as **read-only**: shallow-clone into a temporary directory, read, copy the required file/subdirectory to the local `location`, delete the clone. No commit/push.
+This document describes a pattern for accessing a remote git repository from pybuggy. Two consumers share it: `pybuggy endpoint pull` (spec files) and the sandbox migrations source (a remote folder of migration files). `pybuggy` treats every repository as **read-only**: shallow-clone into a temporary directory, read, copy or consume the required file/subdirectory, delete the clone. No commit/push.
 
 The idiom mirrors cell `swax/git/` (`clone_specs` as a context manager), but is implemented **inside pybuggy** (cell `swax.git` is not used — only `swax.openapi`).
 
@@ -78,9 +78,38 @@ Consumer conventions:
 
 ---
 
+## Second consumer — the sandbox migrations source
+
+The sandbox document declares a remote migrations folder on a postgresql service entry:
+a `location` path inside the repository plus `git: {url, ref}` (`ref` optional — same shape as
+`GitEntry`). Resolution reuses the same shallow-clone context manager:
+
+```python
+with clone_repo(url, ref) as repo_root:
+    migrations_dir = repo_root / location
+    if not migrations_dir.is_dir():
+        raise MigrationSourceError(...)  # the sandbox error family, not ClickException
+    # read the migration files from the clone — nothing is copied into the consumer repo
+```
+
+Consumer conventions:
+- The clone is consumed in place and deleted afterwards — unlike `pull`, nothing lands in the
+  consumer repository; the migration files exist only for the session's apply.
+- Ambient credentials only (ssh-agent, credential helper, gitconfig) — **never** embed tokens in
+  the URL; the scheme allowlist is the same as pull's (https/http/git/ssh), but the sandbox
+  enforces it strictly: an scp-style URL with an empty scheme is rejected — rewrite it as
+  `ssh://git@host/path` (pull historically bypasses the check for empty schemes; do not copy
+  that bypass here).
+- `ref` is a branch or tag name; `None` means the remote default branch.
+
 ## Error mapping
 
-Map `GitCommandError` → `click.ClickException` to produce a uniform non-zero exit (see the `click.md` cook). A missing `git.location` inside the clone also raises a `ClickException` whose message includes the offending path.
+Each consumer maps `GitCommandError` into its own failure family — the clone pattern is shared, the CLI layer is not:
+
+- `endpoint pull` maps to `click.ClickException` for a uniform non-zero exit (see the `click.md` cook).
+- The sandbox maps to its engine error family (`EngineError`-style readable failures) naming the service and the failed step — the sandbox runs inside pytest, not a CLI process.
+
+A missing `git.location` inside the clone raises the consumer's error with a message including the offending path.
 
 ---
 

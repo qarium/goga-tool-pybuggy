@@ -2,6 +2,12 @@ Imports:
   - Types:
       - ServiceConfig
     From: goga_tool_pybuggy/sandbox/config
+  - Types:
+      - run_migrations
+      - MigrationError
+    Usages:
+      - migration-set
+    From: goga_tool_pybuggy/sandbox/migrations
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -117,8 +123,8 @@ Annotations: |
     2. An unmapped kind fails with the supported kinds listed.
 
     Requirements:
-    - The image override, the topic declarations, and the readiness declaration of `config`
-    reach the built engine.
+    - The image override, the topic declarations, the readiness declaration, and the migrations
+    declaration of `config` reach the built engine.
 
     Use `conventions` for type hints and testing.
 
@@ -143,7 +149,7 @@ Annotations: |
     replay the journal.
 
     `config`: the service declaration — name, kind, image override, topic declarations,
-    readiness declaration.
+    readiness declaration, migrations declaration (consumed by the postgres kind).
 
     Requirements:
     - The journal records the startup operations and every operation applied inside the baseline
@@ -259,6 +265,15 @@ Annotations: |
     Container: the postgres module container with the product-pinned default image; module
     readiness wrapped in the declared deadline — start returns after the server accepts
     connections within the declared timeout at the declared interval.
+    Migrations: when the service declaration carries a migrations entry, the declared migration
+    set applies exactly once per session — after the container reaches readiness and the
+    data-plane connection opens, before the startup data operations. The apply runs through
+    `run_migrations` from Imports over the engine's session connection, with the declared
+    location and git source; each applied file is reported as one progress line in the existing
+    startup-output style. A failed migration stops start — the failure surfaces as this
+    engine's error type naming the service and the migration file, with `MigrationError`
+    from Imports as the cause. Applied migrations never enter the baseline journal: the migrated schema
+    survives the wipe, and only journaled data replays on reset.
     Data plane: SQL over the postgres driver — a table + rows insert resolves $ref / $lookup
     values, then applies the rows one by one inside one transaction with RETURNING; every
     applied row joins the engine's per-table symbol stream — the address space $ref resolves
@@ -279,10 +294,13 @@ Annotations: |
     - One transaction per insert — a failing row leaves nothing applied, and the symbol stream
     rolls back with it.
     - Resolution never rewrites the declared payload.
+    - When migrations are declared, start returns only after the set is applied — startup data
+    statements run against the migrated schema.
 
     Constraints:
     - Do not format SQL with interpolated values — parameters are bound server-side.
 
+    Use `migration-set` from Imports for the apply semantics of the migration step.
     Use `psycopg` for the data plane and the catalog-driven reset.
     Use `testcontainers` for the postgres module container.
 

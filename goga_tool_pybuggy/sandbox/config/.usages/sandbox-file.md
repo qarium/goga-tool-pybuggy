@@ -29,6 +29,11 @@ services:                           # named dependency services; several of one 
   db:
     kind: postgresql
     image: postgres:16-alpine       # optional image override
+    migrations:                     # optional — the schema, applied once per session, never journaled
+      location: db/migrations       # local folder (cwd-relative), or a path inside the repo when git is set
+      # git:                       # optional — omit for a local source
+      #   url: https://gitlab.example/acme/service.git
+      #   ref: release-branch      # optional — branch or tag; omit for the default branch
   events:
     kind: kafka
     probe:
@@ -60,7 +65,7 @@ data:                               # startup data layer, applied before the ins
             status: captured
   postgres:
     db:
-      - "CREATE TABLE IF NOT EXISTS orders (id bigint PRIMARY KEY, customer text, total numeric)"
+      - "INSERT INTO customers (email) VALUES ('ann@x.io')"
 ```
 
 ## Services
@@ -81,10 +86,53 @@ data:                               # startup data layer, applied before the ins
 - Any subset of kinds may be configured; configure only the dependencies the service needs.
 - A `grpc` kind is rejected at document load with an explicit "not supported yet" error.
 
+## Migrations
+
+The schema of a postgresql service — a folder of goose-format SQL migration files applied once
+per test session at startup. Migrations are a property of the postgresql service entry, the
+same way topics are a property of the kafka service:
+
+- `migrations` exists only on postgresql entries — a declaration on any other kind is rejected
+  at document load with the entry named.
+- `location` — the migrations folder. For a local source it resolves against the current
+  working directory (the same anchor the document itself uses, no upward search); for a remote
+  source it is the path inside the repository.
+- `git` — the optional remote source. `url` is the clone URL; `ref` is an optional branch or
+  tag (omit it for the default branch). Access relies on ambient git credentials
+  (ssh-agent, credential helper, gitconfig) — never embed tokens in the URL.
+
+Role split — migrations build the schema once per session; `data.postgres` stays the per-test
+seed data. Startup order inside the service: container ready → migrations → `data.postgres`
+statements journaled as baseline. The per-test reset keeps the migrated schema and replays only
+`data.postgres` — write seed statements as INSERTs, not as `CREATE TABLE`.
+
+File rules of the folder:
+
+- One migration per file: `<version>_<description>.sql` (e.g. `00003_create_orders.sql`);
+  files apply once per session in ascending numeric version order; non-`.sql` files are
+  ignored; duplicate version prefixes are invalid.
+- Supported goose annotations: `-- +goose Up` / `-- +goose Down` (Down never executes),
+  `-- +goose StatementBegin` / `-- +goose StatementEnd`, `-- +goose NO TRANSACTION` (the file
+  runs statement-by-statement — required by DDL such as `CREATE INDEX CONCURRENTLY`). Anything
+  else from goose (unknown annotations, `{{...}}` variables, Go-based migrations) is
+  unsupported and fails with the file named.
+- No version-tracking table is created; migration failures stop startup with the file and the
+  postgres error named.
+
+Validation at document load, before any container starts: migrations on a non-postgresql
+service, missing local path, empty folder, no `.sql` files, duplicate version prefixes, a git
+URL outside the scheme allowlist (https/http/git/ssh) or with embedded credentials.
+
+Remote sources: the repository is shallow-cloned for the apply and deleted afterwards —
+nothing is copied into your repository; each session downloads fresh.
+
+A service that applies its own migrations at startup: simply do not declare sandbox
+migrations — either/or, the author's choice and responsibility.
+
 ## Kafka topics
 
-The kafka topology is a property of the kafka service entry — declared inline, like `image` and
-`kind`:
+The kafka topology is a property of the kafka service entry — declared inline, like `image`
+and `kind`:
 
 - `topics` is required on every kafka entry and holds at least one declaration; an entry
   without topics fails before any container starts.
@@ -126,8 +174,8 @@ Instance env values are Jinja2 templates over the started service addresses:
 - The dependency mocks carry fixed test credentials the instance env must match: postgres
   accepts user `test`, password `test`, database `test`
   (`postgres://test:test@{{db.host}}:{{db.port}}/test`); vault runs in dev mode with the
-  root token `sandbox-root` (send it as `VAULT_TOKEN` / `X-Vault-Token`; secrets live on
-  the default KV v2 `secret/` mount).
+  root token `sandbox-root` (send it as `VAULT_TOKEN` / `X-Vault-Token`; secrets live on the
+  default KV v2 `secret/` mount).
 
 ## Startup data layer
 
@@ -137,15 +185,16 @@ Applied in a fixed order after all services are up and before the instance start
 |---|---|---|
 | `vault` | vault services | `{path, data}` secret writes |
 | `http` | http services | WireMock mapping objects (`request` + `response`) |
-| `postgres` | postgresql services | SQL statements (schema/bootstrap SQL) |
+| `postgres` | postgresql services | SQL statements (seed data) |
 
 - A `kafka` section does not exist — declaring one fails; the kafka topology lives on the
   service entry.
 - Within a section, declarations apply in the order written — for dependent rows (foreign keys),
   declare parents before children. Postgres init statements are raw sql: they resolve no
   `$ref` / `$lookup` references and their rows are addressable later only through `$lookup`.
-- Postgres init statements replay on every per-test reset — write them idempotent (e.g.
-  `CREATE TABLE IF NOT EXISTS`); the TRUNCATE-based reset keeps tables, only data is wiped.
+- Postgres statements run after the service's migrations (when declared), against the migrated
+  schema, and replay on every per-test reset — write them idempotent; the TRUNCATE-based reset
+  keeps tables (and the migrated schema), only data is wiped.
 
 ## Locating the document
 
@@ -156,9 +205,11 @@ Applied in a fixed order after all services are up and before the instance start
 
 ## Preconditions and constraints
 
-- An invalid document (unknown kind, unknown service reference, missing or unknown entry
-  key, malformed placeholder or declaration, kafka entry without topics, topics on a
-  non-kafka entry, probe `path` on a service or without its leading slash, unparsable YAML)
-  fails the run before any container starts, with an error naming the entry.
+- An invalid document (unknown kind, unknown service reference, missing or unknown entry key,
+  malformed placeholder or declaration, kafka entry without topics, topics on a non-kafka
+  entry, migrations on a non-postgresql entry, invalid migrations declaration — missing or
+  empty folder, no `.sql` files, duplicate version prefixes, git URL outside the allowlist or
+  with embedded credentials — probe `path` on a service or without its leading slash,
+  unparsable YAML) fails the run before any container starts, with an error naming the entry.
 - Without the document the product is fully inert — nothing starts, nothing changes.
 - A container runtime must be available in the environment running the tests.
