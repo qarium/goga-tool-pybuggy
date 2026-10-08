@@ -123,7 +123,7 @@ hardcoded key. Two reference forms exist, both plain data in the declaration:
 Rules common to both forms:
 
 - References are top-level row values only; a nested dict carrying `$ref` stays plain column
-  data.
+  data. A plain mapping column value binds as JSON text — the json/jsonb column form.
 - The grammar is validated at declaration — a malformed reference fails before anything executes.
 - Resolution happens at apply time, right before the first service call; references never rewrite
   the declaration.

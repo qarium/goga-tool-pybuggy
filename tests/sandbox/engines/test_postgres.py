@@ -510,6 +510,27 @@ class TestPostgresEnginePlane:
 
         assert operation.payload["rows"] == [{"customer_id": {"$ref": "customers.0.id"}}]
 
+    def test_plain_mapping_column_value_binds_as_json_text(self):
+        """A plain mapping column value binds as JSON text — the driver cannot bind a mapping."""
+        engine = db_engine()
+        connection = FakeConnection(row_queue=[{"id": 1, "meta": {"tier": "gold"}}])
+        engine._connection = connection
+
+        engine._execute(insert_op([{"id": 1, "meta": {"tier": "gold"}}]))
+
+        assert connection.statements[1][2] == (1, '{"tier": "gold"}')
+
+    def test_mapping_adaptation_never_rewrites_the_declared_payload(self):
+        """The declared rows keep their mapping — the journal replays it as declared."""
+        engine = db_engine()
+        connection = FakeConnection(row_queue=[{"id": 1, "meta": {"tier": "gold"}}])
+        engine._connection = connection
+        operation = insert_op([{"id": 1, "meta": {"tier": "gold"}}])
+
+        engine._execute(operation)
+
+        assert operation.payload["rows"] == [{"id": 1, "meta": {"tier": "gold"}}]
+
     def test_ref_to_an_unapplied_table_names_the_lookup_alternative(self):
         """A ``$ref`` to a table without data-plane rows names ``$lookup`` as the alternative."""
         engine = db_engine()

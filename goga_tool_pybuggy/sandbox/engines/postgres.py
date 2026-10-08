@@ -1,5 +1,6 @@
 """PostgresEngine: the postgresql kind engine — a real postgres service."""
 
+import json
 import logging
 
 import psycopg
@@ -280,17 +281,25 @@ class PostgresEngine(BaseEngine):
     def _resolve_value(self, value: object) -> object:
         """Resolve one declared row value — references resolve, plain values pass through.
 
+        A plain mapping is json-like column data: the postgres driver has no dumper for a raw
+        mapping parameter, so it binds as JSON text the server parses as the column's type
+        (json, jsonb or text). Every other plain value passes through as given.
+
         Args:
             value: The declared value of one column.
 
         Returns:
-            The executable value — the resolved reference or the value as given.
+            The executable value — the resolved reference, the JSON text of a plain mapping,
+            or the value as given.
 
         Raises:
             RuntimeError: The reference is malformed or unresolvable; the message names the
                 cause.
         """
         if not is_reference(value):
+            if isinstance(value, dict):
+                return json.dumps(value)
+
             return value
 
         if REF_KEY in value:

@@ -275,7 +275,9 @@ Annotations: |
     from Imports as the cause. Applied migrations never enter the baseline journal: the migrated schema
     survives the wipe, and only journaled data replays on reset.
     Data plane: SQL over the postgres driver — a table + rows insert resolves $ref / $lookup
-    values, then applies the rows one by one inside one transaction with RETURNING; every
+    values, then applies the rows one by one inside one transaction with RETURNING; a plain
+    mapping column value binds as JSON text — the driver has no dumper for a raw mapping;
+    every
     applied row joins the engine's per-table symbol stream — the address space $ref resolves
     against (the stream covers the data plane's own applied rows since the last wipe: journal,
     presets, in-test declarations, in application order; a later row may reference an earlier
