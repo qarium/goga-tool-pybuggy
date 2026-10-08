@@ -4,7 +4,9 @@ pybuggy reads a single YAML file — `.goga/tools/pybuggy/config.yml` — from a
 path** relative to the project root. There is no `--config` option; every command loads
 the config itself. (The sandbox capability reads a separate, fixed-path document —
 `.goga/tools/pybuggy/sandbox.yml` under the pybuggy tools home — described in
-[Sandbox](sandbox.md); it is not part of this file.)
+[Sandbox](sandbox.md); it is not part of this file. The sandbox service entries carry
+their own vocabulary — `kind`, `image`, `probe`, kafka `topics`, and the postgresql-only
+optional `migrations` block — covered there, not here.)
 
 The file carries four concerns: the **plugin options** (feed the `api` fixture), the
 **`specs`** section (what the CLI commands operate on), the optional **`loader`**

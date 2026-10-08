@@ -1435,12 +1435,12 @@ reference, read-only).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Update `docs/sandbox.md` per the design details (consistent with `sandbox-file.md`;
+- [x] Update `docs/sandbox.md` per the design details (consistent with `sandbox-file.md`;
   block-style YAML examples)
-- [ ] Apply the `docs/configuration.md` point edit
-- [ ] Run validation: `.venv/bin/pytest tests/ -x` — still green (docs must not break
+- [x] Apply the `docs/configuration.md` point edit
+- [x] Run validation: `.venv/bin/pytest tests/ -x` — still green (docs must not break
   collection)
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0
 
 ### Task 10: Final validation gate — full suite, facades, contract lint, format (acceptance)
 

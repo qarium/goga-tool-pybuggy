@@ -47,6 +47,11 @@ services:                           # named dependency services; several of one 
   db:
     kind: postgresql
     image: postgres:16-alpine       # optional image override
+    migrations:                     # optional — the schema, applied once per session, never journaled
+      location: db/migrations       # local folder (cwd-relative), or a path inside the repo when git is set
+      # git:                       # optional — omit for a local source
+      #   url: https://gitlab.example/acme/service.git
+      #   ref: release-branch      # optional — branch or tag; omit for the default branch
   events:
     kind: kafka
     probe:
@@ -78,7 +83,7 @@ data:                               # startup data layer, applied before the ins
             status: captured
   postgres:
     db:
-      - "CREATE TABLE IF NOT EXISTS orders (id bigint PRIMARY KEY, customer text, total numeric)"
+      - "INSERT INTO customers (email) VALUES ('ann@x.io')"
 ```
 
 - Every service has a name (the key) and a `kind`: `postgresql`, `kafka`, `vault`, or
@@ -96,6 +101,45 @@ data:                               # startup data layer, applied before the ins
 | `http` | `wiremock/wiremock:3.13.0` | `POST /__admin/mappings/reset` + journal replay |
 
 - A `grpc` kind is rejected with an explicit "not supported yet" error.
+
+### Migrations
+
+The schema of a postgresql service — a folder of goose-format SQL migration files applied
+once per test session at startup. Migrations are a property of the postgresql service
+entry, the same way topics are a property of the kafka service:
+
+- `migrations` exists only on postgresql entries — a declaration on any other kind is
+  rejected at document load with the entry named.
+- `location` — the migrations folder. For a local source it resolves against the current
+  working directory (the same anchor the document itself uses, no upward search); for a
+  remote source it is the path inside the repository.
+- `git` — the optional remote source. `url` is the clone URL; `ref` is an optional branch
+  or tag (omit it for the default branch — a bare commit SHA is not a valid ref). Access
+  relies on ambient git credentials (ssh-agent, credential helper, gitconfig) — never
+  embed tokens in the URL; the scheme must be one of `https`, `http`, `git`, `ssh`, so
+  rewrite scp-style URLs as `ssh://git@host/path`.
+- One migration per file, named `<version>_<description>.sql` (e.g.
+  `00003_create_orders.sql`); files apply once per session in ascending numeric version
+  order; non-`.sql` files are ignored; duplicate version prefixes are invalid. The format
+  is the goose SQL annotation subset — `-- +goose Up` / `-- +goose Down` (Down never
+  executes), `-- +goose StatementBegin` / `-- +goose StatementEnd`, and
+  `-- +goose NO TRANSACTION` (the file runs statement-by-statement, required by DDL such
+  as `CREATE INDEX CONCURRENTLY`); anything else from goose fails with the file named
+  (`.goga/usages/cooks/goose-sql.md` is the format reference).
+- The declaration is validated at document load, before any container starts: a missing
+  local folder, an empty folder, no `.sql` files, duplicate version prefixes, or a git
+  URL outside the scheme allowlist or with embedded credentials fail the run naming the
+  entry.
+- A remote source is shallow-cloned for the apply and deleted afterwards — nothing is
+  copied into your repository; each session downloads fresh. No version-tracking table
+  is created; a failed migration stops startup naming the file and the postgres error.
+
+Role split — migrations build the schema once per session; `data.postgres` stays the
+per-test seed data. Startup order inside the service: container ready → migrations →
+`data.postgres` statements journaled as baseline. The per-test reset keeps the migrated
+schema and replays only `data.postgres` — write seed statements as INSERTs, not as
+`CREATE TABLE`. A service that applies its own migrations at startup: simply do not
+declare sandbox migrations.
 
 ### Kafka topics
 
@@ -145,9 +189,10 @@ instance starts — vault secrets, then http mappings, then postgres init:
   service entry.
 - Within a section, declarations apply in the order written — for dependent rows (foreign
   keys), declare parents before children.
-- Postgres init statements are raw sql: they resolve no `$ref` / `$lookup` references, and
-  they replay on every per-test reset — write them idempotent (e.g. `CREATE TABLE IF NOT
-  EXISTS`); the TRUNCATE-based reset keeps tables, only data is wiped.
+- Postgres init statements are raw sql: they resolve no `$ref` / `$lookup` references,
+  and they run after the service's migrations (when declared), against the migrated
+  schema. They replay on every per-test reset — write them idempotent; the
+  TRUNCATE-based reset keeps tables and the migrated schema, only data is wiped.
 
 ## Session fixture and baseline
 
