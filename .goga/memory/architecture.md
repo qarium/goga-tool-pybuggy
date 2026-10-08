@@ -20,9 +20,9 @@ Related settings are grouped into one optional nested block described by a singl
 
 Any bounded wait fails with a typed, actionable error when its deadline expires; an expired deadline never surfaces as an indefinite hang.
 
-## Acyclic cell graph with reference-driven type placement
+## Acyclic cell graph with reference-driven placement
 
-The cell dependency graph is kept acyclic: integration flows only from consumer to provider and is never reversed. A type that must reference a type belonging to a consuming cell is relocated into that cell rather than permitting an upward import that would create a cycle or an unresolvable reference.
+The dependency graph over cells and units is kept acyclic: integration flows only from consumer to provider and is never reversed. A type that must reference a type belonging to a consuming cell is relocated into that cell rather than permitting an upward import that would create a cycle or an unresolvable reference. A new subsystem spanning several distinct concerns gets its own leaf unit with a single coherent responsibility that imports nothing from the rest of the project; neighboring units keep their focused responsibility and extend by importing from the leaf instead of absorbing heterogeneous modules.
 
 ## Manifest import-reference symmetry
 
@@ -31,3 +31,15 @@ Cross-cell references and imports are held in strict bidirectional agreement: ev
 ## Grounded option presentation
 
 Before asking the user to choose among design options, ground every option in how the host platform natively solves the analogous problem and in the project's current behavior. Map each option onto those idioms with its concrete consequences, and attach a recommendation. Never present options as abstract pros and cons alone.
+
+## Replacement-based idempotent fetch
+
+Downloading an external resource into a local target folder always removes any pre-existing folder first, so a fetch is idempotent and yields exactly the fetched state: retrieved content never merges with leftovers from a previous download, and stale artifacts cannot survive into the new result.
+
+## Deferred network I/O with load-time shape validation
+
+Configuration loading performs only cheap structural validation of source references; cloning, content inspection, and other network operations are deferred to the point of use rather than performed at load, and transient artifacts are discarded after use, keeping document loading free of network I/O.
+
+## One-time schema build outside the reset cycle
+
+Schema migrations run once per session after infrastructure readiness and before seed data, and are never recorded in the data-replay baseline: per-test data resets restore journaled data while the built schema survives, seed statements run against the migrated schema, and the step remains internal to the engine without expanding the outer startup contract.
