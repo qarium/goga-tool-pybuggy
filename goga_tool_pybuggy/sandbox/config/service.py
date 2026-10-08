@@ -1,22 +1,46 @@
-"""ServiceConfig entity: the service-under-test entry of ``.sandbox.yml``."""
+"""ServiceConfig entity: one named dependency service declaration of the sandbox document."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
+
+from .probe import ProbeConfig
+from .topic import TopicConfig
 
 
 class ServiceConfig(BaseModel):
-    """Service-under-test entry of the sandbox configuration.
+    """One named dependency service declaration.
+
+    The accepted kinds (postgresql, kafka, vault, http) are validated by the loader — the model
+    carries the field types only.
 
     Attributes:
-        image: Container image of the service under test.
-        env: Environment values; values may carry instance address placeholders resolved at
-            sandbox start.
-        port: Container port the service serves on.
-        health: Health path for readiness; ``None`` means port readiness only.
+        name: Service name — the addressable key and the placeholder name.
+        kind: Dependency kind: postgresql, kafka, vault, or http.
+        image: Image override; ``None`` keeps the product-pinned default of the kind.
+        topics: Kafka topic declarations; required and non-empty for the kafka kind, empty for
+            every other kind.
+        probe: Readiness declaration — the wait bounds for this service's readiness check; the
+            path is accepted only on the instance-under-test entry.
     """
 
     model_config = ConfigDict(kw_only=True)
 
-    image: str
-    env: dict[str, str] = {}
-    port: int
-    health: str | None = None
+    name: str
+    kind: str
+    image: str | None = None
+    topics: list[TopicConfig] = []
+    probe: ProbeConfig | None = None
+
+    @model_validator(mode="after")
+    def _probe_carries_no_path(self) -> "ServiceConfig":
+        """Reject a probe path — the path belongs to the instance-under-test entry only.
+
+        Returns:
+            The validated model instance.
+
+        Raises:
+            ValueError: The probe declares a health-check path.
+        """
+        if self.probe is not None and self.probe.path is not None:
+            raise ValueError("the probe path is accepted only on the instance entry")
+
+        return self

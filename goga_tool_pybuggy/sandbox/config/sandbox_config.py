@@ -1,4 +1,4 @@
-"""SandboxConfig entity: the root model of the ``.sandbox.yml`` document."""
+"""SandboxConfig entity: the root model of the sandbox document."""
 
 from pydantic import BaseModel, ConfigDict
 
@@ -11,14 +11,14 @@ class SandboxConfig(BaseModel):
     """Root model of the sandbox configuration.
 
     Attributes:
-        service: The service-under-test entry.
-        instances: Dependency instance entries keyed by instance name; several instances of one
+        instance: The instance-under-test entry.
+        services: Dependency service entries keyed by service name; several services of one
             kind are allowed.
         data: The startup data layer declarations.
     """
 
     model_config = ConfigDict(kw_only=True)
 
-    service: ServiceConfig
-    instances: dict[str, InstanceConfig] = {}
+    instance: InstanceConfig
+    services: dict[str, ServiceConfig] = {}
     data: StartupData = StartupData()

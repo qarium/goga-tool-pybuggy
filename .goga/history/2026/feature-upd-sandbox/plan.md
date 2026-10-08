@@ -843,36 +843,45 @@ services, data)` (`sandbox_config.py`), `StartupData(vault, http, postgres)` (`s
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 3 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/config/test_instance.py`, `test_service.py`,
+- [x] **Declaration**: state that Task 3 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/config/test_instance.py`, `test_service.py`,
   `test_sandbox_config.py`, `test_startup_data.py` — expected to fail now): new constructor
   shapes and property types for all four models; kw_only construction; facade importability
-- [ ] **REPL prototype (R4)**: in the venv REPL construct `InstanceConfig(image="my-service:latest",
+  (written first; failed on the old field sets before implementation — TDD red confirmed)
+- [x] **REPL prototype (R4)**: in the venv REPL construct `InstanceConfig(image="my-service:latest",
   env={"A": "{{db.host}}"}, port=8080)` and with `probe=ProbeConfig(path="/healthz")`;
   `ServiceConfig(name="db", kind="postgresql")`, `ServiceConfig(name="events", kind="kafka",
   topics=[TopicConfig(name="orders.events", partitions=6)])`; observe the D1 rejection
   (`ServiceConfig(name="v", kind="vault", probe=ProbeConfig(path="/health"))` → ValidationError
   "the probe path is accepted only on the instance entry"); observe `StartupData.model_fields`
   order (vault, http, postgres) and the absence of a kafka field; then migrate
-- [ ] **Code**: rewrite `goga_tool_pybuggy/sandbox/config/{instance,service,sandbox_config,startup_data}.py`
+  (all constructions, defaults, the exact D1 rejection wording, its propagation through
+  `SandboxConfig` nesting, and kw_only TypeError observed live in a venv heredoc REPL; then
+  migrated)
+- [x] **Code**: rewrite `goga_tool_pybuggy/sandbox/config/{instance,service,sandbox_config,startup_data}.py`
   to the shapes above (docstrings to the new subjects; D1 validator in `service.py`)
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/test_instance.py
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/config/test_instance.py
   tests/sandbox/config/test_service.py tests/sandbox/config/test_sandbox_config.py
   tests/sandbox/config/test_startup_data.py -x -v` — all pass
-- [ ] **Logic tests**: kw_only (positional raises `TypeError`); `env`/`services`/`topics` and
+  (44 passed; fresh-interpreter facade check ok — 7 names, field orders verified)
+- [x] **Logic tests**: kw_only (positional raises `TypeError`); `env`/`services`/`topics` and
   the data sections default empty; `image`/`probe`/`path` default None; the D1 path rejection
   (message matched via `pytest.raises(..., match=)`); several services of one kind allowed in
   `services`; `StartupData` has no kafka field (`"kafka" not in StartupData.model_fields`)
-- [ ] **Debugging (authoritative scope, Migration Ledger)**: `.venv/bin/pytest
+- [x] **Debugging (authoritative scope, Migration Ledger)**: `.venv/bin/pytest
   tests/sandbox/config/test_instance.py tests/sandbox/config/test_service.py
   tests/sandbox/config/test_sandbox_config.py tests/sandbox/config/test_startup_data.py -x`
   green; `test_loader.py` is known-red until Task 4, engines/sandbox/plugin suites until their
   tasks — do not touch them
-- [ ] **Contract re-verification**: the four entity declarations hold — subjects swapped,
+  (44 green; blast radius verified against the ledger — full tree still collects 1495 tests,
+  loader/engines/sandbox/plugin suites red at runtime only, data suites unaffected at 64 green)
+- [x] **Contract re-verification**: the four entity declarations hold — subjects swapped,
   constraints (path only on instance; kinds loader-validated), section order
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (exit 0; one format drift in test_sandbox_config.py corrected via `ruff format` — all 8
+  touched files format-clean)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 4: `load_sandbox_config` rework — new path, top-level diagnostics, inline topics validation; shared fixture flip (TDD)
 
