@@ -832,21 +832,24 @@ grammar is imported from `goose.py` — never duplicated.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 3 is being executed
-- [ ] **Contract tests** (new `tests/sandbox/migrations/test_source.py`; expected to fail now):
-  both names importable from the facade; signatures `(folder: Path)` / `(url: str)`
-- [ ] **REPL prototype (R4)**: in the venv REPL run `urllib.parse.urlparse` on every shape —
-  the four allowed schemes, `ftp://`, `file:///etc/passwd`, the scp-style
-  `git@github.com:acme/r.git` (observe `scheme == ""` — decision A), `ssh://git@host/r.git`
-  (netloc carries `@`, scheme ssh — passes), `https://user@host/r.git`; drive the folder checks
-  against `tmp_path` fixtures (valid, missing, file-instead-of-folder, empty, non-.sql only,
-  bad grammar, duplicate `00001`/`1`); then migrate
-- [ ] **Code**: create `goga_tool_pybuggy/sandbox/migrations/source.py` per the design
-  details (grammar imported from `.goose`); extend the facade `__all__` to 6 names
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/migrations/test_source.py -x
-  -v` — pass; fresh-interpreter facade check: `.venv/bin/python -c "from
-  goga_tool_pybuggy.sandbox.migrations import check_local_migrations, check_git_url"`
-- [ ] **Logic tests** (design scenarios, transferred):
+- [x] **Declaration**: stated in the iteration output and the progress log
+- [x] **Contract tests** (new `tests/sandbox/migrations/test_source.py`; expected to fail now):
+  both names importable from the facade; signatures `(folder: Path)` / `(url: str)` —
+  observed failing on import first (TDD), passing after the code landed
+- [x] **REPL prototype (R4)**: in the venv REPL ran `urllib.parse.urlparse` on every shape —
+  observed `scheme == ""` on the scp-style URL (decision A), ssh `@`-netloc passing,
+  `https://user@host` carrying the credential netloc; drove the folder fixtures (valid,
+  missing, file-instead-of-folder, empty, non-.sql only, duplicate `00001`/`1` colliding at
+  int 1); then migrated
+- [x] **Code**: created `goga_tool_pybuggy/sandbox/migrations/source.py` per the design
+  details (grammar imported from `.goose` through `version_prefix` — the single extraction
+  point); extended the facade `__all__` to 6 names
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/migrations/test_source.py -x
+  -v` — 3 contract tests pass; fresh-interpreter facade check: `.venv/bin/python -c "from
+  goga_tool_pybuggy.sandbox.migrations import check_local_migrations, check_git_url"` — the
+  facade `__all__` holds exactly the 6 names
+- [x] **Logic tests** (design scenarios, transferred) — all 10 present (20 tests total with
+  the parametrized tables):
   1. `test_check_local_migrations_with_valid_folder` — `00001_init.sql` + `00002_add_users.sql`
      → no exception
   2. `test_check_local_migrations_ignores_non_sql_files` — plus `notes.txt`, `README.md` → no
@@ -869,14 +872,19 @@ grammar is imported from `goose.py` — never duplicated.
   10. `test_check_git_url_rejects_embedded_credentials` — parametrized
       `["https://user:token@h/r.git", "https://user@h/r.git"]` → raise naming the URL and the
       credentials rule
-- [ ] **Debugging**: `.venv/bin/pytest tests/ -x` — still fully green; REPL-reproduce any
-  failure first (M-R4.5)
-- [ ] **Contract re-verification**: both Algorithms, the Requirements (shape only; every
+- [x] **Debugging**: `.venv/bin/pytest tests/ -x` — 1614 passed, 17 skipped (Task 2 baseline
+  1594 + 20 new); one initial failure (duplicate-version message named the files in
+  nondeterministic `iterdir()` order) fixed implementation-side — `check_local_migrations`
+  now sorts the `.sql` listing before the name pass, matching `load_migration_set`'s
+  established deterministic style
+- [x] **Contract re-verification**: both Algorithms, the Requirements (shape only; every
   failure names the folder/URL and the rule), the Constraints (no file contents read; no
   network) hold; the grammar is imported, not duplicated
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
-  `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  `ruff format --check` on touched files — clean (the two PLR1711 `return None` literals
+  removed — the design's "Return None" is the implicit None return; the tests assert `is
+  None` against it)
+- [x] **Completion**: checkboxes marked; submitted to the external review loop
 
 ### Task 4: Migrations cell III — `apply.py`: `apply_migrations`, `run_migrations`; facade complete at 8 names (TDD)
 

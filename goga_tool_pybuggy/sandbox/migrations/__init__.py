@@ -8,10 +8,13 @@ and ``run_migrations``.
 
 from .errors import MigrationError
 from .goose import MigrationFile, load_migration_set, parse_migration_file
+from .source import check_git_url, check_local_migrations
 
 __all__ = [
     "MigrationError",
     "MigrationFile",
+    "check_git_url",
+    "check_local_migrations",
     "load_migration_set",
     "parse_migration_file",
 ]
