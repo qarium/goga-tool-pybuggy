@@ -1,16 +1,4 @@
 prompt: |
-  **EXPRESSION STYLE**
-  - Explain technical concepts clearly for a Junior developer, with the precision expected by a Senior.
-    Avoid academic phrasing, unnecessary jargon, and condescension.
-  - Be concrete: describe behavior, causes, and consequences.
-    Briefly explain unfamiliar terms; use examples when helpful.
-  - Prefer concise, natural sentences and active voice.
-    Preserve logical connections; avoid choppy prose.
-  - Remove filler and repetition.
-    Preserve meaningful conditions, trade-offs, and uncertainty.
-  - Prioritize accuracy and coherence over brevity.
-    These rules govern wording, not response structure or formatting.
-  **LANGUAGE RULES**
   Answer (feedbacks, proposes, questions:`*.question.json`, AFM plans) in Russian language.
   Any content written to the project files is in English.
 
@@ -20,40 +8,12 @@ memory:
 
 stages:
   prototype-architecture:
-    prompt: |
-      Architectural design process.
-
-      Requirements:
-      - Annotations describe the high-level order of actions
-      - Every usage file is connected through Imports and referenced in annotations
-      - Usage files are self-contained
-      - Footer Description describes the responsibility zone
-      - Before deciding how to do something, reflect on the memory file.
-
-      Constraints:
-      - Annotations must not reference previous functionality
-      - Annotations does not contains implementation details
-      - Annotations must not use "X from Imports" phrasing
-      - Footer Description does not contains details
     reflect:
       file: architecture.md
-  architecture-review:
-    approve: auto
-  apply-architecture:
-    approve: auto
   code-design:
-    approve: auto
     reflect:
       file: code-design.md
       mode: r
-  design-review:
-    approve: auto
-    reflect:
-      file: code-design.md
-  coding-plan:
-    approve: auto
-  plan-review:
-    approve: auto
   accept-result:
     manual: false
 
