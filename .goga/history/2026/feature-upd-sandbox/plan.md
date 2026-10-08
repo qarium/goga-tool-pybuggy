@@ -1910,22 +1910,42 @@ teardown.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Rework `tests/sandbox/test_session_lifecycle.py`: armed-flow documents written at
+- [x] Rework `tests/sandbox/test_session_lifecycle.py`: armed-flow documents written at
   `.goga/tools/pybuggy/sandbox.yml` (the Task 4 fixture) with the `instance:`/`services:`
   keys, inline kafka topics, and probe declarations; doubles vocabulary per the conftest
-- [ ] Test the armed session over fakes: engines started in declaration order with ordered
+  (documents flipped — `instance:` with a `probe: {path: /healthz}` entry, `services:` with
+  a kafka entry declaring `orders.events` + `payments.events` partitions 6 and a vault probe
+  override; `FailingApplyEngine` wording to "service '<name>'"; the `armed` fixture's seams
+  renamed to `service_config` / `_instance_config`)
+- [x] Test the armed session over fakes: engines started in declaration order with ordered
   startup lists; instance container last with rendered env; base_url from the instance
   address; preset enqueue ahead of in-test operations; reset flow leaves the instance running
-- [ ] Test edge cases: activation without the document (fully inert session); unknown service
+  (the four-service flow test asserts the full lifecycle event sequence, the journaled
+  put/stub/sql lists with the kafka engine's empty, the rendered env hand-off, `base_url`
+  from the instance address, and preset-before-in-test ordering across three kinds incl. a
+  kafka produce; the clear test drives the baseline boundary then asserts one reset with the
+  instance still running)
+- [x] Test edge cases: activation without the document (fully inert session); unknown service
   name on a view factory lists the configured services; a died instance surfaces through
   `ensure_service` with its output attached
-- [ ] Docker-gated lifecycle case (requires_docker): a real armed session over the pinned
+  (all three landed in `TestSessionEdgeCases` — inert context stays empty with the lookup
+  None; `postgresql("ghost")` lists `db (postgresql)`; the died guard names the image and
+  attaches the fake output)
+- [x] Docker-gated lifecycle case (requires_docker): a real armed session over the pinned
   mocks with declared topics and a probe — topology boots, partitions arrive, produce into a
   declared topic succeeds, reset replays the baseline
-- [ ] Run validation: `.venv/bin/pytest tests/sandbox/test_session_lifecycle.py -v` then
+  (`TestArmedSessionLiveLifecycle` — wiremock instance gated by the declared
+  `/__admin/health` probe, mokapi topology with `payments.events` at exactly 6 partitions,
+  produce consumed back, `clear()` restart-leaves only the replayed baseline; executed for
+  real in this environment)
+- [x] Run validation: `.venv/bin/pytest tests/sandbox/test_session_lifecycle.py -v` then
   `.venv/bin/pytest tests/ -x` — **all green**
-- [ ] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (9 passed incl. the live case; full suite 1552 passed, 0 failed — the Migration Ledger
+  closes: every suite green from here on)
+- [x] Lint gate (pre-commit): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
+  (both gates exit 0 on the first run — no findings, no format drift; REPL pass confirmed
+  arming reads the new path with probe/topic declarations riding through)
 
 ### Task 15: Author docs and cooks sweep — the new path, keys, and vocabulary everywhere (documentation)
 
