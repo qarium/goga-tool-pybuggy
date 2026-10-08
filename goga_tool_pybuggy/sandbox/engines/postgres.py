@@ -1,4 +1,4 @@
-"""PostgresEngine: the postgresql kind engine — a real postgres instance."""
+"""PostgresEngine: the postgresql kind engine — a real postgres service."""
 
 import logging
 
@@ -6,7 +6,7 @@ import psycopg
 from psycopg.rows import dict_row
 from testcontainers.community.postgres import PostgresContainer
 
-from ..config.instance import InstanceConfig
+from ..config.service import ServiceConfig
 from .base import BaseEngine
 from .operation import DataOperation
 from .refs import LOOKUP_KEY, REF_KEY, is_reference, parse_ref_address
@@ -18,6 +18,7 @@ CONTAINER_PORT = 5432
 PLANE_USER = "test"
 PLANE_PASSWORD = "test"
 PLANE_DBNAME = "test"
+PROBE_CONNECT_TIMEOUT = 2
 SANDBOX_LABELS = {"pybuggy-sandbox": "true"}
 
 CATALOG_QUERY = (
@@ -35,12 +36,27 @@ PK_QUERY = (
 )
 
 
+class _PostgresContainer(PostgresContainer):
+    """The postgres module container with its internal readiness wait disabled.
+
+    The module's ``_connect`` builds its ``ExecWaitStrategy`` from the global testcontainers
+    configuration — bounds that cannot be re-parameterized from outside — so the subclass
+    disables the internal wait: readiness probing is engine-owned, bounded by the declared
+    deadline.
+    """
+
+    def _connect(self) -> None:
+        """No-op — readiness probing is engine-owned, bounded by the declared deadline."""
+
+
 class PostgresEngine(BaseEngine):
     """postgresql kind engine: module container, autocommit SQL plane, catalog-driven wipe.
 
-    The container uses the product-pinned postgres image unless the instance config overrides
-    it; module readiness applies — start returns after the server accepts connections. The data
-    plane is one session-scoped autocommit connection. Reset discovers the user tables from the
+    The container uses the product-pinned postgres image unless the service config overrides
+    it. Readiness is engine-owned: the module container's internal wait is disabled and the
+    engine probes the server with the data-plane driver — start returns after the server
+    accepts connections, within the declared deadline at the declared interval. The data plane
+    is one session-scoped autocommit connection. Reset discovers the user tables from the
     catalog and truncates them all in one statement — the container is never restarted.
 
     Row inserts resolve ``$ref`` / ``$lookup`` values at execution time and capture every
@@ -49,16 +65,16 @@ class PostgresEngine(BaseEngine):
     it and the journal replay rebuilds it.
 
     Attributes:
-        config: The instance declaration — name, kind, image override.
+        config: The service declaration — name, kind, image override, probe.
     """
 
     _container_port = CONTAINER_PORT
 
-    def __init__(self, config: InstanceConfig) -> None:
-        """Initialize the postgres engine of one configured instance.
+    def __init__(self, config: ServiceConfig) -> None:
+        """Initialize the postgres engine of one configured dependency service.
 
         Args:
-            config: The instance declaration — name, kind, image override.
+            config: The service declaration — name, kind, image override, probe.
         """
         super().__init__(config)
         self._connection: psycopg.Connection | None = None
@@ -68,11 +84,12 @@ class PostgresEngine(BaseEngine):
         """Build the postgres module container — pinned image, labels, published port.
 
         Returns:
-            The built, not yet started, postgres container.
+            The built, not yet started, postgres container with the internal readiness wait
+            disabled (``_PostgresContainer``) — the engine owns readiness probing.
         """
         image = self.config.image or DEFAULT_IMAGE
 
-        container = PostgresContainer(
+        container = _PostgresContainer(
             image,
             username=PLANE_USER,
             password=PLANE_PASSWORD,
@@ -83,6 +100,46 @@ class PostgresEngine(BaseEngine):
         self._attach_network(container)
 
         return container
+
+    def _wait_ready(self) -> None:
+        """Wait for the server to accept connections, bounded by the declared deadline.
+
+        The engine owns the readiness probe: it connects with the data-plane driver — the same
+        condition the session connection needs — inside the ``_probe_until`` loop at the
+        declared bounds of the service's probe declaration. The probe connection closes on
+        success; the session connection opens in ``_open_plane``.
+
+        Raises:
+            RuntimeError: The declared deadline expired; the start lifecycle wrapper converts
+                it into ``EngineError`` naming the service, the waited check and the deadline.
+        """
+        address = self.address
+        timeout, interval = self._readiness_bounds
+        failure = f"the postgresql service did not accept connections at {address.host}:{address.port}"
+
+        def attempt() -> bool:
+            try:
+                connection = psycopg.connect(
+                    host=address.host,
+                    port=address.port,
+                    user=PLANE_USER,
+                    password=PLANE_PASSWORD,
+                    dbname=PLANE_DBNAME,
+                    connect_timeout=PROBE_CONNECT_TIMEOUT,
+                )
+            except psycopg.Error:
+                return False
+
+            connection.close()
+
+            return True
+
+        self._probe_until(timeout, interval, attempt, failure)
+
+        logger.debug(
+            "postgres service ready",
+            extra={"service": self.config.name, "kind": self.config.kind, "host": address.host, "port": address.port},
+        )
 
     def _open_plane(self) -> None:
         """Open the session autocommit connection against the started container.
@@ -100,7 +157,7 @@ class PostgresEngine(BaseEngine):
             dbname=PLANE_DBNAME,
             autocommit=True,
         )
-        logger.debug("postgres plane open", extra={"instance": self.config.name})
+        logger.debug("postgres plane open", extra={"service": self.config.name})
 
     def _execute(self, operation: DataOperation) -> None:
         """Execute one postgresql operation through the session connection.
@@ -131,7 +188,7 @@ class PostgresEngine(BaseEngine):
         except psycopg.Error as exc:
             raise RuntimeError(_server_message(exc)) from exc
 
-        logger.debug("postgres statement executed", extra={"instance": self.config.name})
+        logger.debug("postgres statement executed", extra={"service": self.config.name})
 
     def _insert_rows(self, table: object, rows: object) -> None:
         """Apply declared rows one by one, capturing every applied row for ``$ref`` addressing.
@@ -223,7 +280,7 @@ class PostgresEngine(BaseEngine):
         if not rows:
             raise RuntimeError(
                 f'$ref "{table}.{index}.{column}": no rows of "{table}" were applied by the data '
-                "plane — rows created by raw sql or the service are addressable only through $lookup"
+                "plane — rows created by raw sql or the instance under test are addressable only through $lookup"
             )
 
         if index < 0 or index >= len(rows):

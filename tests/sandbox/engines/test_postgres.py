@@ -5,23 +5,25 @@ from typing import ClassVar
 
 import psycopg
 import pytest
-from goga_tool_pybuggy.sandbox.config import InstanceConfig
+from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig
 from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, PostgresEngine
+from goga_tool_pybuggy.sandbox.engines import base as base_module
 from goga_tool_pybuggy.sandbox.engines import postgres as postgres_module
 
 from ..conftest import requires_docker
 
 
-def db_engine(image: str | None = None) -> PostgresEngine:
-    """Build a postgres engine of the sample ``db`` instance.
+def db_engine(image: str | None = None, probe: ProbeConfig | None = None) -> PostgresEngine:
+    """Build a postgres engine of the sample ``db`` service.
 
     Args:
-        image: The optional image override of the instance declaration.
+        image: The optional image override of the service declaration.
+        probe: The optional readiness declaration of the service entry.
 
     Returns:
-        The engine of an instance named ``db`` of kind ``postgresql``.
+        The engine of a service named ``db`` of kind ``postgresql``.
     """
-    return PostgresEngine(InstanceConfig(name="db", kind="postgresql", image=image))
+    return PostgresEngine(ServiceConfig(name="db", kind="postgresql", image=image, probe=probe))
 
 
 def insert_op(rows: list[dict[str, object]], table: str = "orders") -> DataOperation:
@@ -32,7 +34,7 @@ def insert_op(rows: list[dict[str, object]], table: str = "orders") -> DataOpera
         table: The target table.
 
     Returns:
-        A sample ``insert`` operation targeted at the ``db`` instance.
+        A sample ``insert`` operation targeted at the ``db`` service.
     """
     return DataOperation(instance="db", kind="postgresql", action="insert", payload={"table": table, "rows": rows})
 
@@ -44,7 +46,7 @@ def sql_op(sql: str) -> DataOperation:
         sql: The raw statement executed as given.
 
     Returns:
-        A sample startup-shaped ``insert`` operation targeted at the ``db`` instance.
+        A sample startup-shaped ``insert`` operation targeted at the ``db`` service.
     """
     return DataOperation(instance="db", kind="postgresql", action="insert", payload={"sql": sql})
 
@@ -135,17 +137,21 @@ class FailingConnection(FakeConnection):
 
 
 class FakePostgresContainer:
-    """Constructor double of the postgres module container recording the build arguments."""
+    """Container double of the postgres module container — build arguments, lifecycle, address."""
 
     last_kwargs: ClassVar[dict[str, object]] = {}
+    built: ClassVar[list["FakePostgresContainer"]] = []
 
     def __init__(self, image: str, **kwargs: object) -> None:
         self.image = image
         self.kwargs = kwargs
         self.network: object | None = None
         self.network_aliases: list[str] = []
+        self.starts = 0
+        self.stops = 0
 
         FakePostgresContainer.last_kwargs = {"image": image, **kwargs}
+        FakePostgresContainer.built.append(self)
 
     def with_network(self, network: object) -> "FakePostgresContainer":
         self.network = network
@@ -156,6 +162,55 @@ class FakePostgresContainer:
         self.network_aliases.extend(aliases)
 
         return self
+
+    def start(self) -> "FakePostgresContainer":
+        self.starts += 1
+
+        return self
+
+    def stop(self, force: bool = True, delete_volume: bool = True) -> None:
+        self.stops += 1
+
+    def get_container_host_ip(self) -> str:
+        return "127.0.0.2"
+
+    def get_exposed_port(self, port: int) -> str:
+        return "15432"
+
+
+class FakeProbeConnection:
+    """Connection double of one readiness probe — records the close."""
+
+    def __init__(self) -> None:
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class FakePsycopg:
+    """Module double of the postgres driver — a connect seam failing the first N calls.
+
+    ``connect`` raises the driver-shaped connection failure until the ``failures`` budget is
+    spent, then hands out fake connections; every call's keyword arguments are recorded.
+    """
+
+    def __init__(self, failures: int = 0) -> None:
+        self.failures = failures
+        self.Error = psycopg.Error
+        self.connect_calls: list[dict[str, object]] = []
+        self.connections: list[FakeProbeConnection] = []
+
+    def connect(self, **kwargs: object) -> FakeProbeConnection:
+        self.connect_calls.append(kwargs)
+
+        if len(self.connect_calls) <= self.failures:
+            raise psycopg.OperationalError("connection refused")
+
+        connection = FakeProbeConnection()
+        self.connections.append(connection)
+
+        return connection
 
 
 class TestPostgresEngineContract:
@@ -170,10 +225,20 @@ class TestPostgresEngineContract:
         assert issubclass(PostgresEngine, BaseEngine)
 
     def test_postgres_engine_declares_the_contract_constructor(self):
-        """The constructor signature is ``__init__(self, config)``."""
+        """The constructor signature is ``__init__(self, config)`` over ``ServiceConfig``."""
         signature = inspect.signature(PostgresEngine.__init__)
 
         assert list(signature.parameters) == ["self", "config"]
+        assert signature.parameters["config"].annotation is ServiceConfig
+
+    def test_postgres_engine_constructs_over_a_service_config(self):
+        """The engine carries the service declaration — name, kind, image override, probe."""
+        probe = ProbeConfig(timeout=45.0, interval=1.0)
+        engine = PostgresEngine(ServiceConfig(name="db", kind="postgresql", probe=probe))
+
+        assert engine.config.name == "db"
+        assert engine.config.kind == "postgresql"
+        assert engine.config.probe is probe
 
     def test_postgres_engine_inherits_the_contract_methods(self):
         """``start`` / ``apply`` / ``record`` / ``reset`` / ``stop`` resolve with declared parameters."""
@@ -194,13 +259,26 @@ class TestPostgresEngineContract:
 
         assert isinstance(address, property)
 
+    def test_postgres_engine_declares_the_engine_owned_readiness_wait(self):
+        """The kind engine overrides ``_wait_ready`` — readiness probing is engine-owned."""
+        assert PostgresEngine._wait_ready is not BaseEngine._wait_ready
+
 
 class TestPostgresEngineBuild:
     """Container build arguments of the postgres engine, driven through the patched constructor."""
 
+    def test_build_uses_the_module_container_with_the_internal_wait_disabled(self):
+        """The build instantiates ``_PostgresContainer`` — the module wait disabled (D3)."""
+        assert issubclass(postgres_module._PostgresContainer, postgres_module.PostgresContainer)
+        assert postgres_module._PostgresContainer._connect is not postgres_module.PostgresContainer._connect
+
+        container = postgres_module._PostgresContainer("postgres:16-alpine")
+
+        assert container._connect() is None
+
     def test_build_uses_the_pinned_image_and_labels_without_override(self, monkeypatch: pytest.MonkeyPatch):
         """Without an image override the build uses the pinned image and the sandbox labels."""
-        monkeypatch.setattr(postgres_module, "PostgresContainer", FakePostgresContainer)
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
         engine = db_engine()
 
         engine._build_container()
@@ -209,8 +287,8 @@ class TestPostgresEngineBuild:
         assert FakePostgresContainer.last_kwargs["labels"] == {"pybuggy-sandbox": "true"}
 
     def test_build_honors_the_image_override(self, monkeypatch: pytest.MonkeyPatch):
-        """The image override of the instance config reaches the container build."""
-        monkeypatch.setattr(postgres_module, "PostgresContainer", FakePostgresContainer)
+        """The image override of the service config reaches the container build."""
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
         engine = db_engine(image="postgres:17-alpine")
 
         engine._build_container()
@@ -219,7 +297,7 @@ class TestPostgresEngineBuild:
 
     def test_build_pins_the_plane_credentials(self, monkeypatch: pytest.MonkeyPatch):
         """The container credentials match the pinned data-plane credentials (test/test/test)."""
-        monkeypatch.setattr(postgres_module, "PostgresContainer", FakePostgresContainer)
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
         engine = db_engine()
 
         engine._build_container()
@@ -227,6 +305,75 @@ class TestPostgresEngineBuild:
         assert FakePostgresContainer.last_kwargs["username"] == "test"
         assert FakePostgresContainer.last_kwargs["password"] == "test"
         assert FakePostgresContainer.last_kwargs["dbname"] == "test"
+
+
+class TestPostgresEngineReadiness:
+    """Engine-owned readiness of the postgres engine, driven over the patched driver seam."""
+
+    def test_postgres_readiness_deadline_expires_as_engine_error(self, monkeypatch: pytest.MonkeyPatch):
+        """Scenario 20: an expired deadline surfaces as ``EngineError`` — never a hang.
+
+        The refusing driver seam keeps every attempt failing, so the declared 0.2s deadline
+        expires; the start lifecycle wrapper converts the expiry into an ``EngineError``
+        naming the service, the readiness step and the deadline, and the failed start leaves
+        nothing behind.
+        """
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
+        fake_psycopg = FakePsycopg(failures=10**6)
+        monkeypatch.setattr(postgres_module, "psycopg", fake_psycopg)
+        engine = db_engine(probe=ProbeConfig(timeout=0.2, interval=0.05))
+
+        with pytest.raises(EngineError, match=r"service 'db': start failed at readiness wait:.*within 0.2s") as excinfo:
+            engine.start([])
+
+        assert isinstance(excinfo.value.__cause__, RuntimeError)
+        assert len(fake_psycopg.connect_calls) >= 2
+        assert FakePostgresContainer.built[-1].stops == 1
+        assert engine._container is None
+
+    def test_postgres_bounded_wait_honors_interval(self, monkeypatch: pytest.MonkeyPatch):
+        """Scenario 21: the declared bounds reach the loop — one sleep per failed attempt.
+
+        The driver seam refuses twice and accepts on the third call, so exactly two interval
+        sleeps of the declared 0.05s run before the wait returns; the probe connects with the
+        mapped address, the pinned credentials and the bounded connect timeout, and closes
+        the successful probe connection.
+        """
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
+        fake_psycopg = FakePsycopg(failures=2)
+        monkeypatch.setattr(postgres_module, "psycopg", fake_psycopg)
+        sleeps: list[float] = []
+        monkeypatch.setattr(base_module, "sleep", sleeps.append)
+        engine = db_engine(probe=ProbeConfig(timeout=45.0, interval=0.05))
+
+        engine.start([])
+
+        assert sleeps == [0.05, 0.05]
+        assert len(fake_psycopg.connect_calls) >= 3
+
+        probe_call = fake_psycopg.connect_calls[0]
+        assert probe_call["host"] == "127.0.0.2"
+        assert probe_call["port"] == 15432
+        assert probe_call["user"] == "test"
+        assert probe_call["password"] == "test"
+        assert probe_call["dbname"] == "test"
+        assert probe_call["connect_timeout"] == 2
+        assert fake_psycopg.connections[0].closed
+
+    def test_readiness_probe_failure_is_a_failed_attempt_not_an_error(self, monkeypatch: pytest.MonkeyPatch):
+        """A driver-shaped probe failure is one failed attempt — the loop keeps probing."""
+        monkeypatch.setattr(postgres_module, "_PostgresContainer", FakePostgresContainer)
+        fake_psycopg = FakePsycopg(failures=1)
+        monkeypatch.setattr(postgres_module, "psycopg", fake_psycopg)
+        sleeps: list[float] = []
+        monkeypatch.setattr(base_module, "sleep", sleeps.append)
+        engine = db_engine(probe=ProbeConfig(timeout=45.0, interval=0.05))
+        engine._container = FakePostgresContainer("postgres:16-alpine")
+
+        engine._wait_ready()
+
+        assert sleeps == [0.05]
+        assert fake_psycopg.connections[0].closed
 
 
 class TestPostgresEnginePlane:
@@ -483,7 +630,7 @@ class TestPostgresEnginePlane:
 
         operation = DataOperation(instance="db", kind="postgresql", action="insert", payload={"table": "orders"})
 
-        with pytest.raises(EngineError, match=r"instance 'db': insert failed:.*'table' \+ 'rows'"):
+        with pytest.raises(EngineError, match=r"service 'db': insert failed:.*'table' \+ 'rows'"):
             engine.apply([operation])
 
     def test_wipe_truncates_every_discovered_table_in_one_statement(self):

@@ -1167,21 +1167,36 @@ probes psycopg itself inside the D5 loop. Design scenarios 20 and 21 land here.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Declaration**: state that Task 6 is being executed
-- [ ] **Contract tests** (rework `tests/sandbox/engines/test_postgres.py`): `PostgresEngine`
+- [x] **Declaration**: state that Task 6 is being executed
+- [x] **Contract tests** (rework `tests/sandbox/engines/test_postgres.py`): `PostgresEngine`
   importable from the facade; subclasses `BaseEngine`; constructed with `ServiceConfig`
-- [ ] **REPL prototype (R4)**: re-confirm the external fact live (M-R4.5): `.venv/bin/python -c`
+  (reworked first; 8 failures confirmed against the old code — the missing
+  `_PostgresContainer`/`_wait_ready` surface and the `InstanceConfig` constructor annotation —
+  TDD red before implementation)
+- [x] **REPL prototype (R4)**: re-confirm the external fact live (M-R4.5): `.venv/bin/python -c`
   inspecting `testcontainers.postgres.PostgresContainer._connect` source (the internal
   `ExecWaitStrategy` construction); in the REPL drive `_probe_until` with a stubbed
   `psycopg.connect` (monkeypatched in the probe script) always raising vs succeeding on the
   3rd call — count sleeps of the declared interval; then migrate (docker unavailable — the
   live container path is carried by the `requires_docker`-gated tests)
-- [ ] **Code**: rework `goga_tool_pybuggy/sandbox/engines/postgres.py` — `_PostgresContainer`
+  (external fact re-confirmed against the installed wheel — `_connect` builds its
+  `ExecWaitStrategy` from global config; `_PostgresContainer` construction verified
+  daemon-safe and the no-op `_connect` observed; expiry message observed at 0.231s wall
+  clock over 4 attempts; 3rd-call success produced exactly 2 sleeps of 0.05 with the probe
+  connection closed; docker IS available here, so the live path also ran for real — see the
+  docker-gated suites below)
+- [x] **Code**: rework `goga_tool_pybuggy/sandbox/engines/postgres.py` — `_PostgresContainer`
   subclass with no-op `_connect`, `_wait_ready` on the D5 loop with the psycopg probe
   (connect_timeout=2, close on success), vocabulary swap
-- [ ] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_postgres.py -x
+  (import/signature swap to `ServiceConfig`; `PROBE_CONNECT_TIMEOUT = 2` constant; D8 log
+  extras `{"service": ...}`; `_symbol_value` message now names "the instance under test")
+- [x] **Interface verification**: `.venv/bin/pytest tests/sandbox/engines/test_postgres.py -x
   -v` — pass
-- [ ] **Logic tests** (scenarios 20, 21, transferred verbatim — docker-gated or monkeypatched
+  (53 passed incl. the 10 docker-gated live-container cases — the real `_PostgresContainer`
+  with disabled internal wait boots and the engine-owned psycopg probe brings it to
+  readiness; fresh-interpreter check ok — `ServiceConfig` annotation, default bounds
+  (30.0, 0.5) by construction, `_wait_ready` overridden)
+- [x] **Logic tests** (scenarios 20, 21, transferred verbatim — docker-gated or monkeypatched
   connect):
   20. `test_postgres_readiness_deadline_expires_as_engine_error` — probe `timeout=0.2,
       interval=0.05`, a `psycopg.connect` stub always raising; `engine.start(...)` →
@@ -1189,17 +1204,29 @@ probes psycopg itself inside the D5 loop. Design scenarios 20 and 21 land here.
       deadline (expiry surfaces as `EngineError`, never a hang)
   21. `test_postgres_bounded_wait_honors_interval` — connect stub succeeding on the 3rd call;
       assert ≥2 sleeps of the declared interval and success (bounds reach the loop)
-- [ ] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
+  (both landed by name plus a third retained branch — a driver-shaped probe failure is one
+  failed attempt, not an error; scenario 21 also pins the probe kwargs — mapped address,
+  pinned credentials, `connect_timeout=2` — and the closed successful probe connection;
+  scenario 20 also asserts the failed start stops the container and clears the reference)
+- [x] **Debugging (authoritative scope)**: `.venv/bin/pytest tests/sandbox/config/
   tests/sandbox/engines/ --ignore=tests/sandbox/engines/test_http.py
   --ignore=tests/sandbox/engines/test_kafka.py --ignore=tests/sandbox/engines/test_vault.py -x`
   green (those three suites are known-red until Tasks 7–8, Migration Ledger; without the
   ignores `-x` would stop at `test_http.py` — alphabetically before this task's own
   `test_postgres.py`)
-- [ ] **Contract re-verification**: module container semantics preserved; readiness bounded by
+  (271 green; ledger blast radius verified — full tree collects 1527 tests, red files exactly
+  the scheduled suites: engines http/kafka/vault + sandbox cell + plugin; data suites
+  unaffected)
+- [x] **Contract re-verification**: module container semantics preserved; readiness bounded by
   declaration; parameter binding and catalog wipe untouched
-- [ ] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
+  (checked against the `PostgresEngine` CODEMANIFEST annotation — module container with the
+  pinned image, readiness within the declared timeout/interval, autocommit session
+  connection, catalog-driven truncate, bound parameters; the live docker-gated roundtrip is
+  the end-to-end evidence)
+- [x] **Lint gate (pre-commit)**: `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — exit 0;
   `ruff format --check` on touched files
-- [ ] **Completion**: mark checkboxes complete; submit for review → approval → next task
+  (both gates exit 0 on the first run — no findings, no format drift)
+- [x] **Completion**: mark checkboxes complete; submit for review → approval → next task
 
 ### Task 7: `VaultEngine` and `HttpEngine` — declared-bounds readiness on the D5 loop (TDD)
 
