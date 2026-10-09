@@ -65,6 +65,21 @@ class Endpoint:
         """Per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default."""
         return self._adapter
 
+    def bind(self, target: Any) -> None:
+        """Re-point the shared ``Api`` at ``target``.
+
+        Delegates to ``Api.bind``: the address comes from the target's ``base_url`` (or ``url``),
+        and a target exposing callable ``apply_pending``/``ensure_service`` also installs the
+        request pre-flight. Every ``Endpoint`` over the same ``Api`` instance rebinds together.
+
+        Args:
+            target: an object exposing ``base_url`` (preferred) or ``url``.
+
+        Raises:
+            TypeError: when ``target`` exposes neither attribute; propagated from ``Api.bind``.
+        """
+        self.api.bind(target)
+
     def __call__(self, **kwargs: Any) -> ResponseWrapper:
         """Positive-path request; delegates to ``_call`` with is_negative=False.
 

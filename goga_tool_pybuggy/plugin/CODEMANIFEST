@@ -18,6 +18,9 @@ Imports:
       - sandbox-session
     From: goga_tool_pybuggy/sandbox
   - Types:
+      - normalize_container_host
+    From: goga_tool_pybuggy/sandbox/engines
+  - Types:
       - SandboxConfig
       - validate_sandbox_config
     From: goga_tool_pybuggy/sandbox/config
@@ -26,6 +29,7 @@ Usages:
   conventions: .goga/usages/conventions.md
   pluginator: .goga/usages/cooks/pluginator.md
   jinja2: .goga/usages/cooks/jinja2.md
+  testcontainers: .goga/usages/cooks/testcontainers.md
 
 Annotations: |
   Use `conventions` for code writing rules, relative imports, docstrings, and testing.
@@ -58,9 +62,10 @@ Annotations: |
   The cell carries the fixture-driven sandbox activation: the installation entry gates on the
   presence of the sandbox configuration document — with the document the `SandboxPlugin` joins
   the same installation call and owns the product sandbox fixtures (a lazy session start, a
-  per-test product reset, and the marked-preset enqueue); the api fixture binds the sandbox
-  address per test, only for tests whose fixture closure includes the sandbox. Use
-  `sandbox-session` for the consumer fixture patterns of the sandbox.
+  per-test product reset, and the marked-preset enqueue). Binding an api address to the
+  sandbox is explicit: the test body calls the api-cell bind on the api client or an
+  endpoint (see `api_usage`); the plugin cell owns only fixture construction and teardown.
+  Use `sandbox-session` for the consumer fixture patterns of the sandbox.
 
 ---
 
@@ -87,9 +92,9 @@ Annotations: |
   properties:
     "base_url -> str": |
       Service base URL as a Jinja2 template string. The option value resolves following `pluginator`: plugin config → env BASE_URL → CLI --base-url → required (no default). Additionally, when the user actually typed --base-url on the CLI, configure applies that value with top precedence over the plugin config and env before rendering (the pluginator chain alone would let config/env win; the CLI is authoritative for base_url). Only the interpretation of the value is specific to this cell: it is rendered once in configure against the full environment plus the passed CLI options (see configure), and the rendered value is stored back onto this option. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined (an unknown variable raises) and a custom match_re test; a plain URL without Jinja placeholders renders to itself; every whitespace run in the rendered value is removed (a URL never legitimately contains literal whitespace), so a multi-line template yields one clean URL.
-      For a test whose fixture closure includes the sandbox, the api fixture substitutes the
-      sandbox's service address for this option's rendered value at fixture time; the option
-      itself stays required and is rendered in configure exactly as before.
+      The option stays required and rendered in configure exactly as before even when the
+      sandbox document is present: a test that binds its api to the sandbox overrides the
+      address at bind time (the api-cell bind); every other test uses the rendered value.
     "headers -> dict[str, str]": |
       Resolved default headers dict. Default {} when nothing is configured. Sourced from the headers plugin config key.
     "timeout -> float | None": |
@@ -126,33 +131,23 @@ Annotations: |
       Use `pluginator` for the configure() lifecycle discovery and the pytest_config contract.
       Use `jinja2` for the Jinja2 engine configuration, StrictUndefined, and the match_re test.
       Use `conventions` for type hints and relative imports.
-    "api(request: pytest.FixtureRequest) -> api: Iterator[Api]": |
+    "api() -> api: Iterator[Api]": |
       Function-scope generator fixture yielding an `Api` built from the resolved plugin options and closing it after the test.
 
-      request: the fixture request of the test the api client is built for.
       api: the `Api` client consumed by generated endpoint fixtures.
 
       Algorithm:
-      1. Bind the sandbox per test: when the test's fixture closure includes the sandbox fixture
-      (a direct request, a consumer fixture parameter, a usefixtures mark, or an autouse
-      dependency), resolve the running `Sandbox` through request.getfixturevalue — its base_url
-      wins over the rendered option value; otherwise the sandbox stays out and the rendered
-      self.base_url is the address. Construct `Api` with the resolved value (headers, timeout,
-      and the assert options unchanged).
+      1. Construct `Api` from the resolved options — the rendered self.base_url plus headers,
+      timeout, and the assert options (minimal profile; no auth, no cookies).
       2. Yield the `Api` to the test.
-      3. With a bound sandbox, guard the request path so the test's first service call applies the
-      sandbox's pending data batch before the request leaves and performs the `Sandbox` died-service
-      check — a died service surfaces as an explicit error naming the service and where its output
-      is; the tests stay unaware of the apply point.
-      4. After the test, call api.close() to close the Api (delegates to the underlying resq.Session's public close()).
+      3. After the test, call api.close() to close the Api (delegates to the underlying resq.Session's public close()).
 
       Constraints:
       - Do not configure auth or cookies — minimal profile.
       - Consume the base_url option as rendered by configure (no rendering inside the fixture).
-      - Do not render or mutate the base_url option in the fixture — substitution is a read-time
-      choice between the rendered value and the sandbox address.
-      - Do not hard-depend the api fixture on the sandbox — the lookup happens only when the
-      test's own fixture closure already includes it.
+      - No fixture-closure sniffing — the fixture never resolves the sandbox; binding an
+      address (the running sandbox) is explicit in the test body via the api-cell bind
+      (see `api_usage`).
 
       Use `pluginator` for the fixture-as-method convention.
       Use `conventions` for type hints.
@@ -178,20 +173,27 @@ Annotations: |
     2. Default loaders to [PackageLoader('api', required=False)] when omitted (auto-discovery of the api/ tree); an explicit loaders overrides it, loaders=[] disables it.
     3. Construct an `ApiPlugin` instance — context and loaders are forwarded; ApiPlugin.__init__ registers discovered plugins synchronously, populating the pytest_plugins list.
     4. Gate the `SandboxPlugin` on the presence of the sandbox document (the file check of the
-    plugin-cell default path): with the document, append a `SandboxPlugin` instance to the same
-    positional plugin list — the plugin reads and validates its config itself in its configure
-    step; without the document nothing sandbox-related is registered, and a test requesting the
-    sandbox fixture gets pytest's standard "fixture 'sandbox' not found".
+    plugin-cell default path): with the document, normalize the container-host address first
+    (`normalize_container_host` — defaults the TESTCONTAINERS_HOST_OVERRIDE env so a plain
+    host run and a container run share one address space; see `testcontainers`),
+    then append a `SandboxPlugin` instance to the same positional plugin list — the plugin reads
+    and validates its config itself in its configure step; without the document nothing
+    sandbox-related is registered (the address normalization included), and a test requesting
+    the sandbox fixture gets pytest's standard "fixture 'sandbox' not found".
     5. Call install_pytest_plugins with both plugins to inject pytest_addoption/pytest_configure/pytest_collection_finish into that namespace (see `pluginator`).
 
     Requirements:
     - `install` must be the one-level wrapper around call_context(); calling call_context() directly would resolve the wrong stack frame.
     - The loader step must run synchronously so pytest_plugins is populated before import finishes.
+    - The address normalization runs only with the document present, defaults the env (never
+      overrides an explicit value), and its failure is a no-op — a failed detection keeps the
+      mapped-localhost behavior.
     - The same installation call enables the ApiPlugin and — when the document is present — the
     `SandboxPlugin`; no new enablement surface exists.
 
     Use `pluginator` for install_pytest_plugins and call_context.
     Use `registration` for the loader-driven registration step.
+    Use `testcontainers` for the container-host override seam of the address normalization.
 
 "SandboxPlugin()":
   location: sandbox_plugin.py

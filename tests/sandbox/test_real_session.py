@@ -9,7 +9,8 @@ unknown fixture would fail the run), the marker registered pre-collection (an un
 would fail the run under ``-W error::pytest.PytestUnknownMarkWarning``), the lazy start (no
 container before the first sandbox-needing test), the per-test product reset between sandbox
 tests, the ``@services`` decorator pulling the sandbox into a test's fixture closure, and the
-per-test api address binding — plus the start/stop ordering recorded by the stubs.
+explicit api address binding through ``api.bind(sandbox)`` — plus the start/stop ordering
+recorded by the stubs.
 """
 
 import json
@@ -143,8 +144,9 @@ def test_preset_applies_ahead_of_the_test_operations(sandbox):
 
 
 @services(postgresql={"db": [{"table": "customers", "rows": [{"id": 9}]}]})
-def test_api_fixture_points_at_the_sandbox(api):
+def test_bound_api_points_at_the_sandbox(api, sandbox):
     record("test:api-body")
+    api.bind(sandbox)
     assert api.base_url == "http://127.0.0.9:9000"
 """
 
@@ -219,9 +221,9 @@ def test_installed_plugin_runs_a_real_pytest_session(tmp_path: pathlib.Path):
     static api test must run before any container (the lazy start), its address the rendered
     base_url; the first sandbox test must bring the topology up ahead of its body and see the
     preset applied ahead of its own operations; the product reset must run between the sandbox
-    tests; the ``@services``-marked api test must resolve the sandbox address; and the stub
-    lifecycle must show the network created before the engines and removed after every
-    container stopped.
+    tests; the ``@services``-marked api test must reach the sandbox address through the explicit
+    ``api.bind(sandbox)``; and the stub lifecycle must show the network created before the
+    engines and removed after every container stopped.
     """
     document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
     document.parent.mkdir(parents=True)

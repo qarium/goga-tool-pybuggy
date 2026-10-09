@@ -146,6 +146,9 @@ class FakeProducer:
     """Producer double of the kafka data plane recording the send/flush/close calls."""
 
     built: ClassVar[list["FakeProducer"]] = []
+    # The cross-double order ledger: producer closes and container restarts land in one
+    # sequence so a test can assert their interleaving (close BEFORE restart).
+    events: ClassVar[list[str]] = []
 
     def __init__(self, **kwargs: object) -> None:
         self.kwargs = kwargs
@@ -165,6 +168,7 @@ class FakeProducer:
 
     def close(self, timeout: int | None = None) -> None:
         self.close_timeouts.append(timeout)
+        FakeProducer.events.append("producer-close")
 
 
 class FakeWrappedContainer:
@@ -175,6 +179,7 @@ class FakeWrappedContainer:
 
     def restart(self, timeout: int = 10) -> None:
         self.restarts.append(timeout)
+        FakeProducer.events.append("container-restart")
 
 
 class FakeDockerClient:
@@ -599,12 +604,13 @@ class TestKafkaEnginePlane:
     def test_wipe_restarts_the_same_container_rewaits_health_and_rebuilds_the_producer(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """Reset-wipe restarts the wrapped SDK container, re-probes health, rebuilds the producer."""
+        """Reset-wipe closes the producer, restarts the wrapped SDK container, rebuilds the plane."""
         fake_requests = FakeRequests()
         monkeypatch.setattr(kafka_module, "requests", fake_requests)
         install_fake_clock(monkeypatch)
         monkeypatch.setattr(kafka_module, "KafkaProducer", FakeProducer)
         FakeProducer.built.clear()
+        FakeProducer.events.clear()
         engine = events_engine()
         engine._container = FakeDockerContainer("mokapi/mokapi:0.52.0")
         engine._container_port = 19092
@@ -614,12 +620,40 @@ class TestKafkaEnginePlane:
         address_before = engine.address
         engine._wipe()
 
+        # The producer closes BEFORE the restart — against the still-live broker, so the
+        # sockets close gracefully instead of breaking (no GC'd unclosed sockets later).
+        assert FakeProducer.events == ["producer-close", "container-restart"]
         assert engine._container.wrapped.restarts == [10]
         assert fake_requests.probes == [("http://127.0.0.2:18080/health", 5)]
         assert len(FakeProducer.built) == 2
         assert engine._producer is FakeProducer.built[-1]
         assert stale.close_timeouts == [30]
         assert engine.address == address_before
+
+    def test_wipe_survives_a_failed_producer_close_before_the_restart(self, monkeypatch: pytest.MonkeyPatch):
+        """A failing pre-restart producer close is logged, not raised — the reset still runs."""
+
+        def broken_close(timeout: int | None = None) -> None:
+            raise RuntimeError("close timed out")
+
+        fake_requests = FakeRequests()
+        monkeypatch.setattr(kafka_module, "requests", fake_requests)
+        install_fake_clock(monkeypatch)
+        monkeypatch.setattr(kafka_module, "KafkaProducer", FakeProducer)
+        FakeProducer.built.clear()
+        FakeProducer.events.clear()
+        engine = events_engine()
+        engine._container = FakeDockerContainer("mokapi/mokapi:0.52.0")
+        engine._container_port = 19092
+        stale = FakeProducer()
+        stale.close = broken_close
+        engine._producer = stale
+
+        engine._wipe()
+
+        assert engine._container.wrapped.restarts == [10]
+        assert engine._producer is FakeProducer.built[-1]
+        assert engine._producer is not stale
 
     def test_close_plane_closes_the_producer_and_is_safe_twice(self):
         """Stop closes the bounded producer; a second close touches nothing."""

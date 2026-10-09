@@ -217,6 +217,12 @@ class KafkaEngine(BaseEngine):
     def _wipe(self) -> None:
         """Restart the same container — empty state, unchanged address.
 
+        The producer closes BEFORE the restart — against the still-live broker, so the close is
+        a graceful flush with clean sockets instead of a broken-connection best effort (an
+        unclean close leaves the sockets to the garbage collector, and a project's
+        ``filterwarnings = error`` escalates that into a test failure). The close itself stays
+        best-effort: a hanging broker must not block the reset.
+
         The SDK restart preserves the port bindings and the container filesystem, so the fixed
         published address stays valid and the transferred document stays in place; the
         in-memory messages empty and the topology is re-created from the generated document on
@@ -225,12 +231,13 @@ class KafkaEngine(BaseEngine):
         Raises:
             RuntimeError: The restart or the post-restart health wait failed.
         """
+        self._run_quietly("producer close before restart", self._close_plane)
+
         wrapped = self._container.get_wrapped_container()
         wrapped.restart(timeout=RESTART_TIMEOUT)
         logger.debug("kafka container restarted", extra={"service": self.config.name})
 
         self._wait_ready()
-        self._discard_producer()
         self._open_plane()
 
     def _close_plane(self) -> None:
@@ -242,22 +249,6 @@ class KafkaEngine(BaseEngine):
             self._producer.close(timeout=FLUSH_TIMEOUT)
         finally:
             self._producer = None
-
-    def _discard_producer(self) -> None:
-        """Drop the stale producer of the restarted broker — best-effort close.
-
-        The old broker is gone after the restart, so a failed close is a recoverable
-        abnormality, not a reset failure.
-        """
-        if self._producer is None:
-            return
-
-        try:
-            self._producer.close(timeout=FLUSH_TIMEOUT)
-        except Exception:
-            logger.warning("stale producer close failed after restart", extra={"service": self.config.name})
-
-        self._producer = None
 
 
 class _ValueSerializer(Serializer):

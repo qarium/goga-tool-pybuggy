@@ -1,6 +1,8 @@
-"""Contract and logic tests for the ``check_runtime`` and ``build_engine`` routines."""
+"""Contract and logic tests for the ``check_runtime``, ``normalize_container_host`` and ``build_engine`` routines."""
 
 import inspect
+import os
+import types
 
 import docker
 import pytest
@@ -15,16 +17,21 @@ from goga_tool_pybuggy.sandbox.engines import (
     VaultEngine,
     build_engine,
     check_runtime,
+    normalize_container_host,
 )
 from goga_tool_pybuggy.sandbox.engines import runtime as runtime_module
 
 
 class TestRuntimeContract:
-    """Declared API of the ``check_runtime`` and ``build_engine`` routines."""
+    """Declared API of the ``check_runtime``, ``normalize_container_host`` and ``build_engine`` routines."""
 
     def test_check_runtime_is_importable_from_engines_facade(self):
         """``check_runtime`` is re-exported by the ``goga_tool_pybuggy.sandbox.engines`` facade."""
         assert callable(check_runtime)
+
+    def test_normalize_container_host_is_importable_from_engines_facade(self):
+        """``normalize_container_host`` is re-exported by the engines facade."""
+        assert callable(normalize_container_host)
 
     def test_build_engine_is_importable_from_engines_facade(self):
         """``build_engine`` is re-exported by the ``goga_tool_pybuggy.sandbox.engines`` facade."""
@@ -33,6 +40,10 @@ class TestRuntimeContract:
     def test_check_runtime_takes_no_arguments(self):
         """``check_runtime`` probes with no parameters."""
         assert list(inspect.signature(check_runtime).parameters) == []
+
+    def test_normalize_container_host_takes_no_arguments(self):
+        """``normalize_container_host`` resolves the topology with no parameters."""
+        assert list(inspect.signature(normalize_container_host).parameters) == []
 
     def test_build_engine_signature_takes_the_service_config(self):
         """``build_engine`` takes the service declaration as its single parameter."""
@@ -103,6 +114,56 @@ class TestCheckRuntime:
 
         with pytest.raises(RuntimeError, match="docker-compatible container runtime"):
             check_runtime()
+
+
+class TestNormalizeContainerHost:
+    """Behavior of the container-host override defaulting — one address space per topology."""
+
+    def test_explicit_override_wins_and_detection_never_runs(self, monkeypatch: pytest.MonkeyPatch):
+        """An explicit ``TESTCONTAINERS_HOST_OVERRIDE`` is kept as-is; no detection runs."""
+        monkeypatch.setenv(runtime_module.CONTAINER_HOST_OVERRIDE, "10.9.8.7")
+
+        def unexpected() -> str:
+            raise AssertionError("detection must not run when the override is explicit")
+
+        monkeypatch.setattr(runtime_module, "_routable_host_ip", unexpected)
+
+        normalize_container_host()
+
+        assert os.environ[runtime_module.CONTAINER_HOST_OVERRIDE] == "10.9.8.7"
+
+    def test_container_marker_defaults_to_host_docker_internal(self, monkeypatch: pytest.MonkeyPatch):
+        """A runner inside a container (/.dockerenv) defaults to the Docker Desktop name."""
+        monkeypatch.delenv(runtime_module.CONTAINER_HOST_OVERRIDE, raising=False)
+        monkeypatch.setattr(runtime_module, "_DOCKER_ENV_MARKER", types.SimpleNamespace(exists=lambda: True))
+
+        normalize_container_host()
+
+        assert os.environ[runtime_module.CONTAINER_HOST_OVERRIDE] == "host.docker.internal"
+
+    def test_host_run_defaults_to_the_routable_host_ip(self, monkeypatch: pytest.MonkeyPatch):
+        """A host run defaults the override to the host's own routable IP."""
+        monkeypatch.delenv(runtime_module.CONTAINER_HOST_OVERRIDE, raising=False)
+        monkeypatch.setattr(runtime_module, "_DOCKER_ENV_MARKER", types.SimpleNamespace(exists=lambda: False))
+        monkeypatch.setattr(runtime_module, "_routable_host_ip", lambda: "192.168.1.115")
+
+        normalize_container_host()
+
+        assert os.environ[runtime_module.CONTAINER_HOST_OVERRIDE] == "192.168.1.115"
+
+    def test_failed_detection_changes_nothing(self, monkeypatch: pytest.MonkeyPatch):
+        """A failed host-IP detection is a no-op — the mapped-localhost behavior stays."""
+        monkeypatch.delenv(runtime_module.CONTAINER_HOST_OVERRIDE, raising=False)
+        monkeypatch.setattr(runtime_module, "_DOCKER_ENV_MARKER", types.SimpleNamespace(exists=lambda: False))
+        monkeypatch.setattr(runtime_module, "_routable_host_ip", lambda: "")
+
+        normalize_container_host()
+
+        assert runtime_module.CONTAINER_HOST_OVERRIDE not in os.environ
+
+    def test_routable_host_ip_answers_without_raising(self):
+        """The routing-table probe returns a string — an address or an empty string."""
+        assert isinstance(runtime_module._routable_host_ip(), str)
 
 
 class TestBuildEngine:

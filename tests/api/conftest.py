@@ -1,6 +1,7 @@
 """Shared fixtures and helpers for `goga_tool_pybuggy.api` cell tests.
 
-Provides ``HeaderAuth``, ``stub_request``, and ``FakeResponse``/``make_response``.
+Provides ``HeaderAuth``, ``stub_request``, ``FakeResponse``/``make_response``, and the
+``bind``-target doubles ``BindTarget``/``UrlTarget``/``PlainTarget``.
 """
 
 from __future__ import annotations
@@ -69,6 +70,41 @@ class FakeResponse:
     def json(self) -> Any:
         """Return the canned body (None default)."""
         return self._body
+
+
+class BindTarget:
+    """Duck-typed ``bind`` target: an address plus the guard capabilities, recording calls.
+
+    Attributes:
+        base_url: the address ``Api.bind`` resolves.
+        calls: the capability invocations in call order (``apply_pending``/``ensure_service``).
+    """
+
+    def __init__(self, base_url: str = "http://sandbox.test:9000") -> None:
+        self.base_url = base_url
+        self.calls: list[str] = []
+
+    def apply_pending(self) -> None:
+        """Record the pending-batch apply."""
+        self.calls.append("apply_pending")
+
+    def ensure_service(self) -> None:
+        """Record the liveness check."""
+        self.calls.append("ensure_service")
+
+
+class UrlTarget:
+    """``bind`` target exposing only ``url`` — the fallback attribute."""
+
+    def __init__(self, url: str) -> None:
+        self.url = url
+
+
+class PlainTarget:
+    """``bind`` target exposing only an address — no guard capabilities."""
+
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url
 
 
 @pytest.fixture

@@ -110,6 +110,31 @@ Annotations: |
 
     Use `testcontainers` for the runtime requirement and the daemon communication.
 
+"normalize_container_host()":
+  location: runtime.py
+  annotations: |
+    Default the container-host override to the one address every consumer can reach.
+
+    The sandbox addresses must resolve for the runner AND for the instance container — the
+    kafka mock advertises a single address to both. Called by the installation entry when the
+    sandbox document is present, before any container or configure step.
+
+    Algorithm:
+    1. The TESTCONTAINERS_HOST_OVERRIDE env is already set — return; the explicit value wins.
+    2. The /.dockerenv marker exists (the runner is itself a container) — default the override
+    to host.docker.internal (the Docker Desktop name every sibling resolves).
+    3. A host run — resolve the host's own routable IP through a routing-table-only UDP
+    connect (no packet leaves the machine) and default the override to it: published ports
+    listen on 0.0.0.0, so the host process and the sibling containers reach the dependency
+    through the same IP.
+    4. Any detection failure — debug-log and change nothing (the mapped-localhost behavior).
+
+    Requirements:
+    - Default only — never override an explicit environment value.
+    - The resolution performs no network I/O — the kernel answers from the routing table.
+
+    Use `testcontainers` for the override seam (the host every container address resolves through).
+
 "build_engine(config: ServiceConfig) -> engine: BaseEngine":
   location: runtime.py
   annotations: |
@@ -325,12 +350,17 @@ Annotations: |
     mapped bootstrap address; delivery is confirmed at the batch boundary. A produce into a
     topic not declared on the entry fails with a readable error naming the service and its
     declared topics.
-    Wipe: restart the container — all state is in-memory, the fixed port binding and the
-    generated document survive the restart, the topology returns on boot, and the baseline
-    replays on top.
+    Wipe: the producer closes BEFORE the restart — against the still-live broker, so the close
+    is a graceful flush with clean sockets (an unclean close leaves broken sockets to the
+    garbage collector, and a project's filterwarnings = error escalates that into a test
+    failure); the close is best-effort — a hanging broker must not block the reset. Then the
+    container restarts — all state is in-memory, the fixed port binding and the generated
+    document survive the restart, the topology returns on boot, and the baseline replays on
+    top.
 
     Requirements:
-    - The producer is created against the mapped address and closed on stop.
+    - The producer is created against the mapped address, closed on stop, and closed before
+    the container restart of a reset — the pre-restart close never blocks the reset.
     - A broken bootstrap fails within the operation deadline — never hangs.
     - The generated document stays internal — never written to the consumer repository, never
     exposed to authors.

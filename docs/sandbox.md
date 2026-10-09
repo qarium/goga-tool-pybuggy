@@ -4,9 +4,9 @@ The **sandbox** is pybuggy's session-scoped isolated service testing capability:
 pybuggy tools home holds a `sandbox.yml` document, the product `sandbox` pytest fixture
 exists — the first test that uses it starts the **instance under test** plus its mocked
 dependency **services** (**postgresql**, **kafka**, **vault**, **http**) in containers,
-wires them into the instance environment, and points that test's `api` fixture at the
-sandbox instance. Without the document the product is fully inert — no fixture, nothing
-starts, nothing changes.
+wires them into the instance environment; a test binds its api to the sandbox instance
+explicitly through `endpoint.bind(sandbox)`. Without the document the product is fully
+inert — no fixture, nothing starts, nothing changes.
 
 ## Activation
 
@@ -235,11 +235,12 @@ an accepted v1 limitation).
 
 ## Calling the service
 
-The `api` fixture binds the sandbox per test: a test whose fixture closure includes
-`sandbox` — a direct request, a consumer fixture parameter, a `usefixtures` mark (what
-`@services` stamps), or an autouse dependency — resolves to the sandbox address with the
-request guard; every other test uses the configured `base_url` (`--base-url` / `BASE_URL`
-/ config) with no guard:
+Binding the api to the sandbox is explicit — call `endpoint.bind(sandbox)` (or
+`api.bind(sandbox)`) once in the test body. The bind replaces the client's address with the
+sandbox's service address and installs the request pre-flight: the test's declared data
+applies as one batch and the instance liveness is ensured before every request. Every other
+test uses the configured `base_url` (`--base-url` / `BASE_URL`
+/ config) with no pre-flight:
 
 ```python
 from goga_tool_pybuggy.api import Api, Endpoint
@@ -251,16 +252,15 @@ def checkout(api: Api) -> Endpoint:
 
 
 def test_checkout(checkout, sandbox):
+    checkout.bind(sandbox)
     sandbox.postgresql("db").insert("orders", rows=[{"id": 100, "customer_id": 1}])
     response = checkout(json={"customer": 1, "total": 500})
     response.expect.has_status_code(200)
 ```
 
-- For a sandbox-bound test the sandbox address overrides the configured `base_url` value
-  at read time; the option itself stays required (see below); the startup output names
-  the source.
-- `--base-url` applies to the tests that do not use the sandbox; sandbox-bound tests
-  ignore it — the sandbox owns their address.
+- All endpoints of one test share one `Api` — one `bind(sandbox)` rebinds them together.
+- `--base-url` applies to the tests that do not bind; a bound test uses the sandbox address.
+  The option itself stays required (see below).
 - Declared operations apply automatically as one batch before the first service call.
 - A crashed instance fails the affected tests with an indication that the instance died
   and its output attached.
@@ -290,9 +290,10 @@ service under test consumes exactly that.
 
 Data can also be declared directly on the test as a **preset** (each declaration carries
 the same fields as the matching view operation; the decorator also stamps a `usefixtures`
-mark pulling the sandbox into the test's fixture closure — a preset-declaring test needs
-no explicit `sandbox` parameter; presets apply on top of the reset state, ahead of the
-test's own operations):
+mark pulling the sandbox into the test's fixture closure so the reset and the presets run —
+a preset-declaring test that calls the service still takes the `sandbox` argument and calls
+`endpoint.bind(sandbox)` explicitly, binding is not implied by the mark; presets apply on
+top of the reset state, ahead of the test's own operations):
 
 ```python
 from goga_tool_pybuggy import services
@@ -378,28 +379,43 @@ Common rules:
 - After the session — including failed or interrupted runs — nothing remains; a rerun
   starts fresh.
 - `base_url` stays a required plugin option even with the sandbox document present (the
-  render contract is unchanged); the tests bound to the sandbox simply override it at
-  fixture time with the sandbox address, the other tests use the rendered value.
+  render contract is unchanged); the tests that bind their api to the sandbox override it
+  at bind time with the sandbox address, the other tests use the rendered value.
+
+### Running on the host
+
+A plain host run needs nothing from the test author: at `plugin.install()` (when the sandbox
+document is present) pybuggy normalizes the container-host address itself — the sandbox keeps
+one shared address space whether pytest runs on the host or in a container:
+
+- the runner is inside a container → `TESTCONTAINERS_HOST_OVERRIDE` defaults to
+  `host.docker.internal`;
+- the runner is on a host → the override defaults to the host's own routable IP (published
+  ports listen on `0.0.0.0`, so the host process and the sibling containers reach the same
+  dependency through it);
+- an explicit `TESTCONTAINERS_HOST_OVERRIDE` in the environment always wins; a failed
+  detection changes nothing (the mapped-`localhost` behavior — set the variable by hand on
+  exotic network setups, e.g. a VPN-primary routing table).
 
 ### Running the tests inside a container
 
 When pytest itself runs inside a container (a pipeline runner, a CI step image), the sandbox
 containers are **siblings** on the host daemon — the engine drives them through the docker API,
-nothing runs inside the runner. That topology needs two things from the runner's launcher:
+nothing runs inside the runner. That topology needs one thing from the runner's launcher —
+the address normalization is automatic:
 
 ```bash
 docker run \
   -v /var/run/docker.sock:/var/run/docker.sock \        # the daemon must be reachable
-  -e TESTCONTAINERS_HOST_OVERRIDE=host.docker.internal \ # published ports resolve here
   ... your-runner-image python -m pytest
 ```
 
 - The **socket mount** gives the engine a daemon to drive; without it the startup probe fails
   with the runtime-requirement error.
-- The **host override** tells testcontainers which host actually answers the published ports —
-  without it the client aims at the container-network gateway and every connection is refused.
-  `host.docker.internal` is the Docker Desktop name; on a plain Linux host use the host's
-  address or `host-gateway`.
+- The **host override** is set by pybuggy itself (`host.docker.internal`); an explicit
+  `TESTCONTAINERS_HOST_OVERRIDE` in the runner environment still wins — the escape hatch for
+  a plain Linux host, where the Docker Desktop name may need the host's address or
+  `host-gateway` instead.
 - One shared address space results: the mapped service addresses the tests bootstrap on, the
   kafka broker advertises in metadata, and the `{{<service>.host}}`/`{{<service>.port}}`
   placeholders inject into the instance env are the same `host:port` — every consumer (runner,

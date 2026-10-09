@@ -12,7 +12,7 @@ import pytest
 from goga_tool_pybuggy.api.api import Api
 from requests.auth import AuthBase
 
-from tests.api.conftest import HeaderAuth
+from tests.api.conftest import BindTarget, HeaderAuth, PlainTarget, UrlTarget
 
 
 class TestApi:
@@ -247,3 +247,181 @@ class TestApiClose:
 
         api.close()
         api.close()  # second close — requests.Session.close is idempotent
+
+
+class _DiedTarget(BindTarget):
+    """Guard target whose instance died — ``ensure_service`` raises."""
+
+    def ensure_service(self) -> None:
+        """Fail like the sandbox's died-service check."""
+        raise RuntimeError("the instance under test died")
+
+
+class _PartialTarget(PlainTarget):
+    """Target with ``apply_pending`` but no ``ensure_service`` — no guard may install."""
+
+    def __init__(self, base_url: str = "http://partial.test:9000") -> None:
+        super().__init__(base_url)
+        self.calls: list[str] = []
+
+    def apply_pending(self) -> None:
+        """Record the pending-batch apply (must stay uncalled — no guard)."""
+        self.calls.append("apply_pending")
+
+
+class TestApiBind:
+    """Logic tests for ``Api.bind`` — address resolution, session rebuild, and the pre-flight."""
+
+    def test_bind_repoints_client_at_target_base_url(self) -> None:
+        """bind rebuilds the composed session at the target's base_url."""
+        api = Api(base_url="https://x")
+
+        api.bind(PlainTarget("http://sandbox.test:9000"))
+
+        assert api.base_url == "http://sandbox.test:9000"
+
+    def test_bind_falls_back_to_url_attribute(self) -> None:
+        """A target without base_url binds through its url attribute."""
+        api = Api(base_url="https://x")
+
+        api.bind(UrlTarget("http://via-url.test:8080"))
+
+        assert api.base_url == "http://via-url.test:8080"
+
+    def test_bind_prefers_base_url_over_url(self) -> None:
+        """A target exposing both attributes binds base_url."""
+        api = Api(base_url="https://x")
+        target = BindTarget(base_url="http://from-base.test:9000")
+        target.url = "http://from-url.test:9000"  # type: ignore[attr-defined]
+
+        api.bind(target)
+
+        assert api.base_url == "http://from-base.test:9000"
+
+    def test_bind_raises_type_error_without_url_attribute(self) -> None:
+        """A target exposing neither attribute fails, and nothing is rebound."""
+        api = Api(base_url="https://x")
+
+        with pytest.raises(TypeError, match="base_url"):
+            api.bind(object())
+
+        assert api.base_url == "https://x"
+
+    def test_bind_returns_none(self) -> None:
+        """bind returns None (statement-style call)."""
+        api = Api(base_url="https://x")
+
+        assert api.bind(PlainTarget("http://sandbox.test:9000")) is None
+
+    def test_bind_installs_guard_when_target_has_capabilities(self) -> None:
+        """A guarded target runs apply_pending + ensure_service before every request."""
+        api = Api(base_url="https://x")
+        target = BindTarget()
+        api.bind(target)
+
+        order: list[str] = target.calls
+
+        with mock.patch.object(api._client, "get", side_effect=lambda *_args, **_kwargs: order.append("request")):
+            api.request("GET", "/a")
+            api.request("GET", "/b")
+
+        assert order == [
+            "apply_pending",
+            "ensure_service",
+            "request",
+            "apply_pending",
+            "ensure_service",
+            "request",
+        ]
+
+    def test_bind_with_partial_capabilities_binds_url_only(self) -> None:
+        """apply_pending without ensure_service binds the address without the guard."""
+        api = Api(base_url="https://x")
+        target = _PartialTarget()
+        api.bind(target)
+
+        with mock.patch.object(api._client, "get") as verb:
+            api.request("GET", "/a")
+
+        assert target.calls == []
+        verb.assert_called_once()
+        assert verb.call_args.args == ("/a",)
+
+    def test_bind_without_capabilities_binds_url_only(self) -> None:
+        """A plain URL holder binds the address; requests run with no checks."""
+        api = Api(base_url="https://x")
+        api.bind(PlainTarget("http://plain.test:9000"))
+
+        with mock.patch.object(api._client, "get") as verb:
+            api.request("GET", "/a")
+
+        assert api.base_url == "http://plain.test:9000"
+        verb.assert_called_once()
+        assert verb.call_args.args == ("/a",)
+
+    def test_bind_guard_blocks_request_when_service_died(self) -> None:
+        """A died-service check raises before the request leaves; the verb never runs."""
+        api = Api(base_url="https://x")
+        api.bind(_DiedTarget())
+
+        with mock.patch.object(api._client, "get") as verb, pytest.raises(RuntimeError, match="died"):
+            api.request("GET", "/a")
+
+        verb.assert_not_called()
+
+    def test_rebind_replaces_previous_guard(self) -> None:
+        """A second guarded bind replaces the first target's checks — nothing stacks."""
+        api = Api(base_url="https://x")
+        first = BindTarget(base_url="http://first.test:9000")
+        second = BindTarget(base_url="http://second.test:9000")
+        api.bind(first)
+        api.bind(second)
+
+        with mock.patch.object(api._client, "get"):
+            api.request("GET", "/a")
+
+        assert first.calls == []
+        assert second.calls == ["apply_pending", "ensure_service"]
+
+    def test_rebind_to_plain_target_clears_guard(self) -> None:
+        """Binding a plain holder after a guarded target removes the pre-flight."""
+        api = Api(base_url="https://x")
+        guarded = BindTarget()
+        api.bind(guarded)
+        api.bind(PlainTarget("http://plain.test:9000"))
+
+        with mock.patch.object(api._client, "get"):
+            api.request("GET", "/a")
+
+        assert guarded.calls == []
+
+    def test_bind_rebuilds_override_sessions(self) -> None:
+        """bind closes the old client and cached override sessions and rebuilds from the new URL."""
+        api = Api(base_url="https://x", timeout=5.0)
+        built: list[mock.Mock] = []
+
+        def factory(base_url: str, adapter: str, timeout: float | None = None) -> mock.Mock:
+            session = mock.Mock()
+            session.base_url = base_url
+            built.append(session)
+            return session
+
+        with (
+            mock.patch.object(api, "_validate_adapter"),
+            mock.patch("goga_tool_pybuggy.api.api.resq.Session", side_effect=factory),
+            mock.patch.object(api._client, "close") as old_client_close,
+        ):
+            first = api._get_session("other")
+
+            api.bind(PlainTarget("http://sandbox.test:9000"))
+
+            new_client = api._client
+            assert new_client is built[1]
+            assert api._sessions == {}
+            second = api._get_session("other")
+            assert second is built[2]
+            assert first is not second
+
+        old_client_close.assert_called_once_with()
+        built[0].close.assert_called_once_with()
+        new_client.close.assert_not_called()

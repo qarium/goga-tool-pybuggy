@@ -9,6 +9,7 @@ from pathlib import Path
 
 from pluginator import call_context, install_pytest_plugins
 
+from ..sandbox.engines import normalize_container_host
 from . import defaults
 from .loaders import PackageLoader
 from .plugin import ApiPlugin, PluginConfigKeys
@@ -26,9 +27,10 @@ def install(**kwargs: object) -> None:
     disables discovery. The sandbox document ``.goga/tools/pybuggy/sandbox.yml`` gates the
     second plugin by presence only: with the document the ``SandboxPlugin`` joins the same
     installation call and owns the product ``sandbox`` fixtures — it reads and validates its
-    config itself at configphase; without the document nothing sandbox-related is registered,
-    and a test requesting the ``sandbox`` fixture gets pytest's standard
-    "fixture 'sandbox' not found".
+    config itself at configphase — and the container-host address is normalized first, so a
+    plain host run resolves the same address space as a container run; without the document
+    nothing sandbox-related is registered, and a test requesting the ``sandbox`` fixture gets
+    pytest's standard "fixture 'sandbox' not found".
 
     Args:
         kwargs: Forwarded to ``ApiPlugin``; ``context`` and ``loaders`` are defaulted here when omitted.
@@ -39,6 +41,7 @@ def install(**kwargs: object) -> None:
     plugins = [ApiPlugin(**kwargs)]
 
     if Path(defaults.SANDBOX_CONFIG_FILE).is_file():
+        normalize_container_host()
         plugins.append(SandboxPlugin())
         logger.info("sandbox plugin enabled", extra={"document": defaults.SANDBOX_CONFIG_FILE})
     else:

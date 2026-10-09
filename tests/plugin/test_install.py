@@ -6,6 +6,7 @@ plus the presence gate of the sandbox plugin.
 
 import importlib
 import inspect
+import os
 import sys
 import types
 from unittest import mock
@@ -168,3 +169,39 @@ class TestInstallLogic:
             sandbox_plugin.configure()
 
         assert sandbox_plugin.activation is None
+
+    def test_install_normalizes_the_container_host_with_the_document(self, tmp_path, monkeypatch):
+        """With the document present, install() defaults the container-host override — the
+        sandbox gets its one shared address space before any container or configure step."""
+        write_document(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("TESTCONTAINERS_HOST_OVERRIDE", raising=False)
+
+        def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
+            pass
+
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+
+        goga_tool_pybuggy.plugin.install(context={})
+
+        assert "TESTCONTAINERS_HOST_OVERRIDE" in os.environ
+
+    def test_install_without_document_leaves_the_environment_untouched(self, tmp_path, monkeypatch):
+        """Without the document the container-host normalization never runs — no sandbox,
+        no environment changes."""
+        monkeypatch.chdir(tmp_path)  # empty cwd — no sandbox document
+        monkeypatch.delenv("TESTCONTAINERS_HOST_OVERRIDE", raising=False)
+
+        def unexpected() -> None:
+            raise AssertionError("normalization must not run without the sandbox document")
+
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "normalize_container_host", unexpected)
+
+        def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
+            pass
+
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+
+        goga_tool_pybuggy.plugin.install(context={})
+
+        assert "TESTCONTAINERS_HOST_OVERRIDE" not in os.environ

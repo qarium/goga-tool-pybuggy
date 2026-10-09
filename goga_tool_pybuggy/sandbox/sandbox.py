@@ -59,8 +59,8 @@ class Sandbox:
         """The service address of the running sandbox.
 
         Returns:
-            The mapped instance address — the value the api fixture uses while a sandbox
-            is active; readable once the instance has started.
+            The mapped instance address — the value ``Api.bind`` resolves when the sandbox
+            is bound to the api client of a test; readable once the instance has started.
         """
         return f"http://{self.service.host}:{self.service.port}"
 

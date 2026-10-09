@@ -13,7 +13,6 @@ import pytest
 from pluginator import CommandLine, define
 
 from ..api import Api
-from ..sandbox import Sandbox
 from . import defaults
 from .envvars import API_TIMEOUT, BASE_URL
 from .loaders import BaseLoader, ModuleLoader, PackageLoader
@@ -69,42 +68,6 @@ def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
     return {
         name: getattr(option, name) for name in names if hasattr(option, name) and getattr(option, name) is not None
     }
-
-
-def _sandbox_guard(original: t.Callable[..., t.Any], sandbox: Sandbox) -> t.Callable[..., t.Any]:
-    """Wrap an Api request callable with the sandbox pre-flight checks.
-
-    Every guarded request applies the pending per-test batch and ensures the service is still
-    alive before delegating to the original request — the died-service error surfaces on the
-    first request after the death, with the service output attached.
-
-    Args:
-        original: The instance-level ``Api.request`` callable being wrapped.
-        sandbox: The active session sandbox owning the pending batch and the service.
-
-    Returns:
-        The guarded request callable replacing ``Api.request``.
-    """
-
-    def guarded(method: str, url_path: str, **kwargs: t.Any) -> t.Any:
-        """Apply pending data, ensure the service, then run the original request.
-
-        Args:
-            method: The HTTP method of the request.
-            url_path: The request path.
-            **kwargs: Forwarded verbatim to the original request callable.
-
-        Returns:
-            The original request's response.
-        """
-        logger.debug("sandbox request guard", extra={"method": method, "url_path": url_path})
-
-        sandbox.apply_pending()
-        sandbox.ensure_service()
-
-        return original(method, url_path, **kwargs)
-
-    return guarded
 
 
 @define.plugin("pybuggy", config=defaults.CONFIG_FILE)
@@ -218,30 +181,20 @@ class ApiPlugin:
         self.base_url = render_base_url(self.base_url, context)
 
     @pytest.fixture
-    def api(self, request: pytest.FixtureRequest) -> t.Iterator[Api]:
+    def api(self) -> t.Iterator[Api]:
         """Build an :class:`Api` from the resolved plugin options and tear it down.
 
         Minimal profile — ``base_url``/``headers``/``timeout`` plus the assert options; no auth, no cookies.
 
-        The sandbox binds per test: a test whose fixture closure includes ``sandbox`` — a
-        direct request, a consumer fixture parameter, ``usefixtures``, or an autouse
-        dependency — resolves the sandbox address ahead of the rendered option value and
-        every request passes the sandbox guard first; every other test uses the rendered
-        static ``base_url`` with no guard.
-
-        Args:
-            request: The fixture request of the test the api client is built for.
+        The client carries the rendered static ``base_url``; binding an address (the running
+        sandbox) is explicit in the test body through ``Api.bind``/``Endpoint.bind``.
 
         Yields:
             An :class:`Api` constructed from the resolved options.
         """
-        sandbox = request.getfixturevalue("sandbox") if "sandbox" in request.fixturenames else None
-
-        base_url = sandbox.base_url if sandbox is not None else self.base_url
-
-        logger.debug("building api fixture", extra={"base_url": base_url, "sandbox": sandbox is not None})
+        logger.debug("building api fixture", extra={"base_url": self.base_url})
         api = Api(
-            base_url=base_url,
+            base_url=self.base_url,
             headers=self.headers,
             timeout=self.timeout,
             assert_timeout=self.assert_timeout,
@@ -249,9 +202,6 @@ class ApiPlugin:
             assert_field_class=self.assert_field_class,
             assert_response_class=self.assert_response_class,
         )
-
-        if sandbox is not None:
-            api.request = _sandbox_guard(api.request, sandbox)
 
         yield api
         api.close()

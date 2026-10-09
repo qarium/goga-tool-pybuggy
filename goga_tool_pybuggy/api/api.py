@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING, Any
 
@@ -65,6 +66,7 @@ class Api:
         self._assert_delay = assert_delay
         self._assert_field_class = assert_field_class
         self._assert_response_class = assert_response_class
+        self._preflight: tuple[Callable[[], None], Callable[[], None]] | None = None
 
     @property
     def base_url(self) -> str:
@@ -116,6 +118,43 @@ class Api:
         """Dotted path of a custom ``Expect`` subclass (``module:Class``)."""
         return self._assert_response_class
 
+    def bind(self, target: Any) -> None:
+        """Re-point this client at the address of ``target`` and adopt its request pre-flight.
+
+        The resq ``Session`` base URL is fixed at construction, so binding rebuilds the composed
+        session and closes and clears the cached override sessions. The pre-flight is adopted by
+        capability: a target exposing callable ``apply_pending`` and ``ensure_service`` (e.g. a
+        running sandbox) has both invoked before every request; any other target binds URL-only.
+        Re-binding replaces any previous pre-flight — the checks never stack. Every ``Endpoint``
+        over this ``Api`` rebinds together.
+
+        Args:
+            target: an object exposing ``base_url`` (preferred) or ``url``.
+
+        Raises:
+            TypeError: when ``target`` exposes neither a ``base_url`` nor a ``url`` attribute.
+        """
+        url = getattr(target, "base_url", None) or getattr(target, "url", None)
+
+        if not url:
+            raise TypeError(f"bind target must expose a 'base_url' or 'url' attribute, got {type(target).__name__}")
+
+        apply_pending = getattr(target, "apply_pending", None)
+        ensure_service = getattr(target, "ensure_service", None)
+        guarded = callable(apply_pending) and callable(ensure_service)
+        self._preflight = (apply_pending, ensure_service) if guarded else None
+
+        self._client.close()
+
+        for session in self._sessions.values():
+            session.close()
+
+        self._sessions.clear()
+        self._client = resq.Session(url, self._default_adapter, timeout=self._timeout)
+        self._base_url = url
+
+        logger.info("api bound", extra={"base_url": url, "guarded": guarded})
+
     def request(self, method: str, url_path: str, **kwargs: Any) -> resq.http.Response:
         """Dispatch a single serialized request to the matching resq verb.
 
@@ -130,6 +169,13 @@ class Api:
         Returns:
             The raw ``resq.http.Response``.
         """
+        if self._preflight is not None:
+            logger.debug("bound request pre-flight", extra={"method": method, "url_path": url_path})
+
+            apply_pending, ensure_service = self._preflight
+            apply_pending()
+            ensure_service()
+
         logger.debug("api request", extra={"method": method, "url_path": url_path})
 
         use_aliases = kwargs.pop("use_aliases", False)

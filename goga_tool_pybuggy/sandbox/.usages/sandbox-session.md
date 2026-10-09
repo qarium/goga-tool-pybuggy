@@ -29,8 +29,8 @@ no fixture exists, and a test requesting it fails with pytest's standard
 ## The product sandbox fixture
 
 Do not define your own `sandbox` fixture — the product owns the name (a consumer definition
-would shadow it and feed the reset and the api guard a foreign object). Take the fixture as a
-test argument, or let the `@services` preset decorator request it for you:
+would shadow it and feed the reset and the api pre-flight a foreign object). Take the fixture
+as a test argument, or let the `@services` preset decorator request it for you:
 
 ```python
 from goga_tool_pybuggy import services
@@ -77,11 +77,11 @@ container keeps running (service in-memory state not resetting is an accepted v1
 
 ## Calling the service
 
-The api fixture binds the sandbox per test: a test whose fixture closure includes the sandbox
-fixture — a direct request, a consumer fixture parameter, a `usefixtures` mark (what
-`@services` stamps), or an autouse dependency — resolves to the sandbox's service address with
-the request guard; every other test uses the configured base_url (`--base-url` / `BASE_URL` /
-config) with no guard.
+Binding the api to the sandbox is explicit — call `endpoint.bind(sandbox)` (or
+`api.bind(sandbox)`) once in the test body. The bind replaces the client address with the
+sandbox's service address and installs the request pre-flight (the pending data batch applies
+and the service liveness is ensured before every request); every other test uses the
+configured base_url (`--base-url` / `BASE_URL` / config) with no pre-flight.
 
 ```python
 from goga_tool_pybuggy.api import Api, Endpoint
@@ -93,25 +93,29 @@ def checkout(api: Api) -> Endpoint:
 
 
 def test_checkout(checkout, sandbox):
+    checkout.bind(sandbox)
     sandbox.postgresql("db").insert("orders", rows=[{"id": 100, "customer_id": 1}])
     response = checkout(json={"customer": 1, "total": 500})
     response.expect.has_status_code(200)
 ```
 
-- For a sandbox-bound test the sandbox address overrides the configured base_url value; the
-  startup output names the source.
-- `--base-url` applies to the tests that do not use the sandbox; sandbox-bound tests ignore it.
+- All endpoints of one test share one `Api` — one `bind(sandbox)` rebinds them together.
+- `--base-url` applies to the tests that do not bind; a bound test uses the sandbox address.
 - Declared operations apply automatically as one batch before the first service call — also the
   moment when `$ref` / `$lookup` row values resolve, so a declaration made after earlier service
   calls may reference rows those calls created (`$lookup`).
-- The binding is by declaration: a consumer fixture that reaches the sandbox only through a lazy
-  `request.getfixturevalue("sandbox")` call does not appear in the fixture closure — declare the
-  dependency as a parameter instead.
+- A `@services`-marked test that calls the service takes the `sandbox` argument and binds
+  explicitly — the mark alone pulls the sandbox in for the presets and the reset, not for the
+  address.
 
 ## Preconditions and side effects
 
 - The environment running the tests needs a docker-compatible container runtime; the startup
   error names the requirement when it is missing.
+- Both run topologies work out of the box — pytest on the host and pytest inside a container:
+  at install time the product defaults `TESTCONTAINERS_HOST_OVERRIDE` to the one address every
+  consumer reaches (`host.docker.internal` in a container, the host's own routable IP on a
+  host run); an explicit value in the environment always wins.
 - After the session — including failed or interrupted runs — nothing remains; a rerun starts
   fresh.
 - A crashed service fails the affected tests with an indication that the service died and where

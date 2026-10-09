@@ -77,8 +77,8 @@ Annotations: |
     Use `conventions` for type hints and testing.
   properties:
     "base_url -> str": |
-      The service address of the running sandbox — the value the api fixture of a test whose
-      fixture closure includes the sandbox resolves ahead of the configured base_url.
+      The service address of the running sandbox — the value the api client's bind resolves
+      when the sandbox is bound to it (ahead of the configured base_url).
   methods:
     "start()": |
       Bring the sandbox up in the ordered sequence.
@@ -128,7 +128,8 @@ Annotations: |
       3. Apply each group to the service's `BaseEngine`.
 
       Requirements:
-      - Runs before the first service call of a test.
+      - Runs before the first service call of a test — the api request pre-flight invokes it
+      once the test binds its api client to the sandbox (the batch drains on the first take).
       - A failed operation surfaces a readable error identifying it.
 
       Use `data-operations` for the laziness contract.
@@ -138,9 +139,9 @@ Annotations: |
       instance runs.
 
       Requirements:
-      - Called on the request path — the api fixture's first-request guard invokes it — so a
-      crashed instance surfaces as an explicit died-service indication, never as a hang or an
-      opaque connection failure.
+      - Called on the request path — the api request pre-flight invokes it once the test binds
+      its api client to the sandbox — so a crashed instance surfaces as an explicit
+      died-service indication, never as a hang or an opaque connection failure.
     "new_test_batch()": |
       Create the fresh data batch of the next test.
 

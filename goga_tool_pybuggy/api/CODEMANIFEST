@@ -42,6 +42,8 @@ Annotations: |
     `assert_response_class`: dotted module:Class path of a custom `Expect` subclass; forwarded into each `AssertConfig`.
     `adapter`: default resq adapter name used to build the composed session. `"requests"` (sync) only — "httpx" is async in resq and is rejected by the adapter validation. Read-only via the `adapter` property; per-request override flows through request's `adapter` kwarg (None falls back to this default).
 
+    The base URL is fixed at construction; the bind(target) method re-points the client at a target's address — resq's Session base_url is read-only, so bind rebuilds the sessions.
+
     Use `resq` for the Session/base_url contract.
     Use `conventions` for type hints and relative imports.
   properties:
@@ -64,6 +66,25 @@ Annotations: |
     "assert_response_class -> str | None": |
       Stored dotted path of a custom `Expect` subclass; read-only. Forwarded into each `AssertConfig`.
   methods:
+    "bind(target: Any)": |
+      Re-point this client at the address of `target` and adopt its request pre-flight.
+
+      `target`: an object exposing base_url (preferred) or url (fallback).
+
+      Algorithm:
+      1. Resolve the URL from the target: base_url when present, otherwise url; a target exposing neither raises TypeError (the message names both attributes and the target type) and rebinds nothing.
+      2. Adopt the pre-flight by capability: a target exposing callable apply_pending AND callable ensure_service (a running sandbox) stores both as the request pre-flight; anything else stores none. Assignment replaces any previous pre-flight — the checks never stack.
+      3. Rebuild the sessions: close the composed client and every cached override session, clear the cache, construct a new resq.Session at the resolved URL with the default adapter and stored timeout, and store the URL as the rebuild source of later override sessions.
+      4. Log the binding.
+
+      Requirements:
+      - Every `Endpoint` over this `Api` rebinds together — they share the client.
+      - A rebind to a capability-less target removes any installed pre-flight.
+
+      Constraints:
+      - Do not mutate the target.
+
+      Use `conventions` for type hints.
     "request(method: str, url_path: str, ...kwargs: Any) -> response: resq.http.Response": |
       Single HTTP request through the resq.Session matching the effective adapter; serializes pydantic models, substitutes path params, injects defaults, resolves the adapter, and dispatches to the matching resq verb.
 
@@ -72,6 +93,7 @@ Annotations: |
       `response`: the raw resq.http.Response.
 
       Algorithm:
+      0. Run the adopted pre-flight when one is installed (a guarded bind): apply the target's pending data batch, then ensure its service liveness — a failing check blocks the request before any serialization or dispatch.
       1. Read the alias-serialization flag from kwargs (default off).
       2. Serialize params and json: a pydantic model is serialized alias-controlled; a dict or None is kept as-is; missing params default to an empty mapping.
       3. Split path parameters (the ":name" keys) out of params, substitute them into url_path, and keep the rest as the query. Only the names present in params are matched, each as a whole token (longest first), so a parameter whose name is a prefix of another (:id / :id2) is never collapsed into it; a name ends at a literal "." or "-" glue (a variable inside a larger segment, e.g. {id}.json, and adjacent placeholders {from}-{to}, both substitute), while a "-" followed by a word char continues the name (:order does not match inside :order-id); a ":word" with no matching parameter is literal path content and is left untouched.
@@ -81,6 +103,7 @@ Annotations: |
 
       Requirements:
       - Single request — never forward timeout/delay/polling options, nor the adapter kwarg, to the verb.
+      - The pre-flight runs before EVERY request — the pending-batch apply is drained after the first take, the liveness check runs each time.
 
       Constraints:
       - Do not mutate a caller-owned dict in place.
@@ -125,6 +148,14 @@ Annotations: |
     "adapter -> str | None": |
       Per-endpoint resq adapter override; None falls back to the `Api`-level default adapter. Injected into each api.request call so `Api` routes to the matching cached session.
   methods:
+    "bind(target: Any)": |
+      Re-point the shared `Api` at `target` — delegates to the api-level bind(target).
+
+      `target`: an object exposing base_url (preferred) or url (fallback); a target exposing callable apply_pending/ensure_service also installs the request pre-flight.
+
+      Every `Endpoint` over the same `Api` instance rebinds together; returns None; TypeError propagates from the api-level bind.
+
+      Use `conventions` for type hints.
     "__call__(...kwargs: dict) -> response: ResponseWrapper": |
       Positive-path request: issues the call and returns a `ResponseWrapper` flagged as positive.
 

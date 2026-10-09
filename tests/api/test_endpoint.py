@@ -17,7 +17,7 @@ from goga_tool_pybuggy.api.endpoint import Endpoint
 from pydantic import ValidationError
 from requests.auth import AuthBase
 
-from tests.api.conftest import HeaderAuth, StubRequest
+from tests.api.conftest import BindTarget, HeaderAuth, PlainTarget, StubRequest
 
 
 class User:
@@ -510,3 +510,51 @@ class TestEndpointAdapter:
             ep(**caller_kwargs)
 
         assert "adapter" not in caller_kwargs
+
+
+class TestEndpointBind:
+    """Logic tests for ``Endpoint.bind`` — delegation to the shared ``Api``."""
+
+    def test_bind_delegates_to_the_shared_api(self) -> None:
+        """bind forwards the target to api.bind verbatim."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET")
+        target = PlainTarget("http://sandbox.test:9000")
+
+        with mock.patch.object(api, "bind") as api_bind:
+            ep.bind(target)
+
+        api_bind.assert_called_once_with(target)
+
+    def test_bind_returns_none(self) -> None:
+        """bind returns None (statement-style call)."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET")
+
+        with mock.patch.object(api, "bind"):
+            assert ep.bind(PlainTarget("http://sandbox.test:9000")) is None
+
+    def test_shared_endpoints_rebind_together(self) -> None:
+        """One bind over the shared Api rebinds every Endpoint of the test."""
+        api = Api(base_url="https://x")
+        ep1 = Endpoint(api, "/a", method="GET")
+        ep2 = Endpoint(api, "/b", method="POST")
+        target = PlainTarget("http://sandbox.test:9000")
+
+        ep1.bind(target)
+
+        assert api.base_url == target.base_url
+        assert ep2.api.base_url == target.base_url
+
+    def test_bound_endpoint_request_runs_the_guard(self) -> None:
+        """The guard runs on the Endpoint._call → api.request path."""
+        api = Api(base_url="https://x")
+        ep = Endpoint(api, "/p", method="GET")
+        target = BindTarget()
+        ep.bind(target)
+
+        with mock.patch.object(api._client, "get") as verb:
+            ep()
+
+        assert target.calls == ["apply_pending", "ensure_service"]
+        verb.assert_called_once()
