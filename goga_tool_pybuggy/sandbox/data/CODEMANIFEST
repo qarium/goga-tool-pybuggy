@@ -154,15 +154,18 @@ Annotations: |
     1. Validate the declarations at decoration — only the four supported kinds; anything else
     fails listing the supported kinds. Postgresql rows run the `validate_insert_rows` grammar
     validation — a malformed $ref / $lookup fails naming the declaration location.
-    2. Mark the test with the presets.
-    3. At the test's start the marked presets enqueue into that test's batch, ahead of any
-    in-test operation — service names resolve there against the sandbox document; an unknown
-    name fails listing the configured services.
+    2. Mark the test with the presets, then stamp it with a usefixtures mark requesting the
+    sandbox fixture — a preset-declaring test needs no explicit sandbox parameter.
+    3. At the test's start the product per-test fixture enqueues the marked presets into that
+    test's batch, ahead of any in-test operation — service names resolve there against the
+    sandbox document; an unknown name fails listing the configured services.
 
     Requirements:
     - Presets apply only to the test declaring them.
     - Declaration order within one service is the application order — parents before children
     for foreign-key chains; $ref / $lookup row values resolve the generated keys.
+    - A preset-declaring test requests the sandbox fixture implicitly, through the usefixtures
+    mark.
 
     Constraints:
     - Do not execute anything at decoration time.

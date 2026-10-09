@@ -778,10 +778,12 @@ service env placeholders resolved to.
 ```python
 sandbox.postgresql("db").insert("orders", rows=[{"id": 1, "total": 100}])
 
-sandbox.http("payments").stub({
-    "request": {"method": "POST", "urlPath": "/v1/charge"},
-    "response": {"status": 200, "jsonBody": {"status": "captured"}},
-})
+sandbox.http("payments").stub(
+    {
+        "request": {"method": "POST", "urlPath": "/v1/charge"},
+        "response": {"status": 200, "jsonBody": {"status": "captured"}},
+    }
+)
 
 sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
 
@@ -798,14 +800,24 @@ Declare data directly on the test:
 ```python
 from goga_tool_pybuggy import services
 
+
 @services(
-    postgresql={"db": [{"table": "customers", "rows": [{"id": 1, "name": "Ann"}]},
-                       {"table": "orders", "rows": [{"id": 100, "customer_id": 1}]}]},
-    http={"payments": [{"request": {"method": "GET", "urlPath": "/v1/rate"},
-                        "response": {"status": 200, "jsonBody": {"rate": 0.5}}}]},
+    postgresql={
+        "db": [
+            {"table": "customers", "rows": [{"id": 1, "name": "Ann"}]},
+            {"table": "orders", "rows": [{"id": 100, "customer_id": 1}]},
+        ]
+    },
+    http={
+        "payments": [
+            {
+                "request": {"method": "GET", "urlPath": "/v1/rate"},
+                "response": {"status": 200, "jsonBody": {"rate": 0.5}},
+            }
+        ]
+    },
 )
-def test_checkout(api):
-    ...
+def test_checkout(api): ...
 ```
 
 Each declaration carries the same fields as the matching view operation. Presets apply only to the
@@ -1143,13 +1155,14 @@ file the suite behaves exactly as it would without the sandbox.
 import pytest
 from goga_tool_pybuggy import active_sandbox
 
+
 @pytest.fixture(scope="session")
 def sandbox():
     sbx = active_sandbox()
-    with sbx.baseline():                      # the baseline boundary — author code
+    with sbx.baseline():  # the baseline boundary — author code
         sbx.postgresql("db").insert("customers", rows=[{"id": 1, "name": "Ann"}])
         sbx.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
-    yield sbx                                 # stop is product-owned — do not stop manually
+    yield sbx  # stop is product-owned — do not stop manually
 ```
 
 Operations inside the baseline boundary apply immediately and become the session baseline: after
@@ -1176,9 +1189,11 @@ Tests use the standard api fixture unchanged — its address resolves from the s
 ```python
 from goga_tool_pybuggy.api import Api, Endpoint
 
+
 @pytest.fixture(scope="function")
 def checkout(api: Api) -> Endpoint:
     return Endpoint(api, "/checkout", method="POST")
+
 
 def test_checkout(checkout, sandbox):
     sandbox.postgresql("db").insert("orders", rows=[{"id": 100, "customer_id": 1}])

@@ -1,11 +1,33 @@
-"""Contract and logic tests for the ``load_sandbox_config`` routine."""
+"""Contract and logic tests for the sandbox document validation routines."""
 
 import inspect
+import pathlib
 import re
 
 import pytest
-from goga_tool_pybuggy.sandbox.config import MigrationsConfig, SandboxConfig, StartupData, load_sandbox_config
+from goga_tool_pybuggy.sandbox.config import (
+    MigrationsConfig,
+    SandboxConfig,
+    StartupData,
+    validate_sandbox_config,
+)
 from goga_tool_pybuggy.sandbox.migrations import MigrationError
+from yaml import full_load
+
+
+def validate_written(path: pathlib.Path | None = None) -> SandboxConfig:
+    """Validate the written document the way the plugin does: parse, then validate.
+
+    Args:
+        path: The document location; ``None`` resolves the tools-home document of the cwd.
+
+    Returns:
+        The validated configuration model.
+    """
+    location = path if path is not None else pathlib.Path.cwd() / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+
+    return validate_sandbox_config(full_load(location.read_text(encoding="utf-8")) or {}, location)
+
 
 FULL_DOCUMENT = """\
 instance:
@@ -55,36 +77,52 @@ data:
 """
 
 
-class TestLoadSandboxConfigContract:
-    """Declared API of the ``load_sandbox_config`` routine."""
+class TestValidateSandboxConfigContract:
+    """Declared API of the ``validate_sandbox_config`` routine."""
 
-    def test_load_sandbox_config_is_importable_from_config_facade(self):
-        """``load_sandbox_config`` is re-exported by the ``goga_tool_pybuggy.sandbox.config`` facade."""
-        assert callable(load_sandbox_config)
+    def test_validate_sandbox_config_is_importable_from_config_facade(self):
+        """``validate_sandbox_config`` is re-exported by the ``goga_tool_pybuggy.sandbox.config`` facade."""
+        assert callable(validate_sandbox_config)
 
-    def test_load_sandbox_config_declares_the_contract_signature(self):
-        """The signature is ``(path: str | None)`` — one optional positional parameter."""
-        parameters = list(inspect.signature(load_sandbox_config).parameters.values())
+    def test_validate_sandbox_config_declares_the_contract_signature(self):
+        """The signature is ``(document: dict, location: Path | str)`` — two positional parameters."""
+        parameters = list(inspect.signature(validate_sandbox_config).parameters.values())
 
-        assert len(parameters) == 1
-        assert parameters[0].name == "path"
-        assert parameters[0].default is None
+        assert [parameter.name for parameter in parameters] == ["document", "location"]
 
-    def test_load_sandbox_config_returns_the_declared_types(self):
-        """The return annotation is ``SandboxConfig | None``."""
-        annotation = inspect.signature(load_sandbox_config).return_annotation
+    def test_validate_sandbox_config_returns_the_declared_type(self):
+        """The return annotation is ``SandboxConfig`` — no None arm, validation always returns or raises."""
+        assert inspect.signature(validate_sandbox_config).return_annotation is SandboxConfig
 
-        assert annotation == SandboxConfig | None
+    def test_validate_builds_the_model_from_a_parsed_mapping(self, tmp_path):
+        """A parsed document mapping validates into the same model the file reader builds."""
+        document = {
+            "instance": {"image": "my-service:latest", "port": 8080, "env": {}},
+            "services": {"db": {"kind": "postgresql"}},
+        }
+
+        config = validate_sandbox_config(document, tmp_path / "sandbox.yml")
+
+        assert isinstance(config, SandboxConfig)
+        assert config.instance.image == "my-service:latest"
+        assert config.services["db"].kind == "postgresql"
+
+    def test_validate_failure_names_the_carried_location(self, tmp_path):
+        """An invalid mapping fails naming the location the caller carried in."""
+        with pytest.raises(ValueError, match=r"sandbox\.yml.*instance") as excinfo:
+            validate_sandbox_config({"services": {}}, tmp_path / "sandbox.yml")
+
+        assert "sandbox.yml" in str(excinfo.value)
 
 
-class TestLoadSandboxConfigLogic:
-    """Reading and validation behavior of the loader."""
+class TestValidateSandboxConfigLogic:
+    """Validation behavior of the parsed document mapping."""
 
     def test_load_resolves_document_under_tools_home(self, sandbox_yaml):
         """Scenario 1: the document resolves at ``.goga/tools/pybuggy/sandbox.yml`` from the CWD."""
         sandbox_yaml(FULL_DOCUMENT)
 
-        config = load_sandbox_config(None)
+        config = validate_written()
 
         assert isinstance(config, SandboxConfig)
         assert config.instance.image == "my-service:latest"
@@ -96,15 +134,6 @@ class TestLoadSandboxConfigLogic:
         assert not hasattr(config.data, "kafka")
         assert "kafka" not in StartupData.model_fields
 
-    def test_load_returns_none_without_document_and_ignores_stale_root_document(self, tmp_path, monkeypatch):
-        """Scenario 2: an absent tools-home document stays inert; a stale root document is never read."""
-        monkeypatch.chdir(tmp_path)
-        (tmp_path / ".sandbox.yml").write_text(
-            "service:\n  image: my-service:latest\n  port: 8080\n  env: {}\n", encoding="utf-8"
-        )
-
-        assert load_sandbox_config(None) is None
-
     def test_load_fails_naming_rename_for_service_key(self, sandbox_yaml):
         """Scenario 3: the former 'service' top-level key fails naming the rename to 'instance'."""
         path = sandbox_yaml(
@@ -112,7 +141,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"renamed to 'instance'") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         assert str(path) in str(excinfo.value)
 
@@ -123,7 +152,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"renamed to 'services'") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         assert str(path) in str(excinfo.value)
 
@@ -134,7 +163,7 @@ class TestLoadSandboxConfigLogic:
         with pytest.raises(
             ValueError, match=r"unknown top-level key 'extra' \(supported keys: instance, services, data\)"
         ):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_on_kafka_entry_without_topics(self, sandbox_yaml):
         """Scenario 6: a kafka entry without topics fails at load time — nothing starts."""
@@ -143,7 +172,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"services\.events.*topics"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_on_topics_on_non_kafka_entry(self, sandbox_yaml):
         """Scenario 7: a topics list on a non-kafka entry is rejected."""
@@ -153,7 +182,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"accepted only on kafka entries"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_on_duplicate_topic_names(self, sandbox_yaml):
         """Scenario 8 (D7): duplicate topic names within one service entry are rejected."""
@@ -171,7 +200,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"duplicate topic 'orders\.events'"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_on_probe_path_on_service(self, sandbox_yaml):
         """Scenario 9 (D1): a probe path on a service entry fails naming the entry scope."""
@@ -181,7 +210,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"services\.secrets.*probe path"):
-            load_sandbox_config(None)
+            validate_written()
 
     @pytest.mark.parametrize(
         ("probe_entry", "field"),
@@ -206,7 +235,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=rf"probe.*{field}"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_accepts_interval_equal_to_timeout(self, sandbox_yaml):
         """Scenario 10 boundary: ``interval == timeout`` is the legal edge of the comparator."""
@@ -215,7 +244,7 @@ class TestLoadSandboxConfigLogic:
             "services:\n  db: { kind: postgresql, probe: { timeout: 30.0, interval: 30.0 } }\n"
         )
 
-        config = load_sandbox_config(None)
+        config = validate_written()
 
         assert config.services["db"].probe.timeout == 30.0
         assert config.services["db"].probe.interval == 30.0
@@ -229,7 +258,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"data\.kafka was removed"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_on_placeholder_naming_unknown_service(self, sandbox_yaml):
         """Scenario 12: an env placeholder naming an unconfigured service fails listing them."""
@@ -244,7 +273,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"'nope' is not configured \(configured services: db\)"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_rejects_hyphenated_service_name(self, sandbox_yaml):
         """Scenario 13: a hyphenated service name fails the template-identifier grammar."""
@@ -253,7 +282,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"services\.my-db.*template identifier"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_grpc_kind_fails_not_supported_yet(self, sandbox_yaml):
         """Scenario 14: the grpc kind fails with the explicit 'not supported yet' error."""
@@ -262,7 +291,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"grpc.*not supported yet"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_probe_defaults_applied(self, sandbox_yaml):
         """Scenario 15: empty and partial probe blocks keep the established defaults."""
@@ -276,7 +305,7 @@ class TestLoadSandboxConfigLogic:
             "  db: { kind: postgresql, probe: { timeout: 45.0 } }\n"
         )
 
-        config = load_sandbox_config(None)
+        config = validate_written()
 
         assert config.instance.probe.timeout == 30.0
         assert config.instance.probe.interval == 0.5
@@ -288,7 +317,7 @@ class TestLoadSandboxConfigLogic:
         """The full authoring example loads into a validated model with inline topics."""
         sandbox_yaml(FULL_DOCUMENT)
 
-        config = load_sandbox_config(None)
+        config = validate_written()
 
         assert isinstance(config, SandboxConfig)
         assert config.instance.image == "my-service:latest"
@@ -323,14 +352,14 @@ class TestLoadSandboxConfigLogic:
         sandbox_yaml("instance:\n  image: my-service:latest\n  env: {}\n")
 
         with pytest.raises(ValueError, match=r"instance\.port"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_missing_instance_section(self, sandbox_yaml):
         """A document without the instance entry fails naming the entry."""
         sandbox_yaml("services:\n  db: { kind: postgresql }\n")
 
         with pytest.raises(ValueError, match=r"sandbox\.yml.*instance"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_unknown_service_kind(self, sandbox_yaml):
         """A kind outside the four supported ones fails listing them."""
@@ -339,7 +368,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"redis.*postgresql.*kafka.*vault.*http"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_data_targeting_unknown_service(self, sandbox_yaml):
         """A data declaration targeting an unconfigured service fails naming the target."""
@@ -350,7 +379,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"nodb"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_data_targeting_service_of_wrong_kind(self, sandbox_yaml):
         """A data section targeting a service of another kind fails naming both kinds."""
@@ -361,24 +390,16 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"events.*kafka.*postgresql"):
-            load_sandbox_config(None)
+            validate_written()
 
-    def test_load_fails_unparsable_yaml(self, sandbox_yaml):
-        """An unparsable document fails naming the location and carrying the parse problem."""
-        path = sandbox_yaml(":\n - [")
+    def test_validate_fails_empty_document(self, sandbox_yaml):
+        """A zero-byte document is an invalid document — the error names the location."""
+        path = sandbox_yaml("")
 
-        with pytest.raises(ValueError, match=r"sandbox\.yml") as excinfo:
-            load_sandbox_config(str(path))
+        with pytest.raises(ValueError, match=r"sandbox\.yml.*instance") as excinfo:
+            validate_written(path)
 
         assert str(path) in str(excinfo.value)
-        assert "unparsable" in str(excinfo.value)
-
-    def test_load_fails_empty_document(self, sandbox_yaml):
-        """A zero-byte document is an invalid document — the error names the location."""
-        sandbox_yaml("")
-
-        with pytest.raises(ValueError, match=r"sandbox\.yml"):
-            load_sandbox_config(None)
 
     @pytest.mark.parametrize(
         ("document", "match"),
@@ -426,7 +447,7 @@ class TestLoadSandboxConfigLogic:
         sandbox_yaml(document)
 
         with pytest.raises(ValueError, match=match):
-            load_sandbox_config(None)
+            validate_written()
 
     @pytest.mark.parametrize(
         "name",
@@ -437,7 +458,7 @@ class TestLoadSandboxConfigLogic:
         sandbox_yaml(f"instance:\n  image: i\n  port: 1\n  env: {{}}\nservices:\n  {name}: {{ kind: postgresql }}\n")
 
         with pytest.raises(ValueError, match=rf"services\.{re.escape(name)}.*template identifier"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_bare_service_placeholder(self, sandbox_yaml):
         """A bare service name without the host/port attribute fails naming the env key."""
@@ -452,7 +473,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"KAFKA_BOOTSTRAP.*missing its '\.host' or '\.port'"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_unknown_placeholder_attribute(self, sandbox_yaml):
         """A placeholder attribute outside host/port fails naming the env key and the attribute."""
@@ -467,7 +488,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"DATABASE_URL.*hst"):
-            load_sandbox_config(None)
+            validate_written()
 
     def test_load_fails_unterminated_placeholder_in_env_value(self, sandbox_yaml):
         """An env value with an unterminated ``{{`` fails at load time, not at render time."""
@@ -482,7 +503,7 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=r"DATABASE_URL.*unterminated.*'\{\{'"):
-            load_sandbox_config(None)
+            validate_written()
 
     @pytest.mark.parametrize(
         "value",
@@ -506,7 +527,7 @@ class TestLoadSandboxConfigLogic:
         with pytest.raises(
             ValueError, match=r"DATABASE_URL.*statement or comment syntax is not part of the placeholder grammar"
         ):
-            load_sandbox_config(None)
+            validate_written()
 
     @pytest.mark.parametrize(
         ("document", "match"),
@@ -540,7 +561,7 @@ class TestLoadSandboxConfigLogic:
         sandbox_yaml(document)
 
         with pytest.raises(ValueError, match=match):
-            load_sandbox_config(None)
+            validate_written()
 
     @pytest.mark.parametrize("name", ["true", "false", "none", "True", "None"])
     def test_load_fails_on_jinja_literal_service_names(self, sandbox_yaml, name):
@@ -550,7 +571,7 @@ class TestLoadSandboxConfigLogic:
         sandbox_yaml(f"instance:\n  image: i\n  port: 1\n  env: {{}}\nservices:\n  '{name}': {{ kind: postgresql }}\n")
 
         with pytest.raises(ValueError, match=rf"services\.{name}.*template identifier"):
-            load_sandbox_config(None)
+            validate_written()
 
     @pytest.mark.parametrize(
         ("declaration", "match"),
@@ -576,23 +597,16 @@ class TestLoadSandboxConfigLogic:
         )
 
         with pytest.raises(ValueError, match=match):
-            load_sandbox_config(None)
+            validate_written()
 
 
 MIGRATION_FILE = "-- +goose Up\nCREATE TABLE orders (id bigint PRIMARY KEY);\n"
 
 
-class TestLoadSandboxConfigMigrationsContract:
-    """Declared API of the migrations validation step of the loader."""
+class TestValidateSandboxConfigMigrationsContract:
+    """Contract of the migrations validation step."""
 
-    def test_load_sandbox_config_signature_unchanged_with_migrations_step(self):
-        """The extension keeps the ``(path: str | None) -> SandboxConfig | None`` signature."""
-        signature = inspect.signature(load_sandbox_config)
-
-        assert list(signature.parameters) == ["path"]
-        assert signature.return_annotation == SandboxConfig | None
-
-    def test_migrations_declaration_is_observable_through_the_public_reader(self, sandbox_yaml, tmp_path):
+    def test_migrations_declaration_is_observable_through_the_validator(self, sandbox_yaml, tmp_path):
         """A migrations-declaring document loads into the typed ``ServiceConfig.migrations``."""
         folder = tmp_path / "db" / "migrations"
         folder.mkdir(parents=True)
@@ -609,13 +623,13 @@ class TestLoadSandboxConfigMigrationsContract:
             "      location: db/migrations\n"
         )
 
-        config = load_sandbox_config(None)
+        config = validate_written()
 
         assert isinstance(config.services["db"].migrations, MigrationsConfig)
 
 
-class TestLoadSandboxConfigMigrationsLogic:
-    """Reading and validation behavior of the migrations declaration step."""
+class TestValidateSandboxConfigMigrationsLogic:
+    """Validation behavior of the migrations declaration step."""
 
     def test_loader_accepts_migrations_on_postgresql(self, sandbox_yaml, tmp_path):
         """A local source with a valid on-disk folder loads into the typed declaration."""
@@ -634,7 +648,7 @@ class TestLoadSandboxConfigMigrationsLogic:
             "      location: db/migrations\n"
         )
 
-        config = load_sandbox_config(None)
+        config = validate_written()
 
         assert config.services["db"].migrations.location == "db/migrations"
         assert config.services["db"].migrations.git is None
@@ -655,7 +669,7 @@ class TestLoadSandboxConfigMigrationsLogic:
             "        url: https://gitlab.example/acme/s.git\n"
         )
 
-        config = load_sandbox_config(None)
+        config = validate_written()
 
         assert config.services["db"].migrations.git.url == "https://gitlab.example/acme/s.git"
         assert config.services["db"].migrations.git.ref is None
@@ -679,7 +693,7 @@ class TestLoadSandboxConfigMigrationsLogic:
         )
 
         with pytest.raises(ValueError, match=r"services\.events.*accepted only on postgresql entries") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         assert str(path) in str(excinfo.value)
 
@@ -705,7 +719,7 @@ class TestLoadSandboxConfigMigrationsLogic:
         )
 
         with pytest.raises(ValueError, match=r"services\.db\.migrations: must be a mapping") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         assert excinfo.type is ValueError
         message = str(excinfo.value)
@@ -729,7 +743,7 @@ class TestLoadSandboxConfigMigrationsLogic:
         )
 
         with pytest.raises(ValueError, match=r"migrations\.location: must be a non-empty path") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         assert excinfo.type is ValueError
 
@@ -748,7 +762,7 @@ class TestLoadSandboxConfigMigrationsLogic:
         )
 
         with pytest.raises(ValueError, match=r"migrations: .*must be an existing folder") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         message = str(excinfo.value)
         assert str(path) in message
@@ -772,7 +786,7 @@ class TestLoadSandboxConfigMigrationsLogic:
         )
 
         with pytest.raises(ValueError, match=r"services\.db\.migrations: .*disallowed git URL scheme 'ftp'") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         assert isinstance(excinfo.value.__cause__, MigrationError)
 
@@ -795,7 +809,7 @@ class TestLoadSandboxConfigMigrationsLogic:
         )
 
         with pytest.raises(ValueError, match=r"services\.db\.migrations: .*duplicate migration version 1") as excinfo:
-            load_sandbox_config(None)
+            validate_written()
 
         message = str(excinfo.value)
         assert str(path) in message

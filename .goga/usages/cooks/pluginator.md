@@ -101,14 +101,14 @@ def install(**kwargs):
 Inside the injected `pytest_configure` (after `init_pytest_config(config)` and `install()`), pluginator calls `plugin.configure()` with no arguments when the plugin defines the method. `configure()` is the idiomatic place for one-time preparation that needs an already-installed pytest config:
 
 ```python
-def pytest_configure(config: Config):      # the install_pytest_plugins wrapper injects this into context
+def pytest_configure(config: Config):  # the install_pytest_plugins wrapper injects this into context
     ctx_pytest_configure(config)
     for plugin in plugins:
-        plugin.init_pytest_config(config)   # ① plugin.pytest_config becomes available
-        plugin.install()                     # ② registration with the pluginmanager
+        plugin.init_pytest_config(config)  # ① plugin.pytest_config becomes available
+        plugin.install()  # ② registration with the pluginmanager
         configure_callback = getattr(plugin, "configure", None)
         if configure_callback is not None:
-            configure_callback()             # ③ called with no arguments when the method exists
+            configure_callback()  # ③ called with no arguments when the method exists
 ```
 
 `configure()` is a **plain method**, NOT `@pytest.hookimpl`. pluginator finds it via `getattr(plugin, "configure", None)` and calls it with no arguments. The call runs in the configphase — before collection and before any fixture.
@@ -131,11 +131,7 @@ class MyPlugin:
             for token in self.pytest_config.invocation_params.args
             if token.startswith("-")
         }
-        context = {
-            n: getattr(self.pytest_config.option, n)
-            for n in names
-            if hasattr(self.pytest_config.option, n)
-        }
+        context = {n: getattr(self.pytest_config.option, n) for n in names if hasattr(self.pytest_config.option, n)}
         self.rendered = self.template.format_map(context)
 ```
 

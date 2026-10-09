@@ -57,6 +57,7 @@ def services(**presets: dict[str, dict[str, list[dict[str, object]]]]) -> Callab
                         validate_insert_rows(declaration["rows"], context=f"services preset '{kind}.{name}'")
 
     def _decorate(item: Any) -> Any:
-        return pytest.mark.pybuggy_services(presets=presets)(item)
+        marked = pytest.mark.pybuggy_services(presets=presets)(item)
+        return pytest.mark.usefixtures("sandbox")(marked)
 
     return _decorate

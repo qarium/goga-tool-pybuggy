@@ -52,7 +52,9 @@ Inside the `with` block, resolve `git.location` (a repository path — file or s
 import shutil
 
 
-def install_spec(repo_url: str, git_location: str, local_location: pathlib.Path, project_root: pathlib.Path) -> pathlib.Path:
+def install_spec(
+    repo_url: str, git_location: str, local_location: pathlib.Path, project_root: pathlib.Path
+) -> pathlib.Path:
     """Clone repo, copy git_location -> project_root/local_location, return target path."""
     destination = project_root / local_location
 

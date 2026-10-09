@@ -155,7 +155,7 @@ add-only and never cached — package edits apply from the next run, without rei
   pybuggy environment (packaged usages, `conventions` slot, `build.review.skip`, Dockerfile install line, root
   conftest).
 
-The facade also re-exports the sandbox capability surface — `active_sandbox` (the session-fixture
-lookup of a running sandbox) and `services` (the per-test data-preset decorator) — so consumer
-conftest files and tests import them from the package root: `from goga_tool_pybuggy import
-active_sandbox, services`.
+The facade also re-exports the sandbox capability surface — `services` (the per-test
+data-preset decorator) — so consumer tests import it from the package root:
+`from goga_tool_pybuggy import services`. The session sandbox fixture is product-owned through
+the plugin installation and needs no facade import.

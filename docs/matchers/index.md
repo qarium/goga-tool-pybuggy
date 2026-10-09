@@ -27,8 +27,8 @@ and exposes every check as a chained method:
 
 ```python
 with post_clients_startup_get(json=Request(order_id=1)) as response:
-    response.expect.has_status_code(200)               # response-level
-    response.expect("data.items").has_length(3)        # field-level (dotted path)
+    response.expect.has_status_code(200)  # response-level
+    response.expect("data.items").has_length(3)  # field-level (dotted path)
     response.expect("$.data[0].name").equal_to("abc")  # field-level (jsonpath)
 ```
 
@@ -134,7 +134,7 @@ assert_that(ValCtx(tags), ValueIsEqualMatcher("admin", any=True, in_array=True))
 ```
 
 ```python
-response.expect("data.items", in_array=True).equal_to(2, any=True)   # at least one == 2
+response.expect("data.items", in_array=True).equal_to(2, any=True)  # at least one == 2
 ```
 
 ## Calling endpoints

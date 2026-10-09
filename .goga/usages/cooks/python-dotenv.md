@@ -19,9 +19,9 @@ This practice covers only the `python-dotenv` API. The root cell's `.usages/asse
 ```python
 from dotenv import load_dotenv
 
-load_dotenv("./my.env")                  # apply to os.environ; override=False by default
-load_dotenv("./my.env", override=True)   # overwrite existing values (NOT used in pybuggy)
-load_dotenv(".env")                      # implicit file from CWD
+load_dotenv("./my.env")  # apply to os.environ; override=False by default
+load_dotenv("./my.env", override=True)  # overwrite existing values (NOT used in pybuggy)
+load_dotenv(".env")  # implicit file from CWD
 ```
 
 `load_dotenv` returns `True` when it finds and reads the file, and `False` when the file is absent — this distinguishes "an explicit file must exist" (absence → error) from "an implicit .env is optional" (absence → silent skip).
@@ -33,7 +33,7 @@ load_dotenv(".env")                      # implicit file from CWD
 ```python
 from dotenv import dotenv_values
 
-values = dotenv_values("./my.env")   # dict key→value; KEY= → ''; a bare key (no =) → None
+values = dotenv_values("./my.env")  # dict key→value; KEY= → ''; a bare key (no =) → None
 ```
 
 ## Behavior and limitations

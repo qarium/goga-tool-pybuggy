@@ -1,24 +1,25 @@
-"""Integration tests for the armed sandbox session lifecycle.
+"""Integration tests for the configured sandbox plugin session lifecycle.
 
-Cross-entity scenarios spanning the activation hooks, the session runtime, the per-test
-data batch, the service views, and the preset enqueue: the armed flow from
-``pytest_sessionstart`` to ``pytest_sessionfinish`` over the relocated document with
-inline kafka topics and probe declarations, the failure-cleanup guarantee of a failed
-start, the readable surfacing of a failing operation, the preset-before-in-test ordering
-within one service group, and — docker-gated — the live armed session over the pinned
-mocks.
+Cross-entity scenarios spanning the plugin fixtures, the session runtime, the per-test data
+batch, the service views, and the preset enqueue: the configured flow from the lazy session
+start to the finalization stop over the relocated document with inline kafka topics and probe
+declarations, the failure-cleanup guarantee of a failed start, the readable surfacing of a
+failing operation, the reset-then-preset ordering within one service group, and —
+docker-gated — the live session over the pinned mocks.
 """
 
 import json
 import pathlib
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 import requests
-from goga_tool_pybuggy.sandbox import activation as activation_module
+from goga_tool_pybuggy.plugin import SandboxPlugin
 from goga_tool_pybuggy.sandbox import sandbox as sandbox_module
 from goga_tool_pybuggy.sandbox.engines import DataOperation, EngineError, InstanceAddress
 from kafka import KafkaConsumer
+from yaml import full_load
 
 from .conftest import FakeEngine, FakeNetwork, FakeService, requires_docker
 
@@ -102,7 +103,12 @@ STARTUP_SQL = "CREATE TABLE IF NOT EXISTS orders (id bigint PRIMARY KEY)"
 
 
 class ConfigStub:
-    """Session config double recording ini registrations."""
+    """Session config double recording ini registrations.
+
+    Attributes:
+        rootpath: The root path the session reports.
+        lines: The ``(section, value)`` pairs every ini registration recorded, in order.
+    """
 
     def __init__(self) -> None:
         """Initialize the config double with an empty registration record."""
@@ -117,18 +123,6 @@ class ConfigStub:
             value: The registered line.
         """
         self.lines.append((section, value))
-
-
-class SessionStub:
-    """Session double exposing a config double."""
-
-    def __init__(self, config: ConfigStub | None = None) -> None:
-        """Initialize the session double.
-
-        Args:
-            config: The config double to expose; a fresh one when omitted.
-        """
-        self.config = config if config is not None else ConfigStub()
 
 
 class ItemStub:
@@ -153,6 +147,90 @@ class ItemStub:
             The carried markers named ``name``, in carried order.
         """
         return [marker for marker in self._markers if marker.name == name]
+
+
+class RequestStub:
+    """Request double exposing the fixturenames closure and the sandbox lookup.
+
+    Attributes:
+        fixturenames: The fixture closure the per-test guard reads.
+        node: The item whose markers the per-test fixture reads.
+    """
+
+    def __init__(self, fixturenames: list[str], node: ItemStub, sandbox: Any) -> None:
+        """Initialize the request double.
+
+        Args:
+            fixturenames: The fixture closure of the test being set up.
+            node: The item double of the test being set up.
+            sandbox: The sandbox ``getfixturevalue`` returns.
+        """
+        self.fixturenames = list(fixturenames)
+        self.node = node
+        self._sandbox = sandbox
+
+    def getfixturevalue(self, name: str) -> Any:
+        """Return the carried sandbox.
+
+        Args:
+            name: The fixture name being looked up.
+
+        Returns:
+            The carried sandbox.
+        """
+        return self._sandbox
+
+
+class ArmedSession:
+    """One configured sandbox plugin with its fixtures driven over the generator protocol.
+
+    Attributes:
+        plugin: The configured plugin — ``configure`` ran, ``activation`` is set.
+        config: The config double receiving the marker registration.
+        sandbox: The started session sandbox; set by ``start``.
+    """
+
+    def __init__(self, plugin: SandboxPlugin, config: ConfigStub) -> None:
+        """Initialize the driven session.
+
+        Args:
+            plugin: The configured sandbox plugin.
+            config: The config double of the session.
+        """
+        self.plugin = plugin
+        self.config = config
+        self.sandbox: sandbox_module.Sandbox | None = None
+        self._generator = None
+
+    def start(self) -> sandbox_module.Sandbox:
+        """Drive the session fixture setup — the lazy start of the first use.
+
+        Returns:
+            The started session sandbox.
+        """
+        self._generator = SandboxPlugin.sandbox.__wrapped__(self.plugin)
+        self.sandbox = next(self._generator)
+
+        return self.sandbox
+
+    def finish(self) -> None:
+        """Drive the session fixture finalization — the stop of the teardown."""
+        import contextlib
+
+        with contextlib.suppress(StopIteration):
+            next(self._generator)
+
+        self._generator = None
+
+    def begin_test(self, markers: list[pytest.MarkDecorator] | None = None) -> None:
+        """Drive the per-test fixture — the product reset, the fresh batch, the presets.
+
+        Args:
+            markers: The ``pybuggy_services`` markers the test carries; none when omitted.
+        """
+        request = RequestStub(["sandbox"], ItemStub(markers or []), self.sandbox)
+
+        SandboxPlugin._sandbox_test_batch.__wrapped__(self.plugin, request)
 
 
 class FailingApplyEngine(FakeEngine):
@@ -193,90 +271,112 @@ class FailingApplyEngine(FakeEngine):
         super().apply(operations)
 
 
-@pytest.fixture(autouse=True)
-def reset_activation_state():
-    """Reset the activation module state around every test."""
-    activation_module._ACTIVE = None
-    activation_module._ARMED = None
-
-    yield
-
-    activation_module._ACTIVE = None
-    activation_module._ARMED = None
-
-
 @pytest.fixture
-def armed(
+def configured_plugin(
     sandbox_yaml: Callable[[str], pathlib.Path], monkeypatch: pytest.MonkeyPatch
-) -> Callable[[str, dict[str, FakeEngine], FakeService], dict[str, object]]:
-    """Arm the sandbox over fakes: write the document, register the hooks, wire the seams.
+) -> Callable[[str], tuple[SandboxPlugin, ConfigStub]]:
+    """Configure the sandbox plugin for one document over the configphase path.
 
     Args:
         sandbox_yaml: The document writer fixture placing ``.goga/tools/pybuggy/sandbox.yml``
             under the tmp cwd.
+        monkeypatch: The pytest monkeypatch fixture replacing the plugin_config read.
+
+    Returns:
+        A factory writing ``document``, driving ``configure``, and returning the configured
+        plugin with its config double.
+    """
+
+    def _configure(document: str) -> tuple[SandboxPlugin, ConfigStub]:
+        """Write ``document`` and drive the plugin's configure step over its parsed mapping.
+
+        Args:
+            document: The sandbox document content configuring the plugin.
+
+        Returns:
+            The configured plugin and the config double of the session.
+        """
+        path = sandbox_yaml(document)
+        plugin = SandboxPlugin()
+        monkeypatch.setattr(type(plugin), "plugin_config", full_load(path.read_text(encoding="utf-8")), raising=False)
+
+        config = ConfigStub()
+        plugin.init_pytest_config(config)
+        plugin.configure()
+
+        return plugin, config
+
+    return _configure
+
+
+@pytest.fixture
+def armed(
+    configured_plugin: Callable[[str], tuple[SandboxPlugin, ConfigStub]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> Callable[[str, dict[str, FakeEngine], FakeService], ArmedSession]:
+    """Configure the plugin and wire the container seams to fakes.
+
+    Args:
+        configured_plugin: The configphase factory of the plugin.
         monkeypatch: The pytest monkeypatch fixture replacing the module-level seams.
 
     Returns:
-        A factory arming the session for one document over the given fakes; it returns
-        the context carrying the three registered lifecycle hooks.
+        A factory arming the session for one document over the given fakes.
     """
 
-    def _arm(document: str, engines: dict[str, FakeEngine], service: FakeService) -> dict[str, object]:
-        """Write ``document`` and wire ``engines`` / ``service`` through the seams.
+    def _arm(document: str, engines: dict[str, FakeEngine], service: FakeService) -> ArmedSession:
+        """Configure the plugin for ``document`` and wire ``engines`` / ``service``.
 
         Args:
-            document: The sandbox document content arming the session.
+            document: The sandbox document content configuring the plugin.
             engines: The fake engines the sandbox builds, keyed by service name.
             service: The fake instance container of the session.
 
         Returns:
-            The context carrying the three registered lifecycle hooks.
+            The driven session over the configured plugin.
         """
-        sandbox_yaml(document)
-
-        context: dict[str, object] = {}
-        activation_module.activate_sandbox(context)
+        plugin, config = configured_plugin(document)
 
         monkeypatch.setattr(sandbox_module, "build_engine", lambda service_config: engines[service_config.name])
         monkeypatch.setattr(sandbox_module, "ServiceContainer", lambda _instance_config: service)
         monkeypatch.setattr(sandbox_module, "check_runtime", lambda: None)
         monkeypatch.setattr(sandbox_module, "Network", FakeNetwork)
 
-        return context
+        return ArmedSession(plugin, config)
 
     return _arm
 
 
 class TestSessionStartFailure:
-    """Failed-start cleanup of the registered session-start hook."""
+    """Failed-start cleanup of the lazy session start."""
 
-    def test_sessionstart_failure_stops_everything_and_reraises(self, armed):
+    def test_session_start_failure_stops_everything_and_reraises(self, armed):
         """A failing engine start propagates and stops every started engine and the instance."""
         events: list[str] = []
         engine = FakeEngine(name="db", kind="postgresql", fail_start=True, events=events)
         service = FakeService(events=events)
 
-        context = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, service)
+        session = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, service)
 
         with pytest.raises(RuntimeError, match="refused to start"):
-            context["pytest_sessionstart"](SessionStub())
+            session.start()
 
         assert events == ["engine:db:start", "instance:stop", "engine:db:stop"]
         assert engine.stopped is True
         assert service.stopped is True
-        assert activation_module.active_sandbox() is None
 
 
-class TestArmedSessionFlow:
-    """The armed session lifecycle from session start to session finish."""
+class TestConfiguredSessionFlow:
+    """The session lifecycle from the lazy start to the finalization stop."""
 
-    def test_armed_session_flow_runs_start_to_finish_over_fakes(self, armed):
-        """Arming, start, preset enqueue, grouped apply, and teardown compose end to end.
+    def test_session_flow_runs_start_to_finish_over_fakes(self, armed):
+        """Configure, lazy start, per-test reset and preset enqueue, grouped apply, and teardown.
 
         The engines start in declaration order with their ordered startup lists — the
         kafka engine's list empty, its topology declared inline — the instance container
-        starts last with the rendered env, ``base_url`` resolves from the instance
-        address, and the marked presets apply ahead of the in-test operations.
+        starts last with the rendered env, ``base_url`` resolves from the instance address,
+        the marker line lands at configphase, and the marked presets apply ahead of the
+        in-test operations on top of the product reset.
         """
         events: list[str] = []
         engines: dict[str, FakeEngine] = {
@@ -307,21 +407,19 @@ class TestArmedSessionFlow:
         }
         service = FakeService(host="127.0.0.9", port=9000, events=events)
 
-        context = armed(SESSION_DOCUMENT, engines, service)
-        session = SessionStub()
-
-        context["pytest_sessionstart"](session)
-
-        sandbox = activation_module.active_sandbox()
-
-        assert isinstance(sandbox, sandbox_module.Sandbox)
-        assert activation_module.active_sandbox() is sandbox
-        assert sandbox.base_url == "http://127.0.0.9:9000"
+        session = armed(SESSION_DOCUMENT, engines, service)
 
         section, line = session.config.lines[0]
 
         assert section == "markers"
         assert line.startswith(MARKER_LINE_PREFIX)
+
+        sandbox = session.start()
+
+        assert isinstance(sandbox, sandbox_module.Sandbox)
+        assert session.sandbox is sandbox
+        assert sandbox.base_url == "http://127.0.0.9:9000"
+
         assert engines["secrets"].journaled == [
             DataOperation(
                 instance="secrets", kind="vault", action="put", payload={"path": "kv/app", "data": {"token": "abc"}}
@@ -353,7 +451,7 @@ class TestArmedSessionFlow:
             }
         )
 
-        context["pytest_runtest_setup"](ItemStub([marker]))
+        session.begin_test([marker])
         sandbox.kafka("events").produce("orders.events", {"id": 1})
         sandbox.postgresql("db").insert("orders", [{"id": 2}])
         sandbox.http("payments").stub({"request": {"method": "POST", "url": "/charge"}, "response": {"status": 201}})
@@ -392,7 +490,7 @@ class TestArmedSessionFlow:
             )
         ]
 
-        context["pytest_sessionfinish"](SessionStub(), 0)
+        session.finish()
 
         assert events == [
             "engine:secrets:start",
@@ -400,6 +498,10 @@ class TestArmedSessionFlow:
             "engine:events:start",
             "engine:db:start",
             "instance:start",
+            "engine:secrets:reset",
+            "engine:payments:reset",
+            "engine:events:reset",
+            "engine:db:reset",
             "engine:db:apply",
             "engine:payments:apply",
             "engine:events:apply",
@@ -409,19 +511,16 @@ class TestArmedSessionFlow:
             "engine:payments:stop",
             "engine:secrets:stop",
         ]
-        assert activation_module.active_sandbox() is None
         assert all(engine.stopped for engine in engines.values())
         assert service.stopped is True
 
-    def test_armed_session_clear_resets_engines_and_keeps_the_instance_running(self, armed):
+    def test_session_clear_resets_engines_and_keeps_the_instance_running(self, armed):
         """The reset flow returns every service to its baseline; the instance keeps running."""
         events: list[str] = []
         engine = FakeEngine(name="db", kind="postgresql", events=events)
 
-        context = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, FakeService(events=events))
-        context["pytest_sessionstart"](SessionStub())
-
-        sandbox = activation_module.active_sandbox()
+        session = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, FakeService(events=events))
+        sandbox = session.start()
 
         with sandbox.baseline():
             sandbox.postgresql("db").insert("customers", [{"id": 1}])
@@ -435,19 +534,17 @@ class TestArmedSessionFlow:
         assert sandbox.service.stopped is False
         assert sandbox.service.started is True
 
-    def test_armed_flow_raising_operation_surfaces_readable_error(self, armed):
+    def test_session_flow_raising_operation_surfaces_readable_error(self, armed):
         """A failing operation surfaces an error identifying the service, action, and cause."""
         engine = FailingApplyEngine(name="db", kind="postgresql", trigger_table="poison")
 
-        context = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, FakeService())
-        context["pytest_sessionstart"](SessionStub())
-
-        sandbox = activation_module.active_sandbox()
+        session = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, FakeService())
+        sandbox = session.start()
         marker = pytest.mark.pybuggy_services(
             presets={"postgresql": {"db": [{"table": "customers", "rows": [{"id": 1}]}]}}
         )
 
-        context["pytest_runtest_setup"](ItemStub([marker]))
+        session.begin_test([marker])
         sandbox.postgresql("db").insert("poison", [{"id": 9}])
 
         with pytest.raises(EngineError, match=r"service 'db': insert failed:.*poison"):
@@ -455,26 +552,12 @@ class TestArmedSessionFlow:
 
 
 class TestSessionEdgeCases:
-    """Inert activation, view-name resolution, and the died-instance guard of the session."""
-
-    def test_activation_without_document_leaves_the_session_fully_inert(
-        self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        """Without the document no hook registers and no sandbox ever starts."""
-        monkeypatch.chdir(tmp_path)
-
-        context: dict[str, object] = {}
-
-        assert activation_module.activate_sandbox(context) is None
-        assert context == {}
-        assert activation_module.active_sandbox() is None
+    """View-name resolution and the died-instance guard of the session."""
 
     def test_unknown_service_name_on_view_factory_lists_configured_services(self, armed):
         """A view factory of an unknown name fails listing the configured services."""
-        context = armed(SINGLE_SERVICE_DOCUMENT, {"db": FakeEngine(name="db", kind="postgresql")}, FakeService())
-        context["pytest_sessionstart"](SessionStub())
-
-        sandbox = activation_module.active_sandbox()
+        session = armed(SINGLE_SERVICE_DOCUMENT, {"db": FakeEngine(name="db", kind="postgresql")}, FakeService())
+        sandbox = session.start()
 
         with pytest.raises(ValueError, match=r"no postgresql service named 'ghost'.*db \(postgresql\)"):
             sandbox.postgresql("ghost")
@@ -483,10 +566,8 @@ class TestSessionEdgeCases:
         """A died instance fails fast naming the image and attaching its output."""
         service = FakeService(alive=False, logs="OOMKilled after 3s")
 
-        context = armed(SINGLE_SERVICE_DOCUMENT, {"db": FakeEngine(name="db", kind="postgresql")}, service)
-        context["pytest_sessionstart"](SessionStub())
-
-        sandbox = activation_module.active_sandbox()
+        session = armed(SINGLE_SERVICE_DOCUMENT, {"db": FakeEngine(name="db", kind="postgresql")}, service)
+        sandbox = session.start()
 
         with pytest.raises(RuntimeError, match="died") as excinfo:
             sandbox.ensure_service()
@@ -502,10 +583,8 @@ class TestPresetOrdering:
         """Preset operations apply first — in declaration order — then the in-test operation."""
         engine = FakeEngine(name="db", kind="postgresql")
 
-        context = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, FakeService())
-        context["pytest_sessionstart"](SessionStub())
-
-        sandbox = activation_module.active_sandbox()
+        session = armed(SINGLE_SERVICE_DOCUMENT, {"db": engine}, FakeService())
+        sandbox = session.start()
         marker = pytest.mark.pybuggy_services(
             presets={
                 "postgresql": {
@@ -517,7 +596,7 @@ class TestPresetOrdering:
             }
         )
 
-        context["pytest_runtest_setup"](ItemStub([marker]))
+        session.begin_test([marker])
         sandbox.postgresql("db").insert("audit_log", [{"id": 3}])
 
         sandbox.apply_pending()
@@ -530,8 +609,8 @@ class TestPresetOrdering:
 
 
 @requires_docker
-class TestArmedSessionLiveLifecycle:
-    """Live behavior of the armed session over the pinned mocks (docker-gated)."""
+class TestLiveSessionLifecycle:
+    """Live behavior of the configured plugin session over the pinned mocks (docker-gated)."""
 
     @staticmethod
     def _consumed_values(host: str, port: int, topic: str) -> list[object]:
@@ -558,26 +637,31 @@ class TestArmedSessionLiveLifecycle:
         finally:
             consumer.close()
 
-    def test_armed_session_boots_declared_topology_and_resets(self, sandbox_yaml):
-        """A real armed session over the pinned mocks with declared topics and a probe.
+    def test_live_session_boots_declared_topology_and_resets(self, sandbox_yaml, monkeypatch):
+        """A real session over the pinned mocks with declared topics and a probe.
 
         The instance readiness rides the declared health-path probe, the declared kafka
         topology boots with its partitions, a produce into a declared topic lands, and
         the reset flow restarts the mock and replays the journaled baseline.
         """
-        sandbox_yaml(LIVE_DOCUMENT)
+        path = sandbox_yaml(LIVE_DOCUMENT)
+        plugin = SandboxPlugin()
+        monkeypatch.setattr(type(plugin), "plugin_config", full_load(path.read_text(encoding="utf-8")), raising=False)
 
-        context: dict[str, object] = {}
-        config = activation_module.activate_sandbox(context)
+        config = ConfigStub()
+        plugin.init_pytest_config(config)
+        plugin.configure()
 
-        assert config is not None
-        assert config.instance.probe is not None
-        assert config.instance.probe.path == "/__admin/health"
-        assert [topic.name for topic in config.services["events"].topics] == ["orders.events", "payments.events"]
+        assert plugin.activation is not None
+        assert plugin.activation.instance.probe is not None
+        assert plugin.activation.instance.probe.path == "/__admin/health"
+        assert [topic.name for topic in plugin.activation.services["events"].topics] == [
+            "orders.events",
+            "payments.events",
+        ]
 
-        context["pytest_sessionstart"](SessionStub())
-
-        sandbox = activation_module.active_sandbox()
+        session = ArmedSession(plugin, config)
+        sandbox = session.start()
 
         assert sandbox is not None
 
@@ -607,6 +691,4 @@ class TestArmedSessionLiveLifecycle:
 
             assert self._consumed_values(view.host, view.port, "orders.events") == [{"id": 0}]
         finally:
-            context["pytest_sessionfinish"](SessionStub(), 0)
-
-        assert activation_module.active_sandbox() is None
+            session.finish()

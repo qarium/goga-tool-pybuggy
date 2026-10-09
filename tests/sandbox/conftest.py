@@ -25,6 +25,15 @@ PROBE_CONNECT_TIMEOUT = 2.0
 PROBE_CONNECT_WINDOW = 8.0
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Register the ``pybuggy_services`` marker for the local lifecycle tests.
+
+    Consumers get the same registration from the sandbox plugin's configure step; without
+    it, exercising the marker inside this suite would emit ``PytestUnknownMarkWarning``.
+    """
+    config.addinivalue_line("markers", "pybuggy_services: per-test sandbox data presets")
+
+
 @functools.lru_cache(maxsize=1)
 def docker_available() -> bool:
     """Probe the container-runtime availability once per test session.

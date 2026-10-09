@@ -18,9 +18,9 @@ This practice covers only the round-trip API of `ruamel.yaml`. The cells' `.usag
 from ruamel.yaml import YAML
 
 yaml = YAML()
-yaml.preserve_quotes = True          # keep the source file's quote style
+yaml.preserve_quotes = True  # keep the source file's quote style
 
-data = yaml.load(path)               # Path | file-like; CommentedMap, or None for an empty file
+data = yaml.load(path)  # Path | file-like; CommentedMap, or None for an empty file
 usages = data["codemanifest"]["usages"]
 usages["pybuggy-api"] = ".goga/usages/cooks/pybuggy/api.md"
 

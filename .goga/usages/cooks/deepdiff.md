@@ -29,8 +29,8 @@ if diff:
 ## JSON output
 
 ```python
-diff.to_json()   # JSON string — machine-readable, ready to print
-diff.to_dict()   # plain dict — for programmatic inspection
+diff.to_json()  # JSON string — machine-readable, ready to print
+diff.to_dict()  # plain dict — for programmatic inspection
 ```
 
 - `to_json()` is the canonical console output: one JSON document per compared unit.

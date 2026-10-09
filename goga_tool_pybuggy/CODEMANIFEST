@@ -26,9 +26,6 @@ Imports:
   - Types: [install]
     Usages: [enable, configuration]
     From: goga_tool_pybuggy/plugin
-  - Types: [active_sandbox]
-    Usages: [sandbox-session]
-    From: goga_tool_pybuggy/sandbox
   - Types: [services]
     Usages: [data-operations]
     From: goga_tool_pybuggy/sandbox/data
@@ -57,9 +54,10 @@ Annotations: |
   topic-status hooks, the onboarding participation hooks, and the autonomy amendment hook. Use relative imports
   inside the cell.
 
-  The facade carries the sandbox capability surface: `active_sandbox` for consumer session fixtures
-  and `services` for per-test data presets — one import source beside the plugin installation
-  entry. Connected capability practices: `sandbox-session`, `data-operations`.
+  The facade carries the sandbox capability surface: `services` for per-test data presets —
+  one import source beside the plugin installation entry; the session sandbox fixture itself is
+  product-owned through the plugin installation (the sandbox cell's sandbox-session practice).
+  Connected capability practices: `data-operations`.
 
 ---
 
@@ -196,8 +194,6 @@ Annotations: |
     Use `goga-onboarding-hooks` for the onboarding action subscriptions.
 
 ->install: {}
-
-->active_sandbox: {}
 
 ->services: {}
 

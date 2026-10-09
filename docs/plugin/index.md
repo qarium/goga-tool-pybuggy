@@ -29,18 +29,18 @@ variables win).
 existing file is kept (bare mode: unless you confirm the overwrite) — see
 [CLI — init](../cli/init.md).
 
-The same `install()` call arms the **sandbox**: when
-`.goga/tools/pybuggy/sandbox.yml` exists under the pybuggy tools home, it starts before
-the first test, the `api` fixture's address resolves to the sandbox service, and every
-request first applies the test's pending sandbox data (see
-[Sandbox](../sandbox.md)).
+The same `install()` call installs the **sandbox plugin**: when
+`.goga/tools/pybuggy/sandbox.yml` exists under the pybuggy tools home, the product
+`sandbox` fixture appears — the sandbox starts lazily on the first test that requests
+it, per-test resets and marked presets are product-owned, and the `api` fixture of a
+sandbox-bound test resolves to the sandbox service with every request first applying the
+test's pending sandbox data (see [Sandbox](../sandbox.md)).
 
 ## What enabling wires
 
 - **CLI options** — `--base-url` (resolves `base_url`, required; a typed flag overrides
-  the config-file and `BASE_URL` value; it fails fast with a usage error when the sandbox
-  is active — `.goga/tools/pybuggy/sandbox.yml` present — because the sandbox owns the
-  service address),
+  the config-file and `BASE_URL` value; it governs the tests that do not use the
+  sandbox — sandbox-bound tests take the sandbox address),
   `--api-timeout` (resolves `timeout`),
   `--retries` (the flaky rerun count), `--api-assert-timeout` / `--api-assert-delay`
   (the assert-polling baseline). The remaining options (`headers`,
@@ -54,11 +54,14 @@ request first applies the test's pending sandbox data (see
   The reruns take effect when the `flaky` package is installed in the consumer suite; a
   programmatic default can be passed as `install(default_retries=N)`.
 - **The `api` fixture** — function-scoped, yields the HTTP client built from
-  the resolved options and closes it after the test. With an active sandbox the
-  sandbox's service address wins `base_url` at read time (the option value stays
+  the resolved options and closes it after the test. The sandbox binds per test: when
+  the test's fixture closure includes `sandbox` (a direct request, a consumer fixture
+  parameter, a `usefixtures` mark — what `@services` stamps — or an autouse dependency),
+  the sandbox's service address wins `base_url` at read time (the option value stays
   untouched) and every request passes the sandbox guard first — pending data is
   applied, the service liveness is ensured, then the original request runs; a died
-  service fails the request with the service output attached. Generated endpoint
+  service fails the request with the service output attached. Every other test uses the
+  rendered static `base_url` with no guard. Generated endpoint
   fixtures depend on it; pytest resolves `api` automatically — no extra wiring:
 
   ```python
@@ -79,7 +82,7 @@ it declaratively (details: [Loaders](loaders.md)):
 
 ```python
 goga_tool_pybuggy.plugin.install(loaders=[PackageLoader("api"), PackageLoader("service")])
-goga_tool_pybuggy.plugin.install(loaders=[])   # disable discovery entirely
+goga_tool_pybuggy.plugin.install(loaders=[])  # disable discovery entirely
 ```
 
 ```yaml
@@ -94,9 +97,10 @@ loader:
 
 ## Preconditions and side effects
 
-- A sandbox document at `.goga/tools/pybuggy/sandbox.yml` activates the sandbox on the
-  same `install()` call; the environment then needs a docker-compatible container
-  runtime (see [Sandbox](../sandbox.md)).
+- A sandbox document at `.goga/tools/pybuggy/sandbox.yml` installs the sandbox plugin on
+  the same `install()` call (the product `sandbox` fixture); the environment then needs a
+  docker-compatible container runtime, but only when the run actually has sandbox tests —
+  the containers start on the first one (see [Sandbox](../sandbox.md)).
 - The `api/` tree is discovered by default; a missing tree is tolerated
   (`required=False`).
 - The plugin reads `.goga/tools/pybuggy/config.yml` at import; a missing file is

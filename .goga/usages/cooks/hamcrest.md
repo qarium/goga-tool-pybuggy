@@ -7,7 +7,7 @@ A library of declarative matchers (Hamcrest for Python). matchcrest is built on 
 ```python
 from hamcrest import assert_that
 
-assert_that(actual, matcher)          # base form
+assert_that(actual, matcher)  # base form
 assert_that(actual, matcher, reason)  # with a message prefix
 ```
 

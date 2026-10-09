@@ -7,5 +7,7 @@ from typing import Final
 
 CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/config.yml"
 
+SANDBOX_CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/sandbox.yml"
+
 ASSERT_TIMEOUT: Final[int | None] = None
 ASSERT_DELAY: Final[int | float | None] = None

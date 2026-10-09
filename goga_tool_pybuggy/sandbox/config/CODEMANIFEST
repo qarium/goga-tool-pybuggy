@@ -9,17 +9,17 @@ Imports:
 
 Usages:
   conventions: .goga/usages/conventions.md
-  ruamel-yaml: .goga/usages/cooks/ruamel-yaml.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `conventions` for the pydantic kw_only data models and the docstring rules.
-  Use `ruamel-yaml` for reading the sandbox configuration document.
 
   Sandbox configuration cell. Owns the declarative model of the sandbox document — the
   instance-under-test entry, the named dependency services, and the startup data layer — and its
-  fail-fast reading. An invalid document fails before anything starts, with an error naming the
-  document location and the offending entry. Use relative imports inside the cell.
+  fail-fast validation: `validate_sandbox_config` takes the parsed document mapping (the
+  caller owns the parsing) and builds the model; an invalid document fails before anything
+  starts, with an error naming the carried document location and the offending entry. Use
+  relative imports inside the cell.
 
 ---
 
@@ -234,28 +234,23 @@ Annotations: |
     "git -> GitSource | None": |
       The optional remote source; None — the source is local.
 
-"load_sandbox_config(path: str | None) -> config: SandboxConfig | None":
+"validate_sandbox_config(document: dict[str, object], location: Path | str) -> config: SandboxConfig":
   location: loader.py
   annotations: |
-    Read and validate the sandbox configuration document .goga/tools/pybuggy/sandbox.yml under
-    the pybuggy tools home of the consumer service test repository.
+    Validate the parsed sandbox document mapping into the configuration model — the fail-fast
+    validation pipeline of the sandbox document; the caller owns the parsing.
 
-    `path`: explicit document location; None resolves .goga/tools/pybuggy/sandbox.yml in the
-    current working directory.
-    `config`: the validated configuration model; None when the document is absent — the sandbox
-    stays fully inert.
+    `document`: the parsed document mapping.
+    `location`: the document location carried into every error message.
+    `config`: the validated configuration model.
 
     Algorithm:
-    1. Resolve the document location — the current working directory only, no upward search; an
-    absent document returns None.
-    2. Parse the document; an unparsable document fails with an error naming the location and
-    the parse problem.
-    3. Apply the top-level key diagnostics — a "service" key fails naming the rename to
+    1. Apply the top-level key diagnostics — a "service" key fails naming the rename to
     "instance"; an "instances" key fails naming the rename to "services"; any other unknown
     top-level key fails as unknown.
-    4. Validate the instance entry — image, env, port are required; the probe is optional with
+    2. Validate the instance entry — image, env, port are required; the probe is optional with
     the path confined to this entry.
-    5. Validate every service entry — a non-empty unique name matching the template identifier
+    3. Validate every service entry — a non-empty unique name matching the template identifier
     grammar — letters, digits, underscores, not starting with a digit (it names the
     `{{<name>.host}}` / `{{<name>.port}}` placeholders); a kind of postgresql, kafka,
     vault, or http; the grpc kind fails with an explicit "not supported yet" error; an optional
@@ -266,12 +261,12 @@ Annotations: |
     from Imports; a declared remote source passes its URL through `check_git_url` from Imports.
     A `MigrationError` raised by either check is wrapped into the reader's ValueError naming
     the scope and the offending path or URL, with the original error as the cause.
-    6. Validate the startup data sections — every declaration targets an existing service of
+    4. Validate the startup data sections — every declaration targets an existing service of
     the matching kind; a kafka section fails as removed — the topology is declared inline on
     the service entry.
-    7. Validate the instance env values — every service placeholder name references a
+    5. Validate the instance env values — every service placeholder name references a
     configured service.
-    8. Return the model.
+    6. Return the model.
 
     Requirements:
     - Validation completes fully before anything is started — no container is created for an
@@ -282,13 +277,12 @@ Annotations: |
     exceeding the timeout.
     - A migrations declaration is validated fully at load for local sources (folder checks)
     and by URL shape for remote sources — remote content resolves at engine startup.
-    - Every failure message names the document location and the offending entry.
+    - Every failure message names the carried document location and the offending entry.
 
     Constraints:
     - Do not default or repair invalid entries — fail fast.
-    - Do not read anything beyond the named document.
+    - Do not read anything beyond the local migrations folder checks of a declared source.
 
-    Use `ruamel-yaml` for document parsing.
     Use `conventions` for type hints and testing.
     Use `migration-set` from Imports for the load-time check semantics.
 
@@ -298,4 +292,4 @@ Author: Goga
 CreatedAt: 06/10/26
 Description: |
   Sandbox configuration cell — the declarative sandbox document models and their fail-fast
-  reading.
+  validation of the parsed document mapping.

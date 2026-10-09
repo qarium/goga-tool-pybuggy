@@ -6,7 +6,7 @@ call the endpoint, builds `Expect` lazily on first access to `response.expect`, 
 hands you the field-level assert from `response.expect('path')`.
 
 ```python
-from goga_tool_pybuggy.api.asserts import AssertField   # for a type hint
+from goga_tool_pybuggy.api.asserts import AssertField  # for a type hint
 ```
 
 The `response` of `with endpoint(...) as response:` is a `ResponseWrapper` — a context
@@ -53,9 +53,9 @@ Keys and values compare **case-insensitively**; `count` combined with `value` �
 ## Field-level entry
 
 ```python
-field = response.expect("data.items")      # dotted path from the body root
-field = response.expect("$.data.items[*]") # jsonpath from the body root
-field = response.expect()                  # the whole response body
+field = response.expect("data.items")  # dotted path from the body root
+field = response.expect("$.data.items[*]")  # jsonpath from the body root
+field = response.expect()  # the whole response body
 ```
 
 `Expect.__call__(search=None, *, index=None, hook=None, in_array=False)`:
@@ -172,15 +172,15 @@ with response.expect("ok").not_raise_exc() as value:
   `AssertionError` ("No results") — check emptiness via `has_length(0)` over the root.
 
 ```python
-response.expect("data.items", in_array=True).equal_to(2, any=True)   # at least one == 2
-response.expect("data.items")(index=0).equal_to(1)                   # drill by index
-response.expect("data.name")(hook=str.upper).equal_to("ABC")         # hook before comparison
+response.expect("data.items", in_array=True).equal_to(2, any=True)  # at least one == 2
+response.expect("data.items")(index=0).equal_to(1)  # drill by index
+response.expect("data.name")(hook=str.upper).equal_to("ABC")  # hook before comparison
 
-response.expect("data").has_length_greater(0)        # the data value is non-empty
-response.expect("$.data[0].name").equal_to("abc")    # data[0].name
+response.expect("data").has_length_greater(0)  # the data value is non-empty
+response.expect("$.data[0].name").equal_to("abc")  # data[0].name
 
-response.expect("$[*].status").is_subset(["active", "idle"])          # every ∈ set
-response.expect("$[*].request.test_id").not_contains(test_id_b)       # none equals
+response.expect("$[*].status").is_subset(["active", "idle"])  # every ∈ set
+response.expect("$[*].request.test_id").not_contains(test_id_b)  # none equals
 
 
 def _mock_body(items, test_id, path, method):
@@ -215,12 +215,12 @@ that is normal.
 ```python
 def test_initiate(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate(json=Request(order_id=1)) as response:
-        response.expect.has_status_code(200)          # auto-check already ran on this line
+        response.expect.has_status_code(200)  # auto-check already ran on this line
 
 
 def test_initiate_error(post_clients_calls_initiate: Endpoint):
     with post_clients_calls_initiate.error(json={"name": "x"}) as response:
-        response.expect.has_status_code(400)          # negative path: status is your job
+        response.expect.has_status_code(400)  # negative path: status is your job
         response.expect("error.message").not_empty()
 ```
 

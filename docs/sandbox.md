@@ -1,17 +1,19 @@
 # Sandbox
 
 The **sandbox** is pybuggy's session-scoped isolated service testing capability: when the
-pybuggy tools home holds a `sandbox.yml` document, every pytest run starts the **instance
-under test** plus its mocked dependency **services** (**postgresql**, **kafka**,
-**vault**, **http**) in containers, wires them into the instance environment, and points
-the `api` fixture at the sandbox instance. Without the document the product is fully
-inert — nothing starts, nothing changes.
+pybuggy tools home holds a `sandbox.yml` document, the product `sandbox` pytest fixture
+exists — the first test that uses it starts the **instance under test** plus its mocked
+dependency **services** (**postgresql**, **kafka**, **vault**, **http**) in containers,
+wires them into the instance environment, and points that test's `api` fixture at the
+sandbox instance. Without the document the product is fully inert — no fixture, nothing
+starts, nothing changes.
 
 ## Activation
 
 The sandbox activates by presence: `.goga/tools/pybuggy/sandbox.yml`, resolved from the
 current working directory only — resolution never searches elsewhere. The same plugin
-installation call that enables pybuggy arms the sandbox — nothing else is enabled:
+installation call that enables pybuggy installs the sandbox plugin — nothing else is
+enabled:
 
 ```python
 # conftest.py
@@ -20,11 +22,14 @@ from goga_tool_pybuggy import plugin
 plugin.install()
 ```
 
-With the document present, every pytest run starts the sandbox before the first test (the
-progress is visible in the output); an invalid document fails the run before any container
-starts; without the document the suite behaves exactly as it would without the sandbox. If
-the sandbox does not activate, verify the document sits at exactly this path and that the
-run starts from the repository root.
+With the document present, the product `sandbox` fixture exists; the sandbox starts
+lazily, on the first test that requests the fixture (the progress is visible in the
+output), and stops at session finalization — a run without sandbox tests starts no
+containers. An invalid document fails the run at configphase, before any collection or
+container; without the document the suite behaves exactly as it would without the sandbox
+(a test requesting the fixture fails with pytest's standard `fixture 'sandbox' not
+found`). If the sandbox does not activate, verify the document sits at exactly this path
+and that the run starts from the repository root.
 
 ## Authoring the sandbox document
 
@@ -194,20 +199,27 @@ instance starts — vault secrets, then http mappings, then postgres init:
   schema. They replay on every per-test reset — write them idempotent; the
   TRUNCATE-based reset keeps tables and the migrated schema, only data is wiped.
 
-## Session fixture and baseline
+## The sandbox fixture and the baseline
+
+The product owns the `sandbox` fixture (session-scoped): do not define your own — take it
+as a test argument, or let the `@services` preset decorator request it for you. The
+sandbox starts on the first use and stops at session finalization; the stop is
+product-owned.
+
+A session-scoped consumer fixture depending on the product one establishes the
+code-declared baseline:
 
 ```python
 # conftest.py
 import pytest
-from goga_tool_pybuggy import active_sandbox
+
 
 @pytest.fixture(scope="session")
-def sandbox():
-    sbx = active_sandbox()
-    with sbx.baseline():                      # the baseline boundary — author code
-        sbx.postgresql("db").insert("customers", rows=[{"id": 1, "name": "Ann"}])
-        sbx.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
-    yield sbx                                 # stop is product-owned — do not stop manually
+def seeded(sandbox):
+    with sandbox.baseline():  # the baseline boundary — author code
+        sandbox.postgresql("db").insert("customers", rows=[{"id": 1, "name": "Ann"}])
+        sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
+    yield sandbox  # stop is product-owned — do not stop manually
 ```
 
 Operations inside the baseline boundary apply immediately and become the session baseline:
@@ -215,28 +227,28 @@ after every reset the services return to exactly this state.
 
 ## Per-test reset
 
-```python
-# conftest.py
-@pytest.fixture(autouse=True)
-def _sandbox_reset(sandbox):
-    sandbox.clear()
-    yield
-```
-
-Reset returns every dependency service to the baseline — test order cannot change
-outcomes. Only dependency data resets; the instance container keeps running (instance
-in-memory state not resetting is an accepted v1 limitation).
+Product-owned: before every sandbox test the plugin's per-test fixture returns each
+dependency service to the baseline and enqueues the test's marked presets. Test order
+cannot change outcomes, and no consumer autouse reset is needed. Only dependency data
+resets; the instance container keeps running (instance in-memory state not resetting is
+an accepted v1 limitation).
 
 ## Calling the service
 
-Tests use the standard `api` fixture unchanged — its address resolves from the sandbox:
+The `api` fixture binds the sandbox per test: a test whose fixture closure includes
+`sandbox` — a direct request, a consumer fixture parameter, a `usefixtures` mark (what
+`@services` stamps), or an autouse dependency — resolves to the sandbox address with the
+request guard; every other test uses the configured `base_url` (`--base-url` / `BASE_URL`
+/ config) with no guard:
 
 ```python
 from goga_tool_pybuggy.api import Api, Endpoint
 
+
 @pytest.fixture(scope="function")
 def checkout(api: Api) -> Endpoint:
     return Endpoint(api, "/checkout", method="POST")
+
 
 def test_checkout(checkout, sandbox):
     sandbox.postgresql("db").insert("orders", rows=[{"id": 100, "customer_id": 1}])
@@ -244,10 +256,11 @@ def test_checkout(checkout, sandbox):
     response.expect.has_status_code(200)
 ```
 
-- The sandbox address overrides the configured `base_url` value at read time; the option
-  itself stays required (see below); the startup output names the source.
-- A typed `--base-url` flag together with an active sandbox fails fast with an explicit
-  usage error — the sandbox owns the service address.
+- For a sandbox-bound test the sandbox address overrides the configured `base_url` value
+  at read time; the option itself stays required (see below); the startup output names
+  the source.
+- `--base-url` applies to the tests that do not use the sandbox; sandbox-bound tests
+  ignore it — the sandbox owns their address.
 - Declared operations apply automatically as one batch before the first service call.
 - A crashed instance fails the affected tests with an indication that the instance died
   and its output attached.
@@ -260,10 +273,12 @@ automatically before the first call to the service under test:
 
 ```python
 sandbox.postgresql("db").insert("orders", rows=[{"id": 1, "total": 100}])
-sandbox.http("payments").stub({
-    "request": {"method": "POST", "urlPath": "/v1/charge"},
-    "response": {"status": 200, "jsonBody": {"status": "captured"}},
-})
+sandbox.http("payments").stub(
+    {
+        "request": {"method": "POST", "urlPath": "/v1/charge"},
+        "response": {"status": 200, "jsonBody": {"status": "captured"}},
+    }
+)
 sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
 sandbox.kafka("events").produce("orders.events", {"id": 1}, key="1")
 ```
@@ -274,19 +289,27 @@ JSON bytes, a plain string value as UTF-8 bytes, and the key (when given) as UTF
 service under test consumes exactly that.
 
 Data can also be declared directly on the test as a **preset** (each declaration carries
-the same fields as the matching view operation; presets apply on top of the reset state,
-ahead of the test's own operations):
+the same fields as the matching view operation; the decorator also stamps a `usefixtures`
+mark pulling the sandbox into the test's fixture closure — a preset-declaring test needs
+no explicit `sandbox` parameter; presets apply on top of the reset state, ahead of the
+test's own operations):
 
 ```python
 from goga_tool_pybuggy import services
 
+
 @services(
     postgresql={"db": [{"table": "customers", "rows": [{"id": 1, "name": "Ann"}]}]},
-    http={"payments": [{"request": {"method": "GET", "urlPath": "/v1/rate"},
-                        "response": {"status": 200, "jsonBody": {"rate": 0.5}}}]},
+    http={
+        "payments": [
+            {
+                "request": {"method": "GET", "urlPath": "/v1/rate"},
+                "response": {"status": 200, "jsonBody": {"rate": 0.5}},
+            }
+        ]
+    },
 )
-def test_checkout(api):
-    ...
+def test_checkout(api): ...
 ```
 
 Operations apply in the order declared, per service: presets first, then in-test
@@ -304,9 +327,7 @@ hardcoded key. Two reference forms:
 
   ```python
   sandbox.postgresql("db").insert("customers", rows=[{"name": "Ann"}])  # id generated
-  sandbox.postgresql("db").insert(
-      "orders", rows=[{"customer_id": {"$ref": "customers.0.id"}, "total": 500}]
-  )
+  sandbox.postgresql("db").insert("orders", rows=[{"customer_id": {"$ref": "customers.0.id"}, "total": 500}])
   ```
 
   The value is the real applied column value — an autoincrement id resolves to whatever the
@@ -356,9 +377,9 @@ Common rules:
   `X-Vault-Token`; secrets live on the default KV v2 `secret/` mount).
 - After the session — including failed or interrupted runs — nothing remains; a rerun
   starts fresh.
-- `base_url` stays a required plugin option even with an armed sandbox (the render
-  contract is unchanged); any configured value is simply overridden at fixture time by
-  the sandbox address.
+- `base_url` stays a required plugin option even with the sandbox document present (the
+  render contract is unchanged); the tests bound to the sandbox simply override it at
+  fixture time with the sandbox address, the other tests use the rendered value.
 
 ### Running the tests inside a container
 

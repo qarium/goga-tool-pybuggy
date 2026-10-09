@@ -3,7 +3,6 @@ Imports:
       - SandboxConfig
       - InstanceConfig
       - StartupData
-      - load_sandbox_config
     Usages:
       - sandbox-file
     From: goga_tool_pybuggy/sandbox/config
@@ -30,7 +29,6 @@ Usages:
   testcontainers: .goga/usages/cooks/testcontainers.md
   jinja2: .goga/usages/cooks/jinja2.md
   requests: .goga/usages/cooks/requests.md
-  pluginator: .goga/usages/cooks/pluginator.md
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
@@ -39,13 +37,14 @@ Annotations: |
   waiting, labels, and the removal guarantee on every exit path.
   Use `jinja2` for rendering the instance environment values.
   Use `requests` for health-path readiness probing.
-  Use `pluginator` for registering the session lifecycle hooks into the caller namespace.
 
   Session runtime of the sandbox. One sandbox owns one pytest-session environment: the ordered
   startup of the dependency services and the instance under test, the readiness gates, the
   baseline boundary, the per-test reset, and the guaranteed removal on every exit path.
-  Activation is presence-gated — without the configuration document nothing is registered and
-  nothing runs. Startup progress is visible, and the startup output names the base_url source.
+  The sandbox never reads or gates on the configuration document — the plugin installation
+  owns the gate; the session sandbox of the product sandbox plugin starts lazily, on the
+  first fixture use, and the plugin's per-test fixture drives the reset and the preset
+  enqueue. Startup progress is visible, and the startup output names the base_url source.
   Use relative imports inside the cell.
 
 ---
@@ -64,21 +63,22 @@ Annotations: |
     container the session starts (service engines and the instance) joins it; stop removes
     the network after the containers left it. Mapped-address consumption is unchanged: the
     network isolates parallel sessions, the runner keeps using the published host ports.
-    - The session lifecycle owns one `DataBatch` per test: the registered per-test hook creates a
-    fresh batch before the test, the service views returned by postgresql/kafka/vault/http bind
-    to it, and apply_pending takes exactly that batch; a new test never sees a previous test's
-    operations.
+    - The session lifecycle owns one `DataBatch` per test: the product-owned per-test fixture
+    (the sandbox plugin's reset step) creates a fresh batch before the test, the service views
+    returned by postgresql/kafka/vault/http bind to it, and apply_pending takes exactly that
+    batch; a new test never sees a previous test's operations.
 
     Constraints:
-    - Do not start anything when the configuration is absent — activation owns the gate.
+    - `Sandbox` never reads or gates on the configuration document — the plugin installation
+    owns the gate; the sandbox runs only what it was constructed with.
     - Do not restart the instance container on reset — only dependency service data resets.
 
     Use `sandbox-file` for the configuration semantics.
     Use `conventions` for type hints and testing.
   properties:
     "base_url -> str": |
-      The service address of the running sandbox — the value the api fixture uses while a sandbox
-      is active.
+      The service address of the running sandbox — the value the api fixture of a test whose
+      fixture closure includes the sandbox resolves ahead of the configured base_url.
   methods:
     "start()": |
       Bring the sandbox up in the ordered sequence.
@@ -144,9 +144,23 @@ Annotations: |
     "new_test_batch()": |
       Create the fresh data batch of the next test.
 
-      Called by the registered per-test lifecycle hook before every test, ahead of the preset
-      enqueue — a new test never sees a previous test's operations; the service views returned
-      afterwards bind to the new batch.
+      Called by the product-owned per-test fixture before every sandbox test, ahead of the
+      preset enqueue — a new test never sees a previous test's operations; the service views
+      returned afterwards bind to the new batch.
+    "enqueue_presets(presets: dict[str, dict[str, list[dict[str, object]]]]) -> enqueued: int": |
+      Validate the ``pybuggy_services`` marker payload and enqueue it into the current batch,
+      ahead of the test's own view declarations — presets apply before them within one
+      service group.
+
+      `presets`: the marker payload — kind to service name to the declaration list the kind's
+      view methods would declare. Every target must name a configured service of the matching
+      kind; anything else fails fast listing the configured services.
+      `enqueued`: the number of enqueued operations.
+
+      Requirements:
+      - Enqueue into the current batch — while a baseline boundary is open, the boundary
+        routing applies the presets immediately and journals them, exactly like the service
+        views inside the boundary.
     "postgresql(name: str) -> instance: PostgresInstance": |
       The test-facing view of the named postgresql service.
 
@@ -244,54 +258,9 @@ Annotations: |
     Use `jinja2` for the rendering engine and the strict undefined behavior.
     Use `sandbox-file` for the placeholder syntax.
 
-"activate_sandbox(context: dict[str, object]) -> config: SandboxConfig | None":
-  location: activation.py
-  annotations: |
-    Activate the sandbox for the pytest session — presence-gated, called from the plugin
-    installation entry.
-
-    `context`: the caller namespace the lifecycle hooks land in.
-    `config`: the validated configuration — the armed activation; None when the document is
-    absent and nothing is registered.
-
-    Algorithm:
-    1. Read and validate the configuration document via `load_sandbox_config`; an invalid
-    document fails before anything starts.
-    2. Register the session lifecycle into `context` — start before the first test with visible
-    progress, stop at session end on every exit path.
-    3. Register the per-test enqueue of marked presets ahead of the test's own operations.
-    4. Name the base_url source in the startup output — the sandbox address overrides the
-    configured value.
-
-    Requirements:
-    - Without the document the call is fully inert — no hooks, no containers, no side effects.
-
-    Constraints:
-    - Do not start containers here — start belongs to the registered session lifecycle.
-
-    Use `pluginator` for the hook registration into the caller namespace.
-    Use `sandbox-file` for the activation document semantics.
-    Use `conventions` for type hints and testing.
-
-"active_sandbox() -> sandbox: Sandbox | None":
-  location: activation.py
-  annotations: |
-    The running session sandbox — the lookup seam.
-
-    `sandbox`: the running sandbox; None before start and when inactive.
-
-    Requirements:
-    - Resolves the same session sandbox object on every call within a session.
-
-    Constraints:
-    - Do not start anything here — lookup only.
-
-    Use `conventions` for type hints and testing.
-
 ---
 
 Author: Goga
 CreatedAt: 06/10/26
 Description: |
-  Session runtime of the sandbox — ordered lifecycle orchestration, the instance container,
-  and pytest activation.
+  Session runtime of the sandbox — ordered lifecycle orchestration and the instance container.

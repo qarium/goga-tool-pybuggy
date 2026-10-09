@@ -18,6 +18,10 @@ ViewT = TypeVar("ViewT", PostgresInstance, KafkaInstance, VaultInstance, HttpIns
 
 SANDBOX_NETWORK_LABELS = {"pybuggy-sandbox": "true"}
 
+# The payload action every supported kind's enqueued preset operations carry — the same
+# actions the kind's view methods declare through.
+_KIND_ACTIONS: dict[str, str] = {"postgresql": "insert", "kafka": "produce", "vault": "put", "http": "stub"}
+
 
 class Sandbox:
     """The running session sandbox.
@@ -180,10 +184,43 @@ class Sandbox:
     def new_test_batch(self) -> None:
         """Create the fresh data batch of the next test.
 
-        Called by the registered per-test hook before every test, so a new test never
-        sees a previous test's operations.
+        Called by the product-owned per-test fixture before every sandbox test, so a
+        new test never sees a previous test's operations.
         """
         self._batch = DataBatch()
+
+    def enqueue_presets(self, presets: dict[str, dict[str, list[dict[str, object]]]]) -> int:
+        """Validate ``presets`` and enqueue them into the current batch, ahead of in-test declarations.
+
+        The ``pybuggy_services`` marker payload lands ahead of the test's own view
+        declarations: presets apply before them within one service group. While a baseline
+        boundary is open the routing of ``_current_batch`` carries the presets into the
+        boundary batch instead.
+
+        Args:
+            presets: The marker payload — kind to service name to the declaration list the
+                kind's view methods would declare.
+
+        Returns:
+            The number of enqueued operations.
+
+        Raises:
+            ValueError: A preset targets an unknown service or one of another kind — the
+                message lists the configured services.
+        """
+        enqueued = 0
+
+        for kind, targets in presets.items():
+            for name, declarations in targets.items():
+                self._require_service(kind, name)
+
+                for declaration in declarations:
+                    self._current_batch().add(
+                        DataOperation(instance=name, kind=kind, action=_KIND_ACTIONS[kind], payload=declaration)
+                    )
+                    enqueued += 1
+
+        return enqueued
 
     def postgresql(self, name: str) -> PostgresInstance:
         """The test-facing view of the named postgresql service.

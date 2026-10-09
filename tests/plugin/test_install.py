@@ -1,6 +1,7 @@
 """Tests for `install` in the `goga_tool_pybuggy.plugin` cell.
 
-Covers the contract surface and the import-time wiring (hook injection + synchronous ``pytest_plugins`` population).
+Covers the contract surface and the import-time wiring (hook injection + synchronous ``pytest_plugins`` population)
+plus the presence gate of the sandbox plugin.
 """
 
 import importlib
@@ -11,6 +12,7 @@ from unittest import mock
 
 import goga_tool_pybuggy.plugin
 import pytest
+from goga_tool_pybuggy.plugin import SandboxPlugin
 
 
 @pytest.fixture(autouse=True)
@@ -26,6 +28,20 @@ def isolate_sys_modules():
     extra = set(sys.modules) - set(snapshot)
     for key in extra:
         del sys.modules[key]
+
+
+def write_document(root) -> None:
+    """Place a minimal valid sandbox document under the pybuggy tools home of ``root``.
+
+    Args:
+        root: The consumer repository root receiving ``.goga/tools/pybuggy/sandbox.yml``.
+    """
+    document = root / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+    document.parent.mkdir(parents=True)
+    document.write_text(
+        "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  db: { kind: postgresql }\n",
+        encoding="utf-8",
+    )
 
 
 class TestInstallContract:
@@ -48,18 +64,6 @@ class TestInstallContract:
         var_keyword = [param for param in signature.parameters.values() if param.kind == inspect.Parameter.VAR_KEYWORD]
         assert len(var_keyword) == 1
         assert var_keyword[0].name == "kwargs"
-
-    def test_install_arms_sandbox_with_defaulted_context(self, tmp_path, monkeypatch):
-        """`install()` calls `activate_sandbox` with the defaulted context before constructing the plugin."""
-        monkeypatch.chdir(tmp_path)
-
-        context: dict[str, object] = {}
-        fake_activate = mock.Mock(return_value=None)
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "activate_sandbox", fake_activate)
-
-        goga_tool_pybuggy.plugin.install(context=context)
-
-        fake_activate.assert_called_once_with(context)
 
 
 class TestInstallLogic:
@@ -90,90 +94,77 @@ class TestInstallLogic:
         assert callable(namespace.pytest_configure)
         assert namespace.__dict__["pytest_plugins"] == []
 
-    def test_install_arms_sandbox_and_keeps_activation_on_plugin(self, tmp_path, monkeypatch):
-        """The activation returned by `activate_sandbox` is kept on the constructed plugin."""
+    def test_install_appends_the_sandbox_plugin_when_the_document_is_present(self, tmp_path, monkeypatch):
+        """With the document, one installation call carries both plugins — the sandbox plugin
+        unconfigured (its activation is built at configphase, not here)."""
+        write_document(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         context: dict[str, object] = {}
-        sentinel = object()
         captured: dict[str, object] = {}
 
-        def fake_install(plugin: object, context: dict[str, object] | None = None) -> None:
-            captured["plugin"] = plugin
+        def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
+            captured["plugins"] = list(plugins)
 
-        fake_activate = mock.Mock(return_value=sentinel)
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "activate_sandbox", fake_activate)
         monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
 
         goga_tool_pybuggy.plugin.install(context=context)
 
-        fake_activate.assert_called_once_with(context)
-        assert captured["plugin"].sandbox_activation is sentinel
+        plugins = captured["plugins"]
 
-    def test_install_without_document_leaves_plugin_unarmed(self, tmp_path, monkeypatch):
-        """Without the tools-home document the arming is inert and the plugin stays unarmed."""
+        assert len(plugins) == 2
+        assert isinstance(plugins[0], goga_tool_pybuggy.plugin.ApiPlugin)
+        assert isinstance(plugins[1], SandboxPlugin)
+        assert plugins[1].activation is None  # configure builds it, not install
+        assert not hasattr(plugins[0], "sandbox_activation")
+
+    def test_install_without_document_installs_the_api_plugin_alone(self, tmp_path, monkeypatch):
+        """Without the tools-home document no sandbox plugin joins the installation."""
         monkeypatch.chdir(tmp_path)  # no .goga/tools/pybuggy/sandbox.yml in the empty cwd
 
         context: dict[str, object] = {}
         captured: dict[str, object] = {}
 
-        def fake_install(plugin: object, context: dict[str, object] | None = None) -> None:
-            captured["plugin"] = plugin
+        def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
+            captured["plugins"] = list(plugins)
 
         monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
 
         goga_tool_pybuggy.plugin.install(context=context)
 
-        assert captured["plugin"].sandbox_activation is None
+        plugins = captured["plugins"]
 
-    def test_install_arms_sandbox_through_new_path(self, tmp_path, monkeypatch):
-        """A document under the pybuggy tools home arms the plugin; without it the arming is inert.
+        assert len(plugins) == 1
+        assert isinstance(plugins[0], goga_tool_pybuggy.plugin.ApiPlugin)
 
-        The armed leg pins the new resolution path (``.goga/tools/pybuggy/sandbox.yml`` under
-        the CWD): ``install`` composes the real activation — the lifecycle hooks land in the
-        context, the plugin is constructed with ``sandbox_activation`` set. The negative leg
-        pins full inertness: no document, no hooks, unarmed plugin.
-        """
-        from goga_tool_pybuggy.sandbox import activation as activation_module
-        from goga_tool_pybuggy.sandbox.config import SandboxConfig
-
+    def test_invalid_document_fails_at_configure_not_at_install(self, tmp_path, monkeypatch):
+        """An invalid document passes the presence gate and fails at the configure step —
+        still before any container, with the validation error of the config cell."""
         document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
         document.parent.mkdir(parents=True)
         document.write_text(
-            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  db: { kind: postgresql }\n",
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  cache: { kind: redis }\n",
             encoding="utf-8",
         )
         monkeypatch.chdir(tmp_path)
 
-        context: dict[str, object] = {}
         captured: dict[str, object] = {}
 
-        def fake_install(plugin: object, context: dict[str, object] | None = None) -> None:
-            captured["plugin"] = plugin
+        def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
+            captured["plugins"] = list(plugins)
 
         monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
 
-        try:
-            goga_tool_pybuggy.plugin.install(context=context)
-        finally:
-            activation_module._ARMED = None  # do not leak the armed state into other tests
+        goga_tool_pybuggy.plugin.install(context={})
 
-        for hook in ("pytest_sessionstart", "pytest_sessionfinish", "pytest_runtest_setup"):
-            assert callable(context[hook]), hook
+        sandbox_plugin = captured["plugins"][1]
 
-        activation = captured["plugin"].sandbox_activation
+        assert isinstance(sandbox_plugin, SandboxPlugin)
+        assert sandbox_plugin.activation is None
 
-        assert isinstance(activation, SandboxConfig)
-        assert activation.instance.image == "my-service:latest"
+        sandbox_plugin.init_pytest_config(mock.Mock())
 
-        context = {}
-        captured.clear()
-        inert_cwd = tmp_path / "inert-cwd"
-        inert_cwd.mkdir()
-        monkeypatch.chdir(inert_cwd)
+        with pytest.raises(ValueError, match=r"redis.*not one of the supported kinds"):
+            sandbox_plugin.configure()
 
-        goga_tool_pybuggy.plugin.install(context=context)
-
-        assert captured["plugin"].sandbox_activation is None
-        for hook in ("pytest_sessionstart", "pytest_sessionfinish", "pytest_runtest_setup"):
-            assert hook not in context, hook
+        assert sandbox_plugin.activation is None

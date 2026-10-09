@@ -20,7 +20,11 @@ The sandbox connects with the host/port/credentials taken from the started postg
 
 ```python
 conn = psycopg.connect(
-    host=host, port=port, user=user, password=password, dbname=dbname,
+    host=host,
+    port=port,
+    user=user,
+    password=password,
+    dbname=dbname,
     autocommit=True,
 )
 ```

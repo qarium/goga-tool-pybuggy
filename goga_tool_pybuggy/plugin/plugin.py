@@ -13,8 +13,7 @@ import pytest
 from pluginator import CommandLine, define
 
 from ..api import Api
-from ..sandbox import Sandbox, active_sandbox
-from ..sandbox.config import SandboxConfig
+from ..sandbox import Sandbox
 from . import defaults
 from .envvars import API_TIMEOUT, BASE_URL
 from .loaders import BaseLoader, ModuleLoader, PackageLoader
@@ -200,8 +199,6 @@ class ApiPlugin:
         self._default_assert_timeout = default_assert_timeout
         self._default_assert_delay = default_assert_delay
 
-        self.sandbox_activation: SandboxConfig | None = None
-
         self._load_plugins(context, loaders or [])
 
     def configure(self) -> None:
@@ -215,32 +212,30 @@ class ApiPlugin:
         if cli_base_url is not None:
             self.base_url = cli_base_url
 
-        if cli_base_url is not None and self.sandbox_activation is not None:
-            raise pytest.UsageError(
-                "--base-url was passed while the sandbox is active "
-                "(the sandbox document .goga/tools/pybuggy/sandbox.yml is present); "
-                "the sandbox owns the service address"
-            )
-
         logger.debug("rendering base_url template", extra={"base_url": self.base_url})
         context: dict[str, t.Any] = dict(os.environ)
         context.update(cli_options)
         self.base_url = render_base_url(self.base_url, context)
 
     @pytest.fixture
-    def api(self) -> t.Iterator[Api]:
+    def api(self, request: pytest.FixtureRequest) -> t.Iterator[Api]:
         """Build an :class:`Api` from the resolved plugin options and tear it down.
 
         Minimal profile — ``base_url``/``headers``/``timeout`` plus the assert options; no auth, no cookies.
 
-        With an active sandbox the sandbox address wins ``base_url`` at read time (the option
-        value stays untouched) and every request passes the sandbox guard first — pending data
-        is applied, the service liveness is ensured, then the original request runs.
+        The sandbox binds per test: a test whose fixture closure includes ``sandbox`` — a
+        direct request, a consumer fixture parameter, ``usefixtures``, or an autouse
+        dependency — resolves the sandbox address ahead of the rendered option value and
+        every request passes the sandbox guard first; every other test uses the rendered
+        static ``base_url`` with no guard.
+
+        Args:
+            request: The fixture request of the test the api client is built for.
 
         Yields:
             An :class:`Api` constructed from the resolved options.
         """
-        sandbox = active_sandbox()
+        sandbox = request.getfixturevalue("sandbox") if "sandbox" in request.fixturenames else None
 
         base_url = sandbox.base_url if sandbox is not None else self.base_url
 

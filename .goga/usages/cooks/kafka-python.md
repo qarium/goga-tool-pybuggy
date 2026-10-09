@@ -23,11 +23,12 @@ from kafka.serializer import Serializer
 
 ```python
 class ValueSerializer(Serializer):
-    def serialize(self, topic, headers, value):       # the Serializer interface (v3)
+    def serialize(self, topic, headers, value):  # the Serializer interface (v3)
         return json.dumps(value).encode("utf-8")
 
+
 producer = KafkaProducer(
-    bootstrap_servers=f"{host}:{port}",   # mapped host/port of the mock container
+    bootstrap_servers=f"{host}:{port}",  # mapped host/port of the mock container
     acks="all",
     retries=3,
     value_serializer=ValueSerializer(),
@@ -54,9 +55,9 @@ producer = KafkaProducer(
 
 ```python
 future = producer.send("orders.events", key=order_id, value=payload)
-future.get(timeout=10)          # per-message delivery result (raises on failure)
+future.get(timeout=10)  # per-message delivery result (raises on failure)
 
-producer.flush(timeout=30)      # everything buffered is delivered when it returns
+producer.flush(timeout=30)  # everything buffered is delivered when it returns
 ```
 
 - `send(...)` is asynchronous — it buffers; it does not mean "delivered".

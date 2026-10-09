@@ -1,4 +1,4 @@
-"""load_sandbox_config routine: fail-fast reading and validation of the sandbox document."""
+"""validate_sandbox_config routine: fail-fast validation of the sandbox document."""
 
 import logging
 import re
@@ -6,8 +6,6 @@ from pathlib import Path
 from typing import TypeVar
 
 from pydantic import BaseModel, ValidationError
-from ruamel.yaml import YAML
-from ruamel.yaml.error import YAMLError
 
 from ..migrations import MigrationError, check_git_url, check_local_migrations
 from .instance import InstanceConfig
@@ -21,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
-_DOCUMENT_PATH = Path(".goga") / "tools" / "pybuggy" / "sandbox.yml"
 _TOP_LEVEL_KEYS = ("instance", "services", "data")
 _SUPPORTED_KINDS = ("postgresql", "kafka", "vault", "http")
 _REQUIRED_INSTANCE_FIELDS = ("image", "env", "port")
@@ -38,66 +35,34 @@ _LITERAL_NAMES = frozenset({"true", "false", "none", "True", "False", "None"})
 _SERVICE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
-def load_sandbox_config(path: str | None = None) -> SandboxConfig | None:
-    """Read and validate the sandbox document ``.goga/tools/pybuggy/sandbox.yml``.
+def validate_sandbox_config(document: dict[str, object], location: Path | str) -> SandboxConfig:
+    """Validate the parsed sandbox document mapping into the configuration model.
 
     Validation completes fully before anything could start — an invalid document fails fast with
     an error naming the document location and the offending entry.
 
     Args:
-        path: Explicit document location; ``None`` resolves
-            ``.goga/tools/pybuggy/sandbox.yml`` in the current working directory — resolution
-            never searches upward.
+        document: The parsed document mapping — the caller owns the parsing.
+        location: The document location carried into every error message.
 
     Returns:
-        The validated configuration model; ``None`` when the document is absent — the sandbox
-        stays fully inert.
+        The validated configuration model.
 
     Raises:
-        ValueError: The document is present but invalid; the message names the document location
-            and the offending entry.
+        ValueError: The document is invalid; the message names the document location and the
+            offending entry.
     """
-    location = Path(path) if path is not None else Path.cwd() / _DOCUMENT_PATH
+    resolved = Path(location)
 
-    if not location.is_file():
-        return None
+    _validate_top_level_keys(document, resolved)
+    instance = _read_instance(document, resolved)
+    services = _read_services(document, resolved)
+    data = _read_data(document, resolved, services)
+    _validate_placeholders(instance, services, resolved)
 
-    document = _parse_document(location)
-    _validate_top_level_keys(document, location)
-    instance = _read_instance(document, location)
-    services = _read_services(document, location)
-    data = _read_data(document, location, services)
-    _validate_placeholders(instance, services, location)
+    logger.info("sandbox document validated", extra={"document": str(resolved)})
 
-    logger.info("sandbox document loaded", extra={"document": str(location)})
-
-    return _build_model(SandboxConfig, {"instance": instance, "services": services, "data": data}, str(location))
-
-
-def _parse_document(location: Path) -> dict[str, object]:
-    """Parse the document at ``location`` into a mapping.
-
-    Args:
-        location: The resolved document location.
-
-    Returns:
-        The parsed document mapping.
-
-    Raises:
-        ValueError: The document is unparsable, empty, or not a mapping.
-    """
-    try:
-        document = YAML().load(location)
-    except YAMLError as exc:
-        raise ValueError(f"{location}: unparsable document: {exc}") from exc
-
-    if document is None:
-        raise ValueError(f"{location}: the document is empty — a sandbox document must carry the instance entry")
-
-    if not isinstance(document, dict):
-        raise ValueError(f"{location}: the document must be a mapping")
-
-    return document
+    return _build_model(SandboxConfig, {"instance": instance, "services": services, "data": data}, str(resolved))
 
 
 def _validate_top_level_keys(document: dict[str, object], location: Path) -> None:

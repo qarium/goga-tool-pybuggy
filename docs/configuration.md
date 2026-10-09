@@ -37,10 +37,8 @@ Each option resolves by the first non-empty source:
 
 So the config file overrides env, env overrides the CLI flag, the flag overrides the
 default. **`base_url` is the exception** — when you actually type `--base-url`, its value
-wins over the config file and `BASE_URL`. A typed `--base-url` additionally **fails
-fast** with a usage error when the sandbox is active (`.goga/tools/pybuggy/sandbox.yml`
-present) — the sandbox owns the service address, so remove the flag or the sandbox
-document.
+wins over the config file and `BASE_URL`. The flag governs the tests that do not use the
+sandbox; the tests bound to the sandbox fixture take the sandbox address and ignore it.
 
 ### `base_url` as a Jinja2 template
 

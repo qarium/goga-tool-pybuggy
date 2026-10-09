@@ -194,6 +194,7 @@ class TestSandboxContract:
             "apply_pending",
             "ensure_service",
             "new_test_batch",
+            "enqueue_presets",
             "postgresql",
             "kafka",
             "vault",
@@ -211,6 +212,10 @@ class TestSandboxContract:
             parameters = list(inspect.signature(getattr(Sandbox, name)).parameters)
 
             assert parameters == ["self"], name
+
+        parameters = list(inspect.signature(Sandbox.enqueue_presets).parameters)
+
+        assert parameters == ["self", "presets"]
 
         for name in ("postgresql", "kafka", "vault", "http"):
             parameters = list(inspect.signature(getattr(Sandbox, name)).parameters)
@@ -595,6 +600,63 @@ class TestSandboxLifecycle:
         assert started.sandbox._network is None
 
         started.sandbox.stop()  # still idempotent after the failed removal
+
+
+class TestSandboxEnqueuePresets:
+    """Marker-preset enqueue of the session runtime."""
+
+    def test_enqueue_presets_fails_unknown_service_listing_configured(self, started: SandboxHarness):
+        """A preset targeting an unknown service fails listing the configured ones."""
+        presets = {"postgresql": {"ghost": [{"table": "t", "rows": []}]}}
+
+        with pytest.raises(ValueError, match=r"no postgresql service named 'ghost'.*db \(postgresql\)"):
+            started.sandbox.enqueue_presets(presets)
+
+    def test_enqueue_presets_prepends_presets_into_the_current_batch(self, started: SandboxHarness):
+        """Valid presets enqueue into the current batch ahead of in-test declarations."""
+        enqueued = started.sandbox.enqueue_presets(
+            {"postgresql": {"db": [{"table": "customers", "rows": [{"id": 1}]}]}}
+        )
+
+        assert enqueued == 1
+
+        started.sandbox.postgresql("db").insert("orders", [{"id": 2}])
+        started.sandbox.apply_pending()
+
+        assert started.engines["db"].applied == [
+            DataOperation(
+                instance="db", kind="postgresql", action="insert", payload={"table": "customers", "rows": [{"id": 1}]}
+            ),
+            DataOperation(
+                instance="db", kind="postgresql", action="insert", payload={"table": "orders", "rows": [{"id": 2}]}
+            ),
+        ]
+
+    def test_enqueue_presets_routes_through_the_open_boundary_batch(self, started: SandboxHarness):
+        """While a baseline boundary is open, presets apply immediately and journal —
+        the same routing the service views use inside the boundary."""
+        with started.sandbox.baseline():
+            enqueued = started.sandbox.enqueue_presets(
+                {"postgresql": {"db": [{"table": "customers", "rows": [{"id": 1}]}]}}
+            )
+
+            assert enqueued == 1
+
+            operation = DataOperation(
+                instance="db", kind="postgresql", action="insert", payload={"table": "customers", "rows": [{"id": 1}]}
+            )
+
+            assert started.engines["db"].applied == [operation]
+            assert started.engines["db"].journaled[-1] == operation
+            assert started.sandbox._batch.take() == []
+
+    def test_enqueue_presets_empty_mapping_enqueues_nothing(self, started: SandboxHarness):
+        """An empty presets mapping enqueues nothing and reports zero."""
+        assert started.sandbox.enqueue_presets({}) == 0
+
+        started.sandbox.apply_pending()
+
+        assert started.engines["db"].applied == []
 
 
 class TestSandboxEnsureService:

@@ -63,6 +63,11 @@ class TestServicesLogic:
         assert matching[0].kwargs["presets"] == declarations
         assert sample_test() == 42
 
+        usefixtures = [mark for mark in sample_test.pytestmark if mark.name == "usefixtures"]
+
+        assert len(usefixtures) == 1
+        assert usefixtures[0].args == ("sandbox",)
+
     def test_presets_type_and_enqueue(self):
         """Scenario 29, decoration half: the nested contract shape marks the test unchanged.
 

@@ -101,10 +101,13 @@ loader:
 
 ## Sandbox activation
 
-The same `plugin.install()` call also arms the pybuggy sandbox: when the test repository holds
-the sandbox document at `.goga/tools/pybuggy/sandbox.yml` (under the pybuggy tools home), the
-sandbox starts before the first test of every pytest session (mock dependency services and the
-instance under test, with visible progress), and the api fixture's address resolves to the
-sandbox's service. Without the document nothing changes — the suite runs exactly as without the
-sandbox. A typed `--base-url` flag together with an active sandbox fails fast with an explicit
-error: the sandbox owns the service address.
+The same `plugin.install()` call also installs the pybuggy sandbox plugin: when the test
+repository holds the sandbox document at `.goga/tools/pybuggy/sandbox.yml` (under the pybuggy
+tools home), the plugin provides the product `sandbox` fixture — the sandbox starts lazily, on
+the first test that requests the fixture (mock dependency services and the instance under test,
+with visible progress), and stops at session finalization; the api fixture of a test whose
+fixture closure includes the sandbox resolves to the sandbox's service. Without the document
+nothing changes — no fixture exists, and a test requesting it fails with pytest's standard
+`fixture 'sandbox' not found`. An invalid document fails the run at configphase, before any
+container. `--base-url` applies to the tests that do not use the sandbox; sandbox-bound tests
+ignore it — the sandbox owns their address.
