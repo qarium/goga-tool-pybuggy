@@ -140,7 +140,7 @@ def _log_registration(
 
 
 def _gate_conftest(cwd: Path, template_mode: bool) -> None:
-    """Deliver the root ``conftest.py`` through the mode-dependent gate (bootstrap step 7).
+    """Deliver the root ``conftest.py`` through the mode-dependent gate (bootstrap step 8).
 
     Absent file → written; existing file → INFO skip in template mode, ``click.confirm`` (default no) in bare mode.
 
