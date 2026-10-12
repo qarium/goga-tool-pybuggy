@@ -232,8 +232,10 @@ The generated file is valid for [configuration](../configuration.md) loading.
 - Reads assets from the **installed** package (`importlib.resources`), not from the
   checkout directory; the install line is derived from the installed package version
   (`importlib.metadata`).
-- The session stays offline when its "Download base convention" confirm is answered
-  No; template/upgrade modes reach the template source (a git URL) through the engine.
+- The session never offers the goga base-convention download (the base-convention core
+  section is skipped; the `conventions` slot is the bootstrap's delivery, read from the
+  installed package) — the session itself stays offline; template/upgrade modes reach
+  the template source (a git URL) through the engine.
 - Only the packaged usage roots are copied — the `api` cell root (its `asserts`
   sub-package rides along; both land flat under `.goga/usages/cooks/pybuggy/`) and the
   `sandbox` subtree roots (`sandbox-session`, `sandbox-file`, `data-operations`,

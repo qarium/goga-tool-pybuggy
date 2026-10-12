@@ -51,6 +51,7 @@ docs/sandbox.md:
   - goga_tool_pybuggy/sandbox/engines
   - goga_tool_pybuggy/sandbox/data
   - goga_tool_pybuggy/sandbox/migrations
+  - goga_tool_pybuggy/plugin/sandbox_plugin
 docs/matchers/index.md:
   - goga_tool_pybuggy/matchcrest
 docs/matchers/asserts.md:
