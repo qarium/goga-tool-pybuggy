@@ -57,10 +57,12 @@ Facts about an external tool come from its usage spec, not from the user.
    the `migrations` source (when declared).
 2. Absent — **not configured**: the topic's tests are written without the sandbox, and the
    `testcases` stage never offers it.
-3. The sandbox usages from the scan (`.goga/usages/cooks/pybuggy/sandbox/**`) are copied by
-   `goga init` regardless of the document — their presence alone never proves the capability. Mark
-   them in the registry accordingly: **sandbox, active** only when `sandbox.yml` exists, otherwise
-   **sandbox, copied (inactive)**. Ask the user nothing at this step — a scan only.
+3. The sandbox usages from the scan (`.goga/usages/cooks/pybuggy/sandbox/`) are copied by
+   `goga init` regardless of the document: their presence never proves the capability. In the §8
+   registry, the `role` cell of every sandbox row carries the mark — **sandbox, active** when
+   `sandbox.yml` exists, **sandbox, copied (inactive)** otherwise. The wiring source for cells is
+   the test-runtime pair `sandbox-session` (the `sandbox` fixture, the bind) +
+   `data-operations` (seeding, dependency mocks). Ask the user nothing at this step — a scan only.
 
 ### Step 4. List endpoints (list)
 
@@ -150,13 +152,15 @@ Fill in every section. Empty sections are prohibited.
 
 ## Project usages (.goga/usages/ scan)
 
-[Table: key | path | role (runtime reference / data-mocks-utilities / other) | brief purpose.
+[Table: key | path | role (runtime reference / data-mocks-utilities / other; the sandbox rows carry
+the mark `sandbox, active` / `sandbox, copied (inactive)` in the role — Step 3.1) | brief purpose.
 If .goga/usages/ is missing or empty — state "usages are missing".]
 
 ## Sandbox
 
-[configured: instance image, services (name → kind), migrations source — one line each
-| not configured — and the §8 mark of the sandbox usages: sandbox, active | sandbox, copied (inactive)]
+[configured: instance image, services (name → kind), migrations source — one line each; the wiring
+source for cells is the test-runtime pair `sandbox-session` + `data-operations`
+| not configured — the §8 sandbox rows carry the mark `sandbox, copied (inactive)`]
 
 ## Endpoint registry (list)
 

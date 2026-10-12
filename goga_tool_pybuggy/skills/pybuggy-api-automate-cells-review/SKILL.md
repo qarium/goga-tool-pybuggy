@@ -161,8 +161,9 @@ variant/parameter; no lost cases and no dangling Routines.
 8. **Sandbox wiring** — for a Routine covering a `sandbox`-environment case (the **environment** field of
    the case in `goga history path -f testcases.md`): the signature carries the `sandbox` parameter,
    `Precondition:` has the `` `sandbox` `` bullet, the first `Steps:` item binds the client to the
-   sandbox, and the cell connects the sandbox usages (§8 keys marked `sandbox, active`). A missing
-   element — **High**. A `sandbox` Routine while the requirements §4 Sandbox is `not configured` —
+   sandbox, and the cell connects exactly the two test-runtime sandbox usages — the §8 keys of
+   `sandbox-session.md` and `data-operations.md`, marked `sandbox, active`. A missing element —
+   **High**. A `sandbox` Routine while the requirements §4 Sandbox is `not configured` —
    **Critical** (a capability the project does not have). Sandbox usages connected in a cell without
    sandbox Routines — **Medium**. A sandbox case merged with a `target env` case into one Routine —
    **High** (divergent steps — the bind).

@@ -88,10 +88,12 @@ dependency services (postgresql/kafka/vault/http), started by the product sessio
 - **The fact lives in the requirements** — the §4 "Sandbox" entry (`configured` / `not configured`).
   The sandbox usage files (`.goga/usages/cooks/pybuggy/sandbox/**`) are copied by `goga init`
   regardless; only the §4 entry makes them usable.
-- Connect them like any cell-specific usage — the §8 keys marked `sandbox, active`: a `<key>: <path>`
-  line in `Usages` + a ``Use `<key>` for …`` line in `Annotations` — only into the cells whose
-  Routines bind the sandbox. The base block stays unchanged; cells without sandbox Routines get no
-  sandbox usages.
+- Connect the two test-runtime usages — the §8 keys of `sandbox-session.md` (the `sandbox` fixture
+  and the bind) and `data-operations.md` (seeding rows, dependency stubs, secrets, kafka messages,
+  `$ref`/`$lookup`), marked `sandbox, active` — like any cell-specific usage: a `<key>: <path>` line
+  in `Usages` + a ``Use `<key>` for …`` line in `Annotations`, only into the cells whose Routines
+  bind the sandbox. The base block stays unchanged; cells without sandbox Routines get no sandbox
+  usages.
 - The sandbox Routine declares the product fixture in the signature (the type from the pybuggy
   runtime, like `Endpoint`): `test_<name>(<fixture>: Endpoint, sandbox: Sandbox)`.
 - The annotation: `Precondition:` gains a `` `sandbox` `` bullet (the product session fixture — the

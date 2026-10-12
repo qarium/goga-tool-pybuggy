@@ -40,12 +40,14 @@ Connect cell-specific tool usages (data/mock/utility libraries) **here**: the us
 `.goga/usages/cooks/<key>.md` already exist, so add the key directly to the affected cell's Header `Usages` and
 reference it with a backtick. Take the keys from the case preconditions ([CELLS_INTAKE]) and §8 of the requirements.
 
-A cell whose Routines bind the sandbox additionally connects the sandbox usages — the §8 keys marked
-`sandbox, active` (paths `.goga/usages/cooks/pybuggy/sandbox/**`) — with the same two entries as any
-cell-specific usage: `<key>: <path>` in `Usages` + a ``Use `<key>` for …`` line in `Annotations`.
-Only into cells with sandbox Routines; a cell without them gets no sandbox usages (their presence in
-some cells and absence in others is not a discrepancy). When the requirements §4 "Sandbox" entry is
-`not configured`, no sandbox usages are ever connected.
+A cell whose Routines bind the sandbox additionally connects the two test-runtime sandbox usages —
+the §8 keys of `sandbox-session.md` and `data-operations.md` from
+`.goga/usages/cooks/pybuggy/sandbox/`, marked `sandbox, active` — with the same two entries as any
+cell-specific usage: `<key>: <path>` in `Usages` + a ``Use `<key>` for …`` line in `Annotations`
+(the session reference — the `sandbox` fixture and the bind; the data reference — seeding and
+dependency mocks). Only into cells with sandbox Routines; a cell without them gets no sandbox
+usages (their presence in some cells and absence in others is not a discrepancy). When the
+requirements §4 "Sandbox" entry is `not configured`, no sandbox usages are ever connected.
 
 ### Step 3. Assemble the Body — Routines covering the cases
 
