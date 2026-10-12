@@ -183,8 +183,8 @@ Annotations: |
     Constraints:
     - Do not copy usages beyond the packaged usage roots (the api cell and the sandbox subtree
     cells).
-    - Do not remove or relocate a flat sandbox copy left by an earlier distribution — no migration;
-    the bootstrap delivers the sandbox subdirectory layout only.
+    - Do not remove or relocate a pre-existing flat sandbox copy — no migration; the
+    bootstrap delivers the sandbox subdirectory layout only.
     - Do not merge into an existing conftest — either a confirmed overwrite (bare) or a skip.
     - Do not prompt about existing files in template mode — the template expresses the user's intent.
     - Do not create the Dockerfile when the engine did not write it — report and fail.

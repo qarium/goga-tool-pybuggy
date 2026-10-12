@@ -305,11 +305,11 @@ Annotations: |
     Migrations: when the service declaration carries a migrations entry, the declared migration
     set applies exactly once per session — after the container reaches readiness and the
     data-plane connection opens, before the startup data operations. The apply runs through
-    `run_migrations` from Imports over the engine's session connection, with the declared
+    `run_migrations` over the engine's session connection, with the declared
     location and git source; each applied file is reported as one progress line in the existing
     startup-output style. A failed migration stops start — the failure surfaces as this
     engine's error type naming the service and the migration file, with `MigrationError`
-    from Imports as the cause. Applied migrations never enter the baseline journal: the migrated schema
+    as the cause. Applied migrations never enter the baseline journal: the migrated schema
     survives the wipe, and only journaled data replays on reset.
     Data plane: SQL over the postgres driver — a table + rows insert resolves $ref / $lookup
     values, then applies the rows one by one inside one transaction with RETURNING; every
@@ -337,7 +337,7 @@ Annotations: |
     Constraints:
     - Do not format SQL with interpolated values — parameters are bound server-side.
 
-    Use `migration-set` from Imports for the apply semantics of the migration step.
+    Use `migration-set` for the apply semantics of the migration step.
     Use `psycopg` for the data plane and the catalog-driven reset.
     Use `testcontainers` for the postgres module container.
 

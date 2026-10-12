@@ -257,8 +257,8 @@ Annotations: |
     image override; kafka entries declare a non-empty topics list; non-kafka entries declare
     none; the probe carries no path. A migrations declaration is accepted on the postgresql
     kind only — any other kind fails naming the entry; a declared local source resolves its
-    location against the current working directory and passes through `check_local_migrations`
-    from Imports; a declared remote source passes its URL through `check_git_url` from Imports.
+    location against the current working directory and passes through `check_local_migrations`;
+    a declared remote source passes its URL through `check_git_url`.
     A `MigrationError` raised by either check is wrapped into the reader's ValueError naming
     the scope and the offending path or URL, with the original error as the cause.
     4. Validate the startup data sections — every declaration targets an existing service of
@@ -284,7 +284,7 @@ Annotations: |
     - Do not read anything beyond the local migrations folder checks of a declared source.
 
     Use `conventions` for type hints and testing.
-    Use `migration-set` from Imports for the load-time check semantics.
+    Use `migration-set` for the load-time check semantics.
 
 ---
 

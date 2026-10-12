@@ -76,8 +76,8 @@ psycopg exceptions live in `psycopg.errors` (`UndefinedTable`, `UniqueViolation`
 
 ## Migrations — executing parsed goose SQL bodies
 
-The migration runner executes the statement lists parsed from goose-format files (see the
-`goose-sql` cook) over the same per-session connection:
+The migration runner executes the statement lists parsed from goose-format files over the
+same per-session connection:
 
 - **Parameter-free DDL.** The bodies are read from migration files and run as given —
   `cur.execute(body)` with no placeholders, no interpolation, no symbol capture. Migration SQL

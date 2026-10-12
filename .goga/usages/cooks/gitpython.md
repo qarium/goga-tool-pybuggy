@@ -83,14 +83,14 @@ Consumer conventions:
 ## Second consumer — the sandbox migrations source
 
 The sandbox document declares a remote migrations folder on a postgresql service entry:
-a `location` path inside the repository plus `git: {url, ref}` (`ref` optional — same shape as
-`GitEntry`). Resolution reuses the same shallow-clone context manager:
+a `location` path inside the repository plus `git: {url, ref}` (`ref` optional). Resolution
+reuses the same shallow-clone context manager:
 
 ```python
 with clone_repo(url, ref) as repo_root:
     migrations_dir = repo_root / location
     if not migrations_dir.is_dir():
-        raise MigrationSourceError(...)  # the sandbox error family, not ClickException
+        raise MigrationError(...)  # the sandbox error family, not ClickException
     # read the migration files from the clone — nothing is copied into the consumer repo
 ```
 

@@ -63,8 +63,8 @@ Annotations: |
   presence of the sandbox configuration document — with the document the `SandboxPlugin` joins
   the same installation call and owns the product sandbox fixtures (a lazy session start, a
   per-test product reset, and the marked-preset enqueue). Binding an api address to the
-  sandbox is explicit: the test body calls the api-cell bind on the api client or an
-  endpoint (see `api_usage`); the plugin cell owns only fixture construction and teardown.
+  sandbox is explicit: the test body calls bind on the api client or an endpoint
+  (see `api_usage`); the plugin cell owns only fixture construction and teardown.
   Use `sandbox-session` for the consumer fixture patterns of the sandbox.
 
 ---
@@ -94,7 +94,7 @@ Annotations: |
       Service base URL as a Jinja2 template string. The option value resolves following `pluginator`: plugin config → env BASE_URL → CLI --base-url → required (no default). Additionally, when the user actually typed --base-url on the CLI, configure applies that value with top precedence over the plugin config and env before rendering (the pluginator chain alone would let config/env win; the CLI is authoritative for base_url). Only the interpretation of the value is specific to this cell: it is rendered once in configure against the full environment plus the passed CLI options (see configure), and the rendered value is stored back onto this option. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined (an unknown variable raises) and a custom match_re test; a plain URL without Jinja placeholders renders to itself; every whitespace run in the rendered value is removed (a URL never legitimately contains literal whitespace), so a multi-line template yields one clean URL.
       The option stays required and rendered in configure exactly as before even when the
       sandbox document is present: a test that binds its api to the sandbox overrides the
-      address at bind time (the api-cell bind); every other test uses the rendered value.
+      address at bind time (see `api_usage`); every other test uses the rendered value.
     "headers -> dict[str, str]": |
       Resolved default headers dict. Default {} when nothing is configured. Sourced from the headers plugin config key.
     "timeout -> float | None": |
@@ -146,8 +146,7 @@ Annotations: |
       - Do not configure auth or cookies — minimal profile.
       - Consume the base_url option as rendered by configure (no rendering inside the fixture).
       - No fixture-closure sniffing — the fixture never resolves the sandbox; binding an
-      address (the running sandbox) is explicit in the test body via the api-cell bind
-      (see `api_usage`).
+      address (the running sandbox) is explicit in the test body (see `api_usage`).
 
       Use `pluginator` for the fixture-as-method convention.
       Use `conventions` for type hints.

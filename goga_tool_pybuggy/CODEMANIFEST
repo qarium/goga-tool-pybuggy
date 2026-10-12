@@ -56,7 +56,7 @@ Annotations: |
 
   The facade carries the sandbox capability surface: `services` for per-test data presets —
   one import source beside the plugin installation entry; the session sandbox fixture itself is
-  product-owned through the plugin installation (the sandbox cell's sandbox-session practice).
+  product-owned through the plugin installation.
   Connected capability practices: `data-operations`.
 
 ---

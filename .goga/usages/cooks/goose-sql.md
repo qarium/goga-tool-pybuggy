@@ -78,6 +78,6 @@ DROP FUNCTION audit_orders;
 
 - Up-only: `Down` sections never execute — not at startup, not on any reset or teardown.
 - The set applies once per session, after the postgres container is ready and before the
-  service under test starts; see `psycopg` for the execution patterns.
+  service under test starts.
 - Applied migrations are not journaled into the baseline — the schema is session-static, unlike
   `data.postgres` seed rows that replay after every reset.
