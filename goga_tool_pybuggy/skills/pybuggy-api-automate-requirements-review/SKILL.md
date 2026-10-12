@@ -84,7 +84,9 @@ Verify that the artifact contains **all mandatory sections**:
    constraints and boundaries; every requirement carries an `REQ-<N>` identifier. A requirement
    without an identifier is **High** (invisible to case traceability in `testcases`).
 4. **Business preconditions and environment** — business preconditions (entities/roles/states as a
-   need), the environment.
+   need), the environment, the target environment, and the **Sandbox** entry — present/absent or a
+   placeholder here is **Medium** (the `testcases` stage needs the fact to decide whether sandbox
+   runs may be offered).
 5. **Roles and permissions** — who may and may not call the endpoints.
 6. **Integration aspects** — interaction with components, mocks, external dependencies.
 7. **Links and resources** — specs (location), design, API docs, etc.
@@ -166,6 +168,12 @@ Verify that the artifact contains **all mandatory sections**:
    unique (a duplicate is **High** — an ambiguous reference for cases) and continuous from 1 in
    subsection order (a gap/break is **Medium**); `REQ-<N>` appears only in §3 (outside §3 —
    **Medium**).
+9. **Sandbox fact (§4)** — cross-check the §4 "Sandbox" entry against
+   `.goga/tools/pybuggy/sandbox.yml` on disk: a "configured" claim without the document is **High**
+   (a false capability signal for `testcases`); a document the entry ignores ("not configured") is
+   **Medium**; when configured, the recorded image/services match the document. The §8 sandbox
+   usages carry the matching mark (sandbox, active | sandbox, copied (inactive)) — a missing or
+   wrong mark is **Medium**.
 
 ---
 
@@ -266,5 +274,7 @@ Before you finish, verify:
    preconditions)?
 10. Did you present every finding one at a time with an Apply/Alternative/Skip choice?
 11. Did you apply the approved fixes with re-verification?
+12. Did you cross-check the §4 "Sandbox" entry against `.goga/tools/pybuggy/sandbox.yml` on disk
+    (and the §8 active/inactive marks of the sandbox usages)?
 
 If at least one answer is "no" — complete the unfinished check before you return.

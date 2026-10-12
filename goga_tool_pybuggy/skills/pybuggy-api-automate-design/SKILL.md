@@ -38,6 +38,11 @@ Anchor the following before invoking the goga skill and hold it for the entire s
   "Target environment" / §4) and carry it into the design: when it is a non-standard base URL, every
   test run command the design prescribes carries `pytest ... --base-url <url>` — running a
   feature-branch topic against the default SUT is a wrong-environment failure.
+- **Sandbox:** when the requirements §4 "Sandbox" entry is `configured` and a Routine's annotation binds
+  the sandbox, the designed test takes the product `sandbox` fixture, binds the client to the sandbox
+  as its first action, and seeds data / mocks dependencies through the sandbox services (the usages at
+  `.goga/usages/cooks/pybuggy/sandbox/**`). A bound test ignores `--base-url`; the run of such tests
+  requires a docker-compatible container runtime — state it as a precondition in the design.
 
 ## Dispatch
 
@@ -54,8 +59,10 @@ Arguments: `$ARGUMENTS`
 4. `goga-design` itself dispatches to `goga-design-by-changes` — do not call it bypassing `goga-design`.
 5. On completion, verify that the path printed by `goga history path -f design.md` describes test generation and names `pytest` as
    validation — **against the topic's target environment** (`--base-url <url>` in the prescribed test
-   commands when `goga history path -f requirements.md` defines a non-standard one). If it does not, amend it
-   in the testing spirit.
+   commands when `goga history path -f requirements.md` defines a non-standard one). When the CODEMANIFESTs
+   carry sandbox Routines (the `sandbox` parameter + the bind step), verify the design prescribes the
+   sandbox bind in the materialization and states the docker-compatible container runtime
+   precondition. If it does not, amend it in the testing spirit.
 
 ## Invariants
 
@@ -74,3 +81,5 @@ Arguments: `$ARGUMENTS`
 - lock `pytest` in as the validation tool in the design document
 - carry the topic's target environment into the prescribed test commands (`--base-url <url>` when
   the requirements define a non-standard environment)
+- carry the sandbox into the design when sandbox Routines exist (the bind pattern + the
+  docker-compatible container runtime precondition)

@@ -80,6 +80,29 @@ Usages:
 - Coverage (case coverage) and Routine granularity remain **unaffected** (tool usages belong to
   Header/Annotations, not Routine).
 
+### Sandbox usages (sandbox-environment cases)
+
+A case with environment `sandbox` runs against the sandbox — the isolated instance with mocked
+dependency services (postgresql/kafka/vault/http), started by the product session `sandbox` fixture:
+
+- **The fact lives in the requirements** — the §4 "Sandbox" entry (`configured` / `not configured`).
+  The sandbox usage files (`.goga/usages/cooks/pybuggy/sandbox/**`) are copied by `goga init`
+  regardless; only the §4 entry makes them usable.
+- Connect them like any cell-specific usage — the §8 keys marked `sandbox, active`: a `<key>: <path>`
+  line in `Usages` + a ``Use `<key>` for …`` line in `Annotations` — only into the cells whose
+  Routines bind the sandbox. The base block stays unchanged; cells without sandbox Routines get no
+  sandbox usages.
+- The sandbox Routine declares the product fixture in the signature (the type from the pybuggy
+  runtime, like `Endpoint`): `test_<name>(<fixture>: Endpoint, sandbox: Sandbox)`.
+- The annotation: `Precondition:` gains a `` `sandbox` `` bullet (the product session fixture — the
+  isolated instance + the dependency services, per the requirements §4 Sandbox entry); the first
+  `Steps:` item binds the client to the sandbox before any request — one bind rebinds every endpoint
+  fixture of the test together; the seeded data and the mocked dependency states follow as steps
+  expressed through the sandbox usages, without test code. A bound test ignores the topic's
+  `--base-url`; the unbound tests keep it.
+- A `sandbox` case and a `target env` case never share one Routine — the bind step makes the step
+  sets diverge (the linearity criterion above).
+
 ### Body — Routine
 
 A test is a `Routine` (no `methods`/`properties`); one Routine may cover one or several

@@ -26,6 +26,10 @@ You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding
    user's confirmed decision. Downstream pipelines (testcases → cells → apply → design → plan →
    accept → fix) read the version from here; every recorded test run command for a non-standard
    environment carries `pytest ... --base-url <url>`.
+   Copy the sandbox fact from the "Sandbox" section of [DISCOVERY_REPORT] into §4 ("Sandbox") —
+   verbatim: `configured` (image, services) or `not configured`. The `testcases` stage reads it to
+   decide whether sandbox runs may be offered for the topic's cases; `not configured` means the
+   tests are written without the sandbox.
 6. Copy the topic description from the "Original request" section of [INTAKE_REPORT] into §1
    verbatim — the `elaborate` stage of the `testcases` pipeline matches this description against
    the API.
@@ -91,6 +95,8 @@ subsection order, no gaps, no duplicates) — the registry for test case traceab
 - Environment (env/version): [...]
 - Target environment (base URL): [standard `.env`/`BASE_URL` | `<url>` where the SUT of this
   topic is deployed — recorded run commands use `pytest ... --base-url <url>`]
+- Sandbox: [not configured | configured: `<image>`, services `<name(kind)>`, ... — per-case sandbox
+  runs may be offered at the `testcases` stage; bound tests ignore `--base-url`]
 
 **5. Roles and permissions:**
 

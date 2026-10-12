@@ -74,6 +74,11 @@ CODEMANIFEST consistency and lint. Combine these base findings with the test che
    `api/<spec>/<id>/api.py` (`json=Request(...)`, with the name and nested structure taken from that `api.py`),
    not a raw `dict`. Use `dict` **only** for negative tests, bypassing pydantic. A valid body built via `dict` =
    **High** finding: the plan materializes `test_*.py` verbatim, so request validation is lost.
+8. **Sandbox Routines** — when the CODEMANIFESTs carry Routines with the `sandbox` parameter: the generating
+   Tasks materialize the sandbox bind verbatim from the Routine annotations, and the test-run commands carry
+   a note that the run needs a docker-compatible container runtime (the command itself does not change — a
+   bound test ignores `--base-url`). A missing docker note = **Medium**; a generating Task that drops the
+   bind = **High**; sandbox Routines while the requirements §4 Sandbox is `not configured` = **Critical**.
 
 ### Phase 4. Report & Fix
 
@@ -101,3 +106,5 @@ executable checkbox for it. Apply plan edits only after user approval, within th
 - require the CRITICAL failing-test policy in **every** Task
 - cross-check Routine ↔ `location` ↔ `test_*.py`
 - require the `Request` model for valid request bodies of positive/flow tests (`dict` — negative tests only)
+- require the sandbox bind in the generating Tasks and the docker-runtime note at the test-run commands
+  when sandbox Routines exist

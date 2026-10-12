@@ -64,8 +64,9 @@ Execute the steps strictly in sequence — one step at a time. Validate each ste
 - Output: [ACCEPT_RUN] — run results, failure triage, created bug records
 - WAIT: triage of each failure — together with the user (fix the test here / service bug in
   `goga history path -f bugs.md` / return to the test cases)
-- STOP if: the execution environment is unavailable (pytest or the plugin fails to start, the SUT does not respond)
-  and cannot be recovered per an explicit user instruction
+- STOP if: the execution environment is unavailable (pytest or the plugin fails to start, the SUT does
+  not respond, or the sandbox fails to start — no docker-compatible runtime, image pull failure, probe
+  timeout, migrations failure) and cannot be recovered per an explicit user instruction
 
 ### Step 4. Report
 

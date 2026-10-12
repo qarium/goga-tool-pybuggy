@@ -40,6 +40,13 @@ Connect cell-specific tool usages (data/mock/utility libraries) **here**: the us
 `.goga/usages/cooks/<key>.md` already exist, so add the key directly to the affected cell's Header `Usages` and
 reference it with a backtick. Take the keys from the case preconditions ([CELLS_INTAKE]) and §8 of the requirements.
 
+A cell whose Routines bind the sandbox additionally connects the sandbox usages — the §8 keys marked
+`sandbox, active` (paths `.goga/usages/cooks/pybuggy/sandbox/**`) — with the same two entries as any
+cell-specific usage: `<key>: <path>` in `Usages` + a ``Use `<key>` for …`` line in `Annotations`.
+Only into cells with sandbox Routines; a cell without them gets no sandbox usages (their presence in
+some cells and absence in others is not a discrepancy). When the requirements §4 "Sandbox" entry is
+`not configured`, no sandbox usages are ever connected.
+
 ### Step 3. Assemble the Body — Routines covering the cases
 
 For each cell, take every Routine from [CELL_MAP_REPORT] (one Routine may cover one or several cases). When a
@@ -51,7 +58,9 @@ deviation in the report notes) — `if` branches in the body of the materialized
 parameterization.
 
 1. Signature: `test_<name>(<fixture>: Endpoint, ...)` — one fixture parameter per endpoint the Routine calls;
-   `location: test_<name>.py`.
+   `location: test_<name>.py`. A Routine covering a `sandbox`-environment case adds the product `sandbox`
+   fixture parameter (type from the pybuggy runtime, like `Endpoint`):
+   `test_<name>(<fixture>: Endpoint, sandbox: Sandbox, ...)`.
 2. `annotations` — build per the strict structure from `goga-tool-pybuggy-api-cookbook` (section order is fixed:
    Purpose → `Precondition:` → `Data:` → `Steps:` → `Use …`; **separate sections with a blank line** — after Purpose
    and before each of `Precondition:` / `Data:` / `Steps:` / `Use …`):
@@ -61,10 +70,14 @@ parameterization.
       verification); plus the case's common preconditions (the `Endpoint` parameter type from the pybuggy runtime,
       the state/data BEFORE the test from [CELLS_INTAKE]). When a tool performs the data setup, reference the key
       in backticks `` `<key>` `` (Step 2 already connected the key to this cell's Header `Usages` — the reference
-      resolves immediately).
+      resolves immediately). For a sandbox Routine, add a `` `sandbox` `` bullet — the product session fixture
+      (the isolated instance + the mocked dependency services, per the requirements §4 "Sandbox" entry).
     - `Data:` — bulleted list of data created inside the test (internal variables, keys, `test_id`, etc.); call
       values (`request`/`response`) stay in `Steps`. Omit it when no such data exists.
-    - `Steps:` — numbered steps from the case (Action / Data / Expectation); logic, no code.
+    - `Steps:` — numbered steps from the case (Action / Data / Expectation); logic, no code. A sandbox
+      Routine's first step binds the client to the sandbox before any request (one bind rebinds every
+      endpoint fixture of the test together); the seeded data and the mocked dependency states follow
+      as steps expressed through the sandbox usages.
       **Request body:** describe a valid body (positive/flow) through the `Request(...)` model (imported from the
       fixture's `api.py`) — **as plain text, without a backtick reference** (the model is external to the
       CODEMANIFEST; backticks only on `` `<fixture>` ``); describe an invalid body (negative — a required field

@@ -81,6 +81,13 @@ case / exclude the requirement from scope with a reason / go back to requirement
 decision in the "Requirements coverage decisions" section. Any REQ left without a case enters the
 artifact with the status "not covered" — an honest marker that `testcases-review` will flag.
 
+Sandbox assignment (only when the requirements §4 "Sandbox" entry is `configured`): ask via
+AskUserQuestion (multiSelect, one question per group of related cases) which cases run in the sandbox —
+the isolated instance with mocked dependency services — and record the decision as the case's
+environment: `sandbox` | `target env` (the default). When the entry is `not configured` — no question,
+every case stays `target env`, and the sandbox is never offered. A case marked `sandbox` expresses its
+data-setup/mocking needs through the sandbox services.
+
 ### Step 6. Produce [TESTCASES_PLAN]
 
 STOP if:
@@ -113,8 +120,15 @@ Fill in every section. Empty sections are forbidden.
 
 ## Test case matrix
 
-[Table: case (name) | type (Flow/Positive/Negative) | requirements (REQ-<N> — one or more) |
-endpoints | trace (TRACE-<N>) | affected fields/statuses | severity (blocker/critical/normal/minor/trivial)]
+[Table: case (name) | type (Flow/Positive/Negative) | environment (sandbox / target env) |
+requirements (REQ-<N> — one or more) | endpoints | trace (TRACE-<N>) | affected fields/statuses |
+severity (blocker/critical/normal/minor/trivial)]
+
+## Sandbox assignment
+
+[Only when the requirements §4 Sandbox is `configured`: the cases (names/groups) the user marked for
+the sandbox + the environment column of the matrix repeats it. Otherwise — "not offered: sandbox not
+configured".]
 
 ## Requirements coverage decisions
 

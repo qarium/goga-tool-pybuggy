@@ -88,7 +88,8 @@ The document must contain the sections:
    **Critical**; an empty one — **High**.
 
 Every case (`#### TC-<N>: <title>`) must contain the fields:
-- **title**, **severity**, **topic**, **requirements** (`REQ-<N>` — one or more, or "—");
+- **title**, **severity**, **topic**, **requirements** (`REQ-<N>` — one or more, or "—"),
+  **environment** (`sandbox` / `target env`);
 - **description** with the subsections **Preconditions**, **Execution steps** (each step:
   **Action**, **Data**, **Expectation**);
 - **Expected result**.
@@ -137,6 +138,12 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
    user decision from [TESTCASES_PLAN] and mark the row "excluded (by user decision)"). The
    artifact is still saved — an honest "not covered" marker records a debt, it does not block
    saving.
+10. **Environment ↔ sandbox fact** — a case with environment `sandbox` requires the requirements §4
+    "Sandbox" entry to be `configured` — `sandbox` against "not configured" is **High** (the test
+    would reference a capability the project does not have). When configured, the sandbox service
+    names in the case's Preconditions (seeded entities, mocked dependencies) match the services
+    recorded in §4 — a service the sandbox document does not declare is **High**. A missing
+    **environment** field — **Medium** (the `cells` stage cannot split Routines by environment).
 
 ---
 
@@ -314,7 +321,8 @@ Before finishing, verify:
 9. Have you checked the case quality (severity, concrete data, thorough checks, a measurable
    outcome, no code)?
 10. Have you checked the internal consistency (counter, TC numbering, steps↔outcome, grouping,
-    matrix↔cases)?
+    matrix↔cases) and the **environment** fields (`sandbox` only with §4 Sandbox `configured`, the
+    Preconditions service names matching §4)?
 11. Has every finding been presented one at a time with the Apply/Alternative/Skip choice?
 12. Have the approved fixes been applied with re-verification?
 

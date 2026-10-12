@@ -48,6 +48,11 @@ consistency). Merge these findings with the test checks below.
    `api/<spec>/<id>/api.py` (`json=Request(...)`, with the name and the nested structure taken from that `api.py`),
    not through a raw `dict`. The `dict` form serves **only** negative tests (bypassing pydantic). A valid body built as a `dict` = **High**
    (the design doc materializes into `test_*.py` → request validation is lost).
+7. **Sandbox Routines:** when the CODEMANIFESTs carry Routines with the `sandbox` parameter, the design doc
+   prescribes the sandbox bind as the first action of the materialized test (the product `sandbox` fixture,
+   seeding/mocking through the sandbox services) and states the docker-compatible container runtime
+   precondition. A missing bind prescription = **High**; a missing docker precondition = **Medium**; a
+   sandbox prescription while the requirements §4 Sandbox is `not configured` = **Critical**.
 
 ### Phase 4. Report & Fix
 
@@ -70,3 +75,4 @@ with user approval, keeping the test focus.
 - require `--base-url <url>` in the prescribed test commands when the topic's requirements define a
   non-standard target environment
 - require the `Request` model for valid request bodies in positive/flow tests (`dict` — negative tests only)
+- require the sandbox bind prescription and the docker-runtime precondition when sandbox Routines exist

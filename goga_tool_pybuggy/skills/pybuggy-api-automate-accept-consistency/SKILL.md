@@ -33,7 +33,8 @@ For every Routine of every cell:
 1. The file `tests/<spec>/<id>/test_<name>.py` exists and is located at the `location` from CODEMANIFEST.
 2. The file defines the function `test_<name>`; the name matches the Routine.
 3. Signature: the `<fixture>` fixture parameter typed as `Endpoint` (or as CODEMANIFEST prescribes);
-   the fixture is imported from `api/<spec>/<id>/api.py`.
+   the fixture is imported from `api/<spec>/<id>/api.py`. A Routine with the `sandbox` parameter
+   materializes with the product `sandbox` fixture argument.
 4. Extra test functions in the file beyond the Routine (one file per Routine) — a finding.
 
 ### Step 3. Request body — Request model
@@ -54,7 +55,10 @@ For every test according to its case (Flow/Positive/Negative from the path print
    diverging variants must live in separate Routines; the linearity criterion is
    `goga-tool-pybuggy-api-cookbook`).
 3. The steps of the Routine's `Steps:` annotation are reflected in the test body (calls, checks); a skipped
-   case step is a finding (Severity by impact: a lost contract check — High).
+   case step is a finding (Severity by impact: a lost contract check — High). A sandbox Routine's test
+   binds the client to the sandbox as its first action and seeds data / mocks dependencies through the
+   sandbox services — a missing bind or seeding = **High** (the test would hit the wrong SUT: the
+   configured `base_url` instead of the sandbox instance).
 4. The case checks (status, fields, structure, invariants) are present in the asserts — compare against
    the expectations section of the case in `goga history path -f testcases.md`.
 

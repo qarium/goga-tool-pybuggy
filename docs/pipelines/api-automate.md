@@ -55,6 +55,29 @@ bugs.md           # triaged service bugs found at acceptance
 tests/<spec>/<id>/  # the materialized test code (in the project tree)
 ```
 
+## Sandbox runs
+
+When the consumer project carries a sandbox document (`.goga/tools/pybuggy/sandbox.yml` —
+see [Sandbox](../sandbox.md)), part of the topic's cases can run against the sandbox: the
+isolated instance with mocked dependency services (postgresql/kafka/vault/http) started by
+the product `sandbox` fixture. The decision travels the pipeline as data:
+
+- `create-requirements` records the fact — §4 "Sandbox": `configured` (image, services)
+  or `not configured` (the tests are written without the sandbox; it is never offered).
+- `test-design` asks — only when configured — which cases run in the sandbox and marks
+  every case with its environment: `sandbox` | `target env`.
+- The cells stage wires the sandbox usages (`.goga/usages/cooks/pybuggy/sandbox/**`) into
+  the affected cells, declares the product `sandbox` fixture in the Routine signature, and
+  writes the bind — binding the client to the sandbox before any request — as the first
+  step of the Routine.
+- `code-design` and `coding-plan` carry the bind into the materialized `test_*.py` and note
+  the docker-compatible container runtime precondition next to the test-run commands; the
+  command itself does not change — a bound test ignores `--base-url`, the unbound tests
+  keep it.
+- At acceptance and in the `api.fix` cycle, a sandbox startup failure (no docker runtime,
+  image pull, probe timeout, migrations) is an environment problem — not a service bug and
+  not a test defect.
+
 ## Topic status
 
 Every artifact of the chain marks a status on the goga topic status scale — the package

@@ -50,6 +50,18 @@ Facts about an external tool come from its usage spec, not from the user.
 3. Classify each file by its testing role: **runtime reference** (how to invoke the tools — e.g. `pybuggy-api`, `pybuggy-asserts`), **data setup / mocks / utilities** (data setup libraries), **other**.
 4. The usage registry feeds section §8 of the requirements and is consumed later by the `testcases` stage: that stage identifies the tool needs of the test cases and either finds a tool among the existing usages or negotiates a new one (the usage file is created at that stage). Ask the user nothing at this step — this step is a scan only.
 
+### Step 3.1. Detect the sandbox capability
+
+1. Check `.goga/tools/pybuggy/sandbox.yml` in the target project: present — the sandbox capability
+   is **configured**; record one line each — the `instance` image, the `services` (name → kind),
+   the `migrations` source (when declared).
+2. Absent — **not configured**: the topic's tests are written without the sandbox, and the
+   `testcases` stage never offers it.
+3. The sandbox usages from the scan (`.goga/usages/cooks/pybuggy/sandbox/**`) are copied by
+   `goga init` regardless of the document — their presence alone never proves the capability. Mark
+   them in the registry accordingly: **sandbox, active** only when `sandbox.yml` exists, otherwise
+   **sandbox, copied (inactive)**. Ask the user nothing at this step — a scan only.
+
 ### Step 4. List endpoints (list)
 
 1. Run: `goga tool pybuggy endpoint list` (or with `-s/--spec` if the scope is already limited to one spec).
@@ -140,6 +152,11 @@ Fill in every section. Empty sections are prohibited.
 
 [Table: key | path | role (runtime reference / data-mocks-utilities / other) | brief purpose.
 If .goga/usages/ is missing or empty — state "usages are missing".]
+
+## Sandbox
+
+[configured: instance image, services (name → kind), migrations source — one line each
+| not configured — and the §8 mark of the sandbox usages: sandbox, active | sandbox, copied (inactive)]
 
 ## Endpoint registry (list)
 

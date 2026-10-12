@@ -28,10 +28,15 @@ topic's history directory — `.goga/history/<year>/<topic>/` — addressed by t
 the later stages never create or resolve topics.
 Launch a pipeline via the **Skill tool** by its main skill; the pipeline itself runs its internal steps.
 
+When the project carries a sandbox document (`.goga/tools/pybuggy/sandbox.yml`), the pipeline supports
+per-case sandbox runs: `requirements` records the fact (§4 Sandbox), `testcases` marks each case's
+environment (`sandbox`/`target env`), and `cells` wires the sandbox usages + the bind step into the
+affected Routines — a bound test ignores `--base-url`.
+
 | Skill                                         | Purpose                                                                                                                                                                                              | Input                          | Output artifact                  |
 |-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|----------------------------------|
 | `goga-tool-pybuggy-api-automate-requirements` | Collects detailed requirements for the topic from its description and the service spec; generates fixtures (`goga tool pybuggy endpoint generate`)                                                   | topic description  | `requirements.md`   |
-| `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (REQ→TC)                                                                                | `requirements.md` | `testcases.md`      |
+| `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (REQ→TC); marks the per-case environment (`sandbox`/`target env`)                                                                                       | `requirements.md` | `testcases.md`      |
 | `goga-tool-pybuggy-api-automate-cells`        | Designs the architecture plan for the test cells (CODEMANIFEST; cell boundaries are a design decision, Routines cover cases — 1 case = 1 Routine is not required); interactive, driven by WAIT-gates | `testcases.md`    | `arch.md`           |
 | `goga-tool-pybuggy-api-automate-apply`        | Materializes the plan: creates CODEMANIFEST in `tests/<spec>/<id>/` (DSL only, no test code); validation via `goga lint`/`schema`                                                                    | `arch.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
 

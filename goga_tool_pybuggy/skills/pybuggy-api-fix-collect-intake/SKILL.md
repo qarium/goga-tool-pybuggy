@@ -45,6 +45,8 @@ The spec branch (ref) and the run environment (base URL) are mandatory context f
    - "Standard (.env / BASE_URL)";
    - "Specify URL" — the environment where the version under test is deployed.
    Feature branch + standard environment — re-ask with a warning (the branch contract vs the default SUT); record the confirmed decision.
+   Sandbox-bound tests ignore `--base-url` (they hit the sandbox instance); the flag still governs
+   the unbound tests of the run.
 
 Offer hints extracted from the failure data (the host in connection-error tracebacks; the CI job branch in the log header) as a ready-made question option ("<url> (found in the log)") — a hint, not a decision: the topic version is selected for the current cycle, not taken from the previous run. If the traces point to a different environment/branch than the selected version — record that discrepancy in the "Topic version" section.
 
@@ -57,6 +59,9 @@ This step runs when a local run was selected (Step 1 or Step 2); with the "descr
 1. Run root — the directory containing `conftest.py` (pytest runs from it).
 2. Scope — from the description: the specific tests/directories it names; if undefined — all tests.
 3. Target environment — from the topic version (Step 3): non-standard base URL — add `--base-url <url>` to the command (the service version under test lives there; the standard `.env`/`BASE_URL` would send the requests to the wrong target). Standard — no flag.
+   When the scope includes sandbox-bound tests, the run additionally requires a docker-compatible
+   container runtime — a sandbox startup failure (no runtime, image pull, probe timeout, migrations)
+   is an environment problem: record it and ask the user to restore, not a test defect.
 4. Execute: `pytest <paths> -q [--base-url <url>] 2>&1 | tee "$(goga history path -f fix-log.txt)"` (a
    re-run overwrites the log).
 5. Record: the command (with the environment), the log path, the exit code, the summary line (passed/failed/errors/skipped).

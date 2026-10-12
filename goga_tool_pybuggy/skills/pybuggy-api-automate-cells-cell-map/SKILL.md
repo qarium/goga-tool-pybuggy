@@ -52,6 +52,11 @@ set of steps or checks are separate Routines: a test from a parameterized Routin
 branching (`if` on the variant) in the test body means excessive parameterization (linearity criterion —
 `goga-tool-pybuggy-api-cookbook`).
 
+A `sandbox`-environment case never merges with a `target env` case into one Routine — the sandbox
+variant's steps start with binding the client to the sandbox (a step the target-env variant lacks), so
+the step sets diverge. When proposing cell boundaries (Step 2), keep the `sandbox` cases grouped so
+their cells can carry the sandbox usages while the other cells stay without them.
+
 1. Routine name: `test_<name>` (snake_case; `<name>` is derived from the check and is unique within the cell).
 2. Signature: `test_<name>(<fixture>: Endpoint, ...)` without output — one fixture parameter for each
    endpoint the Routine calls (one for a single-endpoint Routine, several for a flow).

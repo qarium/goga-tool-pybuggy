@@ -42,7 +42,9 @@ For each failed test, gather five evidence items in this order:
    `goga tool pybuggy endpoint info`, `api/<spec>/<id>/schemas/*.json`).
 4. **Stability evidence**: rerun the test in isolation. Possible outcomes: fails consistently / fails intermittently /
    green / skipped. Dependency: use the topic's environment — take `--base-url <url>` from the "Topic version" section
-   of the collect artifact when that environment is non-standard.
+   of the collect artifact when that environment is non-standard. A sandbox-bound test (the `sandbox`
+   fixture + the bind in its body) needs a docker-compatible container runtime for the rerun; its
+   sandbox startup failure is environment evidence, not a test-defect one.
 5. **Log-discrepancy evidence**: precondition — the "Topic version" section of the collect artifact marks a
    discrepancy (the log was captured on a different environment or branch). When it holds, weigh it during evidence
    interpretation: the failure may come from a cause absent in the current cycle's version (the environment was
