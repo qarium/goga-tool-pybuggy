@@ -80,30 +80,29 @@ Usages:
 - Coverage (case coverage) and Routine granularity remain **unaffected** (tool usages belong to
   Header/Annotations, not Routine).
 
-### Sandbox usages (sandbox-environment cases)
+### Sandbox usages (sandbox tests)
 
-A case with environment `sandbox` runs against the sandbox — the isolated instance with mocked
-dependency services (postgresql/kafka/vault/http), started by the product session `sandbox` fixture:
+A sandbox test runs against the sandbox — the isolated instance with mocked dependency services
+(postgresql/kafka/vault/http) started by the product session `sandbox` fixture. The capability
+exists only when the project holds `.goga/tools/pybuggy/sandbox.yml` — the usage files alone never
+activate it.
 
-- **The fact lives in the requirements** — the §4 "Sandbox" entry (`configured` / `not configured`).
-  The sandbox usage files (`.goga/usages/cooks/pybuggy/sandbox/**`) are copied by `goga init`
-  regardless; only the §4 entry makes them usable.
-- Connect the two test-runtime usages — the §8 keys of `sandbox-session.md` (the `sandbox` fixture
-  and the bind) and `data-operations.md` (seeding rows, dependency stubs, secrets, kafka messages,
-  `$ref`/`$lookup`), marked `sandbox, active` — like any cell-specific usage: a `<key>: <path>` line
-  in `Usages` + a ``Use `<key>` for …`` line in `Annotations`, only into the cells whose Routines
-  bind the sandbox. The base block stays unchanged; cells without sandbox Routines get no sandbox
-  usages.
+- Connect the two sandbox usages — `sandbox-session` (the `sandbox` fixture and the bind) and
+  `data-operations` (seeding rows, dependency stubs, secrets, kafka messages, `$ref`/`$lookup`),
+  both at `.goga/usages/cooks/pybuggy/sandbox/` — like any cell-specific usage: a `<key>: <path>`
+  line in `Usages` + a ``Use `<key>` for …`` line in `Annotations`, only into the cells whose
+  Routines run in the sandbox. The base block stays unchanged; cells without sandbox Routines
+  get no sandbox usages.
 - The sandbox Routine declares the product fixture in the signature (the type from the pybuggy
   runtime, like `Endpoint`): `test_<name>(<fixture>: Endpoint, sandbox: Sandbox)`.
-- The annotation: `Precondition:` gains a `` `sandbox` `` bullet (the product session fixture — the
-  isolated instance + the dependency services, per the requirements §4 Sandbox entry); the first
-  `Steps:` item binds the client to the sandbox before any request — one bind rebinds every endpoint
-  fixture of the test together; the seeded data and the mocked dependency states follow as steps
-  expressed through the sandbox usages, without test code. A bound test ignores the topic's
+- The annotation: `Precondition:` gains a `` `sandbox` `` bullet — the product session fixture:
+  the isolated instance plus the dependency services; the first `Steps:` item binds the client
+  to the sandbox before any request — one bind rebinds every endpoint fixture of the test
+  together; the seeded data and the mocked dependency states follow as steps expressed through
+  the sandbox usages, without test code. A bound test ignores the configured `base_url` /
   `--base-url`; the unbound tests keep it.
-- A `sandbox` case and a `target env` case never share one Routine — the bind step makes the step
-  sets diverge (the linearity criterion above).
+- A sandbox case and a target-environment case never share one Routine — the bind step makes the
+  step sets diverge (the linearity criterion above).
 
 ### Body — Routine
 
