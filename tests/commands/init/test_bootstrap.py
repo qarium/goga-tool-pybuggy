@@ -482,10 +482,10 @@ class TestFixedAssetWriters:
 
 
 class TestRunBootstrapUsages:
-    """The ``run_bootstrap`` packaged-usage distribution — two roots, six stems, api-only registration."""
+    """The ``run_bootstrap`` packaged-usage distribution — two roots, six stems, split destinations."""
 
     def test_bootstrap_contract_distributes_six_stems_registers_api_pair_only(self, tmp_path, monkeypatch):
-        """After a template-mode bootstrap the six stems exist; only the api pair registers."""
+        """After a template-mode bootstrap the api pair lands flat, the sandbox quartet in its subdirectory."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_bootstrap_target(tmp_path)
@@ -493,7 +493,8 @@ class TestRunBootstrapUsages:
         assert run_bootstrap(template_mode=True) == 0
 
         usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
-        assert sorted(path.name[:-3] for path in usages.iterdir()) == sorted(_PACKAGED_USAGES)
+        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "sandbox"]
+        assert sorted(path.name[:-3] for path in (usages / "sandbox").iterdir()) == sorted(_SANDBOX_STEMS)
 
         config = YAML().load(tmp_path / ".goga" / "config.yml")
         assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
@@ -502,7 +503,7 @@ class TestRunBootstrapUsages:
             assert f"`pybuggy-{stem}`" not in config["codemanifest"]["annotations"]
 
     def test_bootstrap_copies_all_and_registers_only_api_usages(self, tmp_path, monkeypatch):
-        """All six usage files land byte-identical; only the api pair registers with annotations.
+        """All six usage files land byte-identical at their destinations; only the api pair registers.
 
         The scope constraint holds: nothing beyond the two packaged roots is copied — the plugin
         and commands usage files never reach the target.
@@ -514,10 +515,13 @@ class TestRunBootstrapUsages:
         assert run_bootstrap(template_mode=False) == 0
 
         usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
-        assert sorted(path.name for path in usages.iterdir()) == sorted(f"{stem}.md" for stem in _PACKAGED_USAGES)
+        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "sandbox"]
 
-        for stem, text in _PACKAGED_USAGES.items():
-            assert (usages / f"{stem}.md").read_text(encoding="utf-8") == text
+        for stem in ("api", "asserts"):
+            assert (usages / f"{stem}.md").read_text(encoding="utf-8") == _PACKAGED_USAGES[stem]
+
+        for stem in _SANDBOX_STEMS:
+            assert (usages / "sandbox" / f"{stem}.md").read_text(encoding="utf-8") == _PACKAGED_USAGES[stem]
 
         config = YAML().load(tmp_path / ".goga" / "config.yml")
         registered = config["codemanifest"]["usages"]
@@ -536,7 +540,7 @@ class TestRunBootstrapUsages:
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_bootstrap_target(tmp_path)
-        target = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox-session.md"
+        target = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox" / "sandbox-session.md"
         target.parent.mkdir(parents=True)
         target.write_text("sentinel\n", encoding="utf-8")
 
@@ -556,3 +560,18 @@ class TestRunBootstrapUsages:
         monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
         assert run_bootstrap(template_mode=False) == 0
         assert target.read_text(encoding="utf-8") == _PACKAGED_USAGES["sandbox-session"]
+
+    def test_bootstrap_keeps_a_stale_flat_sandbox_copy(self, tmp_path, monkeypatch):
+        """A flat sandbox copy from an earlier distribution survives — no migration of old layouts."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+        stale = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox-session.md"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("old flat copy\n", encoding="utf-8")
+
+        assert run_bootstrap(template_mode=True) == 0
+
+        assert stale.read_text(encoding="utf-8") == "old flat copy\n"
+        fresh = stale.parent / "sandbox" / "sandbox-session.md"
+        assert fresh.read_text(encoding="utf-8") == _PACKAGED_USAGES["sandbox-session"]

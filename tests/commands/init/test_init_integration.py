@@ -94,9 +94,9 @@ def _assert_bootstrap_registration_split(root: Path) -> None:
     assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
     assert "`pybuggy-sandbox-session`" not in config["codemanifest"]["annotations"]
 
-    usages = root / ".goga" / "usages" / "cooks" / "pybuggy"
-    assert (usages / "sandbox-session.md").exists()
-    assert (usages / "migration-set.md").exists()
+    sandbox = root / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox"
+    assert (sandbox / "sandbox-session.md").exists()
+    assert (sandbox / "migration-set.md").exists()
 
 
 class TestSessionSmoke:

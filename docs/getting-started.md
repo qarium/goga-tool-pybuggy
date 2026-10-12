@@ -64,12 +64,13 @@ See [Configuration](configuration.md).
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged usages (`api.md`, `asserts.md`, `sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | written (bare overwrites; template skips existing) |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) | written (bare overwrites; template skips existing) |
+| `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | written (bare overwrites; template skips existing); flat copies from earlier distributions stay untouched |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted (idempotent, comment-only) |
 | `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
 | `RUN goga install pybuggy -v <N.M>` in the project Dockerfile | appended when the file exists (idempotent); the version is derived from the installed pybuggy version |
-| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten); the sandbox capability usage files are copied to `.goga/usages/cooks/pybuggy/` without registration — they may or may not apply to a given cell, and the config usages bind every cell |
+| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten); the sandbox capability usage files are copied to `.goga/usages/cooks/pybuggy/sandbox/` without registration — they may or may not apply to a given cell, and the config usages bind every cell |
 | root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
 The command requires a Dockerfile — and the session always creates one (the fixed

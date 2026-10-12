@@ -53,10 +53,11 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
     return discovered
 
 
-# The packaged usage roots the bootstrap distributes: the api cell (its walk also collects the
-# ``asserts`` sub-package riding that root) plus the sandbox subtree cells. The plugin and commands
-# cells are not roots — their usages stay out of the consumer target.
-_USAGE_ROOTS = ("goga_tool_pybuggy.api", "goga_tool_pybuggy.sandbox")
+# The packaged usage roots the bootstrap distributes, each paired with its destination subdirectory
+# of .goga/usages/cooks/pybuggy: the api cell (its walk also collects the ``asserts`` sub-package
+# riding that root) distributes flat, the sandbox subtree under its own ``sandbox`` subdirectory.
+# The plugin and commands cells are not roots — their usages stay out of the consumer target.
+_USAGE_ROOTS = (("goga_tool_pybuggy.api", ""), ("goga_tool_pybuggy.sandbox", "sandbox"))
 
 # The roots whose discovered usages are also registered in the consumer config — the always-on test
 # surface every cell consumes. The sandbox subtree is download-only: its capability usages may or may
@@ -65,21 +66,22 @@ _USAGE_ROOTS = ("goga_tool_pybuggy.api", "goga_tool_pybuggy.sandbox")
 _REGISTERED_USAGE_ROOTS = ("goga_tool_pybuggy.api",)
 
 
-def _discover_packaged_usages() -> tuple[list[tuple[str, str]], list[str]]:
+def _discover_packaged_usages() -> tuple[list[tuple[str, str, str]], list[str]]:
     """Discover ``.usages/*.md`` files under every packaged usage root, roots in order.
 
     Returns:
-        The ``(discovered, registered)`` pair — the ``(stem, text)`` pairs of every packaged usage
-        file (six stems today: api, asserts, sandbox-session, sandbox-file, data-operations,
-        migration-set), and the stems of the registered roots in discovery order (api and asserts
-        today) for the config registration.
+        The ``(discovered, registered)`` pair — the ``(stem, text, subdir)`` triples of every
+        packaged usage file (six stems today: api, asserts, sandbox-session, sandbox-file,
+        data-operations, migration-set; the sandbox stems carry the ``sandbox`` destination
+        subdirectory, the api stems an empty one), and the stems of the registered roots in
+        discovery order (api and asserts today) for the config registration.
     """
-    discovered: list[tuple[str, str]] = []
+    discovered: list[tuple[str, str, str]] = []
     registered: list[str] = []
 
-    for root in _USAGE_ROOTS:
+    for root, subdir in _USAGE_ROOTS:
         found = _discover_usages(importlib.resources.files(root))
-        discovered.extend(found)
+        discovered.extend((stem, text, subdir) for stem, text in found)
 
         if root in _REGISTERED_USAGE_ROOTS:
             registered.extend(stem for stem, _ in found)
@@ -289,8 +291,8 @@ def run_bootstrap(template_mode: bool) -> int:
     try:
         discovered, registered = _discover_packaged_usages()
 
-        for stem, text in discovered:
-            dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"
+        for stem, text, subdir in discovered:
+            dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / subdir / f"{stem}.md"
 
             if dest.exists() and template_mode:
                 logger.info("existing file kept untouched", extra={"path": str(dest)})

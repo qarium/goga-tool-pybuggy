@@ -484,12 +484,14 @@ class TestRunBootstrap:
         assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
         assert config["codemanifest"]["usages"]["pybuggy-asserts"] == ".goga/usages/cooks/pybuggy/asserts.md"
         assert config["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
-        # The sandbox capability usages are download-only: files copied, never registered.
+        # The sandbox capability usages are download-only: files copied into the sandbox
+        # subdirectory, never registered.
         assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
-        assert (usages / "sandbox-session.md").exists()
-        assert (usages / "sandbox-file.md").exists()
-        assert (usages / "data-operations.md").exists()
-        assert (usages / "migration-set.md").exists()
+        sandbox = usages / "sandbox"
+        assert (sandbox / "sandbox-session.md").exists()
+        assert (sandbox / "sandbox-file.md").exists()
+        assert (sandbox / "data-operations.md").exists()
+        assert (sandbox / "migration-set.md").exists()
         annotations = config["codemanifest"]["annotations"]
         assert "`pybuggy-api`" in annotations
         assert "`pybuggy-asserts`" in annotations
