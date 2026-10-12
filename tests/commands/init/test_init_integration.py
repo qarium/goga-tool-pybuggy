@@ -81,6 +81,24 @@ def _write_minimal_specs(root: Path) -> None:
     )
 
 
+def _assert_bootstrap_registration_split(root: Path) -> None:
+    """Assert the bootstrap registration split — the api keys registered, the sandbox usages download-only.
+
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
+    """
+    config = yaml.safe_load((root / ".goga" / "config.yml").read_text(encoding="utf-8"))
+    assert config["build"]["review"]["skip"] is True
+    assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+    assert "`pybuggy-api`" in config["codemanifest"]["annotations"]
+    assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
+    assert "`pybuggy-sandbox-session`" not in config["codemanifest"]["annotations"]
+
+    usages = root / ".goga" / "usages" / "cooks" / "pybuggy"
+    assert (usages / "sandbox-session.md").exists()
+    assert (usages / "migration-set.md").exists()
+
+
 class TestSessionSmoke:
     """The native-session path — real engine, real registry, real hooks, scripted TTY."""
 
@@ -109,7 +127,8 @@ class TestSessionSmoke:
         assert config["image"] == "pybuggy-smoke:latest"
         assert config["dockerfile"] == ".goga/Dockerfile"  # the amended fixed path
         assert set(config["tools"]) == {"pybuggy"}  # amended regardless of the declined gate
-        assert re.fullmatch(r"\d+\.\d+\.x", config["tools"]["pybuggy"])
+        assert re.fullmatch(r"\d+\.\d+", config["tools"]["pybuggy"])  # major.minor, a string value
+        assert isinstance(config["tools"]["pybuggy"], str)
         assert "build" not in config  # the build.review.skip amendment never reaches the config (q2/A)
         assert "codemanifest" not in config  # both gates declined — the offline guarantee
 
@@ -151,14 +170,11 @@ class TestSessionSmoke:
         assert "# loader: example (skipped complex member)" in tool_config_text
         assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
 
-        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
-        assert config["build"]["review"]["skip"] is True
-        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
-        assert "`pybuggy-api`" in config["codemanifest"]["annotations"]
+        _assert_bootstrap_registration_split(tmp_path)
         assert (
             (tmp_path / ".goga" / "Dockerfile")
             .read_text(encoding="utf-8")
-            .endswith("RUN goga install pybuggy -v 2.0.x\n")
+            .endswith("RUN goga install pybuggy -v 2.0\n")
         )
         assert (tmp_path / "conftest.py").exists()
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]

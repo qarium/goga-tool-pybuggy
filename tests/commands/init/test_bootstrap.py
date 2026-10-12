@@ -52,7 +52,7 @@ _PACKAGED_USAGES = {
     "migration-set": (_SANDBOX_PACKAGE / "migrations" / ".usages" / "migration-set.md").read_text(encoding="utf-8"),
 }
 
-# The four sandbox stems with hand-authored annotation lines.
+# The four sandbox stems — download-only: copied as files, never registered in the consumer config.
 _SANDBOX_STEMS = ("sandbox-session", "sandbox-file", "data-operations", "migration-set")
 
 
@@ -180,7 +180,7 @@ class TestNeverOverwriteGuards:
 
 
 class TestInstallPybuggy:
-    """Dynamic minor x-range install line derivation and idempotency."""
+    """Dynamic major.minor install line derivation and idempotency."""
 
     def test_install_pybuggy_derives_minor_line_and_is_idempotent(self, tmp_path, monkeypatch, caplog):
         """The line derives from the installed version, appends once, then no-ops."""
@@ -191,18 +191,18 @@ class TestInstallPybuggy:
         with caplog.at_level(logging.INFO):
             line = install_pybuggy(dockerfile)
 
-        assert line == "RUN goga install pybuggy -v 2.0.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert line == "RUN goga install pybuggy -v 2.0"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
         assert "pybuggy install line added to Dockerfile" in caplog.text
 
         assert install_pybuggy(dockerfile) is None
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
 
         dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "1.1.1.dev4+gabc")
 
-        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 1.1.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 1.1.x\n"
+        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 1.1"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 1.1\n"
 
     def test_install_pybuggy_ensures_newline_separator(self, tmp_path, monkeypatch):
         """A Dockerfile without a trailing newline still gets the install line on a fresh line."""
@@ -210,8 +210,8 @@ class TestInstallPybuggy:
         dockerfile.write_text("FROM python:3.12", encoding="utf-8")
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
 
-        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 2.0.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 2.0"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
 
     def test_install_pybuggy_noop_without_file(self, tmp_path):
         """An absent Dockerfile is a no-op — the file is never created."""
@@ -482,10 +482,10 @@ class TestFixedAssetWriters:
 
 
 class TestRunBootstrapUsages:
-    """The ``run_bootstrap`` packaged-usage distribution — two roots, six stems, one registration path."""
+    """The ``run_bootstrap`` packaged-usage distribution — two roots, six stems, api-only registration."""
 
-    def test_bootstrap_contract_distributes_and_registers_six_stems(self, tmp_path, monkeypatch):
-        """After a template-mode bootstrap the six stems exist and the three sandbox keys register."""
+    def test_bootstrap_contract_distributes_six_stems_registers_api_pair_only(self, tmp_path, monkeypatch):
+        """After a template-mode bootstrap the six stems exist; only the api pair registers."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_bootstrap_target(tmp_path)
@@ -496,12 +496,13 @@ class TestRunBootstrapUsages:
         assert sorted(path.name[:-3] for path in usages.iterdir()) == sorted(_PACKAGED_USAGES)
 
         config = YAML().load(tmp_path / ".goga" / "config.yml")
+        assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
         for stem in _SANDBOX_STEMS:
-            assert config["codemanifest"]["usages"][f"pybuggy-{stem}"] == f".goga/usages/cooks/pybuggy/{stem}.md"
-            assert f"`pybuggy-{stem}`" in config["codemanifest"]["annotations"]
+            assert f"pybuggy-{stem}" not in config["codemanifest"]["usages"]
+            assert f"`pybuggy-{stem}`" not in config["codemanifest"]["annotations"]
 
-    def test_bootstrap_copies_and_registers_sandbox_usages(self, tmp_path, monkeypatch):
-        """All six usage files land byte-identical with keys and annotation lines registered.
+    def test_bootstrap_copies_all_and_registers_only_api_usages(self, tmp_path, monkeypatch):
+        """All six usage files land byte-identical; only the api pair registers with annotations.
 
         The scope constraint holds: nothing beyond the two packaged roots is copied — the plugin
         and commands usage files never reach the target.
@@ -522,11 +523,13 @@ class TestRunBootstrapUsages:
         registered = config["codemanifest"]["usages"]
         annotations = config["codemanifest"]["annotations"]
 
-        for stem in _PACKAGED_USAGES:
+        for stem in ("api", "asserts"):
             assert registered[f"pybuggy-{stem}"] == f".goga/usages/cooks/pybuggy/{stem}.md"
+            assert f"`pybuggy-{stem}`" in annotations
 
         for stem in _SANDBOX_STEMS:
-            assert f"Use `pybuggy-{stem}`" in annotations
+            assert f"pybuggy-{stem}" not in registered
+            assert f"`pybuggy-{stem}`" not in annotations
 
     def test_bootstrap_template_mode_skips_existing_targets(self, tmp_path, monkeypatch, caplog):
         """Template mode keeps an existing sandbox-usage sentinel across reruns; bare mode overwrites it."""

@@ -58,41 +58,41 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
 # cells are not roots — their usages stay out of the consumer target.
 _USAGE_ROOTS = ("goga_tool_pybuggy.api", "goga_tool_pybuggy.sandbox")
 
+# The roots whose discovered usages are also registered in the consumer config — the always-on test
+# surface every cell consumes. The sandbox subtree is download-only: its capability usages may or may
+# not apply to a given cell, and the codemanifest usages of .goga/config.yml bind every cell of the
+# project, so their files are copied without config registration.
+_REGISTERED_USAGE_ROOTS = ("goga_tool_pybuggy.api",)
 
-def _discover_packaged_usages() -> list[tuple[str, str]]:
+
+def _discover_packaged_usages() -> tuple[list[tuple[str, str]], list[str]]:
     """Discover ``.usages/*.md`` files under every packaged usage root, roots in order.
 
     Returns:
-        The ``(stem, text)`` pairs of every packaged usage file — six stems today: api, asserts,
-        sandbox-session, sandbox-file, data-operations, migration-set.
+        The ``(discovered, registered)`` pair — the ``(stem, text)`` pairs of every packaged usage
+        file (six stems today: api, asserts, sandbox-session, sandbox-file, data-operations,
+        migration-set), and the stems of the registered roots in discovery order (api and asserts
+        today) for the config registration.
     """
     discovered: list[tuple[str, str]] = []
+    registered: list[str] = []
 
     for root in _USAGE_ROOTS:
-        discovered.extend(_discover_usages(importlib.resources.files(root)))
+        found = _discover_usages(importlib.resources.files(root))
+        discovered.extend(found)
 
-    return discovered
+        if root in _REGISTERED_USAGE_ROOTS:
+            registered.extend(stem for stem, _ in found)
+
+    return discovered, registered
 
 
-# Hand-authored annotation line per usage stem; unknown stems fall back to a bare backtick
-# reference — the DSL requires every connected usage to be referenced in an annotation.
+# Hand-authored annotation line per registered usage stem; unknown stems fall back to a bare backtick
+# reference — the DSL requires every connected usage to be referenced in an annotation. Only the
+# registered-root stems are ever looked up here — the download-only sandbox stems are never registered.
 PYBUGGY_ANNOTATIONS: dict[str, str] = {
     "api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
     "asserts": ("Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses."),
-    "sandbox-session": (
-        "Use `pybuggy-sandbox-session` for the sandbox consumer fixtures: activation, baseline, reset, and api usage."
-    ),
-    "sandbox-file": (
-        "Use `pybuggy-sandbox-file` for authoring `.goga/tools/pybuggy/sandbox.yml`: "
-        "the instance entry, dependency services, and startup data."
-    ),
-    "data-operations": (
-        "Use `pybuggy-data-operations` for declaring lazy sandbox data from tests: rows, stubs, secrets, messages."
-    ),
-    "migration-set": (
-        "Use `pybuggy-migration-set` for declaring the schema migrations of a postgresql sandbox "
-        "service: source validation and the once-per-session apply."
-    ),
 }
 
 # Annotation line for the ``conventions`` usage key — the sole source registered under ``codemanifest.annotations``.
@@ -287,7 +287,7 @@ def run_bootstrap(template_mode: bool) -> int:
     config = cwd / ".goga" / "config.yml"
 
     try:
-        discovered = _discover_packaged_usages()
+        discovered, registered = _discover_packaged_usages()
 
         for stem, text in discovered:
             dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"
@@ -318,9 +318,11 @@ def run_bootstrap(template_mode: bool) -> int:
         dockerfile = _resolve_dockerfile_path(config)
         install_pybuggy(dockerfile)
 
-        usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem, _ in discovered}
+        # Only the registered-root stems are registered — the sandbox capability usages are
+        # download-only (their files were copied above), never bound to every cell via the config.
+        usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem in registered}
         usage_keys["conventions"] = ".goga/usages/conventions.md"
-        annotation_lines = {f"pybuggy-{stem}": _annotation_for(stem) for stem, _ in discovered}
+        annotation_lines = {f"pybuggy-{stem}": _annotation_for(stem) for stem in registered}
         annotation_lines["conventions"] = _CONVENTION_LINE
 
         added_usage_keys = register_usages(config, usage_keys)

@@ -212,7 +212,7 @@ def ensure_review_skip(config_path: Path) -> bool:
 
 
 def install_pybuggy(dockerfile_path: Path) -> str | None:
-    """Append the pybuggy-install ``RUN`` line, derived from the installed package version.
+    """Append the pybuggy-install ``RUN`` line, pinned to the installed major.minor version line.
 
     The version comes from the installed ``goga-tool-pybuggy`` distribution; only the install line is ever appended.
 
@@ -240,7 +240,7 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
         ) from exc
 
     minor = ".".join(version.split(".")[:2])
-    line = f"RUN goga install pybuggy -v {minor}.x"
+    line = f"RUN goga install pybuggy -v {minor}"
 
     content = dockerfile_path.read_text(encoding="utf-8")
     if line in content:

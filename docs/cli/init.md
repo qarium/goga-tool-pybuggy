@@ -70,9 +70,10 @@ Two core sections are skipped by pybuggy:
   file.
 
 The `tools` core question stays: whatever the user answers (or declines), pybuggy
-amends the recorded tools with its own entry — `pybuggy: <installed-minor>.x`, the
-same minor x-range the Dockerfile install line pins — so pybuggy is always recorded
-in `.goga/config.yml`; tools the user added are kept.
+amends the recorded tools with its own entry — `pybuggy: <installed-major.minor>`, a
+quoted string (e.g. `"2.0"`), the same major.minor line the Dockerfile install line
+pins — so pybuggy is always recorded in `.goga/config.yml`; tools the user added
+are kept.
 
 Session semantics that shape the modes:
 
@@ -114,12 +115,12 @@ bootstrap is skipped, the code is propagated unchanged.
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
 | the pybuggy install `RUN` line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |
-| the pybuggy usage keys and annotation lines in `.goga/config.yml` (`codemanifest`) | always registered, idempotent |
+| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`) | always registered, idempotent; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
 The install line is derived from the **installed pybuggy version** — e.g. an
-installed `2.0.3` yields `RUN goga install pybuggy -v 2.0.x` (a minor x-range is a
-valid `goga install` version form); there is no hardcoded version pin. The Dockerfile
+installed `2.0.3` yields `RUN goga install pybuggy -v 2.0` (a concrete major.minor
+form is a valid `goga install` version pin); there is no hardcoded version pin. The Dockerfile
 path is resolved from the consumer config `dockerfile` field so the line lands in the
 project's actual Dockerfile (a custom session answer wins).
 
@@ -235,4 +236,5 @@ The generated file is valid for [configuration](../configuration.md) loading.
 - Only the packaged usage roots are copied — the `api` cell root (its `asserts`
   sub-package rides along) and the `sandbox` subtree roots (`sandbox-session`,
   `sandbox-file`, `data-operations`, `migration-set`); the `plugin` and `commands` cells and
-  internal development cells (`config`/`spec`/`output`/…) are not copied.
+  internal development cells (`config`/`spec`/`output`/…) are not copied. Only the api-root
+  usages are registered in `codemanifest`; the sandbox capability usages stay download-only.

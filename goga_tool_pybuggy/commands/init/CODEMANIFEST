@@ -48,7 +48,9 @@ Annotations: |
   committed through the participation mechanism; an existing .goga/config.yml ends the session immediately and is
   never rewritten. The bootstrap owns the pybuggy files the session does not carry: the packaged usages copy, the
   tool-config example documentation, the `conventions` slot, the build.review.skip enforcement, the Dockerfile
-  install line, the usage and annotation registrations, and the root conftest. Use relative imports inside the cell.
+  install line, the usage and annotation registrations of the api-root usages only (the sandbox capability usages
+  are copied as files without registration — they may or may not apply to a given cell, while the codemanifest
+  usages of .goga/config.yml bind every cell), and the root conftest. Use relative imports inside the cell.
 
 ---
 
@@ -154,20 +156,24 @@ Annotations: |
        session ended immediately on an existing config.
     6. Resolve the Dockerfile path from the consumer config dockerfile field (fallback .goga/Dockerfile), then
        augment it via `install_pybuggy` — idempotent; a no-op when the file is absent.
-    7. Register the usage keys via `register_usages` and the annotation lines via `register_annotations` — idempotent.
+    7. Register the api-root usage keys (pybuggy-api, pybuggy-asserts) plus `conventions` via
+       `register_usages` and their annotation lines via `register_annotations` — idempotent. The
+       sandbox-subtree usages are download-only: copied in step 2, never registered — they may or may not apply
+       to a given cell, while the codemanifest usages of .goga/config.yml bind every cell.
     8. Deliver the root conftest: when conftest.py does not exist, call `write_pybuggy_conftest`; when it exists —
        template mode: log INFO and skip; bare mode: ask via click.confirm (default no) and overwrite only on yes.
     9. Verify the Dockerfile exists; when it does not, log ERROR and return non-zero.
     10. Return 0.
 
     Requirements:
-    - After every successful run the consumer config carries build.review.skip: true; the pybuggy usage keys and
-      annotation lines are registered; the packaged usages are copied; the tool config carries the commented examples
-      of its absent optional members (when the session wrote it); the `conventions` slot is occupied when it was
-      absent; the root conftest exists.
-    - The sandbox capability usage files land in the same cooks directory and register under the
-    same pybuggy-<stem> usage keys and annotation lines — one distribution path, one registration
-    path.
+    - After every successful run the consumer config carries build.review.skip: true; the api-root pybuggy usage
+      keys (pybuggy-api, pybuggy-asserts) and their annotation lines plus `conventions` are registered; every
+      packaged usage — including the sandbox capability usages — is copied; the tool config carries the commented
+      examples of its absent optional members (when the session wrote it); the `conventions` slot is occupied
+      when it was absent; the root conftest exists.
+    - The sandbox capability usage files land in the same cooks directory — one distribution path — and are
+    never registered in the consumer config: their capabilities are optional per cell, and the codemanifest
+    usages of .goga/config.yml bind every cell of the project.
     - The pure writers always (over)write when called — every existence check and confirmation lives here.
     - Every step is idempotent; a repeat run changes nothing.
     - A write failure in any step is logged (ERROR) and fails the command with a non-zero exit.
@@ -400,8 +406,9 @@ Annotations: |
     2. Amend the Dockerfile pair from the answered image inputs: the fixed .goga/Dockerfile path and the answered
        base_image (the generator writes the Dockerfile from exactly this pair); the answered image name lands as
        docker_image.image.
-    3. Amend tools with the pybuggy record pinned to the installed minor x-range — the platform merge folds it into
-       any user-collected tools, so pybuggy is always recorded; a metadata-less run records latest.
+    3. Amend tools with the pybuggy record pinned to the installed major.minor line — a quoted string value
+       (e.g. "2.0") the engine serializes with quotes so the YAML scalar stays textual — the platform merge folds
+       it into any user-collected tools, so pybuggy is always recorded; a metadata-less run records latest.
 
     Requirements:
     - The amendments are path→value pairs the platform merges into the answer space before generation.
@@ -410,7 +417,7 @@ Annotations: |
     - The build.review.skip amendment is the tool's declared intent in the session answer space: the engine
       config mapper emits only agent/env for the build block, so the flag reaches the consumer config through
       `ensure_review_skip` of the bootstrap — the single enforcement point.
-    - The pybuggy tools record overrides a user-typed pybuggy entry — the installed minor line is authoritative.
+    - The pybuggy tools record overrides a user-typed pybuggy entry — the installed major.minor line is authoritative.
 
     Constraints:
     - Do not amend keys outside the named paths.
@@ -529,8 +536,8 @@ Annotations: |
 "install_pybuggy(dockerfile_path: Path) -> line:str | None":
   location: bootstrap.py
   annotations: |
-    Append the pybuggy-install RUN line to the consumer Dockerfile, pinning the version to the installed package's own
-    version line so the consumer's test image carries pybuggy.
+    Append the pybuggy-install RUN line to the consumer Dockerfile, pinning the version to the installed package's
+    major.minor line (e.g. -v 2.0) so the consumer's test image carries pybuggy.
 
     `dockerfile_path`: path to the consumer Dockerfile.
     `line`: the appended install line; None when nothing was appended.

@@ -231,26 +231,27 @@ def build_config_data(
 
 
 def _pybuggy_version_axis() -> str:
-    """Derive the recorded pybuggy version form — the minor x-range of the installed package.
+    """Derive the recorded pybuggy version form — the installed package's major.minor line.
 
-    Mirrors the Dockerfile install pin of ``install_pybuggy`` (the same minor line); a
-    metadata-less source-tree run records ``latest`` — the amend-moment contribution is
-    soft and must never die on unreadable metadata.
+    Mirrors the Dockerfile install pin of ``install_pybuggy`` (the same major.minor line; the engine's
+    YAML serialization keeps the value a quoted string, never a float); a metadata-less source-tree run
+    records ``latest`` — the amend-moment contribution is soft and must never die on unreadable metadata.
     """
     try:
         version = importlib.metadata.version("goga-tool-pybuggy")
     except importlib.metadata.PackageNotFoundError:
         return "latest"
 
-    return f"{'.'.join(version.split('.')[:2])}.x"
+    return ".".join(version.split(".")[:2])
 
 
 def build_config_amendments(answers: dict[str, object]) -> dict[str, object]:
     """Return the tool's declared-intent answer amendments derived from the block answers.
 
     Fixed entries — ``build.review.skip`` true (consumer enforcement is the bootstrap's
-    ``ensure_review_skip``) and the ``tools`` record pinning pybuggy to the installed minor
-    line (merged over any user-collected tools, so pybuggy is always recorded). The
+    ``ensure_review_skip``) and the ``tools`` record pinning pybuggy to the installed
+    major.minor line — a quoted string value, e.g. ``"2.0"`` (merged over any user-collected
+    tools, so pybuggy is always recorded). The
     Dockerfile pair — the fixed path plus the answered base image (the generator writes the
     file from exactly this pair) — and the answered built-image name.
 

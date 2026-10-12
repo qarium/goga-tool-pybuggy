@@ -530,7 +530,7 @@ class TestBuildConfigAmendments:
             "docker_image.dockerfile": ".goga/Dockerfile",
             "docker_image.base_image": "qarium/goga-python-3.13:2.0",
             "docker_image.image": "shop-api:latest",
-            "tools": {"pybuggy": "2.0.x"},
+            "tools": {"pybuggy": "2.0"},
         }
         assert list(amendments) == [
             "build.review.skip",
@@ -547,7 +547,7 @@ class TestBuildConfigAmendments:
         assert "docker_image.dockerfile" not in amendments
         assert "docker_image.base_image" not in amendments
         assert amendments["docker_image.image"] == "shop-api:latest"
-        assert amendments["tools"] == {"pybuggy": "2.0.x"}
+        assert amendments["tools"] == {"pybuggy": "2.0"}
 
     def test_build_config_amendments_tools_record_falls_back_to_latest(self, monkeypatch):
         """A metadata-less run records latest — the soft contribution never dies on unreadable metadata."""
@@ -573,7 +573,7 @@ class TestBuildConfigAmendments:
             answers.amend(path, value)
 
         snapshot = answers.snapshot()
-        assert snapshot["tools"] == {"other": "1.x", "pybuggy": "2.0.x"}
+        assert snapshot["tools"] == {"other": "1.x", "pybuggy": "2.0"}
         assert snapshot["build"] == {"review": {"skip": True}}
 
 
