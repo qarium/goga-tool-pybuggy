@@ -119,8 +119,15 @@ class TestCheckRuntime:
 class TestNormalizeContainerHost:
     """Behavior of the container-host override defaulting — one address space per topology."""
 
+    @pytest.fixture(autouse=True)
+    def fresh_config_singleton(self, monkeypatch: pytest.MonkeyPatch):
+        """Isolate the testcontainers config singleton the routine patches."""
+        self.config = types.SimpleNamespace(tc_host_override=None)
+        monkeypatch.setattr(runtime_module, "testcontainers_config", self.config)
+
     def test_explicit_override_wins_and_detection_never_runs(self, monkeypatch: pytest.MonkeyPatch):
-        """An explicit ``TESTCONTAINERS_HOST_OVERRIDE`` is kept as-is; no detection runs."""
+        """An explicit override is kept as-is, no detection runs, and the frozen-empty
+        testcontainers singleton is repaired to the explicit value."""
         monkeypatch.setenv(runtime_module.CONTAINER_HOST_OVERRIDE, "10.9.8.7")
 
         def unexpected() -> str:
@@ -131,15 +138,18 @@ class TestNormalizeContainerHost:
         normalize_container_host()
 
         assert os.environ[runtime_module.CONTAINER_HOST_OVERRIDE] == "10.9.8.7"
+        assert self.config.tc_host_override == "10.9.8.7"
 
     def test_container_marker_defaults_to_host_docker_internal(self, monkeypatch: pytest.MonkeyPatch):
-        """A runner inside a container (/.dockerenv) defaults to the Docker Desktop name."""
+        """A runner inside a container (/.dockerenv) defaults to the Docker Desktop name —
+        in the environment and in the already-frozen testcontainers singleton."""
         monkeypatch.delenv(runtime_module.CONTAINER_HOST_OVERRIDE, raising=False)
         monkeypatch.setattr(runtime_module, "_DOCKER_ENV_MARKER", types.SimpleNamespace(exists=lambda: True))
 
         normalize_container_host()
 
         assert os.environ[runtime_module.CONTAINER_HOST_OVERRIDE] == "host.docker.internal"
+        assert self.config.tc_host_override == "host.docker.internal"
 
     def test_host_run_defaults_to_the_routable_host_ip(self, monkeypatch: pytest.MonkeyPatch):
         """A host run defaults the override to the host's own routable IP."""
@@ -150,6 +160,7 @@ class TestNormalizeContainerHost:
         normalize_container_host()
 
         assert os.environ[runtime_module.CONTAINER_HOST_OVERRIDE] == "192.168.1.115"
+        assert self.config.tc_host_override == "192.168.1.115"
 
     def test_failed_detection_changes_nothing(self, monkeypatch: pytest.MonkeyPatch):
         """A failed host-IP detection is a no-op — the mapped-localhost behavior stays."""
@@ -160,6 +171,20 @@ class TestNormalizeContainerHost:
         normalize_container_host()
 
         assert runtime_module.CONTAINER_HOST_OVERRIDE not in os.environ
+        assert self.config.tc_host_override is None
+
+    def test_a_tc_host_frozen_singleton_stays_untouched(self, monkeypatch: pytest.MonkeyPatch):
+        """A non-empty tc_host_override (an explicit TC_HOST frozen at import) wins for
+        testcontainers; the routine only still defaults the environment variable."""
+        monkeypatch.delenv(runtime_module.CONTAINER_HOST_OVERRIDE, raising=False)
+        monkeypatch.setattr(runtime_module, "_DOCKER_ENV_MARKER", types.SimpleNamespace(exists=lambda: False))
+        monkeypatch.setattr(runtime_module, "_routable_host_ip", lambda: "192.168.1.115")
+        self.config.tc_host_override = "tc-explicit"
+
+        normalize_container_host()
+
+        assert os.environ[runtime_module.CONTAINER_HOST_OVERRIDE] == "192.168.1.115"
+        assert self.config.tc_host_override == "tc-explicit"
 
     def test_routable_host_ip_answers_without_raising(self):
         """The routing-table probe returns a string — an address or an empty string."""

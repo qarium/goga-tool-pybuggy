@@ -119,18 +119,27 @@ Annotations: |
     kafka mock advertises a single address to both. Called by the installation entry when the
     sandbox document is present, before any container or configure step.
 
+    The value reaches testcontainers twice — the environment variable, and the module-level
+    testcontainers_config singleton: testcontainers freezes tc_host_override at ITS import
+    (which this package's own import chain triggers before install() runs) and the docker
+    client host resolution reads the frozen singleton, never the environment — so the routine
+    patches the singleton too whenever it is empty.
+
     Algorithm:
-    1. The TESTCONTAINERS_HOST_OVERRIDE env is already set — return; the explicit value wins.
+    1. The TESTCONTAINERS_HOST_OVERRIDE env is already set — its explicit value is the
+    effective one; no detection runs.
     2. The /.dockerenv marker exists (the runner is itself a container) — default the override
     to host.docker.internal (the Docker Desktop name every sibling resolves).
     3. A host run — resolve the host's own routable IP through a routing-table-only UDP
     connect (no packet leaves the machine) and default the override to it: published ports
     listen on 0.0.0.0, so the host process and the sibling containers reach the dependency
     through the same IP.
-    4. Any detection failure — debug-log and change nothing (the mapped-localhost behavior).
+    4. The effective value (explicit or defaulted) — apply it to the empty singleton
+    tc_host_override; a non-empty entry (an explicit TC_HOST frozen at import) stays untouched.
+    5. No effective value — debug-log and change nothing (the mapped-localhost behavior).
 
     Requirements:
-    - Default only — never override an explicit environment value.
+    - Default only — never override an explicit environment value or a frozen TC_HOST.
     - The resolution performs no network I/O — the kernel answers from the routing table.
 
     Use `testcontainers` for the override seam (the host every container address resolves through).

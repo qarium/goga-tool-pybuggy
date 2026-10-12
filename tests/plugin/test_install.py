@@ -173,6 +173,11 @@ class TestInstallLogic:
     def test_install_normalizes_the_container_host_with_the_document(self, tmp_path, monkeypatch):
         """With the document present, install() defaults the container-host override — the
         sandbox gets its one shared address space before any container or configure step."""
+        from goga_tool_pybuggy.sandbox.engines import runtime as runtime_module
+
+        config = types.SimpleNamespace(tc_host_override=None)
+        monkeypatch.setattr(runtime_module, "testcontainers_config", config)
+
         write_document(tmp_path)
         monkeypatch.chdir(tmp_path)
         monkeypatch.delenv("TESTCONTAINERS_HOST_OVERRIDE", raising=False)
@@ -185,6 +190,7 @@ class TestInstallLogic:
         goga_tool_pybuggy.plugin.install(context={})
 
         assert "TESTCONTAINERS_HOST_OVERRIDE" in os.environ
+        assert config.tc_host_override is not None
 
     def test_install_without_document_leaves_the_environment_untouched(self, tmp_path, monkeypatch):
         """Without the document the container-host normalization never runs — no sandbox,

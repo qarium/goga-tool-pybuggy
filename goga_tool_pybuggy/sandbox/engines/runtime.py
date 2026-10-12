@@ -7,6 +7,7 @@ from pathlib import Path
 
 import requests
 from docker.errors import DockerException
+from testcontainers.core.config import testcontainers_config
 from testcontainers.core.docker_client import DockerClient
 
 from ..config.service import ServiceConfig
@@ -42,35 +43,61 @@ def normalize_container_host() -> None:
     kafka mock advertises a single address to both. Inside a container that address is
     ``host.docker.internal`` (the Docker Desktop name); on a host run the mapped ``localhost``
     is unreachable from sibling containers, but the host's own routable IP is reachable from
-    both sides. The routine sets the override through ``setdefault`` only: an explicit value
-    in the environment always wins, and a failed detection is a no-op (the mapped-localhost
-    behavior of a plain host run).
+    both sides.
+
+    The routine applies the value through ``setdefault`` semantics only: an explicit
+    ``TESTCONTAINERS_HOST_OVERRIDE`` in the environment always wins, and a failed detection is
+    a no-op (the mapped-localhost behavior of a plain host run). The value reaches testcontainers
+    twice — the environment variable, and the module-level ``testcontainers_config`` singleton:
+    testcontainers freezes ``tc_host_override`` at ITS import (which this package's own import
+    chain triggers before ``install()`` runs) and ``DockerClient.host()`` reads the frozen
+    singleton, never the environment — so the singleton is patched too whenever it is empty.
 
     Algorithm:
-    1. ``TESTCONTAINERS_HOST_OVERRIDE`` already set — return; the explicit value wins.
-    2. The ``/.dockerenv`` marker exists (the runner is itself a container) — default the
-    override to ``host.docker.internal``.
+    1. ``TESTCONTAINERS_HOST_OVERRIDE`` already set — the explicit value is the effective one.
+    2. Otherwise the ``/.dockerenv`` marker exists (the runner is itself a container) — default
+    the override to ``host.docker.internal``.
     3. Otherwise (a host run) — resolve the host's routable IP through a routing-table-only
     UDP connect (no packet leaves the machine) and default the override to it.
-    4. Any detection failure — log at debug and change nothing.
+    4. An effective value exists — apply it to the empty ``testcontainers_config.tc_host_override``;
+    a non-empty entry (an explicit ``TC_HOST`` frozen at import) stays untouched.
+    5. No effective value — log at debug and change nothing.
+    """
+    detected = _detect_override()
+
+    if detected is not None:
+        os.environ.setdefault(CONTAINER_HOST_OVERRIDE, detected)
+
+    effective = os.environ.get(CONTAINER_HOST_OVERRIDE)
+
+    if effective is None:
+        logger.debug("container host override not detected — keeping the mapped localhost")
+        return
+
+    if testcontainers_config.tc_host_override is None:
+        testcontainers_config.tc_host_override = effective
+
+    logger.debug(
+        "container host override applied",
+        extra={"value": effective, "source": "explicit" if detected is None else "detected"},
+    )
+
+
+def _detect_override() -> str | None:
+    """Resolve the topology-based override candidate.
+
+    Returns:
+        ``host.docker.internal`` inside a container, the host's routable IP on a host run,
+        ``None`` when the environment already carries an explicit override or detection fails.
     """
     if CONTAINER_HOST_OVERRIDE in os.environ:
         logger.debug("container host override explicit", extra={"value": os.environ[CONTAINER_HOST_OVERRIDE]})
-        return
+        return None
 
     if _DOCKER_ENV_MARKER.exists():
-        os.environ.setdefault(CONTAINER_HOST_OVERRIDE, "host.docker.internal")
-        logger.debug("container host override defaulted", extra={"value": "host.docker.internal"})
+        return "host.docker.internal"
 
-        return
-
-    host_ip = _routable_host_ip()
-
-    if host_ip:
-        os.environ.setdefault(CONTAINER_HOST_OVERRIDE, host_ip)
-        logger.debug("container host override defaulted", extra={"value": host_ip})
-    else:
-        logger.debug("container host override not detected — keeping the mapped localhost")
+    return _routable_host_ip() or None
 
 
 def _routable_host_ip() -> str:
