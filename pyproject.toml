@@ -41,6 +41,7 @@ dependencies = [
     "resq>=1.0.0,<1.1.0",
     "pluginator>=1.0.0,<1.1.0",
     "testcontainers[postgres]>=4.15",
+    "docker>=6.1",
     "psycopg[binary]>=3.1",
     "kafka-python>=3.0",
     "requests>=2.31",

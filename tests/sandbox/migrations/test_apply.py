@@ -377,24 +377,27 @@ class TestRunMigrations:
 
         assert fake.statements == []
 
-    def test_run_remote_source_location_escapes_clone(self):
+    def test_run_remote_source_location_escapes_clone(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         """A location resolving outside the clone root raises naming the location; nothing executes."""
         fake = FakeConnection()
+
+        # The product's clone target lands inside tmp_path, so the escape folder is a
+        # tmp_path sibling of it — every path of the scenario stays under tmp_path.
+        monkeypatch.setattr(tempfile, "gettempdir", lambda: str(tmp_path))
 
         def clone_bare_root(url: str, target: str, depth: int = 0, branch: str | None = None) -> None:
             Path(target).mkdir(parents=True, exist_ok=True)
 
-        with tempfile.TemporaryDirectory() as escape_root:
-            escape = Path(escape_root) / "migrations"
-            escape.mkdir()
-            (escape / "00001_init.sql").write_text("-- +goose Up\nSELECT 1;", encoding="utf-8")
+        escape = tmp_path / "escape" / "migrations"
+        escape.mkdir(parents=True)
+        (escape / "00001_init.sql").write_text("-- +goose Up\nSELECT 1;", encoding="utf-8")
 
-            location = f"../{Path(escape_root).name}/migrations"
+        location = "../escape/migrations"
 
-            with (
-                mock.patch(CLONE_FROM, side_effect=clone_bare_root),
-                pytest.raises(MigrationError, match=rf"{re.escape(location)}.*escapes the clone"),
-            ):
-                run_migrations(conn=fake, location=location, git_url="https://gitlab.example/acme/s.git", git_ref=None)
+        with (
+            mock.patch(CLONE_FROM, side_effect=clone_bare_root),
+            pytest.raises(MigrationError, match=rf"{re.escape(location)}.*escapes the clone"),
+        ):
+            run_migrations(conn=fake, location=location, git_url="https://gitlab.example/acme/s.git", git_ref=None)
 
         assert fake.statements == []

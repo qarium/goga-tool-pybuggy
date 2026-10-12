@@ -71,7 +71,10 @@ def normalize_container_host() -> None:
     effective = os.environ.get(CONTAINER_HOST_OVERRIDE)
 
     if effective is None:
-        logger.debug("container host override not detected — keeping the mapped localhost")
+        logger.debug(
+            "container host override not detected — keeping the mapped localhost",
+            extra={"override": CONTAINER_HOST_OVERRIDE},
+        )
         return
 
     if testcontainers_config.tc_host_override is None:

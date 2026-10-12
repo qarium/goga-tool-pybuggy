@@ -12,7 +12,7 @@ import pytest
 from goga_tool_pybuggy.api.api import Api
 from requests.auth import AuthBase
 
-from tests.api.conftest import BindTarget, HeaderAuth, PlainTarget, UrlTarget
+from .conftest import BindTarget, HeaderAuth, PlainTarget, UrlTarget
 
 
 class TestApi:

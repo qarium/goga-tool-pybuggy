@@ -70,52 +70,92 @@ class Api:
 
     @property
     def base_url(self) -> str:
-        """Base URL held by the underlying resq.Session."""
+        """Base URL held by the underlying resq.Session.
+
+        Returns:
+            The base URL every request path resolves against.
+        """
         return self._client.base_url
 
     @property
     def adapter(self) -> str:
-        """Default resq adapter name fixed at construction (``"requests"`` in the sync runtime)."""
+        """Default resq adapter name fixed at construction (``"requests"`` in the sync runtime).
+
+        Returns:
+            The name of the default resq adapter.
+        """
         return self._default_adapter
 
     @property
     def auth(self) -> AuthBase | None:
-        """Default authenticator applied to every request."""
+        """Default authenticator applied to every request.
+
+        Returns:
+            The default authenticator, or None when none is set.
+        """
         return self._auth
 
     @auth.setter
     def auth(self, value: AuthBase | None) -> None:
-        """Set the default authenticator applied to every request."""
+        """Set the default authenticator applied to every request.
+
+        Args:
+            value: The authenticator to apply to every request, or None to clear it.
+        """
         self._auth = value
 
     @property
     def headers(self) -> dict[str, str]:
-        """Default request headers (empty dict when none given)."""
+        """Default request headers (empty dict when none given).
+
+        Returns:
+            The default request headers.
+        """
         return self._headers
 
     @property
     def cookies(self) -> SimpleCookie | None:
-        """Default request cookies, or None."""
+        """Default request cookies, or None.
+
+        Returns:
+            The default request cookies, or None when none were given.
+        """
         return self._cookies
 
     @property
     def assert_timeout(self) -> int | float | None:
-        """Baseline assert-polling timeout forwarded into each ``AssertConfig``."""
+        """Baseline assert-polling timeout forwarded into each ``AssertConfig``.
+
+        Returns:
+            The assert-polling timeout in seconds, or None when not set.
+        """
         return self._assert_timeout
 
     @property
     def assert_delay(self) -> int | float | None:
-        """Baseline assert-polling delay forwarded into each ``AssertConfig``."""
+        """Baseline assert-polling delay forwarded into each ``AssertConfig``.
+
+        Returns:
+            The assert-polling delay in seconds, or None when not set.
+        """
         return self._assert_delay
 
     @property
     def assert_field_class(self) -> str | None:
-        """Dotted path of a custom ``AssertField`` subclass (``module:Class``)."""
+        """Dotted path of a custom ``AssertField`` subclass (``module:Class``).
+
+        Returns:
+            The dotted path, or None when the default field class is used.
+        """
         return self._assert_field_class
 
     @property
     def assert_response_class(self) -> str | None:
-        """Dotted path of a custom ``Expect`` subclass (``module:Class``)."""
+        """Dotted path of a custom ``Expect`` subclass (``module:Class``).
+
+        Returns:
+            The dotted path, or None when the default response class is used.
+        """
         return self._assert_response_class
 
     def bind(self, target: Any) -> None:

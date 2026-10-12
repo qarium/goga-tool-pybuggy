@@ -52,7 +52,7 @@ class _PostgresContainer(PostgresContainer):
 
 
 class PostgresEngine(BaseEngine):
-    """postgresql kind engine: module container, autocommit SQL plane, catalog-driven wipe.
+    """Postgresql kind engine: module container, autocommit SQL plane, catalog-driven wipe.
 
     The container uses the product-pinned postgres image unless the service config overrides
     it. Readiness is engine-owned: the module container's internal wait is disabled and the

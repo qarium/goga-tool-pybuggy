@@ -37,7 +37,7 @@ PRODUCER_RETRIES = 3
 
 
 class KafkaEngine(BaseEngine):
-    """kafka kind engine: mokapi container, producer plane, restart-based wipe.
+    """Kafka kind engine: mokapi container, producer plane, restart-based wipe.
 
     The container runs the product-pinned mokapi image unless the service entry overrides it.
     The inline topic declarations of the service entry decide the mocked topology — the engine

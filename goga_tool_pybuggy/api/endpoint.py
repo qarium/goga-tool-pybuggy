@@ -52,17 +52,29 @@ class Endpoint:
 
     @property
     def url_path(self) -> str:
-        """Route path forwarded to ``Api.request``."""
+        """Route path forwarded to ``Api.request``.
+
+        Returns:
+            The route path of the endpoint.
+        """
         return self._url_path
 
     @property
     def method(self) -> str:
-        """HTTP verb forwarded to ``Api.request``."""
+        """HTTP verb forwarded to ``Api.request``.
+
+        Returns:
+            The HTTP verb of the endpoint.
+        """
         return self._method
 
     @property
     def adapter(self) -> str | None:
-        """Per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default."""
+        """Per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default.
+
+        Returns:
+            The per-endpoint adapter override, or None to fall back to the ``Api`` default.
+        """
         return self._adapter
 
     def bind(self, target: Any) -> None:

@@ -17,7 +17,7 @@ from goga_tool_pybuggy.api.endpoint import Endpoint
 from pydantic import ValidationError
 from requests.auth import AuthBase
 
-from tests.api.conftest import BindTarget, HeaderAuth, PlainTarget, StubRequest
+from .conftest import BindTarget, HeaderAuth, PlainTarget, StubRequest
 
 
 class User:
