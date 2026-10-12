@@ -58,7 +58,7 @@ applies the test's pending sandbox data (see [Sandbox](../sandbox.md)).
   static `base_url`. Binding an address is explicit in the test body: `endpoint.bind(sandbox)`
   (or `api.bind(sandbox)`) replaces the address with the sandbox's service address and
   installs the request pre-flight — pending data is applied, the service liveness is
-  ensured, then the request runs; a died service fails the request with the service
+  ensured, then the request runs; a dead service fails the request with the service
   output attached. Every other test uses the rendered static `base_url` with no
   pre-flight. Generated endpoint
   fixtures depend on it; pytest resolves `api` automatically — no extra wiring:

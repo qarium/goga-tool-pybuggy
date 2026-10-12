@@ -130,11 +130,11 @@ entry, the same way topics are a property of the kafka service:
   executes), `-- +goose StatementBegin` / `-- +goose StatementEnd`, and
   `-- +goose NO TRANSACTION` (the file runs statement-by-statement, required by DDL such
   as `CREATE INDEX CONCURRENTLY`); anything else from goose fails with the file named.
-- The declaration is validated at document load, before any container starts: a missing
-  local folder, an empty folder, no `.sql` files, an invalid migration filename, or
-  duplicate version prefixes (local sources — a remote source checks its URL shape at load
-  and its folder at apply), or a git URL outside the scheme allowlist or with embedded
-  credentials fail the run naming the entry.
+- The declaration is validated at document load, before any container starts. A local
+  source fails the run naming the entry on: a missing folder, an empty folder, no `.sql`
+  files, an invalid migration filename, or duplicate version prefixes. A remote source
+  checks its URL shape at load (scheme allowlist, no embedded credentials) and its
+  folder at apply.
 - A remote source is shallow-cloned for the apply and deleted afterwards — nothing is
   copied into your repository; each session downloads fresh. No version-tracking table
   is created; a failed migration stops startup naming the file and the postgres error.
@@ -240,7 +240,7 @@ Binding the api to the sandbox is explicit — call `endpoint.bind(sandbox)` (or
 sandbox's service address and installs the request pre-flight: the test's declared data
 applies as one batch and the instance liveness is ensured before every request. Every other
 test uses the configured `base_url` (`--base-url` / `BASE_URL`
-/ config) with no pre-flight:
+/ config) with no pre-flight.
 
 ```python
 from goga_tool_pybuggy.api import Api, Endpoint
@@ -288,12 +288,12 @@ undeclared topic fails the operation. The wire encoding is fixed: a mapping valu
 JSON bytes, a plain string value as UTF-8 bytes, and the key (when given) as UTF-8 — the
 service under test consumes exactly that.
 
-Data can also be declared directly on the test as a **preset** (each declaration carries
-the same fields as the matching view operation; the decorator also stamps a `usefixtures`
-mark pulling the sandbox into the test's fixture closure so the reset and the presets run —
-a preset-declaring test that calls the service still takes the `sandbox` argument and calls
-`endpoint.bind(sandbox)` explicitly, binding is not implied by the mark; presets apply on
-top of the reset state, ahead of the test's own operations):
+Data can also be declared directly on the test as a **preset** — each declaration carries
+the same fields as the matching view operation, and presets apply on top of the reset
+state, ahead of the test's own operations. The decorator also stamps a `usefixtures` mark
+that pulls the sandbox into the test's fixture closure, so the reset and the presets run.
+The mark does not imply binding: a preset-declaring test that calls the service still
+takes the `sandbox` argument and calls `endpoint.bind(sandbox)` explicitly:
 
 ```python
 from goga_tool_pybuggy import services
@@ -310,7 +310,9 @@ from goga_tool_pybuggy import services
         ]
     },
 )
-def test_checkout(api): ...
+def test_checkout(api, sandbox):
+    api.bind(sandbox)
+    ...
 ```
 
 Operations apply in the order declared, per service: presets first, then in-test

@@ -28,7 +28,7 @@ package contains a pytest plugin and a CLI.
   latest reached stage of the automate line and the fix line — one status per line.
 - **Sandbox** — session-scoped isolated service testing: a sandbox document at
   `.goga/tools/pybuggy/sandbox.yml` provides the product `sandbox` pytest fixture; the
-  first test that uses it starts the service under test plus mocked dependencies
+  first test that uses it starts the instance under test plus mocked dependencies
   (postgresql, kafka, vault, http) in containers and wires them into the service env;
   a test binds its api to the sandbox explicitly via `endpoint.bind(sandbox)`; the DB
   schema is declared as goose-format SQL migrations applied once per session and kept
