@@ -47,13 +47,14 @@ Annotations: |
        5.5. When the filter is set, keep only endpoints whose id is in the set and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids — before any artifact is written.
     6.5. Reject sanitized-id collisions per spec — when two `Endpoint`s of one spec share an identifier segment, raise click.ClickException naming both paths and the shared segment, before any artifact is written (the second endpoint's files would otherwise be silently skipped as "already existing" and its schemas written into the first endpoint's directory; under `force` they would overwrite them). This covers both collision sources: distinct ids that sanitize alike, and distinct paths (e.g. "/a-b/x" and "/a/b/x", both "-" and "/" map to "_") that produce the identical id.
+    6.6. Reject sanitized spec-segment collisions — when two selected spec names share an identifier segment (e.g. "some-spec" and "some_spec"), raise click.ClickException naming both names and the shared segment, before any artifact is written (their artifacts would silently mix in one directory).
     7. Phase 2 — write artifacts, for each collected (name, `Endpoint`):
-       7.1. Sanitize the `Endpoint` id into an identifier segment (every non-word character becomes _; Unicode word characters are preserved; a leading digit is prefixed with _) — the segment names the package directory and must be importable.
-       7.2. Create cwd/api/<name>/<sanitized id>/schemas and cwd/tests/<name>/<sanitized id>.
-       7.3. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<name>, cwd/api/<name>/<sanitized id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
-       7.4. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<name>/<sanitized id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
-       7.5. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<name>/<sanitized id>/api.py (same `force` skip/overwrite semantics).
-       7.6. Write the endpoint input contract to cwd/api/<name>/<sanitized id>/meta.json — exactly the keys parameters (the `Endpoint` query_params), request_body (the `Endpoint` request), vars (the `Endpoint` path_params) — serialized as prettified JSON (indent=2, ensure_ascii=False), with the same `force` skip/overwrite semantics as the schema and api.py files.
+       7.1. Sanitize the spec name into an identifier segment (every non-word character becomes _; Unicode word characters are preserved; a leading digit is prefixed with _) — the raw config name never appears in a path; the segment names the spec's package directory and must be importable. Sanitize the `Endpoint` id with the same rule — that segment names the endpoint's package directory.
+       7.2. Create cwd/api/<sanitized name>/<sanitized id>/schemas and cwd/tests/<sanitized name>/<sanitized id>.
+       7.3. Write an empty __init__.py in every directory on the api.py path — cwd/api, cwd/api/<sanitized name>, cwd/api/<sanitized name>/<sanitized id> — with the same `force` skip/overwrite semantics as the schema and api.py files.
+       7.4. For each (status_code, schema) in the `Endpoint` response — write cwd/api/<sanitized name>/<sanitized id>/schemas/<status_code>.json (skip silently when the file exists and `force` is false; otherwise overwrite).
+       7.5. Render the fixture module via `render_api_module`(`Endpoint`) and write cwd/api/<sanitized name>/<sanitized id>/api.py (same `force` skip/overwrite semantics).
+       7.6. Write the endpoint input contract to cwd/api/<sanitized name>/<sanitized id>/meta.json — exactly the keys parameters (the `Endpoint` query_params), request_body (the `Endpoint` request), vars (the `Endpoint` path_params) — serialized as prettified JSON (indent=2, ensure_ascii=False), with the same `force` skip/overwrite semantics as the schema and api.py files.
 
     Requirements:
     - An invalid spec — not a mapping, "paths" absent or null, no openapi/swagger version key, or a response key outside the legal status-key shapes — raises click.ClickException before any artifact is written.
@@ -64,9 +65,11 @@ Annotations: |
     - meta.json is serialized with the schema-file convention: prettified JSON, indent=2, ensure_ascii=False.
     - api.py contains the fixture and the optional Request class exactly as produced by `render_api_module`.
     - api.py follows the same `force` skip/overwrite semantics as schema files; idempotent — without `force`, existing files are preserved and no per-file output is emitted.
-    - Every directory on the api.py path (cwd/api, cwd/api/<name>, cwd/api/<name>/<sanitized id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
+    - Every directory on the api.py path (cwd/api, cwd/api/<sanitized name>, cwd/api/<sanitized name>/<sanitized id>) carries an empty __init__.py so the generated fixture modules form an importable package; markers follow the same `force` skip/overwrite semantics as the schema and api.py files.
+    - The spec segment and the endpoint segment both derive from the one sanitization rule, so a spec name that is not a valid identifier (e.g. contains "-") still yields an importable dotted path.
     - The endpoint directory and the fixture function name derive from the same sanitized id, so a module is always importable under the dotted path it is written to.
-    - Distinct endpoint ids of one spec never share a sanitized segment; a collision raises instead of writing.
+    - Distinct endpoint ids of one spec never share a sanitized segment; distinct selected spec names never share a sanitized segment; a collision raises instead of writing.
+    - The spec's artifact trees use the sanitized spec-name segment, while the config key, the `spec_name` filter, and all printed names keep the raw config name.
     - The `endpoint_ids` filter keys on the raw `Endpoint` id, not the sanitized segment.
     - Output root is the current working directory (Path.cwd()).
     - `endpoint_ids` of None or empty generates every endpoint of the selected specs.

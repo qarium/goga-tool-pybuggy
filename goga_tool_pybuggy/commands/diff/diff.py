@@ -115,7 +115,8 @@ def run_diff(spec_name: Optional[str], endpoint_ids: Optional[list[str]] = None)
 
     # Step 7: Phase 2 — compare and print each selected spec's units
     for name, endpoints, kept in collected:
-        api_spec_dir = cwd / "api" / name
+        # The spec segment is sanitized exactly as generate derives it, so the tree is always located.
+        api_spec_dir = cwd / "api" / sanitize_id(name)
         for endpoint in kept:
             spec_side = spec_contract(endpoint)
             endpoint_dir = api_spec_dir / sanitize_id(endpoint.id)

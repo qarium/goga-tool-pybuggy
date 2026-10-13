@@ -8,6 +8,13 @@ prints one JSON document per compared unit to the console. Consumers: CLI regist
 and tests (`run_diff` directly; the helpers `spec_contract`, `artifact_contract`, `sanitize_id`,
 `orphan_artifact_dirs` directly).
 
+The artifact tree of a spec is located at `api/<spec.dir>/`, where `<spec.dir>` is the config spec
+name sanitized to a Python identifier segment exactly as generate derives it when writing (every
+non-word character becomes `_`, a leading digit is prefixed with `_` — a config name `some-spec`
+is read at `api/some_spec/`). The `--spec` filter and the printed documents keep the raw config
+name; a tree left at a raw non-identifier segment (generated before this rule) sits outside the
+sanitized root and is not discovered.
+
 ## Handler function invocation
 
 `run_diff` is the testable entry point; the Click wrapper `diff_cmd` binds the options and calls

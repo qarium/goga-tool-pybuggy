@@ -957,3 +957,87 @@ paths:
 
     with pytest.raises(click.ClickException, match="unreadable or corrupt artifact schema"):
         run_list(None, with_status=True)
+
+
+# Spec-name segment sanitization tests ----------------------------------------
+
+
+def test_run_list_status_reads_sanitized_spec_segment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """Status mode locates the artifact tree at the sanitized spec segment generate writes.
+
+    A hyphenated config name (`some-spec`) with artifacts under `api/some_spec/` reports OK.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "some-spec.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    _write_config(tmp_path, {"some-spec": ".specs/some-spec.yaml"})
+    _write_artifact(
+        tmp_path,
+        "some_spec",
+        "clients_startup_get",
+        {"parameters": {}, "request_body": {}, "vars": {}},
+        {"200": {"type": "object"}},
+    )
+
+    run_list("some-spec", with_status=True)
+
+    assert capsys.readouterr().out == (
+        "some-spec (.specs/some-spec.yaml)\n* clients_startup_get -> [GET] /clients/startup — STATUS: OK\n"
+    )
+
+
+def test_run_list_status_raw_hyphenated_tree_reports_add(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A pre-fix raw `api/some-spec/` tree is invisible to the sanitized root — ADD, no REMOVED."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "some-spec.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    _write_config(tmp_path, {"some-spec": ".specs/some-spec.yaml"})
+    _write_artifact(
+        tmp_path,
+        "some-spec",
+        "clients_startup_get",
+        {"parameters": {}, "request_body": {}, "vars": {}},
+        {"200": {"type": "object"}},
+    )
+
+    run_list("some-spec", with_status=True)
+
+    assert capsys.readouterr().out == (
+        "some-spec (.specs/some-spec.yaml)\n* clients_startup_get -> [GET] /clients/startup — STATUS: ADD\n"
+    )

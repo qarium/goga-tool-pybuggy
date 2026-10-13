@@ -41,7 +41,11 @@ With `with_status=True`, every line carries its synchronization status against t
 
 - Statuses: `ADD` — the endpoint has no artifact directory; `UPD` — the directory exists and drifted; `OK` — the directory exists and matches; `REMOVED` — an artifact directory matching no endpoint, printed as `* <segment> — STATUS: REMOVED` with no method/path part.
 - Endpoint lines and removed lines form one list sorted by line name (`<id>` / `<segment>`) — deterministic across runs.
-- The status mode reads the artifact tree under `api/<name>/` of the working directory; the plain mode touches no artifact file.
+- The status mode reads the artifact tree under `api/<name>/` of the working directory, where
+  `<name>` is the config spec name sanitized to a Python identifier segment exactly as generate
+  derives it when writing (every non-word character becomes `_`, a leading digit is prefixed with
+  `_` — a config name `some-spec` is read at `api/some_spec/`); the plain mode touches no
+  artifact file.
 - A spec that parses but declares no endpoints logs a warning; in the plain mode its header-only block still prints (byte-identical to the previous behavior); in the status mode a spec prints its block when it has at least one line (removed segments count as lines).
 
 ## The --spec and --status options

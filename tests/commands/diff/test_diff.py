@@ -736,3 +736,62 @@ paths:
     lines = capsys.readouterr().out.splitlines()
     # Both endpoints print a document keyed by their RAW id; the shared directory is never reported removed.
     assert [next(iter(json.loads(line))) for line in lines] == ["v1.0_clients_get", "v1_0_clients_get"]
+
+
+# Spec-name segment sanitization tests ----------------------------------------
+
+
+def test_run_diff_reads_sanitized_spec_segment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """diff locates the artifact tree at the sanitized spec segment generate writes.
+
+    A hyphenated config name (`some-spec`) with artifacts under `api/some_spec/` compares
+    clean — no drift, no orphans.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "some-spec.yaml", _STARTUP_GET)
+    _write_config(tmp_path, {"some-spec": ".specs/some-spec.yaml"})
+    _write_artifact(
+        tmp_path,
+        "some_spec",
+        "clients_startup_get",
+        {"parameters": {}, "request_body": {}, "vars": {}},
+        {"200": {"type": "object"}},
+    )
+
+    run_diff(None, None)
+
+    assert capsys.readouterr().out == '{"clients_startup_get": {}}\n'
+
+
+def test_run_diff_raw_hyphenated_tree_is_outside_the_sanitized_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A pre-fix raw `api/some-spec/` tree sits outside the sanitized root diff reads.
+
+    Every endpoint is reported as added (its artifact directory is absent at the sanitized
+    path) and the stale raw tree is not discovered as an orphan — it lives under a segment
+    the sanitized root never scans.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(tmp_path / ".specs", "some-spec.yaml", _STARTUP_GET)
+    _write_config(tmp_path, {"some-spec": ".specs/some-spec.yaml"})
+    _write_artifact(
+        tmp_path,
+        "some-spec",
+        "clients_startup_get",
+        {"parameters": {}, "request_body": {}, "vars": {}},
+        {"200": {"type": "object"}},
+    )
+
+    run_diff("some-spec", None)
+
+    # one document: the endpoint reported against an empty generated side; no orphan line
+    lines = capsys.readouterr().out.splitlines()
+    assert len(lines) == 1
+    assert '"clients_startup_get"' in lines[0]
+    assert '"values_changed"' in lines[0]
+    assert "schemas" in lines[0]

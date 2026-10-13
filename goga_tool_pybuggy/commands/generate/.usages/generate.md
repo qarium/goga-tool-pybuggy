@@ -39,20 +39,25 @@ directory.
 Artifact tree (under the current working directory):
 
     api/__init__.py                       # empty package marker
-    api/<spec>/__init__.py                # empty package marker
-    api/<spec>/<endpoint.dir>/__init__.py  # empty package marker
-    api/<spec>/<endpoint.dir>/schemas/<status_code>.json
-    api/<spec>/<endpoint.dir>/meta.json
-    api/<spec>/<endpoint.dir>/api.py
-    tests/<spec>/<endpoint.dir>/          # empty directory
+    api/<spec.dir>/__init__.py            # empty package marker
+    api/<spec.dir>/<endpoint.dir>/__init__.py  # empty package marker
+    api/<spec.dir>/<endpoint.dir>/schemas/<status_code>.json
+    api/<spec.dir>/<endpoint.dir>/meta.json
+    api/<spec.dir>/<endpoint.dir>/api.py
+    tests/<spec.dir>/<endpoint.dir>/      # empty directory
 
-`<endpoint.dir>` is the endpoint id sanitized to a Python identifier segment: every character
-outside the word-character class becomes `_` (the dot in `/v1.0/clients` → `v1_0_clients_get`; Unicode word characters are preserved), and a leading
-digit is prefixed with `_` — the directory is a package-name segment, so it must be importable.
+`<spec.dir>` and `<endpoint.dir>` are sanitized to a Python identifier segment by one rule:
+every character outside the word-character class becomes `_` (the dot in `/v1.0/clients` →
+`v1_0_clients_get`; the hyphen in a spec name `some-spec` → `some_spec`; Unicode word characters
+are preserved), and a leading digit is prefixed with `_` — every directory of the path is a
+package-name segment, so it must be importable.
+The config key itself stays raw: `-s/--spec some-spec` selects the spec by its config name, and
+printed names keep the config spelling.
 The `endpoint-ids` filter still keys on the raw id as produced by `build_endpoint_id`.
 When two distinct ids of one spec sanitize to the same segment (e.g. `/v1.0/clients` and
-`/v1_0/clients`), generate raises `click.ClickException` naming both — before any artifact is
-written, never merging their directories.
+`/v1_0/clients`), or two selected spec names sanitize to the same segment (e.g. `some-spec` and
+`some_spec`), generate raises `click.ClickException` naming the offenders — before any artifact
+is written, never merging their directories.
 
 Example: spec `shop`, endpoint `clients_startup_get` with status codes `200`, `404`:
 
@@ -64,6 +69,16 @@ Example: spec `shop`, endpoint `clients_startup_get` with status codes `200`, `4
     api/shop/clients_startup_get/meta.json
     api/shop/clients_startup_get/api.py
     tests/shop/clients_startup_get/
+
+A hyphenated config name sanitizes only the directory segment — spec `some-spec`, endpoint
+`clients_startup_get` with status code `200`:
+
+    api/some_spec/__init__.py
+    api/some_spec/clients_startup_get/__init__.py
+    api/some_spec/clients_startup_get/schemas/200.json
+    api/some_spec/clients_startup_get/meta.json
+    api/some_spec/clients_startup_get/api.py
+    tests/some_spec/clients_startup_get/
 
 The content of `<status_code>.json` is the prettified JSON of the expanded response schema
 (indent=2, ensure_ascii=False). For status codes without `application/json`, `{}` is written. The
@@ -133,8 +148,8 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
   missing files and directories. The behavior is idempotent.
 - With `-f` (`force=True`): the handler overwrites files, rewrites `__init__.py` markers with empty
   content, and (re)creates directories — the entire artifact tree regenerates uniformly.
-- `__init__.py` markers are placed only along the path to `api.py` (`api/`, `api/<spec>/`,
-  `api/<spec>/<endpoint.dir>/`), never under `tests/`.
+- `__init__.py` markers are placed only along the path to `api.py` (`api/`, `api/<spec.dir>/`,
+  `api/<spec.dir>/<endpoint.dir>/`), never under `tests/`.
 - A tree regenerated without `-f` does not gain `meta.json` next to already-present artifacts until
   `-f` is used or the file is missing — the established skip semantics, by design.
 
