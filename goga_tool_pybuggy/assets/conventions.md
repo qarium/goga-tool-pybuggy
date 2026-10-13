@@ -195,7 +195,9 @@ decorators. A test without metadata is a direct policy violation.
 ### Step architecture
 
 1. **Test functions**: Wrap test phases in the `with allure.step("...")` context manager —
-   nested blocks form substeps
+   nested blocks form substeps. A step names a scenario action of the case; infrastructure
+   wiring is not a phase — the sandbox bind (`endpoint.bind(sandbox)`) and similar plumbing
+   stay bare lines in the test body, never wrapped in `allure.step`
 2. **Helpers/utilities**: Decorate methods with `@allure.step("...")`, parameterizing the step
    name with placeholders to inject runtime data:
 
