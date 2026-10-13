@@ -43,7 +43,17 @@ Describe the topic's behavior declaratively, grouped by states/use cases:
    factories — expressed as a **need** ("unique emails are required", "an external service must be unavailable
    (mock)"), never as an instrument. Instrument selection and wiring belong to the `testcases` stage (its `tools`
    step), driven by the usages registry from §8.
-2. Environment preconditions: `env` (stage etc.), version.
+2. Phrase the preconditions — and every clarifying question about them — according to the run target
+   recorded in the "Sandbox" section of [DISCOVERY_REPORT] (`all cases sandbox` | `target env` |
+   `mixed`):
+   - sandbox runs are planned (`all cases sandbox` / `mixed`) — state data preconditions as sandbox
+     seeding needs: which entities are seeded into which dependency services (by the recorded
+     service names), which dependencies are mocked and how. Never ask about pre-existing records
+     of the dev/target database for sandbox-bound behavior — the sandbox starts from its baseline;
+     ask only the business facts the sandbox document cannot answer (real-world constraints,
+     roles, business rules);
+   - run target `target env` — preconditions address the target environment as before.
+3. Environment preconditions: `env` (stage etc.), version.
 
 ### Step 4. Roles and permissions
 

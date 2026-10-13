@@ -57,12 +57,24 @@ Facts about an external tool come from its usage spec, not from the user.
    the `migrations` source (when declared).
 2. Absent — **not configured**: the topic's tests are written without the sandbox, and the
    `testcases` stage never offers it.
-3. The sandbox usages from the scan (`.goga/usages/cooks/pybuggy/sandbox/`) are copied by
+3. Reconcile the run-target decision of [INTAKE_REPORT] ("Run target and target environment")
+   with the document fact — this step fixes the decision the whole pipeline carries:
+   - the intake recorded **all cases sandbox** or **mixed** while the document is absent — a
+     contradiction (a capability the project does not have): ask the user via AskUserQuestion —
+     switch the run target to `target env` (and resolve the base URL) or stop so the user
+     configures the sandbox document first; record the corrected decision and a WARNING in the
+     report Notes;
+   - the document exists and the intake recorded `target env` — legal: record the decision (the
+     `testcases` stage will not offer sandbox runs for this topic);
+   - the document exists and the intake recorded `all cases sandbox` / `mixed` — record the
+     decision as confirmed.
+4. The sandbox usages from the scan (`.goga/usages/cooks/pybuggy/sandbox/`) are copied by
    `goga init` regardless of the document: their presence never proves the capability. In the §8
    registry, the `role` cell of every sandbox row carries the mark — **sandbox, active** when
    `sandbox.yml` exists, **sandbox, copied (inactive)** otherwise. The wiring source for cells is
    the test-runtime pair `sandbox-session` (the `sandbox` fixture, the bind) +
-   `data-operations` (seeding, dependency mocks). Ask the user nothing at this step — a scan only.
+   `data-operations` (seeding, dependency mocks). Apart from the reconciliation contradiction
+   (item 3), ask the user nothing at this step — a scan only.
 
 ### Step 4. List endpoints (list)
 
@@ -160,7 +172,9 @@ If .goga/usages/ is missing or empty — state "usages are missing".]
 
 [configured: instance image, services (name → kind), migrations source — one line each; the wiring
 source for cells is the test-runtime pair `sandbox-session` + `data-operations`
-| not configured — the §8 sandbox rows carry the mark `sandbox, copied (inactive)`]
+| not configured — the §8 sandbox rows carry the mark `sandbox, copied (inactive)`. Either way,
+the reconciled run target: all cases sandbox | target env | mixed (per case at `testcases`) — the
+intake decision as confirmed or corrected at this step (a correction notes its reason)]
 
 ## Endpoint registry (list)
 

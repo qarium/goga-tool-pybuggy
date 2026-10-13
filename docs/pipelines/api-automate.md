@@ -63,9 +63,16 @@ isolated instance with mocked dependency services (postgresql/kafka/vault/http) 
 the product `sandbox` fixture. The decision travels the pipeline as data:
 
 - `create-requirements` records the fact — §4 "Sandbox": `configured` (image, services)
-  or `not configured` (the tests are written without the sandbox; it is never offered).
-- `test-design` asks — only when configured — which cases run in the sandbox and marks
-  every case with its environment: `sandbox` | `target env`.
+  or `not configured` (the tests are written without the sandbox; it is never offered) — and,
+  when configured, asks the **run target** right after the spec-ref question: all cases in the
+  sandbox | target env | mixed (decided per case later). The answer lands in §4 and drives the
+  preconditions phrasing (sandbox seeding needs, never "records of the dev database"), the
+  recorded run commands (a sandbox-only topic carries no `--base-url`), and the case assignment
+  at the `test-design` stage.
+- `test-design` assigns environments per the recorded run target: `all cases sandbox` marks
+  every case `sandbox` without per-group questions; `target env` never offers the sandbox;
+  `mixed` asks — per group — which cases run in the sandbox. Every case carries its
+  environment: `sandbox` | `target env`.
 - The cells stage wires the sandbox usages (`.goga/usages/cooks/pybuggy/sandbox/**`) into
   the affected cells, declares the product `sandbox` fixture in the Routine signature, and
   writes the bind — binding the client to the sandbox before any request — as the first

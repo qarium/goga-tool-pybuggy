@@ -142,7 +142,11 @@ Every case (`#### TC-<N>: <title>`) must contain the fields:
     "Sandbox" entry to be `configured` — `sandbox` against "not configured" is **High** (the test
     would reference a capability the project does not have). When configured, the sandbox service
     names in the case's Preconditions (seeded entities, mocked dependencies) match the services
-    recorded in §4 — a service the sandbox document does not declare is **High**. A missing
+    recorded in §4 — a service the sandbox document does not declare is **High**. The case
+    environments agree with the run target recorded in §4 (when present): a `target env` case
+    under `all cases sandbox`, or a `sandbox` case under `target env`, is **Medium** — the
+    suggested fix updates the §4 run target to record the evolved user decision (the plan's
+    Sandbox assignment section must explain the deviation). A missing
     **environment** field — **Medium** (the `cells` stage cannot split Routines by environment).
 
 ---
