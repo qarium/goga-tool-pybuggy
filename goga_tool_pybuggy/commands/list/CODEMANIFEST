@@ -46,7 +46,7 @@ Annotations: |
     1. Load the config via `load_config` (fixed config path) and iterate its specs.
     2. Select specs: all `Config` specs, or only `spec_name` when provided.
     3. For each selected spec (name, entry):
-       3.1. Parse the spec at project-root / `SpecEntry` location via `load_spec`.
+       3.1. Parse the spec at cwd / `SpecEntry` location via `load_spec`.
        3.2. If the spec is not a mapping or its "paths" is not a mapping (absent,
            present with a null value, or a non-mapping document), raise
            click.ClickException (invalid spec file).
