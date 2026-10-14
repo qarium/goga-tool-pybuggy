@@ -60,6 +60,7 @@ nav:
       - Overview: pipelines/index.md
       - api.automate: pipelines/api-automate.md
       - api.fix: pipelines/api-fix.md
+      - api.patch: pipelines/api-patch.md
       - Workflows: pipelines/workflows.md
   - CLI Reference:
       - goga tool pybuggy init: cli/init.md

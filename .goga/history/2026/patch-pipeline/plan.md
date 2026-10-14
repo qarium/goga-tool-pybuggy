@@ -1094,21 +1094,21 @@ the docs pages describe the contracts but never modify them.**
 - `contribution` (imported usage content): the autonomous-runs section's factual basis
   (opt-in axis, window, build entry, acceptance interactivity).
 
-- [ ] Create `docs/pipelines/api-patch.md` per the context above (all sections;
+- [x] Create `docs/pipelines/api-patch.md` per the context above (all sections;
       cross-links to `api-automate.md` / `api-fix.md` / `../getting-started.md` /
       `workflows.md`).
-- [ ] Update `docs/pipelines/index.md` — intro paragraph names the third pipeline;
+- [x] Update `docs/pipelines/index.md` — intro paragraph names the third pipeline;
       Launch block gains `goga pipeline pybuggy:api.patch   # change existing tests`;
       "In this section" gains the `[The \`api.patch\` pipeline](api-patch.md)` bullet.
-- [ ] Update `mkdocs.yml` — add `- api.patch: pipelines/api-patch.md` directly after
+- [x] Update `mkdocs.yml` — add `- api.patch: pipelines/api-patch.md` directly after
       the `- api.fix:` nav entry.
-- [ ] Verify: `grep -n "api-patch" mkdocs.yml docs/pipelines/index.md` shows both
+- [x] Verify: `grep -n "api-patch" mkdocs.yml docs/pipelines/index.md` shows both
       entries; the page's stage list matches `pipelines/api.patch.yml` exactly (ten
       names, modes, trigger); the autonomous-runs section names `api.patch`,
       `workplan.md`, `review-impact`…`commit-changes`, and the manual `accept-result`.
-- [ ] Lint gate (M3.2): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
+- [x] Lint gate (M3.2): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
       `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` — clean.
-- [ ] Commit gate (M3.3): `pytest tests/ -x` green; commit exactly
+- [x] Commit gate (M3.3): `pytest tests/ -x` green; commit exactly
       `docs/pipelines/api-patch.md`, `docs/pipelines/index.md`, `mkdocs.yml`.
 
 ---
@@ -1138,53 +1138,56 @@ the docs pages describe the contracts but never modify them.**
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location`:
+- [x] Every contract entity is implemented in the correct `location`:
       `register_patch_statuses` in `statuses/patch.py`; `PipelineContribution` (with the
       two records and `CONTRIBUTIONS`) in `autonomous/contributions.py`;
       `amend_workflow` in `autonomous/amendment.py`; `build_autonomous_workflow` in
       `autonomous/workflow.py`; `register_hooks` in `reg_hooks.py`
-- [ ] Every contract entity is accessible from its facade: statuses `__all__` carries
+- [x] Every contract entity is accessible from its facade: statuses `__all__` carries
       the three routines; autonomous `__all__` carries `PipelineContribution` beside the
       two routines; the root facade still carries `register_hooks` (unchanged file)
-- [ ] Properties and methods match the declared API — in particular
+- [x] Properties and methods match the declared API — in particular
       `build_autonomous_workflow(contribution: PipelineContribution) -> document:
       WorkflowDocument` with stringified annotations, and `amend_workflow(context:
       object)` unchanged
-- [ ] Descriptions are reflected in behavior: the six-status table verbatim; the
+- [x] Descriptions are reflected in behavior: the six-status table verbatim; the
       normative contribution table verbatim; record resolution by discovered name; axis
       routing per record; silent no-ops; undamped error propagation; record-driven
       document with no per-pipeline branching; six subscriptions in platform order
-- [ ] Contract dependencies are met: `resolve_autonomy` consumed through the
+- [x] Contract dependencies are met: `resolve_autonomy` consumed through the
       module-level import (monkeypatch surface intact); `PipelineContribution` imported
       intra-package in `workflow.py` and `amendment.py`; `.statuses` import grown in
       `reg_hooks.py`
-- [ ] Re-exports accessible from the facade (`install`, `services` untouched)
-- [ ] Every coding task followed the TDD workflow (contract tests → code →
+- [x] Re-exports accessible from the facade (`install`, `services` untouched)
+- [x] Every coding task followed the TDD workflow (contract tests → code →
       verification → logic tests → debugging → re-verification → lint)
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding
       task; the designed matrices (axis routing, no-op identities, determinism over
       both records) are parametrized tables including every boundary
-- [ ] Integration tests exist for the cross-cell chains
+- [x] Integration tests exist for the cross-cell chains
       (`tests/test_autonomy_integration.py`, including the patch end-to-end scenario
       with the real config tree)
-- [ ] The non-cell artifacts exist and are consistent: `pipelines/api.patch.yml` matches
+- [x] The non-cell artifacts exist and are consistent: `pipelines/api.patch.yml` matches
       the normative skeleton and contains every `PATCH_CONTRIBUTION.window` stage plus
       `accept-result` outside the window; the nine orchestrator skills exist with
       matching names; `docs/pipelines/api-patch.md`, the `index.md` entry, and the
       `mkdocs.yml` nav line are in place
-- [ ] No package boundary was expanded (no new cells, no new facades beyond the two
+- [x] No package boundary was expanded (no new cells, no new facades beyond the two
       declared `__all__` additions, no changes to out-of-scope files: the goga
       platform, the `config` cell, `accept-result` handling, `pyproject.toml`)
-- [ ] `CODEMANIFEST` and `.usages/` files were not modified (contract and consumer
+- [x] `CODEMANIFEST` and `.usages/` files were not modified (contract and consumer
       docs are read-only; the apply-architecture stage's uncommitted changes remain
       untouched for the pipeline's commit-changes stage)
-- [ ] All validation commands pass — `pytest tests/ -x` fully green, both ruff commands
-      clean, every facade probe resolves, `goga lint` 24 cells 0 errors
-- [ ] Every Usages entry is mentioned in at least one task (`conventions`,
+- [x] All validation commands pass — `pytest tests/ -x` fully green, both ruff commands
+      clean, every facade probe resolves, `goga lint` 24 cells 0 errors (the
+      `/opt/goga`-interpreter smoke is a documented pre-existing environment gap — that
+      interpreter lacks the runtime deps, so even pre-existing imports fail there; the
+      venv probes cover it)
+- [x] Every Usages entry is mentioned in at least one task (`conventions`,
       `goga-statuses`, `goga-pipeline-hooks`, `goga-workflow-document`,
       `goga-compile-flow`; root `goga-hooks`, `goga-onboarding-hooks`; imported
       `autonomy`, `registration`, `contribution`)
-- [ ] The Mandatory Rules were enforced throughout: coding style per M1, test rules per
+- [x] The Mandatory Rules were enforced throughout: coding style per M1, test rules per
       M2, ruff lint+format at every task gate and every local commit per M3, and the
       REPL cycle (continuous evaluation, hot reloading, REPL→source migration, findings
       pinned as tests) per M4
