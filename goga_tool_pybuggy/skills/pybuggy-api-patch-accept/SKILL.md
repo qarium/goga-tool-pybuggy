@@ -23,7 +23,7 @@ suite, triage every failure with the user, record service bugs in the path print
 ## Paths
 
 Pre-flight: check that the path printed by `goga history path -f completed/workplan.md` exists.
-- **Missing** — STOP: the plan stage must run first.
+- **Missing** — STOP: the build stage must run first.
 - **Exists** — proceed.
 
 ## Context Initialization
