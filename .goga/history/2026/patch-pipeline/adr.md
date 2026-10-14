@@ -42,6 +42,11 @@ start on red tests, and any failure it meets is surfaced to the user.
   `workplan.md` after `plan-review`; the autonomous contribution appends a `build` stage
   after `commit-changes`. Verification is mandatory: pytest in the plan's Validation
   Commands per task, plus the final full-suite run at `accept-result`.
+- **Accept contract** — `accept-result` never depends on the plan artifact: a successful
+  `goga build` relocates `workplan.md` to `completed/workplan.md`, so the acceptance gates
+  on the apply report (`apply.md`) and verifies the manifest ↔ test-code togetherness
+  against it — the same shape as automate's accept, which gates on `testcases.md` and
+  never on the relocated `plan.md`.
 - **Deletions** — a removed Routine or cell produces deletion tasks inside the ralphex
   plan ("delete this test / these tests in that file"); `apply-manifests` only edits
   manifests.

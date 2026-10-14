@@ -9,7 +9,7 @@ description: Final acceptance of the patch run — consistency check (every chan
 
 You are the orchestrator of the final acceptance of a patch run. The chain
 `collect-intent → analyze-impact → review-impact → apply-manifests → code-design →
-design-review → coding-plan → plan-review → build` has completed; your job now is to
+design-review → coding-plan → plan-review → goga build` has completed; your job now is to
 verify the defining rule — every change landed in the CODEMANIFEST and in the test code
 together — and to run the full suite. The run may have started on red tests; every
 failure you meet is surfaced to the user, never masked.
@@ -22,7 +22,7 @@ suite, triage every failure with the user, record service bugs in the path print
 
 ## Paths
 
-Pre-flight: check that the path printed by `goga history path -f workplan.md` exists.
+Pre-flight: check that the path printed by `goga history path -f completed/workplan.md` exists.
 - **Missing** — STOP: the plan stage must run first.
 - **Exists** — proceed.
 
@@ -62,6 +62,8 @@ question per message, 2–4 options.
 3. No failure masking: no `pytest.skip`/skip-markers/xfail in the changed files.
 4. Every changed file is recorded in the plan's tasks.
 - WAIT: findings that require a user decision (fix the file here / return to the plan).
+- STOP if: the test files of the applied deltas are not materialized at all — acceptance
+  is impossible until `goga build` on the topic workplan.
 
 ### Step 3. Run — WAIT
 
