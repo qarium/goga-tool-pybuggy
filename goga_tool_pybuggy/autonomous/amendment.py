@@ -1,23 +1,18 @@
 """The workflow amendment hook — the autonomy contribution moment.
 
-Contributes only on pipeline ``pybuggy:api.automate`` with autonomy enabled; every other state is a silent no-op.
+Contributes the record's document on a qualifying pipeline with autonomy enabled; every other state is a silent no-op.
 """
 
 from ..config import resolve_autonomy
+from .contributions import CONTRIBUTIONS
 from .workflow import build_autonomous_workflow
-
-# The installer namespaces tool pipelines as ``<tool>:<name>``, so the package's
-# ``api.automate.yml`` is discovered as ``pybuggy:api.automate``.
-_PIPELINE = "pybuggy:api.automate"
-
-# The ``pipelines``-axis key naming the same pipeline in the tool config.
-_AXIS = "api.automate"
 
 
 def amend_workflow(context: object) -> None:
     """Contribute the autonomous workflow amendment when the run qualifies.
 
-    Disqualifying states contribute nothing and raise nothing.
+    The record whose identity equals the discovered pipeline name drives qualification, axis routing, and the
+    contributed document; disqualifying states contribute nothing and raise nothing.
 
     Args:
         context: The platform amendment view — pipeline identity plus the contribute buffer.
@@ -28,12 +23,14 @@ def amend_workflow(context: object) -> None:
     """
     pipeline = context.pipeline
 
-    if pipeline.name != _PIPELINE:
+    contribution = next((c for c in CONTRIBUTIONS if c.identity == pipeline.name), None)
+
+    if contribution is None:
         return
 
-    enabled = resolve_autonomy(_AXIS)
+    enabled = resolve_autonomy(contribution.axis)
 
     if not enabled:
         return
 
-    context.contribute(build_autonomous_workflow())
+    context.contribute(build_autonomous_workflow(contribution))

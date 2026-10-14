@@ -725,9 +725,9 @@ migration.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 3: autonomous cell — the
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 3: autonomous cell — the
       record-driven document path`).
-- [ ] **STEP 1 (CONTRACT TESTS)**: update the contract tests to the new shapes first —
+- [x] **STEP 1 (CONTRACT TESTS)**: update the contract tests to the new shapes first —
       in `tests/autonomous/test_workflow.py`:
       `test_build_autonomous_workflow_signature_matches_contract` now asserts
       `list(signature.parameters) == ["contribution"]`,
@@ -736,13 +736,13 @@ migration.>
       keeps `from __future__ import annotations`); in `tests/autonomous/test_amendment.py`
       the two existing contract tests stay as-is (`context: object`, return `None`).
       Expected to fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: rewrite `goga_tool_pybuggy/autonomous/workflow.py`
+- [x] **STEP 2 (IMPLEMENTATION)**: rewrite `goga_tool_pybuggy/autonomous/workflow.py`
       per the context above (record parameter; dead constants deleted; kept constants
       reused; module and function docstrings generalized to "the record's window").
-- [ ] **STEP 2 (IMPLEMENTATION)**: rewrite `goga_tool_pybuggy/autonomous/amendment.py`
+- [x] **STEP 2 (IMPLEMENTATION)**: rewrite `goga_tool_pybuggy/autonomous/amendment.py`
       per the context above (record resolution; dead constants deleted; module and
       function docstrings generalized; `Raises` section kept).
-- [ ] **STEP 2 (IMPLEMENTATION)**: migrate the call sites — in
+- [x] **STEP 2 (IMPLEMENTATION)**: migrate the call sites — in
       `tests/autonomous/test_amendment.py` line 40:
       `amendment_view.contributed == [build_autonomous_workflow(AUTOMATE_CONTRIBUTION)]`;
       in `tests/test_autonomy_integration.py` lines 61 and 85:
@@ -751,7 +751,7 @@ migration.>
       AUTOMATE_CONTRIBUTION` (in `test_amendment.py` also `PATCH_CONTRIBUTION` — the new
       STEP 4 test asserts it; the integration file imports `PATCH_CONTRIBUTION` only in
       Task 5, keeping ruff `F401` clean at this gate).
-- [ ] **REPL cycle (M4)**: in the venv REPL — `build_autonomous_workflow(AUTOMATE_CONTRIBUTION)`
+- [x] **REPL cycle (M4)**: in the venv REPL — `build_autonomous_workflow(AUTOMATE_CONTRIBUTION)`
       and `build_autonomous_workflow(PATCH_CONTRIBUTION)`: observe `list(document.stages)`
       equals each record's window, every stage's `approve == "auto"`,
       `document.extend["build"].after == ["commit-changes"]`, the body script names
@@ -760,10 +760,10 @@ migration.>
       double with `amendment_module.resolve_autonomy` swapped to `lambda _a: True` for
       both identities (observe the record-shaped document) and to `lambda _a: False`
       (observe `contributed == []`); reload after any edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
       tests/autonomous/test_workflow.py tests/autonomous/test_amendment.py -v` — the
       contract tests pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/autonomous/test_workflow.py` — update
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/autonomous/test_workflow.py` — update
       `test_build_autonomous_workflow_document_shape` to call with `AUTOMATE_CONTRIBUTION`
       (assertions kept: `isinstance(document, WorkflowDocument)`, `document.prompt is
       None`, `document.memory is None`, the seven automate stage names, all
@@ -790,24 +790,24 @@ migration.>
       `"pybuggy:code.review"` and `"pybuggy:api.fix"` (resolver → `True`;
       `view.contributed == []`); keep `test_amend_workflow_no_op_when_autonomy_disabled`
       and `test_amend_workflow_errors_propagate_undamped` unchanged.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
       until all tests pass (the integration file's migrated call sites keep it green).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes — `.venv/bin/python -c "from
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes — `.venv/bin/python -c "from
       goga_tool_pybuggy.autonomous import PipelineContribution, amend_workflow,
       build_autonomous_workflow"`; confirm the package still imports without goga at
       module level in `workflow.py` (the only goga imports are call-time / `TYPE_CHECKING`);
       confirm neither `_WINDOW_STAGES`/`_BUILD_SCRIPT`/`_BUILD_AFTER` nor
       `_PIPELINE`/`_AXIS` survive.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — fix formatting, decompose if
       necessary.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
       the local commit gate (M3.3) and commit exactly
       `goga_tool_pybuggy/autonomous/workflow.py`,
       `goga_tool_pybuggy/autonomous/amendment.py`,
       `tests/autonomous/test_workflow.py`, `tests/autonomous/test_amendment.py`,
       `tests/test_autonomy_integration.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 4: root cell — the sixth subscription in `register_hooks` (TDD coding)
 

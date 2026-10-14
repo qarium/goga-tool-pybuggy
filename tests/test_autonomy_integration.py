@@ -10,6 +10,7 @@ from goga.pipeline.hooks.events import PipelineHooks
 from goga.pipeline.hooks.identity import PipelineIdentity, WorkflowDecision, WorkIdentity
 from goga_tool_pybuggy.autonomous import build_autonomous_workflow
 from goga_tool_pybuggy.autonomous.amendment import amend_workflow
+from goga_tool_pybuggy.autonomous.contributions import AUTOMATE_CONTRIBUTION
 from goga_tool_pybuggy.commands.init import build_config_data
 from goga_tool_pybuggy.config import resolve_autonomy
 
@@ -58,7 +59,7 @@ class TestRunChain:
 
         amend_workflow(view)
 
-        assert view.contributed == [build_autonomous_workflow()]
+        assert view.contributed == [build_autonomous_workflow(AUTOMATE_CONTRIBUTION)]
 
     def test_amend_workflow_end_to_end_disabled_is_silent_no_op(self, tool_config) -> None:
         """A disabled axis in the standard tree contributes nothing and raises nothing."""
@@ -82,7 +83,7 @@ class TestPlatformDelivery:
         assert overlay.provenance == ["pybuggy"]
         assert overlay.workflow is not None
         assert overlay.workflow.prompt is None
-        assert list(overlay.workflow.stages) == list(build_autonomous_workflow().stages)
+        assert list(overlay.workflow.stages) == list(build_autonomous_workflow(AUTOMATE_CONTRIBUTION).stages)
         assert all(stage.approve == "auto" for stage in overlay.workflow.stages.values())
         assert overlay.workflow.extend["build"].after == ["commit-changes"]
 

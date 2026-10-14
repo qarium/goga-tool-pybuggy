@@ -1,37 +1,31 @@
-"""The autonomous workflow document — the fixed contribution of a qualifying run.
+"""The autonomous workflow document — the record-driven contribution of a qualifying run.
 
-Seven-stage auto-approval window ending at ``commit-changes``, plus the build stage after it.
+The record's auto-approval window ending at ``commit-changes``, plus the build stage after it.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .contributions import PipelineContribution
+
 if TYPE_CHECKING:  # the platform document type — reached at call time in the builder
     from goga.pipeline.workflow import WorkflowDocument
 
-_WINDOW_STAGES = (
-    "review-testcases",
-    "create-testcases",
-    "code-design",
-    "design-review",
-    "coding-plan",
-    "plan-review",
-    "commit-changes",
-)
-
 _BUILD_NAME = "build"
 _BUILD_TITLE = "Build tests"
-_BUILD_SCRIPT = 'python3 -P -m goga.build "$(python3 -m goga history path -f plan.md)"'
 _BUILD_AFTER_SCRIPT = "rm -rf .ralphex"
 _BUILD_TIMEOUT = "8h"
-_BUILD_AFTER = ("commit-changes",)
 
 
-def build_autonomous_workflow() -> WorkflowDocument:
-    """Build the declarative autonomy contribution from the compile-time constants.
+def build_autonomous_workflow(contribution: PipelineContribution) -> WorkflowDocument:
+    """Build the declarative autonomy contribution from the pipeline's record.
 
-    All seven window stages carry ``approve: "auto"``; the acceptance stage is never included.
+    Every stage of the record's window carries ``approve: "auto"``; the acceptance stage is never included.
+
+    Args:
+        contribution: The pipeline's compile-time record — the window, the build artifact, and the
+            extend positioning derive from it.
 
     Returns:
         A :class:`WorkflowDocument` with the ``stages`` overrides plus the single ``extend`` entry.
@@ -43,13 +37,13 @@ def build_autonomous_workflow() -> WorkflowDocument:
         WorkflowStage,
     )
 
-    stages = {name: WorkflowStage(approve="auto") for name in _WINDOW_STAGES}
+    stages = {name: WorkflowStage(approve="auto") for name in contribution.window}
 
     build_entry = WorkflowExtendStage(
-        after=list(_BUILD_AFTER),
+        after=[contribution.window[-1]],
         body={
             "title": _BUILD_TITLE,
-            "script": _BUILD_SCRIPT,
+            "script": f'python3 -P -m goga.build "$(python3 -m goga history path -f {contribution.build_artifact})"',
             "after_script": _BUILD_AFTER_SCRIPT,
             "timeout": _BUILD_TIMEOUT,
         },
