@@ -616,26 +616,26 @@ green because the module is purely additive.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 2: autonomous cell —
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 2: autonomous cell —
       PipelineContribution records and the widened facade`).
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/autonomous/test_contributions.py` —
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/autonomous/test_contributions.py` —
       contract tests first: `test_pipeline_contribution_importable_from_facade`
       (`from goga_tool_pybuggy.autonomous import PipelineContribution`;
       `issubclass(PipelineContribution, pydantic.BaseModel)`;
       `"PipelineContribution" in goga_tool_pybuggy.autonomous.__all__`). Expected to
       fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/contributions.py`
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/autonomous/contributions.py`
       — module docstring (the compile-time contribution table of the qualifying
       pipelines); `from pydantic import BaseModel, ConfigDict`; the model per the
       contract (class docstring with `Attributes` for the four fields; no methods, no
       validators); the two record constants with the normative values above;
       `CONTRIBUTIONS = (AUTOMATE_CONTRIBUTION, PATCH_CONTRIBUTION)`.
-- [ ] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/autonomous/__init__.py` —
+- [x] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/autonomous/__init__.py` —
       add `from .contributions import PipelineContribution`; `__all__ =
       ["PipelineContribution", "amend_workflow", "build_autonomous_workflow"]`;
       docstring generalized to cover the record type beside the two routines (matching
       `contribution.md`'s "What the cell provides").
-- [ ] **REPL cycle (M4)**: in the venv REPL — construct
+- [x] **REPL cycle (M4)**: in the venv REPL — construct
       `PipelineContribution(identity="i", axis="a", window=["s"], build_artifact="f.md")`
       and read the four fields back; attempt positional construction
       `PipelineContribution("i", "a", ["s"], "f.md")` → observe `TypeError` (kw_only);
@@ -643,9 +643,9 @@ green because the module is purely additive.>
       (extra="forbid"); construct with a tuple window → observe list coercion and value
       equality with the list form; inspect `AUTOMATE_CONTRIBUTION.window[-1]` /
       `PATCH_CONTRIBUTION.window[-1]` == `"commit-changes"`; reload after any edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
       tests/autonomous/test_contributions.py -v` — the contract test passes.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/autonomous/test_contributions.py` —
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/autonomous/test_contributions.py` —
       `test_pipeline_contribution_is_kw_only_data_carrier` (kw construction reads back
       the four fields; `with pytest.raises(TypeError)` for positional; `with
       pytest.raises(ValidationError)` for the extra key);
@@ -661,21 +661,21 @@ green because the module is purely additive.>
       `test_contribution_windows_end_at_commit_changes` (`all(record.window for record
       in CONTRIBUTIONS)`; `all(record.window[-1] == "commit-changes" for record in
       CONTRIBUTIONS)`).
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
       until all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe — `.venv/bin/python -c "from
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe — `.venv/bin/python -c "from
       goga_tool_pybuggy.autonomous import PipelineContribution"`; confirm the record
       literals are byte-identical to the CODEMANIFEST normative table; confirm the record
       constants are NOT in the facade `__all__` (module-level names only).
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — fix formatting, decompose if
       necessary.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
       the local commit gate (M3.3) and commit exactly
       `goga_tool_pybuggy/autonomous/contributions.py`,
       `goga_tool_pybuggy/autonomous/__init__.py`,
       `tests/autonomous/test_contributions.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 3: autonomous cell — the record-driven document path: `build_autonomous_workflow(contribution)` + `amend_workflow` record resolution (TDD coding)
 
