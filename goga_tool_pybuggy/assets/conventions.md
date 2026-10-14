@@ -158,7 +158,7 @@ RULES:
    tests: one endpoint — `tests/<spec>/<endpoint_id>/conftest.py`; several endpoints of a domain —
    `tests/<spec>/conftest.py`; all tests — `tests/conftest.py`. Importing fixtures or declaring
    them in test modules is **FORBIDDEN**
-2. Give every fixture a docstring and a typed return
+2. Give every fixture a brief docstring (one line: what data it prepares) and a typed return
 3. Keep test modules to markup, steps, and checks only — data generation and preparation logging
    stay in fixtures
 4. Section 2 rules apply to fixture code in full (isolated module logger, level discipline,
@@ -187,10 +187,12 @@ decorators. A test without metadata is a direct policy violation.
    domain core) — level `CRITICAL` or `BLOCKER`; other tests **MAY** use `NORMAL`/`MINOR`/
    `TRIVIAL`
 4. **docstring as description**: Without `@allure.description`, a test function's docstring
-   automatically becomes the test description in the report — keep it meaningful (preconditions,
-   steps, expected result). allure-pytest does **NOT** parse structured keys inside a docstring
-   (`title:`, `severity:`, etc.): set title, severity, and the epic/feature/story hierarchy only
-   through decorators or `allure.dynamic.*` from the test body
+   automatically becomes the test description in the report — keep it **brief**: one or two lines
+   stating what the test verifies, nothing else. Preconditions, step sequences, and expected
+   results are already carried by the title, the `allure.step` names, and the asserts — restating
+   them in the docstring is noise. allure-pytest does **NOT** parse structured keys inside a
+   docstring (`title:`, `severity:`, etc.): set title, severity, and the epic/feature/story
+   hierarchy only through decorators or `allure.dynamic.*` from the test body
 
 ### Step architecture
 
@@ -205,6 +207,10 @@ decorators. A test without metadata is a direct policy violation.
 @allure.step("Create an order for customer '{customer}' with amount {amount}")
 def create_order(customer: str, amount: int): ...
 ```
+
+3. **Zero comments**: every action is already named by an `allure.step` — explanatory comments
+   in test and fixture code are **FORBIDDEN**. A line that seems to need a comment means the
+   enclosing step is misnamed or missing; fix the step instead of commenting the code
 
 ### Miscellaneous
 
@@ -286,7 +292,6 @@ import pytest
 
 from api.shop.api_v1_orders_post.api import Request
 
-# Requirement: isolated module logger
 logger = logging.getLogger(__name__)
 
 
@@ -318,6 +323,7 @@ from api.shop.api_v1_orders_post.api import Request
 @pytest.mark.positive
 @pytest.mark.smoke
 def test_create_order(order_payload: Request, post_api_v1_orders, get_api_v1_orders):
+    """A minimal-body order is created and visible in the customer's order list."""
     with allure.step("create an order via POST /api/v1/orders"):
         allure.attach(
             order_payload.model_dump_json(indent=2), name="request", attachment_type=allure.attachment_type.JSON
