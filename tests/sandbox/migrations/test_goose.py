@@ -93,6 +93,26 @@ class TestParseMigrationFile:
             "CREATE INDEX idx_orders_customer ON orders (customer)",
         ]
 
+    def test_parse_keeps_final_statement_without_terminating_semicolon(self):
+        """A final Up statement without a trailing semicolon is kept, not silently dropped."""
+        text = "\n".join(
+            [
+                "-- +goose Up",
+                "CREATE TABLE orders (id serial PRIMARY KEY, customer int);",
+                "CREATE INDEX idx_orders_customer ON orders (customer)",
+                "",
+                "-- +goose Down",
+                "DROP TABLE orders;",
+            ]
+        )
+
+        migration = parse_migration_file("00007_tailless.sql", text)
+
+        assert migration.statements == [
+            "CREATE TABLE orders (id serial PRIMARY KEY, customer int)",
+            "CREATE INDEX idx_orders_customer ON orders (customer)",
+        ]
+
     def test_parse_statement_begin_body_preserves_interior_semicolons(self):
         """A StatementBegin/End body stays one verbatim statement; interior semicolons never split it."""
         text = "\n".join(

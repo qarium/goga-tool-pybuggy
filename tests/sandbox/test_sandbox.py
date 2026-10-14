@@ -11,7 +11,7 @@ from goga_tool_pybuggy.sandbox.config import (
     StartupData,
     TopicConfig,
 )
-from goga_tool_pybuggy.sandbox.data import PostgresInstance
+from goga_tool_pybuggy.sandbox.data import PostgresInstance, VaultInstance
 from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 
 from .conftest import FakeEngine, FakeNetwork, FakeService
@@ -483,6 +483,18 @@ class TestSandboxViews:
 
         assert started.engines["db"].applied[-1].payload == {"table": "orders", "rows": [{"id": 3}]}
 
+    def test_vault_view_factory_binds_the_vault_view(self, started: SandboxHarness):
+        """The vault factory binds a vault view of the named service, declaring into the batch."""
+        view = started.sandbox.vault("secrets")
+
+        assert isinstance(view, VaultInstance)
+        assert (view.name, view.host, view.port) == ("secrets", "127.0.0.4", 8200)
+
+        view.put("kv/app", {"token": "abc"})
+        started.sandbox.apply_pending()
+
+        assert started.engines["secrets"].applied[-1].payload == {"path": "kv/app", "data": {"token": "abc"}}
+
     def test_sandbox_view_kind_mismatch_lists_configured(self, started: SandboxHarness):
         """A factory of another kind fails fast naming the service and the configured ones."""
         with pytest.raises(ValueError, match=r"no kafka service named 'db'"):
@@ -577,19 +589,20 @@ class TestSandboxLifecycle:
 
     def test_stop_survives_a_failing_network_removal(self, monkeypatch: pytest.MonkeyPatch, started: SandboxHarness):
         """A failing network removal never blocks the teardown of the remaining parts."""
-        from .conftest import FakeNetwork as BaseFakeNetwork
+        removals: list[str] = []
 
-        class RefusingNetwork(BaseFakeNetwork):
-            """Network double whose removal fails like a daemon-side error."""
+        def refuse() -> None:
+            removals.append("refused")
+            raise RuntimeError("network removal refused")
 
-            def remove(self) -> None:
-                raise RuntimeError("network removal refused")
+        network = started.sandbox._network  # the instance start() created — the one stop() removes
+        assert network is not None
+        monkeypatch.setattr(network, "remove", refuse)
 
         started.events.clear()
-        monkeypatch.setattr(sandbox_module, "Network", RefusingNetwork)
-
         started.sandbox.stop()  # must not raise although the network removal fails
 
+        assert removals == ["refused"]
         assert started.events == [
             "instance:stop",
             "engine:db:stop",

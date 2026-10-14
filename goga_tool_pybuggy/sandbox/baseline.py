@@ -19,8 +19,8 @@ class BoundaryBatch(DataBatch):
     Internal to the sandbox cell. While the boundary is open, the sandbox hands this
     batch to the service views: every declared operation applies to its service's
     engine and joins the engine journal at declaration time — the declaration itself
-    is the execution. ``take`` never yields operations; nothing is ever pending
-    inside the boundary.
+    is the execution. Nothing is ever pending inside the boundary, so the inherited
+    ``take`` drains nothing.
     """
 
     def __init__(self, engines: dict[str, BaseEngine]) -> None:
@@ -44,14 +44,6 @@ class BoundaryBatch(DataBatch):
         engine.record([operation])
 
         logger.debug("boundary operation applied and journaled", extra={"service": operation.instance})
-
-    def take(self) -> list[DataOperation]:
-        """Never yield operations; the boundary applies at declaration time.
-
-        Returns:
-            An empty list — the boundary drains nothing.
-        """
-        return []
 
 
 class BaselineBoundary:

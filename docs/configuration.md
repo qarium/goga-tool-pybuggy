@@ -131,8 +131,9 @@ pipelines:
 - An absent file, an absent `pipelines` section, an absent name, and
   `autonomous: false` all mean **disabled** (the default interactive run).
 - Entries for pipeline names the tool does not implement are ignored.
-- `autonomous: true` makes a running `api.automate` pipeline run unattended — see
-  [Autonomous runs](pipelines/api-automate.md#autonomous-runs).
+- `autonomous: true` makes a running `api.automate` or `api.patch` pipeline run
+  unattended — see [Automate — Autonomous runs](pipelines/api-automate.md#autonomous-runs)
+  and [Patch — Autonomous runs](pipelines/api-patch.md#autonomous-runs).
 
 ## The `loader` section
 

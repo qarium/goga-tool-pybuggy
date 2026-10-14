@@ -1,6 +1,6 @@
 """The compile-time contribution table — one ``PipelineContribution`` record per qualifying pipeline."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PipelineContribution(BaseModel):
@@ -13,7 +13,8 @@ class PipelineContribution(BaseModel):
         identity: The qualifying run identity — the installer-namespaced pipeline name the
             platform delivers (e.g. ``pybuggy:api.patch``).
         axis: The tool-config ``pipelines``-axis key of the pipeline (e.g. ``api.patch``).
-        window: The ordered stage names that carry the auto-approval directive.
+        window: The ordered stage names that carry the auto-approval directive — never
+            empty: the build stage anchors at its last entry.
         build_artifact: The topic artifact the build stage builds (e.g. ``workplan.md``).
     """
 
@@ -21,7 +22,7 @@ class PipelineContribution(BaseModel):
 
     identity: str
     axis: str
-    window: list[str]
+    window: list[str] = Field(min_length=1)
     build_artifact: str
 
 

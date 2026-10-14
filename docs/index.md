@@ -22,10 +22,11 @@ package contains a pytest plugin and a CLI.
   (field-level asserts) on top of the **matchcrest** matcher library.
 - **API-test lifecycle** — staged goga pipelines that automate the suite end to end:
   `api.automate` (requirements → testcases → test cells → design → plan → acceptance)
-  creates the tests, `api.fix` repairs them when they break.
-- **Topic statuses** — every design artifact of the automate and fix chains marks a
-  `pybuggy.*` status on the goga topic status scale: `goga history status` shows the
-  latest reached stage of the automate line and the fix line — one status per line.
+  creates the tests, `api.patch` changes existing tests on request, and `api.fix`
+  repairs them when they break.
+- **Topic statuses** — every design artifact of the automate, fix, and patch chains
+  marks a `pybuggy.*` status on the goga topic status scale: `goga history status`
+  shows the latest reached stage of each line — one status per line.
 - **Sandbox** — session-scoped isolated service testing: a sandbox document at
   `.goga/tools/pybuggy/sandbox.yml` provides the product `sandbox` pytest fixture; the
   first test that uses it starts the instance under test plus mocked dependencies

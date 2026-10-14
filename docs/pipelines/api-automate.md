@@ -21,7 +21,7 @@ Need to adjust the pipeline for your project without forking it? See
 | 7  | `create-testcases`    | Materialize the test cells into `tests/<spec>/<id>/`                                                                 |
 | 8  | `code-design`         | Design the test code (materialization of `test_*.py` from the cells) → `design.md`                                   |
 | 9  | `design-review`       | Review the test design                                                                                               |
-| 10 | `coding-plan`         | Compile the execution plan (with `pytest` as validation) → `plan.md`                                                 |
+| 10 | `coding-plan`         | Compile the execution plan — convention rules extracted as mandatory rules, `pytest` as validation — → `plan.md`      |
 | 11 | `plan-review`         | Review the plan                                                                                                      |
 | 12 | `commit-changes`      | Commit the work; ask the user whether the tests are ready for acceptance (auto-approved on [autonomous runs](#autonomous-runs)) |
 | 13 | `accept-result`       | Accept the test results: consistency check, `pytest` run, triage of failures with the user, bug records in `bugs.md` |
@@ -134,8 +134,9 @@ Everything outside the window stays with you: the requirement-shaping stages
 never part of the contribution — it keeps its manual trigger, so accepting the results
 (the `pytest` run and the failure triage) remains an interactive step.
 
-The contribution is a silent no-op for every other pipeline — the window shape is
-`api.automate`-specific — and for every disabled state: an absent file, an absent
+The contribution is a silent no-op for every pipeline outside the automate and patch
+lines — the window shape is carried per pipeline record — and for every disabled
+state: an absent file, an absent
 `pipelines` section, an absent `api.automate` entry, and `autonomous: false` all mean a
 normal interactive run. Autonomy never disables silently on a malformed config: a
 structural violation of the section (a file root or `pipelines` value that is not a mapping,

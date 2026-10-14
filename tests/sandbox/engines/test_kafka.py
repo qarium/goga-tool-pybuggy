@@ -83,16 +83,26 @@ class FakeResponse:
 
 
 class FakeRequests:
-    """Namespace double of ``requests`` recording probes and serving scripted responses."""
+    """Namespace double of ``requests`` recording probes and serving scripted responses.
+
+    The first ``refusals`` probes raise the driver-shaped connection failure — the state a
+    real container exhibits while its health endpoint is not yet listening.
+    """
 
     RequestException = requests.RequestException
 
-    def __init__(self, statuses: list[int] | None = None) -> None:
+    def __init__(self, statuses: list[int] | None = None, refusals: int = 0) -> None:
         self.statuses = list(statuses or [])
+        self.refusals = refusals
         self.probes: list[tuple[str, int]] = []
 
     def get(self, url: str, timeout: int) -> FakeResponse:
         self.probes.append((url, timeout))
+
+        if self.refusals > 0:
+            self.refusals -= 1
+            raise requests.ConnectionError("connection refused")
+
         status = self.statuses.pop(0) if self.statuses else 200
 
         return FakeResponse(status)
@@ -504,6 +514,19 @@ class TestKafkaEngineReadiness:
     def test_wait_ready_without_a_probe_uses_the_default_bounds(self):
         """No probe declared — the readiness bounds reproduce the established 30.0/0.5 wait."""
         assert events_engine()._readiness_bounds == (30.0, 0.5)
+
+    def test_wait_ready_retries_past_connection_refusal(self, monkeypatch: pytest.MonkeyPatch):
+        """A refused connection (the pre-listening container) is a failed attempt, not an error."""
+        fake_requests = FakeRequests(statuses=[503], refusals=2)
+        clock = install_fake_clock(monkeypatch)
+        monkeypatch.setattr(kafka_module, "requests", fake_requests)
+        engine = events_engine()
+        engine._container = FakeDockerContainer("mokapi/mokapi:0.52.0")
+
+        engine._wait_ready()
+
+        assert len(fake_requests.probes) == 4
+        assert clock.slept == [0.5, 0.5, 0.5]
 
 
 class TestKafkaEnginePlane:

@@ -213,6 +213,22 @@ class TestInstallPybuggy:
         assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 2.0"
         assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
 
+    def test_install_pybuggy_repins_a_stale_install_line_instead_of_appending(self, tmp_path, monkeypatch, caplog):
+        """An install line pinned by an older release (the ``.x`` spec) is repinned, never joined."""
+        dockerfile = tmp_path / "Dockerfile"
+        dockerfile.write_text("FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n", encoding="utf-8")
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        with caplog.at_level(logging.INFO):
+            line = install_pybuggy(dockerfile)
+
+        assert line == "RUN goga install pybuggy -v 2.0"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
+        assert "pybuggy install line repinned in Dockerfile" in caplog.text
+
+        assert install_pybuggy(dockerfile) is None
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
+
     def test_install_pybuggy_noop_without_file(self, tmp_path):
         """An absent Dockerfile is a no-op — the file is never created."""
         absent = tmp_path / "Dockerfile"

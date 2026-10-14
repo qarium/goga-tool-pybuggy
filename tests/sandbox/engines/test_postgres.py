@@ -656,6 +656,20 @@ class TestPostgresEnginePlane:
 
         assert engine._symbols == {}
 
+    def test_insert_returning_no_row_fails_naming_the_table(self):
+        """An insert whose ``RETURNING`` fetch yields no row fails naming the table.
+
+        The symbol stream rolls back with the failed insert — the broken driver contract
+        never captures a phantom row.
+        """
+        engine = db_engine()
+        engine._connection = FakeConnection()  # empty row queue — every fetchone returns None
+
+        with pytest.raises(RuntimeError, match='the insert into "orders" returned no row'):
+            engine._execute(insert_op([{"id": 1}]))
+
+        assert engine._symbols == {}
+
     def test_failing_insert_rolls_the_symbol_stream_back_to_the_earlier_rows(self):
         """A failing insert leaves the symbol stream at its pre-insert state — earlier rows stay."""
         engine = db_engine()
@@ -735,6 +749,30 @@ class TestPostgresEnginePlane:
             ("5000ms",),
         )
 
+    def test_wipe_wraps_a_failing_truncate_with_the_server_message(self):
+        """A TRUNCATE that fails at the server surfaces as a plain error carrying its message."""
+
+        class TruncateRefusingCursor(FakeCursor):
+            """Cursor double failing only the TRUNCATE statement with a driver-shaped error."""
+
+            def execute(self, sql: str, params: object = None) -> None:
+                if sql.startswith("TRUNCATE"):
+                    raise psycopg.errors.LockNotAvailable("canceling statement due to lock timeout")
+
+                super().execute(sql, params)
+
+        class TruncateRefusingConnection(FakeConnection):
+            """Connection double handing out the truncate-refusing cursor."""
+
+            def cursor(self, row_factory: object = None) -> TruncateRefusingCursor:
+                return TruncateRefusingCursor(self)
+
+        engine = db_engine()
+        engine._connection = TruncateRefusingConnection(catalog=[("public", "orders")])
+
+        with pytest.raises(RuntimeError, match="canceling statement due to lock timeout"):
+            engine._wipe()
+
     def test_wipe_skips_truncate_without_user_tables(self):
         """An empty catalog skips the truncate — the replay-only reset."""
         engine = db_engine()
@@ -766,6 +804,19 @@ class TestPostgresEnginePlane:
         engine._wipe()
 
         assert engine._symbols == {}
+
+    def test_stop_closes_the_open_plane_connection_and_is_safe_twice(self):
+        """Stop closes an open session connection exactly once; a second stop touches nothing."""
+        engine = db_engine()
+        connection = FakeProbeConnection()
+        engine._connection = connection
+
+        engine.stop()
+
+        assert connection.closed is True
+        assert engine._connection is None
+
+        engine.stop()  # safe on the already-closed plane
 
 
 class TestPostgresEngineMigrations:

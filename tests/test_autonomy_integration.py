@@ -1,16 +1,19 @@
 """Integration tests for the autonomy bridge — the feature's end-to-end chains.
 
-Covers the run chain with the real resolver, the emit↔consume YAML bridge, and the real platform delivery.
+Covers the run chain with the real resolver, the emit↔consume YAML bridge, the real platform delivery,
+and the drift guard between the contribution windows and the shipped pipeline conventions.
 """
 
+import importlib.resources
 import pathlib
 
+import pytest
 import yaml
 from goga.pipeline.hooks.events import PipelineHooks
 from goga.pipeline.hooks.identity import PipelineIdentity, WorkflowDecision, WorkIdentity
 from goga_tool_pybuggy.autonomous import build_autonomous_workflow
 from goga_tool_pybuggy.autonomous.amendment import amend_workflow
-from goga_tool_pybuggy.autonomous.contributions import AUTOMATE_CONTRIBUTION, PATCH_CONTRIBUTION
+from goga_tool_pybuggy.autonomous.contributions import AUTOMATE_CONTRIBUTION, CONTRIBUTIONS, PATCH_CONTRIBUTION
 from goga_tool_pybuggy.commands.init import build_config_data
 from goga_tool_pybuggy.config import resolve_autonomy
 
@@ -133,3 +136,44 @@ class TestEmitConsumeBridge:
 
         assert "pipelines" not in yaml.safe_load(written.read_text(encoding="utf-8"))
         assert resolve_autonomy("api.automate") is False
+
+
+def _pipeline_stage_names(axis: str) -> list[str]:
+    """Read the declared stage names of the shipped pipeline convention document.
+
+    Args:
+        axis: The pipeline axis key (``api.automate`` / ``api.patch``) naming the shipped
+            ``pipelines/<axis>.yml`` document of the package.
+
+    Returns:
+        The declared stage names, in document order.
+    """
+    resource = importlib.resources.files("goga_tool_pybuggy").joinpath(f"pipelines/{axis}.yml")
+    stages = list(yaml.safe_load_all(resource.read_text(encoding="utf-8")))[1]
+
+    return [stage["name"] for stage in stages]
+
+
+class TestConventionDrift:
+    """The contribution records against the shipped pipeline convention documents.
+
+    Both sides are hand-maintained — the record windows here, the stage lists in the shipped
+    YAML. This class is the seam that fails when a stage rename detaches the auto-approval
+    window or the build anchor from the pipeline.
+    """
+
+    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch"])
+    def test_every_window_stage_is_a_declared_pipeline_stage(self, contribution) -> None:
+        """Each record's window names real stages of its pipeline — a renamed stage fails here."""
+        stages = _pipeline_stage_names(contribution.axis)
+
+        assert set(contribution.window) <= set(stages)
+
+    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch"])
+    def test_the_build_anchor_names_a_real_stage_before_the_acceptance(self, contribution) -> None:
+        """The build ``after`` anchor (the window's last stage) exists and precedes acceptance."""
+        stages = _pipeline_stage_names(contribution.axis)
+
+        assert contribution.window[-1] in stages
+        assert "accept-result" in stages
+        assert "accept-result" not in contribution.window

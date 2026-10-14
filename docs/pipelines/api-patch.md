@@ -118,8 +118,9 @@ A topic mid-patch therefore shows one maximal status per line — e.g.
 ## Autonomous runs
 
 The pipeline can run unattended from the impact review onward. Autonomy is opt-in per
-pipeline through the `pipelines` section of the tool config — set it by hand or through
-the autonomy confirm of [`pybuggy init`](../cli/init.md):
+pipeline through the `pipelines` section of the tool config — set it by hand (the
+autonomy confirm of [`pybuggy init`](../cli/init.md) covers only the `api.automate`
+axis):
 
 ```yaml
 # .goga/tools/pybuggy/config.yml
@@ -144,8 +145,9 @@ Everything outside the window stays with you: the intent-shaping stages
 part of the contribution — it keeps its manual trigger, so accepting the results (the
 full-suite run and the failure triage) remains an interactive step.
 
-The contribution is a silent no-op for every other pipeline — the window shape is
-`api.patch`-specific — and for every disabled state: an absent file, an absent
+The contribution is a silent no-op for every pipeline outside the automate and patch
+lines — the window shape is carried per pipeline record — and for every disabled
+state: an absent file, an absent
 `pipelines` section, an absent `api.patch` entry, and `autonomous: false` all mean a
 normal interactive run. Autonomy never disables silently on a malformed config: a
 structural violation of the section (a file root or `pipelines` value that is not a

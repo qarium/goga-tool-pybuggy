@@ -59,7 +59,11 @@ class FakeResponse:
 
 
 class FakeRequests:
-    """Namespace double of ``requests`` recording probes and writes, serving scripted responses."""
+    """Namespace double of ``requests`` recording probes and writes, serving scripted responses.
+
+    The first ``refusals`` probes raise the driver-shaped connection failure — the state a
+    real container exhibits while its health endpoint is not yet listening.
+    """
 
     RequestException = requests.RequestException
 
@@ -67,14 +71,21 @@ class FakeRequests:
         self,
         statuses: list[int] | None = None,
         write_responses: list[FakeResponse] | None = None,
+        refusals: int = 0,
     ) -> None:
         self.statuses = list(statuses or [])
         self.write_responses = list(write_responses or [])
+        self.refusals = refusals
         self.probes: list[tuple[str, int | None]] = []
         self.writes: list[tuple[str, dict[str, str] | None, object, int | None]] = []
 
     def get(self, url: str, timeout: int | None = None) -> FakeResponse:
         self.probes.append((url, timeout))
+
+        if self.refusals > 0:
+            self.refusals -= 1
+            raise requests.ConnectionError("connection refused")
+
         status = self.statuses.pop(0) if self.statuses else 200
 
         return FakeResponse(status)
@@ -337,6 +348,19 @@ class TestVaultEngineReadiness:
         assert clock.slept == [0.05] * len(clock.slept)
         assert len(clock.slept) >= 4
         assert fake_requests.probes[0] == ("http://127.0.0.2:18200/v1/sys/health", 5)
+
+    def test_wait_ready_retries_past_connection_refusal(self, monkeypatch: pytest.MonkeyPatch):
+        """A refused connection (the pre-listening container) is a failed attempt, not an error."""
+        fake_requests = FakeRequests(statuses=[503], refusals=2)
+        monkeypatch.setattr(vault_module, "requests", fake_requests)
+        clock = install_fake_clock(monkeypatch)
+        engine = secrets_engine()
+        engine._container = FakeDockerContainer("hashicorp/vault:1.17")
+
+        engine._wait_ready()
+
+        assert len(fake_requests.probes) == 4
+        assert clock.slept == [0.5, 0.5, 0.5]
 
 
 class TestVaultEnginePlane:

@@ -56,6 +56,11 @@ class TestPipelineContributionBehavior:
         assert from_tuple.window == ["s", "t"]
         assert from_tuple == from_list
 
+    def test_pipeline_contribution_rejects_an_empty_window(self) -> None:
+        """An empty window fails validation at construction — the build anchor needs its last entry."""
+        with pytest.raises(ValidationError, match="window"):
+            PipelineContribution(identity="i", axis="a", window=[], build_artifact="f.md")
+
 
 class TestContributionTable:
     """The normative compile-time contribution table."""

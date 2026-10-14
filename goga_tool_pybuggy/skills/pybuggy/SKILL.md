@@ -88,6 +88,26 @@ the `ITERATE` verdict of the review restarts the loop from `collect`.
 Full cycle: **collect → analyze → plan → execute → review**; the `ITERATE` verdict feeds a new `collect` round.
 Service bugs are recorded in the shared `bugs.md` of the topic's history directory.
 
+### Patch flow (pipelines)
+
+The line for changing existing **accepted** tests on request — the boundary is drawn by intent, not by test color:
+automate writes new tests, fix repairs what broke, patch changes what you ask (a re-bound fixture, new asserts,
+added markers, removed cases). Artifacts live in the same topic history directory (`intent.md` → `impact.md` → …);
+the run may start on red tests, and every failure it meets is surfaced, never masked.
+
+| Skill                               | Purpose                                                                                                                       | Input                          | Output artifact                  |
+|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|--------------------------------|----------------------------------|
+| `goga-tool-pybuggy-api-patch-collect` | Collects the patch intents (each with scope constraints) and fixes the topic version (spec ref + base URL)                    | requested change | `intent.md`        |
+| `goga-tool-pybuggy-api-patch-analyze` | Impact analysis per intent: the dossier of affected tests, fixtures, manifests, usages references                              | `intent.md`      | `impact.md`        |
+| `goga-tool-pybuggy-api-patch-review`  | Reviews the dossier with the user — confirms every selection and delta                                                          | `impact.md`      | confirmed `impact.md` |
+| `goga-tool-pybuggy-api-patch-apply`    | Applies the confirmed manifest deltas to the CODEMANIFESTs — manifests only, no test code                                      | confirmed `impact.md` | `apply.md`   |
+| `goga-tool-pybuggy-api-patch-design`   | Dispatch wrapper around `goga-design` in patch mode — the code-change design over the applied deltas; deletions become deletion tasks | `apply.md`   | `rework.md`       |
+| `goga-tool-pybuggy-api-patch-plan`     | Dispatch wrapper around `goga-plan` in patch mode — the ralphex plan with convention rules as mandatory rules and pytest in every task | `rework.md` | `workplan.md`     |
+| `goga-tool-pybuggy-api-patch-accept`   | Acceptance: every change landed in the CODEMANIFEST and the test code together, final full-suite run, failure triage with the user | built tests | `accept.md` + `bugs.md` |
+
+Full flow: **collect → analyze → review → apply → design → design-review → plan → plan-review → build → accept**;
+`design-review`/`plan-review` gate the two documents through the same review skills pattern as the automate line.
+
 ### Review skills
 
 They verify the test artifacts of all phases: requirements → testcases → cells → design/plan.
@@ -122,6 +142,10 @@ They verify the test artifacts of all phases: requirements → testcases → cel
    - "build the fix plan" → `goga-tool-pybuggy-api-fix-plan`;
    - "execute the fix plan / apply the fixes" → `goga-tool-pybuggy-api-fix-execute`;
    - "review the fix cycle / cycle verdict" → `goga-tool-pybuggy-api-fix-review`;
+   - "change existing tests / apply a requested change to accepted tests" → `goga-tool-pybuggy-api-patch-collect`;
+   - "assess the impact of a requested test change" → `goga-tool-pybuggy-api-patch-analyze`;
+   - "apply the confirmed manifest deltas of a patch" → `goga-tool-pybuggy-api-patch-apply`;
+   - "accept a patch run / verify a patch cycle" → `goga-tool-pybuggy-api-patch-accept`;
    - "how to call the API / how to verify a response" → `goga-tool-pybuggy-api-usage`;
    - "DSL rules for test cells" → `goga-tool-pybuggy-api-cookbook`.
 3. To launch a pipeline, use the **Skill tool** with the pipeline's main skill. Do not launch sub-skills
