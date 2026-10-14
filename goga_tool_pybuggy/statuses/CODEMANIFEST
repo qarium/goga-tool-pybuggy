@@ -7,9 +7,9 @@ Annotations: |
   Use `goga-statuses` for the registration surface: register parameters, artifact path
   semantics, anchors, and skip-with-warning.
 
-  The cell owns the two pybuggy topic-status lines — automate and fix. Each line registers
-  through direct registration calls in its normative order; the lines are independent
-  chains with no shared statuses. Use relative imports inside the cell.
+  The cell owns the three pybuggy topic-status lines — automate, fix, and patch. Each line
+  registers through direct registration calls in its normative order; the lines are
+  independent chains with no shared statuses. Use relative imports inside the cell.
 
 ---
 
@@ -72,9 +72,39 @@ Annotations: |
 
     Use `goga-statuses` for the register parameters and the anchor semantics.
 
+"register_patch_statuses(context: object)":
+  location: patch.py
+  annotations: |
+    Register the patch status line on the topic status scale — an independent chain anchored
+    at the built-in empty status.
+
+    `context`: the registration surface scoped to the tool.
+
+    Algorithm:
+    1. Register the patch intended status for the intent artifact, anchored above the
+       built-in empty status.
+    2. Register the remaining patch statuses in pipeline order — analyzed, applied, designed,
+       planned, done — each anchored above the previously registered patch status.
+
+    Requirements:
+    - Registration order equals the normative table order; every anchor names an entry
+      registered earlier in this run or a built-in status.
+    - Artifact paths are relative to the topic directory; nested paths keep their directory part.
+    - Registered names carry no tool prefix — the platform assigns the tool identity.
+
+    Normative table (registration order):
+    1. patch.intended → intent.md — after empty
+    2. patch.analyzed → impact.md — after pybuggy.patch.intended
+    3. patch.applied → apply.md — after pybuggy.patch.analyzed
+    4. patch.designed → rework.md — after pybuggy.patch.applied
+    5. patch.planned → workplan.md — after pybuggy.patch.designed
+    6. patch.done → completed/workplan.md — after pybuggy.patch.planned
+
+    Use `goga-statuses` for the register parameters and the anchor semantics.
+
 ---
 
 Author: Goga
 CreatedAt: 02/10/26
 Description: |
-  Topic-status registration cell — the automate and fix status lines of the pybuggy tool.
+  Topic-status registration cell — the automate, fix, and patch status lines of the pybuggy tool.

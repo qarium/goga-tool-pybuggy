@@ -1,5 +1,5 @@
 Imports:
-  - Types: [register_automate_statuses, register_fix_statuses]
+  - Types: [register_automate_statuses, register_fix_statuses, register_patch_statuses]
     Usages: [registration]
     From: goga_tool_pybuggy/statuses
   - Types: [amend_workflow]
@@ -171,9 +171,10 @@ Annotations: |
     Algorithm:
     1. Subscribe `register_automate_statuses` to the statuses registration action under the hook name automate.
     2. Subscribe `register_fix_statuses` to the same action under the hook name fix.
-    3. Subscribe `declare_pybuggy_session` to the declare_session onboarding action under the hook name declare.
-    4. Subscribe `amend_pybuggy_config` to the amend_config onboarding action under the hook name amend.
-    5. Subscribe `amend_workflow` to the workflow amendment action of the pipeline domain under the hook name
+    3. Subscribe `register_patch_statuses` to the same action under the hook name patch.
+    4. Subscribe `declare_pybuggy_session` to the declare_session onboarding action under the hook name declare.
+    5. Subscribe `amend_pybuggy_config` to the amend_config onboarding action under the hook name amend.
+    6. Subscribe `amend_workflow` to the workflow amendment action of the pipeline domain under the hook name
        autonomy.
 
     Requirements:
@@ -186,7 +187,7 @@ Annotations: |
     - Exposed on the ROOT facade via __all__ — the platform imports it from the package root.
 
     Constraints:
-    - Do not subscribe to any action beyond the five named hooks.
+    - Do not subscribe to any action beyond the six named hooks.
 
     Use `goga-hooks` for the facade callback contract and the failure behavior of registrations.
     Use `registration` for the status subscription pattern.
