@@ -1042,23 +1042,23 @@ plan's agent — no CODEMANIFEST is edited at any point of Tasks 1–8.**
   reference (frontmatter shape, Identity/Pipeline sections, step granularity,
   ~40–70 lines per orchestrator).
 
-- [ ] Create the nine orchestrator directories with their `SKILL.md` files per the
+- [x] Create the nine orchestrator directories with their `SKILL.md` files per the
       mapping above: `pybuggy-api-patch-collect`, `-analyze`, `-review`, `-apply`,
       `-design`, `-design-review`, `-plan`, `-plan-review`, `-accept` (under
       `goga_tool_pybuggy/skills/`).
-- [ ] Verify naming consistency: every `skills:` entry in
+- [x] Verify naming consistency: every `skills:` entry in
       `goga_tool_pybuggy/pipelines/api.patch.yml` resolves to exactly one created
       directory (re-run the Task 6 check: stage skill reference ↔ directory ↔
       frontmatter `name:` triple-match).
-- [ ] Verify wording rules: `grep -r "patch-" goga_tool_pybuggy/skills/pybuggy-api-patch-*/SKILL.md`
+- [x] Verify wording rules: `grep -r "patch-" goga_tool_pybuggy/skills/pybuggy-api-patch-*/SKILL.md`
       shows no artifact name with a `patch-` prefix (only skill self-references
       `pybuggy-api-patch-*` / `goga-tool-pybuggy-api-patch-*`); artifacts named
       `intent.md`, `impact.md`, `apply.md`, `rework.md`, `workplan.md`.
-- [ ] Verify packaging: the `skills/**/*` glob in `pyproject.toml` package-data covers
+- [x] Verify packaging: the `skills/**/*` glob in `pyproject.toml` package-data covers
       the new directories (grep, no edit).
-- [ ] Lint gate (M3.2): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
+- [x] Lint gate (M3.2): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
       `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` — clean.
-- [ ] Commit gate (M3.3): `pytest tests/ -x` green; commit exactly the nine new
+- [x] Commit gate (M3.3): `pytest tests/ -x` green; commit exactly the nine new
       `goga_tool_pybuggy/skills/pybuggy-api-patch-*/SKILL.md` paths.
 
 ### Task 8: docs — the `api.patch` page, the index entry, the nav line (package data)
