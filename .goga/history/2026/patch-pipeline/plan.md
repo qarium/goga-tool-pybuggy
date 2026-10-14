@@ -521,11 +521,11 @@ example, which already documents all three. Tests: the new
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task (`Task 1: statuses cell —
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task (`Task 1: statuses cell —
       register_patch_statuses and the three-routine facade`); ensure the project
       virtualenv exists (M1.2) — if `.venv/bin/pytest` is absent, run `python3 -m venv
       .venv && .venv/bin/pip install -e ".[test]"`.
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/statuses/test_patch.py` — contract
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/statuses/test_patch.py` — contract
       tests first: `test_register_patch_statuses_importable_from_facade`
       (`from goga_tool_pybuggy.statuses import register_patch_statuses`;
       `callable(register_patch_statuses)`; `"register_patch_statuses" in
@@ -535,7 +535,7 @@ example, which already documents all three. Tests: the new
       `signature.parameters["context"].annotation is object`,
       `signature.return_annotation is None`). Expected to fail now (`patch.py` does not
       exist).
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/patch.py` — module
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/statuses/patch.py` — module
       docstring mirroring `fix.py`'s ("The pybuggy patch status line — the topic status
       registrations for patch runs. An independent chain anchored at the built-in
       ``empty``, sharing no statuses with the automate and fix lines."); the function
@@ -548,20 +548,20 @@ example, which already documents all three. Tests: the new
       `("patch.planned", "workplan.md", after="pybuggy.patch.designed")`,
       `("patch.done", "completed/workplan.md", after="pybuggy.patch.planned")` —
       `after` anchors only, no `before`.
-- [ ] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/statuses/__init__.py` — add
+- [x] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/statuses/__init__.py` — add
       `from .patch import register_patch_statuses`; `__all__ =
       ["register_automate_statuses", "register_fix_statuses",
       "register_patch_statuses"]`; docstring "the two pybuggy topic-status registration
       routines" → "the three pybuggy topic-status registration routines".
-- [ ] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy.statuses import
+- [x] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy.statuses import
       register_patch_statuses` resolves; exercise it against an inline recorder object
       (`class R: calls = []` with a `register(name, artifact, after=None, before=None)`
       method); observe the six tuples and the one-forward-pass anchor chain (each
       `after` names the previous call's qualified form or `empty`); reload
       (`importlib.reload`) after any edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/statuses/test_patch.py -v`
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/statuses/test_patch.py -v`
       — all contract tests pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/statuses/test_patch.py` —
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/statuses/test_patch.py` —
       `test_register_patch_statuses_registers_six_statuses_in_order` using the
       `recorder_context` fixture, asserting `recorder_context.calls == [
       ("patch.intended", "intent.md", "empty", None),
@@ -570,21 +570,21 @@ example, which already documents all three. Tests: the new
       ("patch.designed", "rework.md", "pybuggy.patch.applied", None),
       ("patch.planned", "workplan.md", "pybuggy.patch.designed", None),
       ("patch.done", "completed/workplan.md", "pybuggy.patch.planned", None)]`.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
       until all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes — `.venv/bin/python -c
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probes — `.venv/bin/python -c
       "from goga_tool_pybuggy.statuses import register_patch_statuses"` and
       `.venv/bin/python -c "import goga_tool_pybuggy.statuses as s;
       assert s.__all__ == ['register_automate_statuses', 'register_fix_statuses',
       'register_patch_statuses']"`; confirm the table literals are byte-identical to the
       CODEMANIFEST normative table.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — fix formatting, decompose if
       necessary.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
       the local commit gate (M3.3) and commit exactly `goga_tool_pybuggy/statuses/patch.py`,
       `goga_tool_pybuggy/statuses/__init__.py`, `tests/statuses/test_patch.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 2: autonomous cell — `PipelineContribution` records and the widened facade (TDD coding)
 
