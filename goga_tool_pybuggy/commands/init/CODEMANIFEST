@@ -540,24 +540,28 @@ Annotations: |
 "install_pybuggy(dockerfile_path: Path) -> line:str | None":
   location: bootstrap.py
   annotations: |
-    Append the pybuggy-install RUN line to the consumer Dockerfile, pinning the version to the installed package's
+    Write the pybuggy-install RUN line to the consumer Dockerfile, pinning the version to the installed package's
     major.minor line (e.g. -v 2.0) so the consumer's test image carries pybuggy.
 
     `dockerfile_path`: path to the consumer Dockerfile.
-    `line`: the appended install line; None when nothing was appended.
+    `line`: the written install line; None when nothing was written.
 
     Algorithm:
     1. No-op (return None) when the Dockerfile does not exist — never create the file here.
     2. Derive the install line from the installed package version; an unreadable distribution metadata (a
        metadata-less source-tree run) raises ValueError — the caller's wrapped tier maps it to a clean ERROR and a
        non-zero exit, never a raw traceback.
-    3. When the line is already present, return None (idempotent).
-    4. Ensure the content ends with a newline, append the line, write the file back; log INFO; return the line.
+    3. When an install line is already present: return None when it equals the current pin; otherwise repin it in
+       place — the match keys on the command prefix, not the exact line text, so a previous release's pin shape
+       (e.g. -v 2.0.x) is replaced, never joined by a second line. Write the file back; log INFO; return the line.
+    4. Otherwise ensure the content ends with a newline, append the line, write the file back; log INFO; return
+       the line.
 
     Requirements:
     - The line installs pybuggy through the goga installer, pinned to the running package version.
-    - The existing Dockerfile content is preserved; only the install line is appended.
-    - Idempotent within a single Dockerfile.
+    - The existing Dockerfile content is preserved; the install line is the only line ever written — appended
+      when absent, repinned in place when a previous release's line shape differs.
+    - Idempotent at the current pin within a single Dockerfile.
 
     Constraints:
     - Do not create the Dockerfile when absent — only augment an existing one.

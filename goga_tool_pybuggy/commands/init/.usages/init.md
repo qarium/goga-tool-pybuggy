@@ -86,7 +86,7 @@ After the session (bare and template modes only), the command delivers the files
 | commented example records for the absent members of `.goga/tools/pybuggy/config.yml` | added when the file exists, idempotent |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
-| the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `RUN goga install pybuggy -v <major.minor>` | appended when the file exists, idempotent |
+| the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `RUN goga install pybuggy -v <major.minor>` | written when the file exists — appended when absent, repinned in place when a previous release's line shape differs; idempotent at the current pin |
 | the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`) | always registered, idempotent; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
