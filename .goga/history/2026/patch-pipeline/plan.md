@@ -839,27 +839,27 @@ position three.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)**: declare this task (`Task 4: root cell — the sixth
+- [x] **STEP 0 (DECLARATION)**: declare this task (`Task 4: root cell — the sixth
       subscription in register_hooks`).
-- [ ] **STEP 1 (CONTRACT TESTS)**: the existing contract test
+- [x] **STEP 1 (CONTRACT TESTS)**: the existing contract test
       (`test_register_hooks_facade_and_signature`) already pins
       `{"hooks": object, "return": None}` — verify it still passes unchanged (the
       signature does not move). Update the logic test to the six-entry table first
       (below) so it fails before the implementation lands.
-- [ ] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/reg_hooks.py` — import
+- [x] **STEP 2 (IMPLEMENTATION)**: update `goga_tool_pybuggy/reg_hooks.py` — import
       line `from .statuses import register_automate_statuses, register_fix_statuses,
       register_patch_statuses`; insert
       `hooks.subscribe("statuses", "register_statuses", "patch",
       register_patch_statuses)` directly after the `fix` subscription; docstring "five
       subscriptions" → "six subscriptions in platform order".
-- [ ] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy import
+- [x] **REPL cycle (M4)**: in the venv REPL — `from goga_tool_pybuggy import
       register_hooks` resolves; drive it against an inline `_RecorderHooks`-shaped
       double; observe exactly six tuples in platform order with the patch row third and
       the subscribed callable identical to
       `goga_tool_pybuggy.statuses.register_patch_statuses`; reload after any edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/test_reg_hooks.py -v`
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/test_reg_hooks.py -v`
       — all tests pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: update `tests/test_reg_hooks.py` — module docstring
+- [x] **STEP 4 (LOGIC TESTS)**: update `tests/test_reg_hooks.py` — module docstring
       ("the five hook subscriptions" → "the six hook subscriptions"; "exact five-entry"
       → "exact six-entry" in the header line), class docstring ("five entries" → "six
       entries"), and the test renamed
@@ -871,19 +871,19 @@ position three.>
       ("onboarding", "amend_config", "amend", amend_pybuggy_config),
       ("pipeline", "amend_workflow", "autonomy", amend_workflow)]` — the import block
       gains `register_patch_statuses`.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code
       until all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe — `.venv/bin/python -c "from
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe — `.venv/bin/python -c "from
       goga_tool_pybuggy import register_hooks"`; confirm the root `__init__.py` was not
       modified; confirm the six subscriptions match the CODEMANIFEST algorithm steps
       1–6 exactly.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — fix formatting, decompose if
       necessary.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark this task's checkboxes complete; run
       the local commit gate (M3.3) and commit exactly `goga_tool_pybuggy/reg_hooks.py`,
       `tests/test_reg_hooks.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 5: integration tests — the patch end-to-end chain with the real config tree
 
