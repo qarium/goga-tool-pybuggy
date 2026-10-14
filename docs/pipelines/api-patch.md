@@ -28,31 +28,26 @@ dossier and the plan.
 ## Topic version
 
 Before any collection, the pipeline fixes the **topic version** for the whole cycle —
-the spec ref and the environment under test, exactly as [`api.fix`](api-fix.md) does.
-It uses the values from the pipeline argument when they name a branch and/or an
-environment; otherwise it asks you:
+the environment under test. The specification is local: the run reads the spec files
+from the tree on disk and never pulls a ref (unlike [`api.automate`](api-automate.md)
+and [`api.fix`](api-fix.md), which select a spec branch). It uses the value from the
+pipeline argument when it names an environment; otherwise it asks you:
 
-1. **Spec branch (`ref`)** — which spec version the tests must follow:
-   - *default branch* — `pull` without `--ref`;
-   - *feature branch* — enter the ref (`pull --ref <ref>`; several specs —
-     `--ref <spec>:<ref>`);
-   - *local spec* — no `pull` at all.
-2. **Run environment (base URL)** — which service version is tested:
+1. **Run environment (base URL)** — which service version is tested:
    - *standard* — the `.env` / `BASE_URL` default;
    - *explicit URL* — the environment where the version under test is deployed.
 
-A feature branch combined with the standard environment triggers a warning question
-(the branch contract may not match the default SUT); the confirmed choice is recorded
-and holds for the entire cycle. Non-standard base URLs are passed to every run as
-`pytest --base-url <url>` — the flag governs the tests that do not use the sandbox; the
-sandbox-bound tests take the sandbox address (see [Sandbox](../sandbox.md)).
+The confirmed choice is recorded and holds for the entire cycle. Non-standard base URLs
+are passed to every run as `pytest --base-url <url>` — the flag governs the tests that
+do not use the sandbox; the sandbox-bound tests take the sandbox address (see
+[Sandbox](../sandbox.md)).
 
 ## Stages
 
 | #  | Stage             | Purpose                                                                                        |
 |----|-------------------|------------------------------------------------------------------------------------------------|
 | 1  | `collect-intent`  | Collect the patch intents (each with its scope constraints) and fix the topic version → `intent.md` |
-| 2  | `analyze-impact`  | Build the per-intent impact dossier: affected tests, fixtures, manifests, usages references → `impact.md` |
+| 2  | `analyze-impact`  | Settle the dependency usages (`goga usages sync` / `status`), then build the per-intent impact dossier: affected tests, fixtures, manifests, usages references → `impact.md` |
 | 3  | `review-impact`   | Review the dossier with you; confirm every selection and delta                                  |
 | 4  | `apply-manifests` | Apply the confirmed manifest deltas to the CODEMANIFESTs — manifests only, the silent stage → `apply.md` |
 | 5  | `code-design`     | Design the code changes over the applied deltas; deletions become explicit deletion tasks → `rework.md` |
@@ -65,6 +60,12 @@ sandbox-bound tests take the sandbox address (see [Sandbox](../sandbox.md)).
 The `collect-intent` stage opens the topic: once the patch request is read, its intake runs
 one idempotent `goga history ensure` — the topic is the current git branch. Every later
 stage addresses artifacts with `goga history path -f <artifact>`.
+
+The `analyze-impact` stage first settles the dependency usages exactly as
+[`api.automate`](api-automate.md) does: `goga usages sync` materializes missing
+dependency usages, `goga usages status` reports drift, and a drift relevant to the topic
+is decided with you — refresh via `goga usages -g <group> -d <dep> sync --force` or
+continue with the local state — with the decision recorded in the dossier.
 
 > **Building the changed tests:** the design and plan stages produce documents only.
 > The defining rule of the line is that every change lands in the CODEMANIFEST and in

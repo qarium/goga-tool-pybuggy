@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-patch-analyze
-description: Impact analysis over the collected intents — for each intent group, the dossier of affected tests, fixtures, manifests, and usages references, saved to the path printed by `goga history path -f impact.md`
+description: Impact analysis over the collected intents — settles the dependency usages (`goga usages sync` / `status`, as api.automate does), then builds per intent group the dossier of affected tests, fixtures, manifests, and usages references, saved to the path printed by `goga history path -f impact.md`
 ---
 
 # Pybuggy API Patch — Analyze Impact
@@ -35,7 +35,24 @@ step's output before the next step starts.
 - Reads: the path printed by `goga history path -f intent.md`
 - STOP: the intent document is missing — the collect stage must run first.
 
-### Step 2. Resolve the scope selections
+### Step 2. Ensure dependency usages — WAIT
+
+External tools and libraries are documented in `.goga/usages/`: hand-authored in
+`.goga/usages/cooks/`, synced read-only in `.goga/usages/<group>/<dep>/`. Settle the
+dependency usages before resolving the scope — the dossier must reflect the settled
+state.
+
+1. `goga usages sync` — materialize missing dependency usages; existing ones are not
+   touched.
+2. `goga usages status` — dependency usage state; a non-zero exit means drift, not a
+   failure.
+3. An `out of date` dep — run `goga usages status --info`:
+   - changed files irrelevant to the topic's testing — proceed with the local state;
+   - changed files relevant — ask the user: refresh via
+     `goga usages -g <group> -d <dep> sync --force` or continue with the local state;
+     record the decision in the dossier.
+
+### Step 3. Resolve the scope selections
 
 For every intent, resolve its scope constraints (spec / directory / marker) against the
 tree on disk:
@@ -49,7 +66,7 @@ tree on disk:
 4. Affected usages references — the `.goga/usages/cooks/<key>.md` keys connected by the
    selected cells.
 
-### Step 3. Build the dossier
+### Step 4. Build the dossier
 
 Per intent group, record:
 
@@ -62,7 +79,7 @@ Per intent group, record:
    test code together).
 4. Risks — shared fixtures/tools whose change reaches tests outside the selection.
 
-### Step 4. Produce the dossier
+### Step 5. Produce the dossier
 
 Save the dossier to the path printed by `goga history path -f impact.md` (a repeated
 patch cycle overwrites it). Fill in every section; an empty section = an incomplete

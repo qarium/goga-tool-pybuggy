@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-api-patch-collect
-description: Collection of patch intents — intake of the user's requested test changes with scope constraints and the topic version (spec ref + base URL), saved to the path printed by `goga history path -f intent.md`
+description: Collection of patch intents — intake of the user's requested test changes with scope constraints and the topic version (base URL; the spec is local), saved to the path printed by `goga history path -f intent.md`
 ---
 
 # Pybuggy API Patch — Collect Intent
@@ -46,17 +46,15 @@ Every artifact of the topic is addressed as `goga history path -f <artifact>`.
 
 ### Step 3. Fix the topic version — WAIT
 
-The spec ref and the base URL are mandatory context for the whole run — every test-run
-command of the cycle depends on them. Resolution order: `$ARGUMENTS` names the ref
-and/or the environment → use those values without asking; otherwise ask the user:
+The base URL is mandatory context for the whole run — every test-run command of the
+cycle depends on it. The spec is local: the run reads the spec files from the tree on
+disk and never pulls a ref. Resolution order: `$ARGUMENTS` names the environment → use
+that value without asking; otherwise ask the user:
 
-1. **Spec ref**: "Default branch" — pull without `--ref`; "Feature branch" — enter a ref
-   (multiple specs — `--ref <spec>:<ref>`); "Local spec, no pull".
-2. **Base URL** — the service version under test: "Standard (.env / BASE_URL)";
+1. **Base URL** — the service version under test: "Standard (.env / BASE_URL)";
    "Specify URL" — the environment where the version under test is deployed.
-   Feature ref + standard environment — re-ask with a warning (the branch contract vs
-   the default SUT); record the confirmed decision either way. Sandbox-bound tests
-   ignore `--base-url`; the flag still governs the unbound tests of the run.
+   Record the confirmed decision either way. Sandbox-bound tests ignore
+   `--base-url`; the flag still governs the unbound tests of the run.
 
 ### Step 4. Produce the intent document
 
@@ -73,8 +71,7 @@ Fill in every section; an empty section = an incomplete step = a pipeline STOP.
 
 ## Topic version
 
-[Spec ref: default / <ref> (per-spec if different) / local | Base URL: standard /
-<url> | source: $ARGUMENTS / user answer | Confirmed contradiction: none / <what>]
+[Base URL: standard / <url> | source: $ARGUMENTS / user answer]
 
 ## Intents
 
