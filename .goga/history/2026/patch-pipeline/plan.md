@@ -969,10 +969,10 @@ the task-file skeleton and the traced records are inputs only.**
   `rework.md`, `workplan.md`, `completed/workplan.md` — no collision with the automate
   (`plan.md`, `completed/plan.md`) or fix (`fix-*.md`) lines.
 
-- [ ] Create `goga_tool_pybuggy/pipelines/api.patch.yml` — the normative skeleton
+- [x] Create `goga_tool_pybuggy/pipelines/api.patch.yml` — the normative skeleton
       verbatim from the task file Notes (ten stages, exact names, titles, communication
       flags, prompts, skills, the manual trigger).
-- [ ] Verify structure (REPL/verification cycle): in the venv — parse with
+- [x] Verify structure (REPL/verification cycle): in the venv — parse with
       `yaml.safe_load_all` (two documents: the header mapping and the stage list);
       assert the stage-name sequence equals `["collect-intent", "analyze-impact",
       "review-impact", "apply-manifests", "code-design", "design-review",
@@ -982,13 +982,13 @@ the task-file skeleton and the traced records are inputs only.**
       `communication: true`; assert every `skills:` entry follows the
       `goga-tool-pybuggy-api-patch-<stage>` naming (directory existence is verified in
       Task 7 after the skills are created).
-- [ ] Verify no packaging registration is needed: the `pipelines/*.yml` glob in
+- [x] Verify no packaging registration is needed: the `pipelines/*.yml` glob in
       `pyproject.toml` `[tool.setuptools.package-data]` already covers the file (grep,
       no edit).
-- [ ] Lint gate (M3.2): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
+- [x] Lint gate (M3.2): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` and
       `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` — clean (no `.py`
       touched).
-- [ ] Commit gate (M3.3): `pytest tests/ -x` green; commit exactly
+- [x] Commit gate (M3.3): `pytest tests/ -x` green; commit exactly
       `goga_tool_pybuggy/pipelines/api.patch.yml`.
 
 ### Task 7: stage skills — the nine `pybuggy-api-patch-*` orchestrators (package data)
