@@ -10,7 +10,7 @@ from goga.pipeline.hooks.events import PipelineHooks
 from goga.pipeline.hooks.identity import PipelineIdentity, WorkflowDecision, WorkIdentity
 from goga_tool_pybuggy.autonomous import build_autonomous_workflow
 from goga_tool_pybuggy.autonomous.amendment import amend_workflow
-from goga_tool_pybuggy.autonomous.contributions import AUTOMATE_CONTRIBUTION
+from goga_tool_pybuggy.autonomous.contributions import AUTOMATE_CONTRIBUTION, PATCH_CONTRIBUTION
 from goga_tool_pybuggy.commands.init import build_config_data
 from goga_tool_pybuggy.config import resolve_autonomy
 
@@ -60,6 +60,15 @@ class TestRunChain:
         amend_workflow(view)
 
         assert view.contributed == [build_autonomous_workflow(AUTOMATE_CONTRIBUTION)]
+
+    def test_amend_workflow_end_to_end_patch_with_real_config(self, tool_config) -> None:
+        """The real ``api.patch`` axis key routes through the real resolver to the patch-shaped document."""
+        tool_config("pipelines:\n  api.patch:\n    autonomous: true\n")
+        view = _AmendmentView(amendment_identity("pybuggy:api.patch"))
+
+        amend_workflow(view)
+
+        assert view.contributed == [build_autonomous_workflow(PATCH_CONTRIBUTION)]
 
     def test_amend_workflow_end_to_end_disabled_is_silent_no_op(self, tool_config) -> None:
         """A disabled axis in the standard tree contributes nothing and raises nothing."""

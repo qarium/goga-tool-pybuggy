@@ -910,7 +910,7 @@ end-to-end.>
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create the test: in `tests/test_autonomy_integration.py`, class `TestRunChain` —
+- [x] Create the test: in `tests/test_autonomy_integration.py`, class `TestRunChain` —
       `test_amend_workflow_end_to_end_patch_with_real_config(self, tool_config)`:
       `tool_config("pipelines:\n  api.patch:\n    autonomous: true\n")`; `view =
       _AmendmentView(amendment_identity("pybuggy:api.patch"))`; `amend_workflow(view)`;
@@ -918,21 +918,21 @@ end-to-end.>
       (docstring: the real `api.patch` axis key routes through the real resolver to the
       patch-shaped document); extend the module-level contributions import with
       `PATCH_CONTRIBUTION` (Task 3 imported `AUTOMATE_CONTRIBUTION` only).
-- [ ] Test edge case: the disabled counterpart already exists for automate
+- [x] Test edge case: the disabled counterpart already exists for automate
       (`test_amend_workflow_end_to_end_disabled_is_silent_no_op`) — verify it still
       passes unchanged; no patch duplicate is added (the disabled state is
       resolver-level, already covered).
-- [ ] Run validation: `.venv/bin/pytest tests/test_autonomy_integration.py -v` then
+- [x] Run validation: `.venv/bin/pytest tests/test_autonomy_integration.py -v` then
       `.venv/bin/pytest tests/ -x` — all green.
-- [ ] REPL cycle (M4): in the venv REPL against a scratch tree — `mkdir -p
+- [x] REPL cycle (M4): in the venv REPL against a scratch tree — `mkdir -p
       /tmp/patch-e2e/.goga/tools/pybuggy`, write `config.yml` with
       `pipelines:\n  api.patch:\n    autonomous: true\n`, `os.chdir` into it, call the
       real `resolve_autonomy("api.patch")` → observe `True`; drive `amend_workflow`
       with a patch-identity view → observe one contributed document whose window starts
       at `review-impact`; pin the observation as the test above.
-- [ ] Lint: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then `.venv/bin/ruff
+- [x] Lint: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then `.venv/bin/ruff
       check goga_tool_pybuggy/ tests/` — fix formatting if necessary.
-- [ ] Commit gate (M3.3): ruff check + ruff format --check + `pytest tests/ -x` green;
+- [x] Commit gate (M3.3): ruff check + ruff format --check + `pytest tests/ -x` green;
       commit exactly `tests/test_autonomy_integration.py`.
 
 ### Task 6: pipeline convention — `pipelines/api.patch.yml` from the normative skeleton (package data)
