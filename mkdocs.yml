@@ -70,7 +70,10 @@ nav:
       - goga tool pybuggy endpoint generate: cli/generate.md
       - goga tool pybuggy endpoint diff: cli/diff.md
   - Configuration: configuration.md
-  - Sandbox: sandbox.md
+  - Sandbox:
+      - Overview: sandbox/index.md
+      - Python API: sandbox/api.md
+      - Configuration: sandbox/configuration.md
   - Matchers:
       - Overview & assert_that: matchers/index.md
       - Assertions: matchers/asserts.md

@@ -49,13 +49,18 @@ docs/cli/diff.md:
 docs/configuration.md:
   - goga_tool_pybuggy/config
   - goga_tool_pybuggy/plugin
-docs/sandbox.md:
+docs/sandbox/index.md:
   - goga_tool_pybuggy/sandbox
-  - goga_tool_pybuggy/sandbox/config
+  - goga_tool_pybuggy/plugin
   - goga_tool_pybuggy/sandbox/engines
+docs/sandbox/api.md:
+  - goga_tool_pybuggy/sandbox
   - goga_tool_pybuggy/sandbox/data
+  - goga_tool_pybuggy/plugin
+docs/sandbox/configuration.md:
+  - goga_tool_pybuggy/sandbox/config
   - goga_tool_pybuggy/sandbox/migrations
-  - goga_tool_pybuggy/plugin/sandbox_plugin
+  - goga_tool_pybuggy/sandbox/engines
 docs/matchers/index.md:
   - goga_tool_pybuggy/matchcrest
 docs/matchers/asserts.md:

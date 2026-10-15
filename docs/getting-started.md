@@ -15,7 +15,7 @@ environment of the target project. The package carries the container/DB/Kafka st
 main dependencies (`testcontainers`, `psycopg`, `kafka-python`, `requests`); running
 tests with a sandbox document (`.goga/tools/pybuggy/sandbox.yml`) present additionally
 requires a docker-compatible container runtime in the test environment (see
-[Sandbox](sandbox.md)).
+[Sandbox](sandbox/index.md)).
 
 ## 2. Initialize: `goga tool pybuggy init`
 

@@ -40,7 +40,7 @@ pipeline argument when it names an environment; otherwise it asks you:
 The confirmed choice is recorded and holds for the entire cycle. Non-standard base URLs
 are passed to every run as `pytest --base-url <url>` — the flag governs the tests that
 do not use the sandbox; the sandbox-bound tests take the sandbox address (see
-[Sandbox](../sandbox.md)).
+[Sandbox](../sandbox/index.md)).
 
 ## Stages
 

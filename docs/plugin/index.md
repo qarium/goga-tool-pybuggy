@@ -34,7 +34,7 @@ The same `install()` call installs the **sandbox plugin**: when
 `sandbox` fixture appears — the sandbox starts lazily on the first test that requests
 it, per-test resets and marked presets are product-owned, and a test binds its api to
 the sandbox explicitly through `endpoint.bind(sandbox)` — every request then first
-applies the test's pending sandbox data (see [Sandbox](../sandbox.md)).
+applies the test's pending sandbox data (see [Sandbox](../sandbox/api.md)).
 
 ## What enabling wires
 
@@ -99,7 +99,7 @@ loader:
 - A sandbox document at `.goga/tools/pybuggy/sandbox.yml` installs the sandbox plugin on
   the same `install()` call (the product `sandbox` fixture); the environment then needs a
   docker-compatible container runtime, but only when the run actually has sandbox tests —
-  the containers start on the first one (see [Sandbox](../sandbox.md)).
+  the containers start on the first one (see [Sandbox](../sandbox/index.md)).
 - The `api/` tree is discovered by default; a missing tree is tolerated
   (`required=False`).
 - The plugin reads `.goga/tools/pybuggy/config.yml` at import; a missing file is

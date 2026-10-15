@@ -35,7 +35,7 @@ package contains a pytest plugin and a CLI.
   schema is declared as goose-format SQL migrations applied once per session and kept
   across per-test resets; per-test resets and data presets are product-owned, keeping
   tests order-independent. Requires a docker-compatible container runtime (see
-  [Sandbox](sandbox.md)).
+  [Sandbox](sandbox/index.md)).
 
 ## Quickstart
 
@@ -59,7 +59,7 @@ fine-grained control: [CLI Reference](cli/init.md).
 - [Pipelines](pipelines/index.md) — the automated API-test lifecycle.
 - [CLI Reference](cli/init.md) — every command with options and behavior.
 - [Configuration](configuration.md) — `.goga/tools/pybuggy/config.yml`.
-- [Sandbox](sandbox.md) — `.goga/tools/pybuggy/sandbox.yml` and the product `sandbox`
+- [Sandbox](sandbox/index.md) — `.goga/tools/pybuggy/sandbox.yml` and the product `sandbox`
   fixture for session-scoped service testing.
 - [Matchers](matchers/index.md) — assertions and the matcher catalog.
 - [Pytest Plugin](plugin/index.md) — enabling, fixtures, options.
