@@ -50,6 +50,10 @@ _NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
 # surveyed extras (a ``type`` outside this tuple is always rejected).
 _SPEC_TYPES = ("swagger", "openapi")
 
+# The autonomous pipelines of the amend-moment survey — one confirm per axis, asked and
+# written in this order (automate first, patch after it).
+_AUTONOMY_AXES: tuple[str, ...] = ("api.automate", "api.patch")
+
 # The goga-python image family in age order — the base-image hints the pybuggy block offers.
 # The pybuggy test runtime is pytest, so the python family serves every pybuggy project
 # regardless of the surveyed language; the runtime minor tag completes each name (the
@@ -171,26 +175,31 @@ def survey_extra_specs() -> list[dict[str, object]]:
     return surveyed
 
 
-def survey_autonomy() -> bool:
-    """Interactively survey the autonomy confirm — the amend-moment follow-up after the specs.
+def survey_autonomy() -> dict[str, bool]:
+    """Interactively survey the autonomy confirms — the amend-moment follow-ups after the specs.
 
-    Asked by the tool once the whole spec survey completed, so the question never interleaves
-    the spec fields; the disabled default keeps existing projects interactive until opted in.
+    Asked by the tool once the whole spec survey completed, so the questions never interleave
+    the spec fields: one confirm per autonomous pipeline, in the fixed axis order — automate
+    first, patch after it. The disabled defaults keep each pipeline interactive until opted in.
 
     Returns:
-        The autonomy answer — True enables the unattended api.automate window.
+        The autonomy answers keyed by pipeline axis — True enables that pipeline's unattended
+        window.
 
     Raises:
         click.Abort: Forwarded unchanged from a cancelled prompt; the mediator drops the
             contribution with a warning.
     """
-    return click.confirm("Run the api.automate pipeline unattended (autonomous mode)?", default=False)
+    return {
+        axis: click.confirm(f"Run the {axis} pipeline unattended (autonomous mode)?", default=False)
+        for axis in _AUTONOMY_AXES
+    }
 
 
 def build_config_data(
     answers: dict[str, object],
     extra_specs: list[dict[str, object]] | None = None,
-    autonomous: bool = False,
+    autonomous: dict[str, bool] | None = None,
 ) -> dict[str, object]:
     """Build the plain serializable tool-config payload from the session answers.
 
@@ -199,11 +208,12 @@ def build_config_data(
     Args:
         answers: The pybuggy answer view (core sections plus the own block under local names).
         extra_specs: The ``survey_extra_specs`` mappings; None when the gate was declined.
-        autonomous: The ``survey_autonomy`` answer; False (also the default) writes no axis.
+        autonomous: The ``survey_autonomy`` answers keyed by axis; None (also the default)
+            or an all-disabled mapping writes no axis entries.
 
     Returns:
-        The tool-config payload keyed in plugin key order, then ``pipelines`` when
-        ``autonomous`` enables it, with ``specs`` last.
+        The tool-config payload keyed in plugin key order, then ``pipelines`` holding one
+        entry per enabled axis, with ``specs`` last.
 
     Raises:
         ValueError: If a numeric member's answer cannot coerce to its target type (the
@@ -222,8 +232,10 @@ def build_config_data(
 
         data[member.value] = _NUMERIC_MEMBERS[member](value) if member in _NUMERIC_MEMBERS else value
 
-    if autonomous:
-        data["pipelines"] = {"api.automate": {"autonomous": True}}
+    enabled_axes = [axis for axis in _AUTONOMY_AXES if autonomous and autonomous.get(axis)]
+
+    if enabled_axes:
+        data["pipelines"] = {axis: {"autonomous": True} for axis in enabled_axes}
 
     data["specs"] = {name: entry.model_dump(exclude_none=True) for name, entry in specs.items()}
 
@@ -431,7 +443,7 @@ def amend_pybuggy_config(context: object) -> None:
     """Amend the session answers and buffer the tool config (participation moment two).
 
     No-op unless invited; the surveys run in order — the extra specs first, the autonomy
-    confirm after them, so the spec survey completes before the autonomy question; any
+    confirms after them, so the spec survey completes before the autonomy questions; any
     exception makes the mediator drop the contribution (the session continues).
 
     Args:

@@ -35,11 +35,14 @@ the goga-python family hints, newest as the default) and the built-image name, t
 `base_url` (required, a Jinja2 template), the optional scalar plugin keys
 (Enter skips), and the first spec (`name`, `type`, `location`, optional git fields).
 The Dockerfile itself is never asked about — it is always created at
-`.goga/Dockerfile` from the answered base image. After the block, pybuggy asks its two
+`.goga/Dockerfile` from the answered base image. After the block, pybuggy asks its
 follow-ups itself: the additional specs (`Add another spec?`, a per-field loop), then
-the autonomy confirm (**"Run the api.automate pipeline unattended (autonomous mode)?"
-defaults to No**; Yes writes the `pipelines` section entry — see
-[Autonomous runs](pipelines/api-automate.md#autonomous-runs)). Whatever you answer to
+one autonomy confirm per pipeline — **"Run the api.automate pipeline unattended
+(autonomous mode)?"** and **"Run the api.patch pipeline unattended (autonomous
+mode)?"**, each defaulting to No**; a Yes writes that pipeline's entry in the
+`pipelines` section (see [Automate — Autonomous
+runs](pipelines/api-automate.md#autonomous-runs) and [Patch — Autonomous
+runs](pipelines/api-patch.md#autonomous-runs)). Whatever you answer to
 the core tools question, pybuggy is always recorded in `.goga/config.yml`. The session
 writes `.goga/config.yml`, the Dockerfile, and the tool config
 `.goga/tools/pybuggy/config.yml`:

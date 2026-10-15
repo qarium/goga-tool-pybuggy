@@ -77,6 +77,14 @@ Usages:
   reference `` `<key>` `` resolves immediately: the key is already declared in that cell's `Usages`.
 - The base block stays **unchanged**. A cell-specific usage exists only in cells that use
   the tool — its presence in some cells and absence in others is **not** a discrepancy.
+- **A decorator/marker is a tool like any other.** CODEMANIFEST has no dedicated syntax for
+  a pytest marker — none is needed: the marker's usage file (documenting the decorator and,
+  for a new marker, its `pytest.ini` registration — `strict_markers = true` fails an
+  unregistered marker) is wired as a cell-specific usage, and the Routine annotation
+  references the key (a ``Use `<key>` for …`` line and/or a mention in
+  `Precondition:`/`Steps:`); the materialized `test_*.py` then carries the decorator. A
+  marker that lives only in the test code is lost on the next regeneration from the
+  Routine — the annotation is the source the code is generated from.
 - Coverage (case coverage) and Routine granularity remain **unaffected** (tool usages belong to
   Header/Annotations, not Routine).
 

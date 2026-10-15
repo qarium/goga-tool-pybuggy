@@ -56,7 +56,7 @@ command propagates them without wrapping.
 questions — the language, the optional codemanifest / build-agent / pipeline sections,
 the tools, the usages records — and then the pybuggy block under a heading with the
 tool name. pybuggy prompts on its own only at the amendment moment (the extra specs
-and the autonomy confirm, below); everything else is asked by the engine from the
+and the autonomy confirms, below); everything else is asked by the engine from the
 declared records.
 
 Two core sections are skipped by pybuggy:
@@ -166,20 +166,24 @@ block:
   per-field loop mirroring the first-spec prompts: `name` / `type` / `location`
   (required, re-asked when empty) and the optional git fields. Any number of extras;
   a decline ends the survey.
-- The **autonomy confirm**, asked last — after the spec survey completed, so the
-  question never interleaves the spec fields: `Run the api.automate pipeline unattended
-  (autonomous mode)?` — default No. Answering Yes is the one way the session writes a
-  `pipelines` section entry into the tool config:
+- The **autonomy confirms**, asked last — after the spec survey completed, so the
+  questions never interleave the spec fields: one per pipeline, `Run the api.automate
+  pipeline unattended (autonomous mode)?` and then `Run the api.patch pipeline
+  unattended (autonomous mode)?` — each default No. Each Yes is the one way the session
+  writes that pipeline's `pipelines` section entry into the tool config — both accepted:
 
   ```yaml
   pipelines:
     api.automate:
       autonomous: true
+    api.patch:
+      autonomous: true
   ```
 
-  The default (or declined) answer writes nothing — the entry is dropped like any
-  unanswered key, and the project's `api.automate` runs stay fully interactive (see
-  [Autonomous runs](../pipelines/api-automate.md#autonomous-runs)).
+  The default (or declined) answer writes nothing for that pipeline — the entry is
+  dropped like any unanswered key, and that pipeline's runs stay fully interactive
+  (see [Automate — Autonomous runs](../pipelines/api-automate.md#autonomous-runs) and
+  [Patch — Autonomous runs](../pipelines/api-patch.md#autonomous-runs)).
 
 `headers` and `loader` are **never surveyed**, and the session writes the tool config
 as plain YAML carrying only the answered values (unanswered keys are dropped, never

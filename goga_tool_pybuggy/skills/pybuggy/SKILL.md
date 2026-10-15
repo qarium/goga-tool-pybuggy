@@ -99,8 +99,8 @@ the run may start on red tests, and every failure it meets is surfaced, never ma
 |-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|--------------------------------|----------------------------------|
 | `goga-tool-pybuggy-api-patch-collect` | Collects the patch intents (each with scope constraints) and fixes the topic version (spec ref + base URL)                    | requested change | `intent.md`        |
 | `goga-tool-pybuggy-api-patch-analyze` | Impact analysis per intent: the dossier of affected tests, fixtures, manifests, usages references                              | `intent.md`      | `impact.md`        |
-| `goga-tool-pybuggy-api-patch-review`  | Reviews the dossier with the user — confirms every selection and delta                                                          | `impact.md`      | confirmed `impact.md` |
-| `goga-tool-pybuggy-api-patch-apply`    | Applies the confirmed manifest deltas to the CODEMANIFESTs — manifests only, no test code                                      | confirmed `impact.md` | `apply.md`   |
+| `goga-tool-pybuggy-api-patch-impact-review` | Reviews the dossier with the user — verifies every selection and delta against the tree and the DSL, confirms each group | `impact.md`      | confirmed `impact.md` |
+| `goga-tool-pybuggy-api-patch-apply`    | Applies the confirmed manifest deltas to the CODEMANIFESTs (DSL-validated before writing) — manifests only, no test code       | confirmed `impact.md` | `apply.md`   |
 | `goga-tool-pybuggy-api-patch-design`   | Dispatch wrapper around `goga-design` in patch mode — the code-change design over the applied deltas; deletions become deletion tasks | `apply.md`   | `rework.md`       |
 | `goga-tool-pybuggy-api-patch-plan`     | Dispatch wrapper around `goga-plan` in patch mode — the ralphex plan with convention rules as mandatory rules and pytest in every task | `rework.md` | `workplan.md`     |
 | `goga-tool-pybuggy-api-patch-accept`   | Acceptance: every change landed in the CODEMANIFEST and the test code together, final full-suite run, failure triage with the user | built tests | `accept.md` + `bugs.md` |
@@ -120,6 +120,9 @@ They verify the test artifacts of all phases: requirements → testcases → cel
 | `goga-tool-pybuggy-api-automate-cells-review`        | Cells plan `arch.md`: CODEMANIFEST follows the DSL (1 case = 1 Routine is not required), cell-specific tool usages, coverage (each test case covered directly or by a Routine variant) |
 | `goga-tool-pybuggy-api-automate-design-review`       | Test design document (Routine↔`test_*.py`, pytest validation)                                                                                                                                       |
 | `goga-tool-pybuggy-api-automate-plan-review`         | ralphex plan: the critical check — `pytest` is present and executable                                                                                                                               |
+| `goga-tool-pybuggy-api-patch-impact-review`          | Patch impact dossier `impact.md`: selections match the scope constraints, deltas follow the DSL/cookbook, deletions and cell moves explicit, then per-group user confirmation           |
+| `goga-tool-pybuggy-api-patch-design-review`          | Patch design `rework.md`: delta coverage (task↔delta bijection), explicit deletion tasks, usages wiring, `Request` model, pytest validation                                              |
+| `goga-tool-pybuggy-api-patch-plan-review`            | Patch ralphex plan `workplan.md`: executable pytest checkboxes, deletion tasks, mandatory convention rules, changed-files records, failing-test policy                                    |
 
 ---
 

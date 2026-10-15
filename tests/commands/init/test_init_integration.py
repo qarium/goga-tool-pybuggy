@@ -28,10 +28,11 @@ _CONFIRM_ANSWERS = {
     "Add usages records?": False,
     "Add another spec?": [True, False],
     "Run the api.automate pipeline unattended (autonomous mode)?": False,
+    "Run the api.patch pipeline unattended (autonomous mode)?": False,
 }
 
 # The expected confirm ask order — the core gates, the amend-moment spec loop, then the autonomy
-# confirm closing the survey after the specs.
+# confirms closing the survey after the specs.
 _EXPECTED_CONFIRMS = [
     "Add codemanifest usages?",
     "Add codemanifest annotations?",
@@ -42,6 +43,7 @@ _EXPECTED_CONFIRMS = [
     "Add another spec?",
     "Add another spec?",
     "Run the api.automate pipeline unattended (autonomous mode)?",
+    "Run the api.patch pipeline unattended (autonomous mode)?",
 ]
 
 # Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter
@@ -179,15 +181,19 @@ class TestSessionSmoke:
         assert (tmp_path / "conftest.py").exists()
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
-    def test_session_smoke_autonomy_confirm_accepted_writes_axis(self, tmp_path, monkeypatch, caplog, scripted_tty):
-        """Answering the autonomy confirm True lands the ``pipelines`` axis in the written config.
+    def test_session_smoke_autonomy_confirms_accepted_write_axes(self, tmp_path, monkeypatch, caplog, scripted_tty):
+        """Answering both autonomy confirms True lands both ``pipelines`` axes in the written config.
 
-        Accepting the confirm distinguishes a recorded False from a lost answer key.
+        Accepting the confirms distinguishes a recorded False from a lost answer key.
         """
         monkeypatch.chdir(tmp_path)
         _write_minimal_specs(tmp_path)
         tty = scripted_tty(
-            confirms={**_CONFIRM_ANSWERS, "Run the api.automate pipeline unattended (autonomous mode)?": True},
+            confirms={
+                **_CONFIRM_ANSWERS,
+                "Run the api.automate pipeline unattended (autonomous mode)?": True,
+                "Run the api.patch pipeline unattended (autonomous mode)?": True,
+            },
             prompts=_PROMPT_ANSWERS,
         )
         monkeypatch.setattr(click, "confirm", tty.confirm)
@@ -200,7 +206,7 @@ class TestSessionSmoke:
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
         tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").read_text("utf-8"))
-        assert tool_config["pipelines"] == {"api.automate": {"autonomous": True}}
+        assert tool_config["pipelines"] == {"api.automate": {"autonomous": True}, "api.patch": {"autonomous": True}}
 
 
 class TestCliComposition:

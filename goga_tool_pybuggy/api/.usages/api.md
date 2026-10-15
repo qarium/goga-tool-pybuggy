@@ -281,7 +281,8 @@ def test_initiate(post_clients_calls_initiate: Endpoint):
 - `json=` — a pydantic `BaseModel` (serialized) or a `dict`. For schema-invalid requests
   (a missing required field, a wrong value type), **pass a raw `dict`**,
   not a model — otherwise pydantic raises a `ValidationError` before the request is sent,
-  and the SUT is never tested.
+  and the SUT is never tested. The inverse holds: a schema-valid body **always goes through
+  the model** — a raw `dict` for a valid body loses request validation and is **forbidden**.
 - `data=` — a raw body (string/bytes), sent as is, bypassing pydantic serialization.
   Used to test the handling of malformed JSON (e.g. `data="{"`). For a correct
   Content-Type, pass it in `headers=`.

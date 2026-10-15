@@ -42,7 +42,7 @@ Annotations: |
   the pybuggy block are surveyed by the engine, two core sections are skipped (the pybuggy session never offers the
   goga base-convention download — the `conventions` slot is the bootstrap's delivery; and the engine's Dockerfile
   gate never appears — a pybuggy project always carries a Dockerfile, the block asks the base image and the
-  built-image name itself, and the amendments deliver the fixed path). The additional specs and the autonomy confirm
+  built-image name itself, and the amendments deliver the fixed path). The additional specs and the autonomy confirms
   are surveyed by the tool itself at the amendment moment — specs first, autonomy after them — a confirm-gated
   repeated group is beyond the declarative engine records. The tool config file and the config amendments are
   committed through the participation mechanism; an existing .goga/config.yml ends the session immediately and is
@@ -251,7 +251,7 @@ Annotations: |
 "amend_pybuggy_config(context: object)":
   location: session.py
   annotations: |
-    Amendment moment of the participation contract: survey the additional specs and then the autonomy confirm, read
+    Amendment moment of the participation contract: survey the additional specs and then the autonomy confirms, read
     the isolated answer view, and buffer the pybuggy contribution — the config amendments and the tool config file.
 
     `context`: the amendment surface delivered by the platform.
@@ -261,8 +261,8 @@ Annotations: |
     2. Read the answer view from the context (the survey never touches it — the two reads are
        independent).
     3. Survey the additional specs via `survey_extra_specs` (the confirm-gated per-field follow-up).
-    4. Survey the autonomy confirm via `survey_autonomy` — after the spec survey, so the autonomy question never
-       interleaves the spec fields.
+    4. Survey the autonomy confirms via `survey_autonomy` — one per autonomous pipeline, after the
+       spec survey, so the autonomy questions never interleave the spec fields.
     5. Buffer every entry of `build_config_amendments` as a config amendment.
     6. Buffer the tool config file with `build_config_data`.
 
@@ -307,7 +307,7 @@ Annotations: |
     Constraints:
     - Do not survey HEADERS or LOADER — the bootstrap documents them as commented example records in the tool config.
     - Do not declare a Dockerfile-path question — the path is the fixed constant delivered by `build_config_amendments`.
-    - Do not declare an autonomy question — the autonomy confirm is surveyed by `survey_autonomy` at the amendment
+    - Do not declare autonomy questions — the autonomy confirms are surveyed by `survey_autonomy` at the amendment
       moment, after the spec survey.
     - Do not declare a compact additional-specs record — the additional specs are surveyed by `survey_extra_specs` at
       the amendment moment (a confirm-gated repeated group is beyond the declarative records).
@@ -342,51 +342,54 @@ Annotations: |
 
     Use `conventions` for logging-free TTY practices and testing.
 
-"survey_autonomy() -> autonomous:bool":
+"survey_autonomy() -> answers:dict[str, bool]":
   location: session.py
   annotations: |
-    Interactively survey the autonomy confirm — the closing question of the amendment moment, asked by the tool after
-    `survey_extra_specs` completed, so the autonomy question never interleaves the spec fields.
+    Interactively survey the autonomy confirms — the closing questions of the amendment moment, asked by the tool
+    after `survey_extra_specs` completed, so the autonomy questions never interleave the spec fields.
 
-    `autonomous`: the autonomy answer — true enables the unattended api.automate window.
+    `answers`: the autonomy answers keyed by pipeline axis — true enables that pipeline's unattended window.
 
     Algorithm:
-    1. Ask "Run the api.automate pipeline unattended (autonomous mode)?" as a confirm (default no) and return the
-       answer.
+    1. For each axis of the fixed autonomy axis order — api.automate first, api.patch after it — ask
+       "Run the {axis} pipeline unattended (autonomous mode)?" as a confirm (default no).
+    2. Return the answers keyed by axis.
 
     Requirements:
-    - The prompt text matches the Algorithm step verbatim; the disabled default keeps existing projects
-      interactive until opted in.
+    - One question per axis, in the fixed order; each prompt matches the Algorithm step pattern verbatim — the
+      automate question is byte-identical to the historical single confirm.
+    - The disabled default per axis keeps that pipeline interactive until opted in.
 
     Constraints:
     - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole contribution
       with a warning (the session continues).
 
-    Use `autonomy` for the axis the answer gates. Use `conventions` for logging-free TTY practices and testing.
+    Use `autonomy` for the axis each answer gates. Use `conventions` for logging-free TTY practices and testing.
 
-"build_config_data(answers: dict[str, object], extra_specs: list[dict[str, object]] | None, autonomous: bool) -> data:dict[str, object]":
+"build_config_data(answers: dict[str, object], extra_specs: list[dict[str, object]] | None, autonomous: dict[str, bool] | None) -> data:dict[str, object]":
   location: session.py
   annotations: |
     Pure mapping of the tool answer view into the tool config file payload: the specs mapping, the answered scalar
-    keys, and the conditional pipelines axis entry.
+    keys, and the conditional pipelines axis entries.
 
     `answers`: the tool answer view — the block answers under local names.
     `extra_specs`: the `survey_extra_specs` mappings; None when the gate was declined.
-    `autonomous`: the `survey_autonomy` answer; false writes no axis entry.
+    `autonomous`: the `survey_autonomy` answers keyed by axis; None or an all-disabled mapping writes no axis
+      entries.
     `data`: the serializable payload of .goga/tools/pybuggy/config.yml.
 
     Algorithm:
     1. Build the specs mapping via `parse_specs` from the first-spec group answer and the surveyed extra specs.
     2. Collect the answered scalar keys from the `PluginConfigKeys` members, dropping unanswered ones.
-    3. Read `autonomous`; when it enables autonomy, add the pipelines axis entry — the api.automate record with
-       autonomous true.
-    4. Return the payload: the specs mapping plus the active scalar keys and, when enabled, the axis entry.
+    3. Read `autonomous`; for every axis of the fixed autonomy axis order with a true answer, add its pipelines
+       record with autonomous true; an absent, None, or all-disabled mapping adds no axis entries.
+    4. Return the payload: the specs mapping plus the active scalar keys and the enabled axis entries.
 
     Requirements:
     - The payload satisfies the config schema (see `configuration`): a specs mapping whose entries carry the required
       fields; the scalar plugin keys are ignored on loading.
-    - The axis entry matches the pipelines contract (see `autonomy`); the entry is absent on a disabling answer —
-      existing projects stay untouched until the user opts in.
+    - Each axis entry matches the pipelines contract (see `autonomy`); the section is absent when no axis is
+      enabled — existing projects stay untouched until the user opts in per pipeline.
     - The payload is plain serializable data — the engine writes the YAML.
 
     Constraints:

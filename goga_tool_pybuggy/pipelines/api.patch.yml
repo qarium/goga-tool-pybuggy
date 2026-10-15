@@ -21,7 +21,7 @@ description: "Pybuggy API-test patch lifecycle"
   title: "Review impact dossier"
   communication: true
   skills:
-    - goga-tool-pybuggy-api-patch-review
+    - goga-tool-pybuggy-api-patch-impact-review
 
 - name: apply-manifests
   title: "Apply manifest changes"

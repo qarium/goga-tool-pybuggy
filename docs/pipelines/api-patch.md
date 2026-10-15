@@ -47,9 +47,9 @@ do not use the sandbox; the sandbox-bound tests take the sandbox address (see
 | #  | Stage             | Purpose                                                                                        |
 |----|-------------------|------------------------------------------------------------------------------------------------|
 | 1  | `collect-intent`  | Collect the patch intents (each with its scope constraints) and fix the topic version → `intent.md` |
-| 2  | `analyze-impact`  | Settle the dependency usages (`goga usages sync` / `status`), then build the per-intent impact dossier: affected tests, fixtures, manifests, usages references → `impact.md` |
+| 2  | `analyze-impact`  | Settle the dependency usages (`goga usages sync` / `status`), then build the per-intent impact dossier: affected tests, fixtures, manifests, usages deltas (new tools, API updates, Header wiring) → `impact.md` |
 | 3  | `review-impact`   | Review the dossier with you; confirm every selection and delta                                  |
-| 4  | `apply-manifests` | Apply the confirmed manifest deltas to the CODEMANIFESTs — manifests only, the silent stage → `apply.md` |
+| 4  | `apply-manifests` | Apply the confirmed deltas to the CODEMANIFESTs and the tool usage files (`.goga/usages/cooks/`) — the silent stage → `apply.md` |
 | 5  | `code-design`     | Design the code changes over the applied deltas; deletions become explicit deletion tasks → `rework.md` |
 | 6  | `design-review`   | Review the code design                                                                          |
 | 7  | `coding-plan`     | Compile the ralphex execution plan (convention rules as mandatory rules) → `workplan.md`        |
@@ -66,6 +66,15 @@ The `analyze-impact` stage first settles the dependency usages exactly as
 dependency usages, `goga usages status` reports drift, and a drift relevant to the topic
 is decided with you — refresh via `goga usages -g <group> -d <dep> sync --force` or
 continue with the local state — with the decision recorded in the dossier.
+
+Tools follow the automate line's mechanic: for every tool an intent introduces or
+re-binds — the sandbox included — the existing usages are looked up first; an existing
+usage is wired into the cell as is, and a tool without one becomes a new
+`.goga/usages/cooks/<key>.md` (the key, purpose, and API source — yours or the
+dependency file — agreed at `review-impact`, the content never invented); a tool whose
+API the patch changes has its usage file updated. `apply-manifests` writes the files
+and wires the keys into the cell Headers — a key is never wired before its file
+exists, and the base Header block stays untouched.
 
 > **Building the changed tests:** the design and plan stages produce documents only.
 > The defining rule of the line is that every change lands in the CODEMANIFEST and in
@@ -85,7 +94,7 @@ current git branch, ensured by the collect stage's intake via `goga history ensu
 ```
 intent.md        # the patch request: intents, scope constraints, topic version
 impact.md        # per-intent impact dossier (tests, fixtures, manifests, usages)
-apply.md         # the applied manifest deltas (changed CODEMANIFESTs)
+apply.md         # the applied deltas (changed CODEMANIFESTs and usage files)
 rework.md        # code-change design over the applied deltas
 workplan.md      # ralphex execution plan
 accept.md        # acceptance report: consistency, run results, triage, verdict
@@ -119,9 +128,8 @@ A topic mid-patch therefore shows one maximal status per line — e.g.
 ## Autonomous runs
 
 The pipeline can run unattended from the impact review onward. Autonomy is opt-in per
-pipeline through the `pipelines` section of the tool config — set it by hand (the
-autonomy confirm of [`pybuggy init`](../cli/init.md) covers only the `api.automate`
-axis):
+pipeline through the `pipelines` section of the tool config — set it by hand or through
+the `api.patch` autonomy confirm of [`pybuggy init`](../cli/init.md):
 
 ```yaml
 # .goga/tools/pybuggy/config.yml

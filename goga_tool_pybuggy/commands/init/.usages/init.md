@@ -35,9 +35,10 @@ copier TUI (template questions) require a TTY.
 `pybuggy init` and a native `goga init -t pybuggy` run the **same** engine session with pybuggy invited. The engine
 asks the core goga questions and then the pybuggy block under a heading with the tool name. The engine asks
 everything the declarative records can express; the pybuggy-owned asks are the amendment-moment follow-ups —
-`Add another spec?` with its per-field loop, then the autonomy confirm `Run the api.automate pipeline unattended?` —
-run by the amendment hook right after the engine survey, specs first and autonomy last (a confirm-gated repeated
-group is beyond the declarative records, and the autonomy question must not interleave the spec fields).
+`Add another spec?` with its per-field loop, then the autonomy confirms — `Run the api.automate pipeline unattended
+(autonomous mode)?` and `Run the api.patch pipeline unattended (autonomous mode)?` — run by the amendment hook right
+after the engine survey, specs first and autonomy last (a confirm-gated repeated group is beyond the declarative
+records, and the autonomy questions must not interleave the spec fields).
 
 The session skips two core sections:
 
@@ -61,7 +62,7 @@ Session semantics that shape the modes:
   session still returns 0. This includes a Ctrl-C at the additional-spec or autonomy prompts.
 
 Through the session pybuggy delivers two things: its questions (the image inputs, the tool configuration survey, the
-surveyed additional specs, the autonomy confirm) and its tool config file `.goga/tools/pybuggy/config.yml`. It also
+surveyed additional specs, the autonomy confirms) and its tool config file `.goga/tools/pybuggy/config.yml`. It also
 buffers the config amendments — the tool's declared intent in the session answer space:
 
 - `build.review.skip: true` — the engine's config mapper does not carry that flag into the generated

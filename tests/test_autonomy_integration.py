@@ -122,13 +122,14 @@ class TestEmitConsumeBridge:
     """The onboarding payload, serialized to the standard tree, consumed by the resolver."""
 
     def test_build_config_data_payload_enables_resolve_autonomy(self, tool_config) -> None:
-        """The enabling payload enables the resolver; the disabling one writes no axis at all."""
-        enabling = build_config_data(dict(_ANSWERS), None, True)
+        """The enabling payload enables the resolver on both surveyed axes; the disabling one writes no axis."""
+        enabling = build_config_data(dict(_ANSWERS), None, {"api.automate": True, "api.patch": True})
         tool_config(yaml.safe_dump(enabling))
 
         assert resolve_autonomy("api.automate") is True
+        assert resolve_autonomy("api.patch") is True
 
-        disabling = build_config_data(dict(_ANSWERS), None, False)
+        disabling = build_config_data(dict(_ANSWERS), None, None)
 
         assert "pipelines" not in disabling
 
