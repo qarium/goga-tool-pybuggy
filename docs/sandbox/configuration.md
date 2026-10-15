@@ -68,13 +68,16 @@ data:                               # startup data layer, applied before the ins
       - "INSERT INTO customers (email) VALUES ('ann@x.io')"
 ```
 
+A mistyped top-level key fails the load with a hint toward the intended one — `service`
+suggests `instance`, `instances` suggests `services`.
+
 ## instance
 
 | field | type | default | meaning |
 |---|---|---|---|
 | `image` | `str` | required | the image under test |
 | `port` | `int` | required | the container port the service serves on |
-| `env` | `map[str, str]` | `{}` | environment values of the instance — Jinja2 templates over the started service addresses |
+| `env` | `map[str, str]` | required | environment values of the instance — Jinja2 templates over the started service addresses |
 | `probe` | `map` | — | readiness declaration; the `path` field is accepted here only (see [probe](#probe)) |
 
 Instance env values are Jinja2 templates over the started service addresses:
@@ -134,8 +137,8 @@ Readiness is declared per target, Kubernetes-probe-like, as an optional `probe` 
   endpoint involved, bounded by the declared `timeout` and `interval`.
 - The health `path` must start with `/` (it is appended to `http://<host>:<port>`); a
   path without the leading slash fails at document load.
-- The `interval` must not exceed the `timeout` — declare a smaller interval alongside a
-  sub-second timeout.
+- Both bounds must be positive, and the `interval` must not exceed the `timeout` — declare
+  a smaller interval alongside a sub-second timeout.
 - Omitting the block (or any field) keeps the established behavior — the defaults
   reproduce it exactly. No global defaults block exists; readiness is declared per target
   only.
@@ -161,14 +164,19 @@ entry, the same way topics are a property of the kafka service:
   is the goose SQL annotation subset — `-- +goose Up` / `-- +goose Down` (Down never
   executes), `-- +goose StatementBegin` / `-- +goose StatementEnd`, and
   `-- +goose NO TRANSACTION` (the file runs statement-by-statement, required by DDL such
-  as `CREATE INDEX CONCURRENTLY`); anything else from goose fails with the file named.
+  as `CREATE INDEX CONCURRENTLY`); anything else from goose — unknown annotations,
+  `{{...}}` template variables, Go-based migrations — fails with the file named, and so
+  does a file without an `-- +goose Up` section or a `StatementBegin` without its
+  matching `StatementEnd`.
 - The declaration is validated at document load, before any container starts. A local
   source fails the run naming the entry on: a missing folder, an empty folder, no `.sql`
   files, an invalid migration filename, or duplicate version prefixes. A remote source
   checks its URL shape at load (scheme allowlist, no embedded credentials) and its
   folder at apply.
 - A remote source is shallow-cloned for the apply and deleted afterwards — nothing is
-  copied into your repository; each session downloads fresh. No version-tracking table
+  copied into your repository; each session downloads fresh, an already-existing clone
+  target is removed first, and the download never merges into existing content. No
+  version-tracking table
   is created; a failed migration stops startup naming the file and the postgres error —
   the apply runs one transaction per file (a failed default file rolls back fully),
   while a file declared `-- +goose NO TRANSACTION` applies statement-by-statement and
@@ -188,8 +196,8 @@ The kafka topology is a property of the kafka service entry — declared inline,
 
 - `topics` is required on every kafka entry and holds at least one declaration; an entry
   without topics fails before any container starts.
-- Each declaration carries `name` (required) and `partitions` (optional, default 1);
-  topic names are unique within the service entry.
+- Each declaration carries `name` (required, non-empty) and `partitions` (optional,
+  default 1, a positive integer); topic names are unique within the service entry.
 - Topics exist only on kafka entries — a `topics` list on any other kind is rejected.
 - The AsyncAPI document the mock consumes is generated internally from the declared
   topics; no spec file is read or written, and nothing generated is exposed to authors.
@@ -203,10 +211,13 @@ instance starts — vault secrets, then http mappings, then postgres init:
 |---|---|---|
 | `vault` | vault services | `{path, data}` secret writes |
 | `http` | http services | WireMock mapping objects (`request` + `response`) |
-| `postgres` | postgresql services | SQL statements (schema/bootstrap SQL) |
+| `postgres` | postgresql services | SQL statements (seed data) |
 
 - A `kafka` section does not exist — declaring one fails; the kafka topology lives on the
   service entry.
+- Http declarations pass through as WireMock mapping objects — matching, priority,
+  delays, and faults stay available to authors; a request that matches no mapping gets a
+  visible near-miss response, so wiring mistakes surface in test failures.
 - Within a section, declarations apply in the order written — for dependent rows (foreign
   keys), declare parents before children.
 - Postgres init statements are raw sql: they resolve no `$ref` / `$lookup` references,

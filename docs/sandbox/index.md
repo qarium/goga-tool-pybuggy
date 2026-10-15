@@ -37,31 +37,40 @@ container; without the document the suite behaves exactly as it would without th
 found`). If the sandbox does not activate, verify the document sits at exactly this path
 and that the run starts from the repository root.
 
-## The sandbox fixture and the baseline
+## Using the sandbox
 
-The product owns the `sandbox` fixture (session-scoped): do not define your own — take it
-as a test argument, or let the `@services` preset decorator request it for you (see
-[Presets](api.md#presets)). The sandbox starts on the first use and stops at session
-finalization; the stop is product-owned.
-
-A session-scoped consumer fixture depending on the product one establishes the
-code-declared baseline:
+The sandbox is a ready-made api: with the document present, the product `sandbox` fixture
+already exists — do not define your own, just request it as a test argument. A typical
+test declares an endpoint fixture, seeds the data (its own declarations or the `@services`
+decorator), and binds the api to the running instance:
 
 ```python
-# conftest.py
+# test_checkout.py
 import pytest
 
+from goga_tool_pybuggy import services
+from goga_tool_pybuggy.api import Api, Endpoint
 
-@pytest.fixture(scope="session")
-def seeded(sandbox):
-    with sandbox.baseline():  # the baseline boundary — author code
-        sandbox.postgresql("db").insert("customers", rows=[{"id": 1, "name": "Ann"}])
-        sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
-    yield sandbox  # stop is product-owned — do not stop manually
+
+@pytest.fixture(scope="function")
+def checkout(api: Api) -> Endpoint:
+    return Endpoint(api, "/checkout", method="POST")
+
+
+@services(postgresql={"db": [{"table": "customers", "rows": [{"id": 1, "name": "Ann"}]}]})
+def test_checkout(checkout, sandbox):
+    checkout.bind(sandbox)  # the api now targets the sandbox instance
+    sandbox.postgresql("db").insert("orders", rows=[{"id": 100, "customer_id": 1}])
+    response = checkout(json={"customer": 1, "total": 500})
+    response.expect.has_status_code(200)
 ```
 
-Operations inside the baseline boundary apply immediately and become the session baseline:
-after every reset the services return to exactly this state.
+The sandbox starts on the first use and stops at session finalization — both
+product-owned, nothing to start or stop by hand.
+
+Seed data shared by many tests can be declared once as the session **baseline** — a
+session-scoped consumer fixture wrapping `sandbox.baseline()`; the pattern and its
+reset semantics are covered in the [Python API reference](api.md#session-baseline).
 
 ## Per-test reset
 
@@ -131,6 +140,25 @@ docker run \
   dependency services and the instance under test) join it, and it is removed at teardown.
   Parallel sandboxes on one daemon are network-isolated from each other; the runner keeps
   consuming the published host ports as before.
-- Alternative — a docker-in-docker daemon inside a privileged runner — needs neither the socket
-  nor the override, at the cost of `--privileged` and a private image cache; the sandbox works
-  unchanged in both topologies.
+- Alternative — a docker-in-docker daemon inside a privileged runner — needs no socket
+  mount, at the cost of `--privileged` and a private image cache. The runner still looks
+  like a container to the detection, so the automatic override stays
+  `host.docker.internal` while the inner daemon publishes its ports inside the runner —
+  on this topology set `TESTCONTAINERS_HOST_OVERRIDE` explicitly (typically `localhost`).
+
+### Forwarding the socket through goga pipelines
+
+When the tests run through a **goga pipeline**, the runner is the pipeline's own container
+and the launcher command is not yours to write — the socket is declared in the goga config
+living in the home directory, as a `docker.run` argument:
+
+```yaml
+# ~/.goga/config.yml
+docker:
+  run:
+    - '--volume=/var/run/docker.sock:/var/run/docker.sock'
+```
+
+The same rule as above applies: without the forwarded socket the sandbox startup probe
+fails with the runtime-requirement error; with it, the pipeline container drives the host
+daemon and the sandbox containers come up as siblings.

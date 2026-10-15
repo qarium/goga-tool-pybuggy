@@ -2,9 +2,11 @@
 
 The Python surface of the sandbox: the product `sandbox` fixture, the session baseline,
 binding the api to the running instance, and the data operations tests declare on the
-dependency services. The services themselves — names, kinds, images, topics, migrations —
-come from the [sandbox document](configuration.md); the lifecycle (activation, reset
-ownership, environments) is covered in the [overview](index.md).
+dependency services. Data operations are write-only — reading dependency state back is
+not part of the surface; assert on the responses of the service under test. The services
+themselves — names, kinds, images, topics, migrations — come from the
+[sandbox document](configuration.md); the lifecycle (activation, reset ownership,
+environments) is covered in the [overview](index.md).
 
 ## The sandbox fixture
 
@@ -98,9 +100,10 @@ sandbox.kafka("events")    # a kafka service named events
 
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped
 address the `{{<service>.host}}` / `{{<service>.port}}` placeholders of the instance env
-resolve to. Nothing is executed at declaration time — the sandbox applies the accumulated
-batch automatically before the first call to the service under test; an unknown service
-name fails fast.
+resolve to. The sandbox object itself exposes `base_url` — the address of the running
+instance under test, the value a bound api client resolves to. Nothing is executed at
+declaration time — the sandbox applies the accumulated batch automatically before the
+first call to the service under test; an unknown service name fails fast.
 
 ## Postgres operations
 
@@ -170,7 +173,8 @@ sandbox.http("payments").stub(
 ```
 
 The stub body is a WireMock mapping object (`request` + `response`) — the same shape the
-`data.http` section of the [sandbox document](configuration.md#data) accepts.
+`data.http` section of the [sandbox document](configuration.md#data) accepts, passed
+through as given: matching, priority, delays, and faults stay available.
 
 ## Vault operations
 
@@ -196,7 +200,9 @@ service under test consumes exactly that.
 
 Data can also be declared directly on the test as a **preset** — each declaration carries
 the same fields as the matching view operation, and presets apply on top of the reset
-state, ahead of the test's own operations. The decorator also stamps a `usefixtures` mark
+state, ahead of the test's own operations. All four kinds are accepted (`postgresql`,
+`kafka`, `vault`, `http`); an unsupported kind or a malformed row fails at decoration
+time, before anything starts. The decorator also stamps a `usefixtures` mark
 that pulls the sandbox into the test's fixture closure, so the reset and the presets run.
 The mark does not imply binding: a preset-declaring test that calls the service still
 takes the `sandbox` argument and calls `endpoint.bind(sandbox)` explicitly:
