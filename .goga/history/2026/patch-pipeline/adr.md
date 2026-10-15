@@ -21,14 +21,17 @@ start on red tests, and any failure it meets is surfaced to the user.
   review. Several intents per run are allowed — each becomes its own section in
   `intent.md` and its own group in the dossier and the plan.
 - **Stage chain (10 stages)**: `collect-intent` (communication; also fixes the topic
-  version — spec ref + base URL, as `api.fix` does) → `analyze-impact` (communication)
-  → `review-impact` (communication) → `apply-manifests` (silent — writes the manifest
-  deltas) → `code-design` (communication) → `design-review` (communication) →
+  version — the base URL only, the spec is local and the run never pulls a ref — and
+  pins the pre-patch baseline) → `analyze-impact` (communication; first settles the
+  dependency usages) → `review-impact` (communication) → `apply-manifests` (silent —
+  writes the manifest and usage-file deltas) → `code-design` (communication) →
+  `design-review` (communication) →
   `coding-plan` (communication) → `plan-review` (communication) → `commit-changes`
   (communication) → `accept-result` (manual trigger: consistency check, final full run,
   triage with the user, `bugs.md`).
 - **Artifacts** — unique names without a `patch-` prefix, not colliding with the automate
-  and fix chains: `intent.md`, `impact.md`, `apply.md` (report of changed CODEMANIFESTs),
+  and fix chains: `intent.md`, `baseline-log.txt` (the pre-patch baseline run of collect),
+  `impact.md`, `apply.md` (report of changed CODEMANIFESTs and usage files),
   `rework.md`, `workplan.md`, `accept.md`, `accept-log.txt`; `bugs.md` is shared.
   Repeated patch cycles in the same topic overwrite the chain (latest cycle wins;
   history stays in git).
@@ -48,8 +51,8 @@ start on red tests, and any failure it meets is surfaced to the user.
   against it — the same shape as automate's accept, which gates on `testcases.md` and
   never on the relocated `plan.md`.
 - **Deletions** — a removed Routine or cell produces deletion tasks inside the ralphex
-  plan ("delete this test / these tests in that file"); `apply-manifests` only edits
-  manifests.
+  plan ("delete this test / these tests in that file"); `apply-manifests` edits
+  manifests and tool usage files only — never test code.
 - **Autonomy** — opt-in via `pipelines: api.patch: autonomous: true` in the tool config;
   the auto-approval window spans `review-impact` … `commit-changes` (everything after the
   user confirms the dossier), the build contribution follows commit, and `accept-result`

@@ -46,7 +46,7 @@ do not use the sandbox; the sandbox-bound tests take the sandbox address (see
 
 | #  | Stage             | Purpose                                                                                        |
 |----|-------------------|------------------------------------------------------------------------------------------------|
-| 1  | `collect-intent`  | Collect the patch intents (each with its scope constraints) and fix the topic version → `intent.md` |
+| 1  | `collect-intent`  | Collect the patch intents (each with its scope constraints), fix the topic version, and pin the pre-patch baseline → `intent.md` |
 | 2  | `analyze-impact`  | Settle the dependency usages (`goga usages sync` / `status`), then build the per-intent impact dossier: affected tests, fixtures, manifests, usages deltas (new tools, API updates, Header wiring) → `impact.md` |
 | 3  | `review-impact`   | Review the dossier with you; confirm every selection and delta                                  |
 | 4  | `apply-manifests` | Apply the confirmed deltas to the CODEMANIFESTs and the tool usage files (`.goga/usages/cooks/`) — the silent stage → `apply.md` |
@@ -60,6 +60,11 @@ do not use the sandbox; the sandbox-bound tests take the sandbox address (see
 The `collect-intent` stage opens the topic: once the patch request is read, its intake runs
 one idempotent `goga history ensure` — the topic is the current git branch. Every later
 stage addresses artifacts with `goga history path -f <artifact>`.
+
+The `collect-intent` stage also pins the **pre-patch baseline**: the full suite runs once
+with the topic version before any change lands (`baseline-log.txt`). The acceptance
+triage reads it to separate pre-existing reds from patch-caused failures; a green
+baseline is not required — the baseline records reds, it does not gate them.
 
 The `analyze-impact` stage first settles the dependency usages exactly as
 [`api.automate`](api-automate.md) does: `goga usages sync` materializes missing
@@ -92,7 +97,8 @@ The cycle accumulates its chain in the topic's history directory — the path pr
 current git branch, ensured by the collect stage's intake via `goga history ensure`):
 
 ```
-intent.md        # the patch request: intents, scope constraints, topic version
+intent.md        # the patch request: intents, scope constraints, topic version, pre-patch baseline
+baseline-log.txt # pre-patch baseline full-suite run output (collect)
 impact.md        # per-intent impact dossier (tests, fixtures, manifests, usages)
 apply.md         # the applied deltas (changed CODEMANIFESTs and usage files)
 rework.md        # code-change design over the applied deltas
