@@ -36,7 +36,7 @@ Annotations: |
     Normative table (registration order):
     1. automate.done → completed/plan.md — after done
     2. automate.coding-planned → plan.md — after planned, before pybuggy.automate.done
-    3. automate.code-designed → design.md — after specified, before pybuggy.automate.coding-planned
+    3. automate.code-designed → design.md — after designed, before pybuggy.automate.coding-planned
     4. automate.arch-prepared → arch.md — after designed, before pybuggy.automate.code-designed
     5. automate.testcases-designed → testcases.md — after backlog, before pybuggy.automate.arch-prepared
     6. automate.requirements-created → requirements.md — after defined, before pybuggy.automate.testcases-designed

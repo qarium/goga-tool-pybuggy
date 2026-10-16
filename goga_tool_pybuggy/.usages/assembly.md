@@ -129,7 +129,7 @@ The registered topic statuses (artifact paths relative to the topic directory):
 |------------------|----------|---------|
 | `pybuggy.automate.done` | `completed/plan.md` | after `done` |
 | `pybuggy.automate.coding-planned` | `plan.md` | after `planned`, before `pybuggy.automate.done` |
-| `pybuggy.automate.code-designed` | `design.md` | after `specified`, before `pybuggy.automate.coding-planned` |
+| `pybuggy.automate.code-designed` | `design.md` | after `designed`, before `pybuggy.automate.coding-planned` |
 | `pybuggy.automate.arch-prepared` | `arch.md` | after `designed`, before `pybuggy.automate.code-designed` |
 | `pybuggy.automate.testcases-designed` | `testcases.md` | after `backlog`, before `pybuggy.automate.arch-prepared` |
 | `pybuggy.automate.requirements-created` | `requirements.md` | after `defined`, before `pybuggy.automate.testcases-designed` |

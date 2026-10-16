@@ -16,7 +16,7 @@ def register_automate_statuses(context: object) -> None:
 
     context.register("automate.coding-planned", "plan.md", after="planned", before="pybuggy.automate.done")
 
-    context.register("automate.code-designed", "design.md", after="specified", before="pybuggy.automate.coding-planned")
+    context.register("automate.code-designed", "design.md", after="designed", before="pybuggy.automate.coding-planned")
 
     context.register("automate.arch-prepared", "arch.md", after="designed", before="pybuggy.automate.code-designed")
 

@@ -59,3 +59,7 @@ Within the project's init command, artifacts that are structural invariants of t
 ## Post-hoc comment restoration for generated configs
 
 Config serialized through a data-only buffer cannot carry documentation comments, so commented examples for absent or optional members are re-inserted after writing by the owning side: idempotently via marker detection, in canonical key order anchored before the next active key, never touching active entries, and a no-op when the file is absent; emitting plain serialized data and dropping the examples is rejected.
+
+## Real-surface validation of externally-resolved references
+
+Identifiers a package hands to an external platform for resolution — hook anchors, status anchor names, registry keys — are never guarded by literal-call assertions alone: a test that only replays the literal calls proves the string was sent, not that the platform can resolve it, so a reference naming a value the platform has never carried ships green and fails only as runtime skip-warnings. Such registrations carry at least one test that drives them through the platform's own resolution surface (the real axis, registry, or placement logic), so any unresolvable reference fails the suite; the expected full assembled result is asserted from observed platform behavior, not from a hand-counted figure.

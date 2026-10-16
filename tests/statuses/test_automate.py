@@ -34,7 +34,7 @@ class TestRegisterAutomateStatusesBehavior:
         assert recorder_context.calls == [
             ("automate.done", "completed/plan.md", "done", None),
             ("automate.coding-planned", "plan.md", "planned", "pybuggy.automate.done"),
-            ("automate.code-designed", "design.md", "specified", "pybuggy.automate.coding-planned"),
+            ("automate.code-designed", "design.md", "designed", "pybuggy.automate.coding-planned"),
             ("automate.arch-prepared", "arch.md", "designed", "pybuggy.automate.code-designed"),
             ("automate.testcases-designed", "testcases.md", "backlog", "pybuggy.automate.arch-prepared"),
             ("automate.requirements-created", "requirements.md", "defined", "pybuggy.automate.testcases-designed"),
