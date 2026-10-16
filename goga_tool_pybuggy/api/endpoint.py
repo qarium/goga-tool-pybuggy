@@ -52,18 +52,45 @@ class Endpoint:
 
     @property
     def url_path(self) -> str:
-        """Route path forwarded to ``Api.request``."""
+        """Route path forwarded to ``Api.request``.
+
+        Returns:
+            The route path of the endpoint.
+        """
         return self._url_path
 
     @property
     def method(self) -> str:
-        """HTTP verb forwarded to ``Api.request``."""
+        """HTTP verb forwarded to ``Api.request``.
+
+        Returns:
+            The HTTP verb of the endpoint.
+        """
         return self._method
 
     @property
     def adapter(self) -> str | None:
-        """Per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default."""
+        """Per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default.
+
+        Returns:
+            The per-endpoint adapter override, or None to fall back to the ``Api`` default.
+        """
         return self._adapter
+
+    def bind(self, target: Any) -> None:
+        """Re-point the shared ``Api`` at ``target``.
+
+        Delegates to ``Api.bind``: the address comes from the target's ``base_url`` (or ``url``),
+        and a target exposing callable ``apply_pending``/``ensure_service`` also installs the
+        request pre-flight. Every ``Endpoint`` over the same ``Api`` instance rebinds together.
+
+        Args:
+            target: an object exposing ``base_url`` (preferred) or ``url``.
+
+        Raises:
+            TypeError: when ``target`` exposes neither attribute; propagated from ``Api.bind``.
+        """
+        self.api.bind(target)
 
     def __call__(self, **kwargs: Any) -> ResponseWrapper:
         """Positive-path request; delegates to ``_call`` with is_negative=False.

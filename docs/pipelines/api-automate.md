@@ -21,7 +21,7 @@ Need to adjust the pipeline for your project without forking it? See
 | 7  | `create-testcases`    | Materialize the test cells into `tests/<spec>/<id>/`                                                                 |
 | 8  | `code-design`         | Design the test code (materialization of `test_*.py` from the cells) → `design.md`                                   |
 | 9  | `design-review`       | Review the test design                                                                                               |
-| 10 | `coding-plan`         | Compile the execution plan (with `pytest` as validation) → `plan.md`                                                 |
+| 10 | `coding-plan`         | Compile the execution plan — convention rules extracted as mandatory rules, `pytest` as validation — → `plan.md`      |
 | 11 | `plan-review`         | Review the plan                                                                                                      |
 | 12 | `commit-changes`      | Commit the work; ask the user whether the tests are ready for acceptance (auto-approved on [autonomous runs](#autonomous-runs)) |
 | 13 | `accept-result`       | Accept the test results: consistency check, `pytest` run, triage of failures with the user, bug records in `bugs.md` |
@@ -54,6 +54,36 @@ plan.md           # ralphex execution plan
 bugs.md           # triaged service bugs found at acceptance
 tests/<spec>/<id>/  # the materialized test code (in the project tree)
 ```
+
+## Sandbox runs
+
+When the consumer project carries a sandbox document (`.goga/tools/pybuggy/sandbox.yml` —
+see [Sandbox](../sandbox/index.md)), part of the topic's cases can run against the sandbox: the
+isolated instance with mocked dependency services (postgresql/kafka/vault/http) started by
+the product `sandbox` fixture. The decision travels the pipeline as data:
+
+- `create-requirements` records the fact — §4 "Sandbox": `configured` (image, services)
+  or `not configured` (the tests are written without the sandbox; it is never offered) — and,
+  when configured, asks the **run target** right after the spec-ref question: all cases in the
+  sandbox | target env | mixed (decided per case later). The answer lands in §4 and drives the
+  preconditions phrasing (sandbox seeding needs, never "records of the dev database"), the
+  recorded run commands (a sandbox-only topic carries no `--base-url`), and the case assignment
+  at the `test-design` stage.
+- `test-design` assigns environments per the recorded run target: `all cases sandbox` marks
+  every case `sandbox` without per-group questions; `target env` never offers the sandbox;
+  `mixed` asks — per group — which cases run in the sandbox. Every case carries its
+  environment: `sandbox` | `target env`.
+- The cells stage wires the sandbox usages (`.goga/usages/cooks/pybuggy/sandbox/**`) into
+  the affected cells, declares the product `sandbox` fixture in the Routine signature, and
+  writes the bind — binding the client to the sandbox before any request — as the first
+  step of the Routine.
+- `code-design` and `coding-plan` carry the bind into the materialized `test_*.py` and note
+  the docker-compatible container runtime precondition next to the test-run commands; the
+  command itself does not change — a bound test ignores `--base-url`, the unbound tests
+  keep it.
+- At acceptance and in the `api.fix` cycle, a sandbox startup failure (no docker runtime,
+  image pull, probe timeout, migrations) is an environment problem — not a service bug and
+  not a test defect.
 
 ## Topic status
 
@@ -104,8 +134,9 @@ Everything outside the window stays with you: the requirement-shaping stages
 never part of the contribution — it keeps its manual trigger, so accepting the results
 (the `pytest` run and the failure triage) remains an interactive step.
 
-The contribution is a silent no-op for every other pipeline — the window shape is
-`api.automate`-specific — and for every disabled state: an absent file, an absent
+The contribution is a silent no-op for every pipeline outside the automate and patch
+lines — the window shape is carried per pipeline record — and for every disabled
+state: an absent file, an absent
 `pipelines` section, an absent `api.automate` entry, and `autonomous: false` all mean a
 normal interactive run. Autonomy never disables silently on a malformed config: a
 structural violation of the section (a file root or `pipelines` value that is not a mapping,

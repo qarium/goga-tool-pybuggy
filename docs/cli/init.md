@@ -56,7 +56,7 @@ command propagates them without wrapping.
 questions — the language, the optional codemanifest / build-agent / pipeline sections,
 the tools, the usages records — and then the pybuggy block under a heading with the
 tool name. pybuggy prompts on its own only at the amendment moment (the extra specs
-and the autonomy confirm, below); everything else is asked by the engine from the
+and the autonomy confirms, below); everything else is asked by the engine from the
 declared records.
 
 Two core sections are skipped by pybuggy:
@@ -70,9 +70,10 @@ Two core sections are skipped by pybuggy:
   file.
 
 The `tools` core question stays: whatever the user answers (or declines), pybuggy
-amends the recorded tools with its own entry — `pybuggy: <installed-minor>.x`, the
-same minor x-range the Dockerfile install line pins — so pybuggy is always recorded
-in `.goga/config.yml`; tools the user added are kept.
+amends the recorded tools with its own entry — `pybuggy: <installed-major.minor>`, a
+quoted string (e.g. `"2.0"`), the same major.minor line the Dockerfile install line
+pins — so pybuggy is always recorded in `.goga/config.yml`; tools the user added
+are kept.
 
 Session semantics that shape the modes:
 
@@ -110,16 +111,17 @@ bootstrap is skipped, the code is propagated unchanged.
 | Artifact | Gate |
 |----------|------|
 | `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) | template: skip existing (INFO); bare: overwrite |
+| `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | template: skip existing (INFO); bare: overwrite; flat copies from earlier distributions stay untouched |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted, idempotent, comment-only |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
 | the pybuggy install `RUN` line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |
-| the pybuggy usage keys and annotation lines in `.goga/config.yml` (`codemanifest`) | always registered, idempotent |
+| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`) | always registered, idempotent; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
 The install line is derived from the **installed pybuggy version** — e.g. an
-installed `2.0.3` yields `RUN goga install pybuggy -v 2.0.x` (a minor x-range is a
-valid `goga install` version form); there is no hardcoded version pin. The Dockerfile
+installed `2.0.3` yields `RUN goga install pybuggy -v 2.0` (a concrete major.minor
+form is a valid `goga install` version pin); there is no hardcoded version pin. The Dockerfile
 path is resolved from the consumer config `dockerfile` field so the line lands in the
 project's actual Dockerfile (a custom session answer wins).
 
@@ -164,20 +166,24 @@ block:
   per-field loop mirroring the first-spec prompts: `name` / `type` / `location`
   (required, re-asked when empty) and the optional git fields. Any number of extras;
   a decline ends the survey.
-- The **autonomy confirm**, asked last — after the spec survey completed, so the
-  question never interleaves the spec fields: `Run the api.automate pipeline unattended
-  (autonomous mode)?` — default No. Answering Yes is the one way the session writes a
-  `pipelines` section entry into the tool config:
+- The **autonomy confirms**, asked last — after the spec survey completed, so the
+  questions never interleave the spec fields: one per pipeline, `Run the api.automate
+  pipeline unattended (autonomous mode)?` and then `Run the api.patch pipeline
+  unattended (autonomous mode)?` — each default No. Each Yes is the one way the session
+  writes that pipeline's `pipelines` section entry into the tool config — both accepted:
 
   ```yaml
   pipelines:
     api.automate:
       autonomous: true
+    api.patch:
+      autonomous: true
   ```
 
-  The default (or declined) answer writes nothing — the entry is dropped like any
-  unanswered key, and the project's `api.automate` runs stay fully interactive (see
-  [Autonomous runs](../pipelines/api-automate.md#autonomous-runs)).
+  The default (or declined) answer writes nothing for that pipeline — the entry is
+  dropped like any unanswered key, and that pipeline's runs stay fully interactive
+  (see [Automate — Autonomous runs](../pipelines/api-automate.md#autonomous-runs) and
+  [Patch — Autonomous runs](../pipelines/api-patch.md#autonomous-runs)).
 
 `headers` and `loader` are **never surveyed**, and the session writes the tool config
 as plain YAML carrying only the answered values (unanswered keys are dropped, never
@@ -230,7 +236,14 @@ The generated file is valid for [configuration](../configuration.md) loading.
 - Reads assets from the **installed** package (`importlib.resources`), not from the
   checkout directory; the install line is derived from the installed package version
   (`importlib.metadata`).
-- The session stays offline when its "Download base convention" confirm is answered
-  No; template/upgrade modes reach the template source (a git URL) through the engine.
-- Only the `api` cell usages are copied — internal development cells
-  (`config`/`spec`/`output`/…) are not copied.
+- The session never offers the goga base-convention download (the base-convention core
+  section is skipped; the `conventions` slot is the bootstrap's delivery, read from the
+  installed package) — the session itself stays offline; template/upgrade modes reach
+  the template source (a git URL) through the engine.
+- Only the packaged usage roots are copied — the `api` cell root (its `asserts`
+  sub-package rides along; both land flat under `.goga/usages/cooks/pybuggy/`) and the
+  `sandbox` subtree roots (`sandbox-session`, `sandbox-file`, `data-operations`,
+  `migration-set` — under `.goga/usages/cooks/pybuggy/sandbox/`); the `plugin` and `commands`
+  cells and internal development cells (`config`/`spec`/`output`/…) are not copied. Only the
+  api-root usages are registered in `codemanifest`; the sandbox capability usages stay
+  download-only.

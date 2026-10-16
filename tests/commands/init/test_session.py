@@ -139,7 +139,7 @@ class TestSessionBuildersContract:
                 {
                     "answers": dict[str, object],
                     "extra_specs": list[dict[str, object]] | None,
-                    "autonomous": bool,
+                    "autonomous": dict[str, bool] | None,
                     "return": dict[str, object],
                 },
             ),
@@ -183,7 +183,7 @@ class TestSessionParticipationContract:
             (declare_pybuggy_session, {"context": object, "return": None}),
             (amend_pybuggy_config, {"context": object, "return": None}),
             (survey_extra_specs, {"return": list[dict[str, object]]}),
-            (survey_autonomy, {"return": bool}),
+            (survey_autonomy, {"return": dict[str, bool]}),
             (run_session, {"return": int}),
         ],
     )
@@ -361,24 +361,35 @@ class TestSurveyExtraSpecs:
 
 
 class TestSurveyAutonomy:
-    """The autonomy confirm — the closing question of the amendment moment."""
+    """The autonomy confirms — the closing questions of the amendment moment."""
 
-    def test_survey_autonomy_asks_the_disabled_default_confirm(self, monkeypatch):
-        """The confirm carries the unattended-mode prompt with the disabled default."""
-        scripted = _ScriptedClick(confirms=[False], prompts=[])
+    def test_survey_autonomy_asks_both_axes_in_order_with_disabled_defaults(self, monkeypatch):
+        """One confirm per pipeline — automate first, patch after it — each defaulting to disabled."""
+        scripted = _ScriptedClick(confirms=[False, False], prompts=[])
         monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
         monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
 
-        assert survey_autonomy() is False
-        assert scripted.confirm_calls == ["Run the api.automate pipeline unattended (autonomous mode)?"]
+        assert survey_autonomy() == {"api.automate": False, "api.patch": False}
+        assert scripted.confirm_calls == [
+            "Run the api.automate pipeline unattended (autonomous mode)?",
+            "Run the api.patch pipeline unattended (autonomous mode)?",
+        ]
 
-    def test_survey_autonomy_acceptance_enables(self, monkeypatch):
-        """An accepted confirm returns True — the enabling answer of the pipelines axis."""
-        scripted = _ScriptedClick(confirms=[True], prompts=[])
+    def test_survey_autonomy_acceptance_enables_each_axis(self, monkeypatch):
+        """Accepted confirms return True per axis — the enabling answers of the pipelines axis."""
+        scripted = _ScriptedClick(confirms=[True, True], prompts=[])
         monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
         monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
 
-        assert survey_autonomy() is True
+        assert survey_autonomy() == {"api.automate": True, "api.patch": True}
+
+    def test_survey_autonomy_answers_are_independent_per_axis(self, monkeypatch):
+        """A mixed run — automate accepted, patch declined — records each axis separately."""
+        scripted = _ScriptedClick(confirms=[True, False], prompts=[])
+        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
+        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+
+        assert survey_autonomy() == {"api.automate": True, "api.patch": False}
 
 
 class TestParseSpecs:
@@ -490,22 +501,32 @@ class TestBuildConfigData:
         with pytest.raises(ValueError, match="could not convert"):
             build_config_data({**_ANSWERS, "timeout": "abc"}, None)
 
-    def test_build_config_data_emits_pipelines_axis_on_enabling_answer(self):
-        """An enabling autonomy flag adds the axis entry after the scalar keys — the resolver's exact shape."""
-        data = build_config_data(dict(_ANSWERS), None, True)
+    def test_build_config_data_emits_pipelines_axes_on_enabling_answers(self):
+        """Enabling answers add the axis entries after the scalar keys — the resolver's exact shape."""
+        data = build_config_data(dict(_ANSWERS), None, {"api.automate": True, "api.patch": True})
 
-        assert data["pipelines"] == {"api.automate": {"autonomous": True}}
+        assert data["pipelines"] == {"api.automate": {"autonomous": True}, "api.patch": {"autonomous": True}}
         assert list(data) == ["base_url", "timeout", "retries", "pipelines", "specs"]
         assert list(data)[-1] == "specs"
         assert yaml.safe_load(yaml.safe_dump(data)) == data
 
+    def test_build_config_data_emits_only_the_enabled_axis(self):
+        """A single enabling answer writes exactly that pipeline's entry — the axes are independent."""
+        data = build_config_data(dict(_ANSWERS), None, {"api.automate": False, "api.patch": True})
+
+        assert data["pipelines"] == {"api.patch": {"autonomous": True}}
+
     @pytest.mark.parametrize(
         ("autonomous", "answers"),
-        [(False, dict(_ANSWERS)), (False, {**_ANSWERS, "autonomous": True})],
-        ids=["declined-confirm", "stale-answer-key-ignored"],
+        [
+            (None, dict(_ANSWERS)),
+            ({"api.automate": False, "api.patch": False}, dict(_ANSWERS)),
+            (None, {**_ANSWERS, "autonomous": True}),
+        ],
+        ids=["absent-answers", "declined-confirms", "stale-answer-key-ignored"],
     )
-    def test_build_config_data_disabling_answer_and_stale_key_emit_no_axis(self, autonomous, answers):
-        """A false flag emits no pipelines key; an answers-carried autonomous key is never read."""
+    def test_build_config_data_disabling_answers_and_stale_key_emit_no_axis(self, autonomous, answers):
+        """No enabling answer emits no pipelines key; an answers-carried autonomous key is never read."""
         data = build_config_data(answers, None, autonomous)
 
         assert "pipelines" not in data
@@ -530,7 +551,7 @@ class TestBuildConfigAmendments:
             "docker_image.dockerfile": ".goga/Dockerfile",
             "docker_image.base_image": "qarium/goga-python-3.13:2.0",
             "docker_image.image": "shop-api:latest",
-            "tools": {"pybuggy": "2.0.x"},
+            "tools": {"pybuggy": "2.0"},
         }
         assert list(amendments) == [
             "build.review.skip",
@@ -547,7 +568,7 @@ class TestBuildConfigAmendments:
         assert "docker_image.dockerfile" not in amendments
         assert "docker_image.base_image" not in amendments
         assert amendments["docker_image.image"] == "shop-api:latest"
-        assert amendments["tools"] == {"pybuggy": "2.0.x"}
+        assert amendments["tools"] == {"pybuggy": "2.0"}
 
     def test_build_config_amendments_tools_record_falls_back_to_latest(self, monkeypatch):
         """A metadata-less run records latest — the soft contribution never dies on unreadable metadata."""
@@ -573,7 +594,7 @@ class TestBuildConfigAmendments:
             answers.amend(path, value)
 
         snapshot = answers.snapshot()
-        assert snapshot["tools"] == {"other": "1.x", "pybuggy": "2.0.x"}
+        assert snapshot["tools"] == {"other": "1.x", "pybuggy": "2.0"}
         assert snapshot["build"] == {"review": {"skip": True}}
 
 
@@ -596,21 +617,27 @@ class TestAmendPybuggyConfig:
     def test_amend_pybuggy_config_buffers_surveyed_contribution(self, contribution_recorder, monkeypatch):
         """The surveyed extras and autonomy flow into the buffered amendments and the payload."""
         monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [dict(_EXTRA_SPEC)])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: True)
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: {"api.automate": True, "api.patch": True})
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
 
         amend_pybuggy_config(context)
 
         assert context.amendments == list(build_config_amendments(dict(_IMAGE_ANSWERS)).items())
-        assert context.files == [("config.yml", build_config_data(dict(_IMAGE_ANSWERS), [dict(_EXTRA_SPEC)], True))]
+        surveyed_axes = {"api.automate": True, "api.patch": True}
+        assert context.files == [
+            ("config.yml", build_config_data(dict(_IMAGE_ANSWERS), [dict(_EXTRA_SPEC)], surveyed_axes))
+        ]
         assert context.files[0][1]["specs"]["billing"]["location"] == "specs/billing.yaml"
-        assert context.files[0][1]["pipelines"] == {"api.automate": {"autonomous": True}}
+        assert context.files[0][1]["pipelines"] == {
+            "api.automate": {"autonomous": True},
+            "api.patch": {"autonomous": True},
+        }
 
     def test_amend_pybuggy_config_declined_gate_keeps_first_spec(self, contribution_recorder, monkeypatch):
         """A declined extra-specs gate buffers the first-spec-only payload with no axis."""
         monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: False)
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: {"api.automate": False, "api.patch": False})
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
 
@@ -620,10 +647,10 @@ class TestAmendPybuggyConfig:
         assert "pipelines" not in context.files[0][1]
 
     def test_amend_pybuggy_config_surveys_specs_before_autonomy(self, contribution_recorder, monkeypatch):
-        """The extras survey completes before the autonomy confirm — the question never interleaves specs."""
+        """The extras survey completes before the autonomy confirms — the questions never interleave specs."""
         calls: list[str] = []
         monkeypatch.setattr(session_module, "survey_extra_specs", lambda: calls.append("specs") or [])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: calls.append("autonomy") or False)
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: calls.append("autonomy") or {})
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
 
@@ -634,7 +661,7 @@ class TestAmendPybuggyConfig:
     def test_amend_pybuggy_config_exception_drops_contribution_upstream(self, contribution_recorder, monkeypatch):
         """A bad numeric answer raises before any write is buffered — the write never happens."""
         monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: False)
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda: {})
         context = contribution_recorder(invited=True, answers={**_IMAGE_ANSWERS, "timeout": "abc"})
 
         with pytest.raises(ValueError, match="could not convert"):

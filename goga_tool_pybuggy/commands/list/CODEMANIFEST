@@ -46,7 +46,7 @@ Annotations: |
     1. Load the config via `load_config` (fixed config path) and iterate its specs.
     2. Select specs: all `Config` specs, or only `spec_name` when provided.
     3. For each selected spec (name, entry):
-       3.1. Parse the spec at project-root / `SpecEntry` location via `load_spec`.
+       3.1. Parse the spec at cwd / `SpecEntry` location via `load_spec`.
        3.2. If the spec is not a mapping or its "paths" is not a mapping (absent,
            present with a null value, or a non-mapping document), raise
            click.ClickException (invalid spec file).
@@ -56,8 +56,10 @@ Annotations: |
        3.4. Plain mode: render the block via `render_list`(name, `SpecEntry`
            location, endpoints) and print it.
        3.5. Status mode: classify the spec via `endpoint_statuses` over the
-           spec's artifact tree directory (api/<name> under the working
-           directory), render the block via `render_status_list`(name,
+           spec's artifact tree directory (api/<segment> under the working
+           directory, where <segment> is the spec name sanitized via
+           `sanitize_id` exactly as generate derives its write path), render
+           the block via `render_status_list`(name,
            `SpecEntry` location, endpoints, statuses, removed), and print it.
     4. A spec parse error propagates as the ClickException raised by `load_spec`;
        an invalid spec is equally a click.ClickException, never a traceback.

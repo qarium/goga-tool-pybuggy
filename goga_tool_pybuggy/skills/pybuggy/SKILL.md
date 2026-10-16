@@ -28,10 +28,15 @@ topic's history directory — `.goga/history/<year>/<topic>/` — addressed by t
 the later stages never create or resolve topics.
 Launch a pipeline via the **Skill tool** by its main skill; the pipeline itself runs its internal steps.
 
+When the project carries a sandbox document (`.goga/tools/pybuggy/sandbox.yml`), the pipeline supports
+per-case sandbox runs: `requirements` records the fact (§4 Sandbox), `testcases` marks each case's
+environment (`sandbox`/`target env`), and `cells` wires the sandbox usages + the bind step into the
+affected Routines — a bound test ignores `--base-url`.
+
 | Skill                                         | Purpose                                                                                                                                                                                              | Input                          | Output artifact                  |
 |-----------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------|----------------------------------|
 | `goga-tool-pybuggy-api-automate-requirements` | Collects detailed requirements for the topic from its description and the service spec; generates fixtures (`goga tool pybuggy endpoint generate`)                                                   | topic description  | `requirements.md`   |
-| `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (REQ→TC)                                                                                | `requirements.md` | `testcases.md`      |
+| `goga-tool-pybuggy-api-automate-testcases`    | Generates detailed descriptive test cases (TC-<N>, Flow/Positive/Negative) and a requirements coverage matrix (REQ→TC); marks the per-case environment (`sandbox`/`target env`)                                                                                       | `requirements.md` | `testcases.md`      |
 | `goga-tool-pybuggy-api-automate-cells`        | Designs the architecture plan for the test cells (CODEMANIFEST; cell boundaries are a design decision, Routines cover cases — 1 case = 1 Routine is not required); interactive, driven by WAIT-gates | `testcases.md`    | `arch.md`           |
 | `goga-tool-pybuggy-api-automate-apply`        | Materializes the plan: creates CODEMANIFEST in `tests/<spec>/<id>/` (DSL only, no test code); validation via `goga lint`/`schema`                                                                    | `arch.md`         | `tests/<spec>/<id>/CODEMANIFEST` |
 
@@ -83,6 +88,26 @@ the `ITERATE` verdict of the review restarts the loop from `collect`.
 Full cycle: **collect → analyze → plan → execute → review**; the `ITERATE` verdict feeds a new `collect` round.
 Service bugs are recorded in the shared `bugs.md` of the topic's history directory.
 
+### Patch flow (pipelines)
+
+The line for changing existing **accepted** tests on request — the boundary is drawn by intent, not by test color:
+automate writes new tests, fix repairs what broke, patch changes what you ask (a re-bound fixture, new asserts,
+added markers, removed cases). Artifacts live in the same topic history directory (`intent.md` → `impact.md` → …);
+the run may start on red tests, and every failure it meets is surfaced, never masked.
+
+| Skill                               | Purpose                                                                                                                       | Input                          | Output artifact                  |
+|-------------------------------------|-------------------------------------------------------------------------------------------------------------------------------|--------------------------------|----------------------------------|
+| `goga-tool-pybuggy-api-patch-collect` | Collects the patch intents (each with scope constraints), fixes the topic version (base URL; the spec is local), and pins the pre-patch baseline | requested change | `intent.md` + `baseline-log.txt` |
+| `goga-tool-pybuggy-api-patch-analyze` | Settles the dependency usages (`goga usages sync` / `status`), then per intent: the dossier of affected tests, fixtures, manifests, usages deltas | `intent.md`      | `impact.md`        |
+| `goga-tool-pybuggy-api-patch-impact-review` | Reviews the dossier with the user — verifies every selection and delta against the tree and the DSL, confirms each group | `impact.md`      | confirmed `impact.md` |
+| `goga-tool-pybuggy-api-patch-apply`    | Applies the confirmed deltas to the CODEMANIFESTs and the tool usage files (DSL-validated before writing) — no test code       | confirmed `impact.md` | `apply.md`   |
+| `goga-tool-pybuggy-api-patch-design`   | Dispatch wrapper around `goga-design` in patch mode — the code-change design over the applied deltas; deletions become deletion tasks | `apply.md`   | `rework.md`       |
+| `goga-tool-pybuggy-api-patch-plan`     | Dispatch wrapper around `goga-plan` in patch mode — the ralphex plan with convention rules as mandatory rules and pytest in every task | `rework.md` | `workplan.md`     |
+| `goga-tool-pybuggy-api-patch-accept`   | Acceptance: every change landed in the CODEMANIFEST and the test code together, final full-suite run, failure triage with the user | built tests | `accept.md` + `bugs.md` |
+
+Full flow: **collect → analyze → review-impact → apply → design → design-review → plan → plan-review → build → accept**;
+`design-review`/`plan-review` gate the two documents through the same review skills pattern as the automate line.
+
 ### Review skills
 
 They verify the test artifacts of all phases: requirements → testcases → cells → design/plan.
@@ -95,6 +120,9 @@ They verify the test artifacts of all phases: requirements → testcases → cel
 | `goga-tool-pybuggy-api-automate-cells-review`        | Cells plan `arch.md`: CODEMANIFEST follows the DSL (1 case = 1 Routine is not required), cell-specific tool usages, coverage (each test case covered directly or by a Routine variant) |
 | `goga-tool-pybuggy-api-automate-design-review`       | Test design document (Routine↔`test_*.py`, pytest validation)                                                                                                                                       |
 | `goga-tool-pybuggy-api-automate-plan-review`         | ralphex plan: the critical check — `pytest` is present and executable                                                                                                                               |
+| `goga-tool-pybuggy-api-patch-impact-review`          | Patch impact dossier `impact.md`: selections match the scope constraints, deltas follow the DSL/cookbook, deletions and cell moves explicit, then per-group user confirmation           |
+| `goga-tool-pybuggy-api-patch-design-review`          | Patch design `rework.md`: delta coverage (task↔delta bijection), explicit deletion tasks, usages wiring, `Request` model, pytest validation                                              |
+| `goga-tool-pybuggy-api-patch-plan-review`            | Patch ralphex plan `workplan.md`: executable pytest checkboxes, deletion tasks, mandatory convention rules, changed-files records, failing-test policy                                    |
 
 ---
 
@@ -117,6 +145,10 @@ They verify the test artifacts of all phases: requirements → testcases → cel
    - "build the fix plan" → `goga-tool-pybuggy-api-fix-plan`;
    - "execute the fix plan / apply the fixes" → `goga-tool-pybuggy-api-fix-execute`;
    - "review the fix cycle / cycle verdict" → `goga-tool-pybuggy-api-fix-review`;
+   - "change existing tests / apply a requested change to accepted tests" → `goga-tool-pybuggy-api-patch-collect`;
+   - "assess the impact of a requested test change" → `goga-tool-pybuggy-api-patch-analyze`;
+   - "apply the confirmed manifest deltas of a patch" → `goga-tool-pybuggy-api-patch-apply`;
+   - "accept a patch run / verify a patch cycle" → `goga-tool-pybuggy-api-patch-accept`;
    - "how to call the API / how to verify a response" → `goga-tool-pybuggy-api-usage`;
    - "DSL rules for test cells" → `goga-tool-pybuggy-api-cookbook`.
 3. To launch a pipeline, use the **Skill tool** with the pipeline's main skill. Do not launch sub-skills

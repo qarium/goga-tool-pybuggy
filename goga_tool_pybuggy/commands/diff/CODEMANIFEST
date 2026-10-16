@@ -45,7 +45,7 @@ Annotations: |
     5. For each selected spec (name, `SpecEntry`): parse the spec at cwd / `SpecEntry` location via `load_spec`; if the spec is not a mapping or its "paths" is not a mapping, raise click.ClickException (invalid spec file); extract endpoints via `extract_endpoints`, mapping a ValueError (no openapi/swagger version key, or a response key outside the legal status-key shapes) to click.ClickException (invalid spec file); keep the endpoints selected by the filter and record the matched ids.
     6. If the filter is set and any requested id matched no selected spec, raise click.ClickException("endpoint not found: <ids>") listing the missing ids (sorted) — before anything is printed.
     7. For each selected spec, compare and print:
-       7.1. For each kept endpoint (extraction order): build the spec side via `spec_contract`; locate the artifact directory by `sanitize_id` on the endpoint id; when the directory exists build the generated side via `artifact_contract`, otherwise compare against an empty contract (endpoint added).
+       7.1. For each kept endpoint (extraction order): build the spec side via `spec_contract`; locate the spec's artifact tree under cwd/api/<segment> (the segment derived from the spec name via `sanitize_id`, exactly as generate derives its write path) and the artifact directory by `sanitize_id` on the endpoint id; when the directory exists build the generated side via `artifact_contract`, otherwise compare against an empty contract (endpoint added).
        7.2. Compare the two sides with one strict `deepdiff` comparison; print one JSON document per endpoint via `render_diff` keyed by the raw endpoint id — including endpoints with no drift (empty diff value).
        7.3. Discover the spec's artifact directories matching no endpoint of the spec via `orphan_artifact_dirs` over the full endpoint list (the endpoint-id filter does not narrow this discovery); for each such directory (sorted) compare an empty contract against `artifact_contract` of the directory and print the document via `render_diff` keyed by the sanitized segment (endpoint removed).
 
@@ -53,7 +53,7 @@ Annotations: |
     - The output order is deterministic: specs in config order; endpoints in extraction order; removed directories sorted by segment.
     - The comparison direction is fixed: t1 is the generated side and t2 is the spec side (the spec is the current truth), so a spec-only key appears as dictionary_item_added and a legacy artifact key as dictionary_item_removed.
     - Every compared endpoint prints exactly one JSON document, with an empty diff value when there is no drift.
-    - A spec without an api/<name>/ tree reports every selected endpoint as added and fails nothing.
+    - A spec without an api/<sanitized name>/ tree reports every selected endpoint as added and fails nothing.
     - The command writes nothing to disk — a run over an existing artifact tree leaves every file byte-identical.
     - The exit is successful after any completed run — drift is a result, not a failure.
 
@@ -129,17 +129,17 @@ Annotations: |
 "sanitize_id(endpoint_id: str) -> segment: str":
   location: artifacts.py
   annotations: |
-    Deterministic identifier segment derived from a raw endpoint id; the segment names an endpoint's artifact directory and matches discovered directories back to endpoints.
+    Deterministic identifier segment derived from a raw id; the segment names an endpoint's artifact directory, names the spec's artifact tree directory when applied to a spec name, and matches discovered directories back to endpoints.
 
-    `endpoint_id`: the raw endpoint id.
-    `segment`: the identifier segment of the endpoint's artifact directory.
+    `endpoint_id`: the raw id — an endpoint id, or a config spec name for the tree-level segment.
+    `segment`: the identifier segment of the artifact directory.
 
     Algorithm:
     1. Replace every non-word character with "_"; Unicode word characters are preserved.
     2. Prefix a leading digit with "_".
 
     Requirements:
-    - The segment rule equals the artifact-directory naming rule, so a segment computed here locates every generated artifact directory and never mismatches one.
+    - The segment rule equals the artifact-directory naming rule, so a segment computed here locates every generated artifact directory — the spec's tree and an endpoint's directory — and never mismatches one.
 
     Constraints:
     - Pure function — no I/O.
@@ -164,7 +164,7 @@ Annotations: |
     - Matching runs over the full endpoint list of the spec — never a filtered subset.
     - The result order is deterministic.
     - Only directories participate in orphan discovery — files found in the tree (e.g. the __init__.py package marker written by generate) are never reported as orphans.
-    - Tooling directories are never reported as orphans — __pycache__ (left under api/<name>/ by importing the generated fixture package) and hidden "."-prefixed directories are skipped: neither holds a meta.json/schemas artifact set, and reporting one would fail the run on a healthy tree.
+    - Tooling directories are never reported as orphans — __pycache__ (left under api/<sanitized name>/ by importing the generated fixture package) and hidden "."-prefixed directories are skipped: neither holds a meta.json/schemas artifact set, and reporting one would fail the run on a healthy tree.
 
     Constraints:
     - Read-only — discovery never writes or deletes.

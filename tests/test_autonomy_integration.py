@@ -1,15 +1,19 @@
 """Integration tests for the autonomy bridge — the feature's end-to-end chains.
 
-Covers the run chain with the real resolver, the emit↔consume YAML bridge, and the real platform delivery.
+Covers the run chain with the real resolver, the emit↔consume YAML bridge, the real platform delivery,
+and the drift guard between the contribution windows and the shipped pipeline conventions.
 """
 
+import importlib.resources
 import pathlib
 
+import pytest
 import yaml
 from goga.pipeline.hooks.events import PipelineHooks
 from goga.pipeline.hooks.identity import PipelineIdentity, WorkflowDecision, WorkIdentity
 from goga_tool_pybuggy.autonomous import build_autonomous_workflow
 from goga_tool_pybuggy.autonomous.amendment import amend_workflow
+from goga_tool_pybuggy.autonomous.contributions import AUTOMATE_CONTRIBUTION, CONTRIBUTIONS, PATCH_CONTRIBUTION
 from goga_tool_pybuggy.commands.init import build_config_data
 from goga_tool_pybuggy.config import resolve_autonomy
 
@@ -58,7 +62,16 @@ class TestRunChain:
 
         amend_workflow(view)
 
-        assert view.contributed == [build_autonomous_workflow()]
+        assert view.contributed == [build_autonomous_workflow(AUTOMATE_CONTRIBUTION)]
+
+    def test_amend_workflow_end_to_end_patch_with_real_config(self, tool_config) -> None:
+        """The real ``api.patch`` axis key routes through the real resolver to the patch-shaped document."""
+        tool_config("pipelines:\n  api.patch:\n    autonomous: true\n")
+        view = _AmendmentView(amendment_identity("pybuggy:api.patch"))
+
+        amend_workflow(view)
+
+        assert view.contributed == [build_autonomous_workflow(PATCH_CONTRIBUTION)]
 
     def test_amend_workflow_end_to_end_disabled_is_silent_no_op(self, tool_config) -> None:
         """A disabled axis in the standard tree contributes nothing and raises nothing."""
@@ -82,7 +95,7 @@ class TestPlatformDelivery:
         assert overlay.provenance == ["pybuggy"]
         assert overlay.workflow is not None
         assert overlay.workflow.prompt is None
-        assert list(overlay.workflow.stages) == list(build_autonomous_workflow().stages)
+        assert list(overlay.workflow.stages) == list(build_autonomous_workflow(AUTOMATE_CONTRIBUTION).stages)
         assert all(stage.approve == "auto" for stage in overlay.workflow.stages.values())
         assert overlay.workflow.extend["build"].after == ["commit-changes"]
 
@@ -109,13 +122,14 @@ class TestEmitConsumeBridge:
     """The onboarding payload, serialized to the standard tree, consumed by the resolver."""
 
     def test_build_config_data_payload_enables_resolve_autonomy(self, tool_config) -> None:
-        """The enabling payload enables the resolver; the disabling one writes no axis at all."""
-        enabling = build_config_data(dict(_ANSWERS), None, True)
+        """The enabling payload enables the resolver on both surveyed axes; the disabling one writes no axis."""
+        enabling = build_config_data(dict(_ANSWERS), None, {"api.automate": True, "api.patch": True})
         tool_config(yaml.safe_dump(enabling))
 
         assert resolve_autonomy("api.automate") is True
+        assert resolve_autonomy("api.patch") is True
 
-        disabling = build_config_data(dict(_ANSWERS), None, False)
+        disabling = build_config_data(dict(_ANSWERS), None, None)
 
         assert "pipelines" not in disabling
 
@@ -123,3 +137,44 @@ class TestEmitConsumeBridge:
 
         assert "pipelines" not in yaml.safe_load(written.read_text(encoding="utf-8"))
         assert resolve_autonomy("api.automate") is False
+
+
+def _pipeline_stage_names(axis: str) -> list[str]:
+    """Read the declared stage names of the shipped pipeline convention document.
+
+    Args:
+        axis: The pipeline axis key (``api.automate`` / ``api.patch``) naming the shipped
+            ``pipelines/<axis>.yml`` document of the package.
+
+    Returns:
+        The declared stage names, in document order.
+    """
+    resource = importlib.resources.files("goga_tool_pybuggy").joinpath(f"pipelines/{axis}.yml")
+    stages = list(yaml.safe_load_all(resource.read_text(encoding="utf-8")))[1]
+
+    return [stage["name"] for stage in stages]
+
+
+class TestConventionDrift:
+    """The contribution records against the shipped pipeline convention documents.
+
+    Both sides are hand-maintained — the record windows here, the stage lists in the shipped
+    YAML. This class is the seam that fails when a stage rename detaches the auto-approval
+    window or the build anchor from the pipeline.
+    """
+
+    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch"])
+    def test_every_window_stage_is_a_declared_pipeline_stage(self, contribution) -> None:
+        """Each record's window names real stages of its pipeline — a renamed stage fails here."""
+        stages = _pipeline_stage_names(contribution.axis)
+
+        assert set(contribution.window) <= set(stages)
+
+    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch"])
+    def test_the_build_anchor_names_a_real_stage_before_the_acceptance(self, contribution) -> None:
+        """The build ``after`` anchor (the window's last stage) exists and precedes acceptance."""
+        stages = _pipeline_stage_names(contribution.axis)
+
+        assert contribution.window[-1] in stages
+        assert "accept-result" in stages
+        assert "accept-result" not in contribution.window

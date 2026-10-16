@@ -1,12 +1,16 @@
-"""Tests for the root facade callback — the five hook subscriptions (reg_hooks.py).
+"""Tests for the root facade callback — the six hook subscriptions (reg_hooks.py).
 
-Covers the facade signature contract and the exact five-entry subscription table in platform order.
+Covers the facade signature contract and the exact six-entry subscription table in platform order.
 """
 
 from goga_tool_pybuggy import register_hooks
 from goga_tool_pybuggy.autonomous import amend_workflow
 from goga_tool_pybuggy.commands.init import amend_pybuggy_config, declare_pybuggy_session
-from goga_tool_pybuggy.statuses import register_automate_statuses, register_fix_statuses
+from goga_tool_pybuggy.statuses import (
+    register_automate_statuses,
+    register_fix_statuses,
+    register_patch_statuses,
+)
 
 
 class _RecorderHooks:
@@ -37,10 +41,10 @@ class TestRegisterHooksContract:
 
 
 class TestRegisterHooksSubscriptions:
-    """The subscription table — five entries, platform order, cell-identity handlers."""
+    """The subscription table — six entries, platform order, cell-identity handlers."""
 
-    def test_register_hooks_subscribes_five_hooks(self):
-        """Exactly five subscriptions land in order: statuses pair, onboarding pair, autonomy."""
+    def test_register_hooks_subscribes_six_hooks(self):
+        """Exactly six subscriptions land in order: statuses triple, onboarding pair, autonomy."""
         recorder = _RecorderHooks()
 
         register_hooks(recorder)
@@ -48,6 +52,7 @@ class TestRegisterHooksSubscriptions:
         assert recorder.calls == [
             ("statuses", "register_statuses", "automate", register_automate_statuses),
             ("statuses", "register_statuses", "fix", register_fix_statuses),
+            ("statuses", "register_statuses", "patch", register_patch_statuses),
             ("onboarding", "declare_session", "declare", declare_pybuggy_session),
             ("onboarding", "amend_config", "amend", amend_pybuggy_config),
             ("pipeline", "amend_workflow", "autonomy", amend_workflow),

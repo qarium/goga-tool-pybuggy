@@ -77,8 +77,40 @@ Usages:
   reference `` `<key>` `` resolves immediately: the key is already declared in that cell's `Usages`.
 - The base block stays **unchanged**. A cell-specific usage exists only in cells that use
   the tool — its presence in some cells and absence in others is **not** a discrepancy.
+- **A decorator/marker is a tool like any other.** CODEMANIFEST has no dedicated syntax for
+  a pytest marker — none is needed: the marker's usage file (documenting the decorator and,
+  for a new marker, its `pytest.ini` registration — `strict_markers = true` fails an
+  unregistered marker) is wired as a cell-specific usage, and the Routine annotation
+  references the key (a ``Use `<key>` for …`` line and/or a mention in
+  `Precondition:`/`Steps:`); the materialized `test_*.py` then carries the decorator. A
+  marker that lives only in the test code is lost on the next regeneration from the
+  Routine — the annotation is the source the code is generated from.
 - Coverage (case coverage) and Routine granularity remain **unaffected** (tool usages belong to
   Header/Annotations, not Routine).
+
+### Sandbox usages (sandbox tests)
+
+A sandbox test runs against the sandbox — the isolated instance with mocked dependency services
+(postgresql/kafka/vault/http) started by the product session `sandbox` fixture. The capability
+exists only when the project holds `.goga/tools/pybuggy/sandbox.yml` — the usage files alone never
+activate it.
+
+- Connect the two sandbox usages — `sandbox-session` (the `sandbox` fixture and the bind) and
+  `data-operations` (seeding rows, dependency stubs, secrets, kafka messages, `$ref`/`$lookup`),
+  both at `.goga/usages/cooks/pybuggy/sandbox/` — like any cell-specific usage: a `<key>: <path>`
+  line in `Usages` + a ``Use `<key>` for …`` line in `Annotations`, only into the cells whose
+  Routines run in the sandbox. The base block stays unchanged; cells without sandbox Routines
+  get no sandbox usages.
+- The sandbox Routine declares the product fixture in the signature (the type from the pybuggy
+  runtime, like `Endpoint`): `test_<name>(<fixture>: Endpoint, sandbox: Sandbox)`.
+- The annotation: `Precondition:` gains a `` `sandbox` `` bullet — the product session fixture:
+  the isolated instance plus the dependency services; the first `Steps:` item binds the client
+  to the sandbox before any request — one bind rebinds every endpoint fixture of the test
+  together; the seeded data and the mocked dependency states follow as steps expressed through
+  the sandbox usages, without test code. A bound test ignores the configured `base_url` /
+  `--base-url`; the unbound tests keep it.
+- A sandbox case and a target-environment case never share one Routine — the bind step makes the
+  step sets diverge (the linearity criterion above).
 
 ### Body — Routine
 

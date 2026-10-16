@@ -1,0 +1,295 @@
+Imports:
+  - Types:
+      - check_local_migrations
+      - check_git_url
+      - MigrationError
+    Usages:
+      - migration-set
+    From: goga_tool_pybuggy/sandbox/migrations
+
+Usages:
+  conventions: .goga/usages/conventions.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `conventions` for the pydantic kw_only data models and the docstring rules.
+
+  Sandbox configuration cell. Owns the declarative model of the sandbox document — the
+  instance-under-test entry, the named dependency services, and the startup data layer — and its
+  fail-fast validation: `validate_sandbox_config` takes the parsed document mapping (the
+  caller owns the parsing) and builds the model; an invalid document fails before anything
+  starts, with an error naming the carried document location and the offending entry. Use
+  relative imports inside the cell.
+
+---
+
+"SandboxConfig(instance: InstanceConfig, services: dict[str, ServiceConfig], data: StartupData)":
+  location: sandbox_config.py
+  annotations: |
+    Root model of the sandbox configuration: the instance under test, the dependency services
+    keyed by name, and the startup data layer.
+
+    `instance`: the instance-under-test entry.
+    `services`: dependency service entries keyed by service name; several services of one kind
+    are allowed.
+    `data`: the startup data layer declarations.
+
+    Requirements:
+    - pydantic model, kw_only; the data sections default empty; the instance entry is required.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "instance -> InstanceConfig": |
+      The instance-under-test entry.
+    "services -> dict[str, ServiceConfig]": |
+      Dependency service entries keyed by service name.
+    "data -> StartupData": |
+      The startup data layer declarations.
+
+"InstanceConfig(image: str, env: dict[str, str], port: int, probe: ProbeConfig | None)":
+  location: instance.py
+  annotations: |
+    Instance-under-test entry.
+
+    `image`: the container image of the instance under test.
+    `env`: environment values; values may carry service address placeholders resolved at sandbox
+    start.
+    `port`: the container port the service serves on.
+    `probe`: optional readiness declaration — the health path and the wait bounds; absent keeps
+    the default wait — port readiness with the default deadline and interval.
+
+    Requirements:
+    - pydantic model, kw_only.
+
+    Constraints:
+    - The probe path applies only here — the single readiness check with a configurable path.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "image -> str": |
+      Container image of the instance under test.
+    "env -> dict[str, str]": |
+      Environment values; values may carry service address placeholders.
+    "port -> int": |
+      Container port the service serves on.
+    "probe -> ProbeConfig | None": |
+      Readiness declaration; None keeps the default wait.
+
+"ServiceConfig(name: str, kind: str, image: str | None, topics: list[TopicConfig], probe: ProbeConfig | None, migrations: MigrationsConfig | None)":
+  location: service.py
+  annotations: |
+    One named dependency service declaration.
+
+    `name`: the service name — the key tests address the service by and the placeholder name
+    used inside the instance env values.
+    `kind`: the dependency kind — postgresql, kafka, vault, or http.
+    `image`: optional image override; absent keeps the product-pinned default of the kind.
+    `topics`: the kafka topic declarations — required and non-empty for the kafka kind, rejected
+    for every other kind.
+    `probe`: optional readiness declaration — the wait bounds for this service's readiness
+    check.
+    `migrations`: the optional migrations declaration — accepted on the postgresql kind only;
+    a declaration on any other kind fails at document load with the entry named.
+
+    Requirements:
+    - pydantic model, kw_only.
+    - A kafka entry without topics is invalid — the mock would open no listener.
+
+    Constraints:
+    - Do not accept any kind outside the four supported ones.
+    - Do not accept a probe path here — the path belongs to the instance-under-test entry only.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "name -> str": |
+      Service name — the addressable key and the placeholder name.
+    "kind -> str": |
+      Dependency kind: postgresql, kafka, vault, or http.
+    "image -> str | None": |
+      Image override; None keeps the product-pinned default.
+    "topics -> list[TopicConfig]": |
+      The kafka topic declarations of the service entry.
+    "probe -> ProbeConfig | None": |
+      Readiness declaration; None keeps the default wait.
+    "migrations -> MigrationsConfig | None": |
+      The migrations declaration; None — no migrations.
+
+"StartupData(vault: dict[str, list[dict[str, object]]], http: dict[str, list[dict[str, object]]], postgres: dict[str, list[str]])":
+  location: startup_data.py
+  annotations: |
+    Startup data layer declarations, in the fixed section order — vault secrets, http mappings,
+    then postgres init.
+
+    `vault`: service name → secret declarations (path, data).
+    `http`: service name → stub mapping declarations (request, response).
+    `postgres`: service name → init SQL statements.
+
+    Requirements:
+    - Sections default empty; declarations target services by name.
+    - Within a section, the declaration order is the application order.
+
+    Constraints:
+    - Do not reorder declarations — data dependencies are expressed by declaration order.
+    - Do not accept a kafka section — the kafka topology is declared inline on the service entry.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "vault -> dict[str, list[dict[str, object]]]": |
+      Service name → secret declarations (path, data).
+    "http -> dict[str, list[dict[str, object]]]": |
+      Service name → stub mapping declarations (request, response).
+    "postgres -> dict[str, list[str]]": |
+      Service name → init SQL statements; each statement converts to one startup insert operation
+      whose payload carries the sql key (executed as given).
+
+"ProbeConfig(timeout: float = 30.0, interval: float = 0.5, path: str | None = None)":
+  location: probe.py
+  annotations: |
+    Per-target readiness declaration.
+
+    `timeout`: the readiness deadline in seconds; an expired deadline fails with an actionable
+    error.
+    `interval`: the seconds between readiness attempts.
+    `path`: the health-check path — accepted only on the instance-under-test entry.
+
+    Requirements:
+    - pydantic model, kw_only.
+    - The defaults reproduce the established wait exactly: timeout 30.0, interval 0.5.
+    - Both bounds are positive; the interval never exceeds the timeout.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "timeout -> float": |
+      The readiness deadline in seconds.
+    "interval -> float": |
+      The seconds between readiness attempts.
+    "path -> str | None": |
+      The health-check path; valid only on the instance-under-test entry.
+
+"TopicConfig(name: str, partitions: int = 1)":
+  location: topic.py
+  annotations: |
+    One kafka topic declaration.
+
+    `name`: the topic name the mock opens and tests produce into.
+    `partitions`: the topic partition count; 1 when omitted.
+
+    Requirements:
+    - pydantic model, kw_only; a non-empty topic name.
+    - `partitions` is a positive integer.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "name -> str": |
+      The topic name.
+    "partitions -> int": |
+      The partition count; the tool default is 1.
+
+"GitSource(url: str, ref: str | None = None)":
+  location: migrations.py
+  annotations: |
+    The optional remote source of a service's migrations.
+
+    `url`: the clone URL of the repository holding the migration folder — no embedded
+    credentials; access relies on ambient git credentials.
+    `ref`: the branch or tag to clone; None clones the remote default branch.
+
+    Requirements:
+    - pydantic model, kw_only.
+
+    Constraints:
+    - A bare commit SHA is not a valid ref — shallow clones resolve branch and tag names only.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "url -> str": |
+      The clone URL — no embedded credentials.
+    "ref -> str | None": |
+      The branch or tag to clone; None — the remote default branch.
+
+"MigrationsConfig(location: str, git: GitSource | None = None)":
+  location: migrations.py
+  annotations: |
+    The migrations declaration of one postgresql service — the schema source applied once per
+    session by the sandbox.
+
+    `location`: the migrations folder — a path relative to the current working directory (the
+    same anchor the document itself uses) when `git` is absent; a path inside the repository
+    when `git` is set.
+    `git`: the optional remote source; None keeps the source local.
+
+    Requirements:
+    - pydantic model, kw_only.
+    - Valid only on a postgresql service entry — placement is checked at document load.
+
+    Constraints:
+    - Do not accept version-tracking or journaling options here — the apply semantics are
+    fixed.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "location -> str": |
+      The migrations folder — cwd-relative, or a path inside the repository when `GitSource`
+      is set.
+    "git -> GitSource | None": |
+      The optional remote source; None — the source is local.
+
+"validate_sandbox_config(document: dict[str, object], location: Path | str) -> config: SandboxConfig":
+  location: loader.py
+  annotations: |
+    Validate the parsed sandbox document mapping into the configuration model — the fail-fast
+    validation pipeline of the sandbox document; the caller owns the parsing.
+
+    `document`: the parsed document mapping.
+    `location`: the document location carried into every error message.
+    `config`: the validated configuration model.
+
+    Algorithm:
+    1. Apply the top-level key diagnostics — a "service" key fails naming the rename to
+    "instance"; an "instances" key fails naming the rename to "services"; any other unknown
+    top-level key fails as unknown.
+    2. Validate the instance entry — image, env, port are required; the probe is optional with
+    the path confined to this entry.
+    3. Validate every service entry — a non-empty unique name matching the template identifier
+    grammar — letters, digits, underscores, not starting with a digit (it names the
+    `{{<name>.host}}` / `{{<name>.port}}` placeholders); a kind of postgresql, kafka,
+    vault, or http; the grpc kind fails with an explicit "not supported yet" error; an optional
+    image override; kafka entries declare a non-empty topics list; non-kafka entries declare
+    none; the probe carries no path. A migrations declaration is accepted on the postgresql
+    kind only — any other kind fails naming the entry; a declared local source resolves its
+    location against the current working directory and passes through `check_local_migrations`;
+    a declared remote source passes its URL through `check_git_url`.
+    A `MigrationError` raised by either check is wrapped into the reader's ValueError naming
+    the scope and the offending path or URL, with the original error as the cause.
+    4. Validate the startup data sections — every declaration targets an existing service of
+    the matching kind; a kafka section fails as removed — the topology is declared inline on
+    the service entry.
+    5. Validate the instance env values — every service placeholder name references a
+    configured service.
+    6. Return the model.
+
+    Requirements:
+    - Validation completes fully before anything is started — no container is created for an
+    invalid document.
+    - The instance env placeholder names resolve against the configured services — an unknown
+    name fails before any container starts.
+    - The probe bounds are validated — a positive timeout and interval, the interval never
+    exceeding the timeout.
+    - A migrations declaration is validated fully at load for local sources (folder checks)
+    and by URL shape for remote sources — remote content resolves at engine startup.
+    - Every failure message names the carried document location and the offending entry.
+
+    Constraints:
+    - Do not default or repair invalid entries — fail fast.
+    - Do not read anything beyond the local migrations folder checks of a declared source.
+
+    Use `conventions` for type hints and testing.
+    Use `migration-set` for the load-time check semantics.
+
+---
+
+Author: Goga
+CreatedAt: 06/10/26
+Description: |
+  Sandbox configuration cell — the declarative sandbox document models and their fail-fast
+  validation of the parsed document mapping.

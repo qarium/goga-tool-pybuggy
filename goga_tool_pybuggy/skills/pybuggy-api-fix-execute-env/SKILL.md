@@ -19,7 +19,8 @@ in the plan task.
 3. Run the task verification once: rerun the affected tests **with the topic's environment**
    (`pytest <paths> -q --base-url <url>` when the environment is non-standard, per the topic version in
    `goga history path -f fix-collect.md`; the standard environment runs without the flag) — the environment-class symptoms
-   are gone (connection/env/network).
+   are gone (connection/env/network; for sandbox-start symptoms — the docker-compatible runtime is
+   available, the image pulled, the migrations applied, the sandbox probe green).
    Record a test that stays red for a new reason in the notes: material for a new fix cycle.
 4. Assemble [FIX_TASK_RESULT].
 

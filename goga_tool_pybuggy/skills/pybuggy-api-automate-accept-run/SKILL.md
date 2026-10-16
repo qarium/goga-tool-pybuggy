@@ -29,7 +29,8 @@ visible — never apply skips or `xfail`, regardless of the triage outcome.
 
 1. Execute the command from [ACCEPT_SCOPE] (from the directory containing `conftest.py`).
 2. Capture the complete result: passed / failed / errors per test.
-3. Environment unavailable (pytest/plugin fail to start, SUT does not respond) — STOP, but only after an
+3. Environment unavailable (pytest/plugin fail to start, SUT does not respond, or the sandbox fails to
+   start — no docker-compatible runtime, image pull failure, probe timeout, migrations failure) — STOP, but only after an
    explicit question to the user: restore the environment and continue / finish the acceptance with the REJECTED verdict (run not possible).
 
 ### Step 3. Classify outcomes
@@ -55,6 +56,9 @@ Dossier analysis (arguments for the user, not a decision on their behalf):
   branch not deployed / deployment lag / wrong `--base-url`) → arguments for restoring the environment
   first (the environment STOP condition covers this) — do not classify the failure as a service bug
   before the environment is confirmed.
+- The sandbox fails to start or serve (no docker-compatible runtime, image pull failure, probe
+  timeout, migrations failure — the sandbox output names it) → environment class: restore first; not
+  a service bug of the SUT and not a test defect.
 
 AskUserQuestion (2–4 options):
 

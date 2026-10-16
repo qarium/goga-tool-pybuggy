@@ -26,6 +26,7 @@ Public API (facade `swax.openapi`):
 from pathlib import Path
 from swax.openapi import parse_spec
 
+
 def load_spec(spec_location: str, project_root: Path) -> dict:
     return parse_spec(project_root / spec_location)
 ```
@@ -65,6 +66,7 @@ Operations live in `spec["paths"][path][method]`, where `method` is `get`/`post`
 ```python
 HTTP_METHODS = ("get", "post", "put", "delete", "patch", "options", "head")
 
+
 def iter_operations(spec: dict):
     for path, item in spec.get("paths", {}).items():
         for method in HTTP_METHODS:
@@ -84,14 +86,17 @@ def extract_request_schema_openapi(operation: dict) -> dict:
     content = operation.get("requestBody", {}).get("content", {})
     return content.get("application/json", {}).get("schema", {})
 
+
 def extract_response_schemas_openapi(operation: dict) -> dict:
     return {
         code: resp.get("content", {}).get("application/json", {}).get("schema", {})
         for code, resp in operation.get("responses", {}).items()
     }
 
+
 def extract_query_params_openapi(operation: dict) -> dict:
     return {p["name"]: p.get("schema", {}) for p in operation.get("parameters", []) if p.get("in") == "query"}
+
 
 def extract_path_params_openapi(operation: dict) -> dict:
     return {p["name"]: p.get("schema", {}) for p in operation.get("parameters", []) if p.get("in") == "path"}
@@ -108,10 +113,14 @@ def extract_request_schema_swagger(operation: dict) -> dict:
             return p.get("schema", {})
     return {}
 
+
 def extract_response_schemas_swagger(operation: dict) -> dict:
     return {code: resp.get("schema", {}) for code, resp in operation.get("responses", {}).items()}
 
+
 _TYPE_FIELDS = ("type", "format", "items", "enum", "default", "description", "x-nullable")
+
+
 # `x-nullable` is included deliberately: field filtering would otherwise drop the keyword before
 # nullable-normalization, and the parameter's nullability would be lost (see cell spec / design review).
 def extract_query_params_swagger(operation: dict) -> dict:
@@ -120,6 +129,7 @@ def extract_query_params_swagger(operation: dict) -> dict:
         if p.get("in") == "query":
             result[p["name"]] = {k: v for k, v in p.items() if k in _TYPE_FIELDS}
     return result
+
 
 def extract_path_params_swagger(operation: dict) -> dict:
     result = {}
@@ -143,6 +153,7 @@ Consumer conventions (both formats):
 ```python
 import click
 from swax.openapi import SpecParseError, parse_spec
+
 
 def safe_parse(spec_path: Path) -> dict:
     try:

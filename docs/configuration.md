@@ -2,7 +2,11 @@
 
 pybuggy reads a single YAML file — `.goga/tools/pybuggy/config.yml` — from a **fixed
 path** relative to the project root. There is no `--config` option; every command loads
-the config itself.
+the config itself. (The sandbox capability reads a separate, fixed-path document —
+`.goga/tools/pybuggy/sandbox.yml` under the pybuggy tools home — described in
+[the sandbox document](sandbox/configuration.md); it is not part of this file. The sandbox service entries carry
+their own vocabulary — `kind`, `image`, `probe`, kafka `topics`, and the optional,
+postgresql-only `migrations` block — covered there, not here.)
 
 The file carries four concerns: the **plugin options** (feed the `api` fixture), the
 **`specs`** section (what the CLI commands operate on), the optional **`loader`**
@@ -33,7 +37,9 @@ Each option resolves by the first non-empty source:
 
 So the config file overrides env, env overrides the CLI flag, the flag overrides the
 default. **`base_url` is the exception** — when you actually type `--base-url`, its value
-wins over the config file and `BASE_URL`.
+wins over the config file and `BASE_URL`. The flag governs the tests that do not bind
+their api to the sandbox; a test that binds (`endpoint.bind(sandbox)`) takes the sandbox
+address and ignores it.
 
 ### `base_url` as a Jinja2 template
 
@@ -125,8 +131,9 @@ pipelines:
 - An absent file, an absent `pipelines` section, an absent name, and
   `autonomous: false` all mean **disabled** (the default interactive run).
 - Entries for pipeline names the tool does not implement are ignored.
-- `autonomous: true` makes a running `api.automate` pipeline run unattended — see
-  [Autonomous runs](pipelines/api-automate.md#autonomous-runs).
+- `autonomous: true` makes a running `api.automate` or `api.patch` pipeline run
+  unattended — see [Automate — Autonomous runs](pipelines/api-automate.md#autonomous-runs)
+  and [Patch — Autonomous runs](pipelines/api-patch.md#autonomous-runs).
 
 ## The `loader` section
 

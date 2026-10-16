@@ -89,8 +89,9 @@ For **every** cell from `Artifacts`:
 4. **Body — Routine only** — no `Entity`, no `methods`/`properties`. The presence of `Entity` or
    `methods`/`properties` — **Critical**.
 5. **Routine signature** — `test_<name>(<fixture>: Endpoint, ...)` **without output** — one fixture parameter
-   per endpoint the Routine calls (one for a single-endpoint Routine, several for a flow). A format deviation —
-   **High**; a test having an output — **Critical**.
+   per endpoint the Routine calls (one for a single-endpoint Routine, several for a flow); a Routine covering
+   a `sandbox`-environment case adds the product `sandbox` fixture parameter (`sandbox: Sandbox`, the type
+   from the pybuggy runtime). A format deviation — **High**; a test having an output — **Critical**.
 6. **`location`** — `test_<name>.py` without moving up/down the directory tree (`../`, `…/`). A violation —
    **High**.
 7. **Footer** — `Author: Goga`, `CreatedAt` (day/month/year), `Description` (why the cell exists). Missing —
@@ -157,6 +158,15 @@ variant/parameter; no lost cases and no dangling Routines.
    **High** (the need was agreed on but lost during design). A key without a Precondition in the cases
    (a phantom) — **Medium**. If no tools were used — the plan must contain no cell-specific usages
    (their presence — **High**).
+8. **Sandbox wiring** — for a Routine covering a `sandbox`-environment case (the **environment** field of
+   the case in `goga history path -f testcases.md`): the signature carries the `sandbox` parameter,
+   `Precondition:` has the `` `sandbox` `` bullet, the first `Steps:` item binds the client to the
+   sandbox, and the cell connects exactly the two test-runtime sandbox usages — the §8 keys of
+   `sandbox-session.md` and `data-operations.md`, marked `sandbox, active`. A missing element —
+   **High**. A `sandbox` Routine while the requirements §4 Sandbox is `not configured` —
+   **Critical** (a capability the project does not have). Sandbox usages connected in a cell without
+   sandbox Routines — **Medium**. A sandbox case merged with a `target env` case into one Routine —
+   **High** (divergent steps — the bind).
 
 ---
 
@@ -268,7 +278,8 @@ Before completing, verify:
    backtick references)?
 6. Has the coverage check passed (all cases covered directly or by a Routine variant, name uniqueness,
    cell↔fixture↔endpoint, Coverage Map, cell-specific tool usages exist on disk and trace back to the cases'
-   Preconditions)?
+   Preconditions) and the sandbox wiring (the `sandbox` parameter/bullet/bind step for sandbox cases, the
+   sandbox usages only in sandbox cells, none when §4 Sandbox is `not configured`)?
 7. Has semantic sufficiency been checked (sufficiency for generation, accuracy, traceability,
    the negative failure model, parameterization linearity)?
 8. Has every finding been presented one at a time with the Apply/Alternative/Skip choice?

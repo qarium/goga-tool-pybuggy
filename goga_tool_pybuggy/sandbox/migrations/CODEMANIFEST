@@ -1,0 +1,234 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+  goose-sql: .goga/usages/cooks/goose-sql.md
+  psycopg: .goga/usages/cooks/psycopg.md
+  gitpython: .goga/usages/cooks/gitpython.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `conventions` for the pydantic kw_only data models and the docstring rules.
+  Use `goose-sql` for the migration file format: naming, version ordering, and the supported
+  annotation subset.
+  Use `psycopg` for executing migration statement bodies over the postgres connection.
+  Use `gitpython` for the shallow-clone source resolution of remote migration folders.
+
+  Migrations cell. Owns one migration set end to end: source resolution (a local folder or a
+  remote git repository), goose-SQL parsing of the up-only subset, and the once-per-session
+  apply over the sandbox's postgres connection. Every failure surfaces as `MigrationError`
+  naming the migration file or source step and the underlying cause — never a silent misapply.
+  Applied migrations are session-static: nothing here reads or writes the baseline journal.
+  Use relative imports inside the cell.
+
+---
+
+"MigrationFile(version: int, filename: str, statements: list[str] = [], no_transaction: bool = False)":
+  location: goose.py
+  annotations: |
+    One parsed goose-format migration file — the apply-ready unit of the set.
+
+    `version`: the numeric prefix of the filename, compared and applied numerically.
+    `filename`: the source file name — the identity used in progress output and error messages.
+    `statements`: the ordered statement bodies of the Up section, ready to execute as given.
+    `no_transaction`: whether the file declared -- +goose NO TRANSACTION and must run
+    statement-by-statement in autocommit.
+
+    Requirements:
+    - pydantic model, kw_only.
+
+    Use `conventions` for the data-model rules.
+  properties:
+    "version -> int": |
+      The numeric prefix of the filename.
+    "filename -> str": |
+      The source file name — the identity in progress output and error messages.
+    "statements -> list[str]": |
+      The ordered statement bodies of the Up section.
+    "no_transaction -> bool": |
+      Whether the file runs statement-by-statement in autocommit.
+
+"MigrationError()":
+  location: errors.py
+  annotations: |
+    The failure family of the migrations domain — the RuntimeError subtype.
+
+    Every failure in this cell surfaces as this type: source resolution, naming, parsing, and
+    execution. The message names the migration file or the source step and the underlying
+    cause. Exposed through the cell facade — the engines catch it by name to map into their own
+    error family.
+
+    Use `conventions` for type hints and testing.
+
+"check_local_migrations(folder: Path)":
+  location: source.py
+  annotations: |
+    Pre-parse checks of a declared local migrations folder — the load-time half of source
+    validation.
+
+    `folder`: the resolved folder path — the caller resolves the declared location against the
+    current working directory.
+
+    Algorithm:
+    1. The path must exist and be a folder.
+    2. The folder must not be empty.
+    3. At least one file with the .sql extension must be present — non-.sql files are ignored
+    everywhere.
+    4. The numeric version prefixes of the .sql filenames must be unique.
+
+    Requirements:
+    - Shape checks only — no parsing, no execution; content parsing belongs to
+    `parse_migration_file` at apply time.
+    - Every failure raises `MigrationError` naming the folder and the failed check.
+
+    Constraints:
+    - Do not read file contents here.
+
+    Use `goose-sql` for the file-naming and version-prefix grammar.
+    Use `conventions` for type hints and testing.
+
+"check_git_url(url: str)":
+  location: source.py
+  annotations: |
+    Git URL shape validation of a declared remote migrations source — the same rules as
+    endpoint pull.
+
+    `url`: the clone URL as declared.
+
+    Algorithm:
+    1. The URL scheme must be one of https, http, git, ssh.
+    2. The URL must not embed credentials.
+    3. A violation raises `MigrationError` naming the URL and the rule.
+
+    Requirements:
+    - Shape only — no network access, no clone; resolution belongs to `run_migrations` at
+    apply time.
+
+    Use `gitpython` for the URL rules and the ambient-credentials convention.
+    Use `conventions` for type hints and testing.
+
+"parse_migration_file(filename: str, text: str) -> migration: MigrationFile":
+  location: goose.py
+  annotations: |
+    Parse one goose-format migration file into its apply-ready form — pure text processing.
+
+    `filename`: the source file name — carried into the result and every error message.
+    `text`: the file content.
+    `migration`: the parsed migration.
+
+    Algorithm:
+    1. Extract the numeric version prefix from `filename`; a filename without a valid prefix
+    raises naming the file.
+    2. Split the content into the Up and Down sections on the -- +goose Up / -- +goose Down
+    annotations; a file without an Up section raises naming the file; the Down section is
+    skipped — parsed only far enough to be excluded.
+    3. Split the Up section into statement bodies: inside -- +goose StatementBegin /
+    -- +goose StatementEnd the text is one statement — interior semicolons do not split it;
+    outside such bodies, statements split on the terminating semicolon. A StatementBegin
+    without a matching StatementEnd raises naming the file.
+    4. Record -- +goose NO TRANSACTION when declared before the Up section.
+    5. Any +goose annotation outside the supported subset and any `{{...}}` interpolation
+    raise naming the file — never a silent misapply.
+    6. Return the parsed migration.
+
+    Requirements:
+    - Pure function — no I/O; the caller reads the file.
+    - Every failure raises `MigrationError` naming the file.
+
+    Constraints:
+    - Do not execute or validate SQL semantics here — statement bodies are opaque text.
+
+    Use `goose-sql` for the supported annotation subset and the statement-body grammar.
+    Use `conventions` for type hints and testing.
+
+"load_migration_set(folder: Path) -> migrations: list[MigrationFile]":
+  location: goose.py
+  annotations: |
+    Load a migrations folder into the ordered apply-ready set.
+
+    `folder`: the source folder — a local folder or a path inside a resolved clone.
+    `migrations`: the parsed migrations in ascending version order.
+
+    Algorithm:
+    1. List the .sql files of the folder — non-.sql files are ignored.
+    2. Reject the set when no .sql files are present, and when two files share a numeric
+    version prefix — both failures raise naming the folder and the files.
+    3. Parse every file through `parse_migration_file`.
+    4. Order the set by ascending numeric version and return it.
+
+    Requirements:
+    - Deterministic order — the apply order is exactly the returned order.
+
+    Use `goose-sql` for the naming grammar.
+    Use `conventions` for type hints and testing.
+
+"apply_migrations(conn: Connection, migrations: list[MigrationFile])":
+  location: apply.py
+  annotations: |
+    Execute a parsed migration set once over the postgres connection.
+
+    `conn`: the per-session postgres connection.
+    `migrations`: the ordered set from `load_migration_set`.
+
+    Algorithm:
+    1. Apply every migration in the given order — the caller's order is preserved.
+    2. Default: one transaction per file — all statements of the file commit or roll back
+    together.
+    3. A file declared NO TRANSACTION runs statement-by-statement in autocommit — DDL such as
+    CREATE INDEX CONCURRENTLY cannot run inside a transaction block.
+    4. Report every applied file as one progress line in the sandbox startup-output style.
+    5. The first failed statement raises `MigrationError` naming the migration file and the
+    server-side error; the apply stops — no further file runs.
+
+    Requirements:
+    - Statement bodies execute as given — parameter-free, no interpolation, no symbol capture.
+    - Nothing is recorded into any baseline journal — the schema is session-static.
+
+    Constraints:
+    - Do not create or read any version-tracking table.
+    - Do not execute Down sections — they are not part of the parsed set.
+
+    Use `psycopg` for the execution patterns — transaction per file and the autocommit opt-out.
+    Use `conventions` for structured logging and testing.
+
+"run_migrations(conn: Connection, location: str, git_url: str | None, git_ref: str | None)":
+  location: apply.py
+  annotations: |
+    Orchestrate one migration apply for a service: resolve the source, load the set, apply.
+
+    `conn`: the per-session postgres connection.
+    `location`: the declared location — a path relative to the current working directory for a
+    local source, or a path inside the repository for a remote source.
+    `git_url`: the clone URL of the remote source; None means the source is local.
+    `git_ref`: the branch or tag to clone; None clones the remote default branch.
+
+    Algorithm:
+    1. Local source — `git_url` None: resolve `location` against the current working directory.
+    2. Remote source: shallow-clone `git_url` at `git_ref` into a temporary folder — an
+    already-existing target folder is removed before cloning, the download never merges into
+    existing content; ambient credentials only — nothing is embedded in the URL; nothing is
+    copied into the consumer repository.
+    3. Resolve `location` inside the clone — a missing folder raises `MigrationError` naming
+    the path.
+    4. Load the set through `load_migration_set` and apply it through `apply_migrations` on
+    `conn`.
+    5. Delete the clone on every exit path — applied or failed.
+
+    Requirements:
+    - One apply per call — the engine calls it exactly once per session at startup.
+    - Every failure surfaces as `MigrationError` with the failed step named.
+
+    Constraints:
+    - Do not cache clones across sessions — each apply downloads fresh.
+
+    Use `gitpython` for the shallow-clone context-manager pattern and the error mapping
+    conventions.
+    Use `goose-sql` for the set-consumption semantics.
+    Use `psycopg` for the execution plane.
+
+---
+
+Author: Goga
+CreatedAt: 08/10/26
+Description: |
+  Migrations of the sandbox — source resolution (a local folder or a remote git repository),
+  goose-SQL parsing of the up-only subset, and the once-per-session apply over the postgres
+  connection.

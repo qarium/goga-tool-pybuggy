@@ -19,7 +19,7 @@ For the current topic, verify existence and load:
 3. `tests/<spec>/<id>/CODEMANIFEST` — all topic cells. Source of truth for the cells composition: the CODEMANIFEST on disk (actual state); the arch plan serves as the expectation for the cross-check.
 4. Generated `test_<name>.py` files — by each Routine's `location`.
 5. `conftest.py` in the root — verify presence (`.env` loading + pybuggy plugin).
-6. Usage files: base `.goga/usages/cooks/pybuggy/` + cell-specific `.goga/usages/cooks/<key>.md` (keys from each cell's Header Usages).
+6. Usage files: base `.goga/usages/cooks/pybuggy/` + cell-specific `.goga/usages/cooks/<key>.md` (keys from each cell's Header Usages; the sandbox keys resolve into `.goga/usages/cooks/pybuggy/sandbox/**`).
 7. the path printed by `goga history path -f bugs.md` — check for an existing bugs file (target for appending records).
 
 ### Step 2. Extract Routines and build the trace
@@ -38,7 +38,11 @@ From each cell's CODEMANIFEST:
    environment; the standard `.env`/`BASE_URL` value would target the wrong service). Standard
    environment — no flag. Record the resolved environment in the report.
 3. If a topic's cells span multiple `<spec>` values, list all paths in a single command.
-4. Record the run root: the directory that contains `conftest.py` (pytest runs from there).
+4. Sandbox: when a cell's Routines carry the `sandbox` parameter (the requirements §4 Sandbox entry is
+   `configured`), the run needs a docker-compatible container runtime — record it in the Environment
+   notes. The command itself does not change: a bound test ignores `--base-url`, the unbound tests
+   keep it.
+5. Record the run root: the directory that contains `conftest.py` (pytest runs from there).
 
 ### Step 4. Acceptance scope viability checks
 
@@ -76,5 +80,6 @@ Fill in every section. Empty sections are prohibited.
 environment) and the run directory (the root containing conftest.py)]
 
 ## Environment notes
-[conftest.py found/missing; existing `goga history path -f bugs.md`; other observations]
+[conftest.py found/missing; docker-compatible container runtime required (sandbox Routines present) /
+not required; existing `goga history path -f bugs.md`; other observations]
 ```

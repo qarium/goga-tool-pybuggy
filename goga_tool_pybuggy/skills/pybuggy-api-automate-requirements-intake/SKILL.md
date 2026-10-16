@@ -13,7 +13,8 @@ is under test.
 ## Core Principle
 
 You **clarify** the user's intent, **uncover** the topic goal, and **fix** the boundaries — what falls inside the testing
-scope and what stays outside. Your only input source is the user's request.
+scope and what stays outside. The topic's content comes only from the user's request; environment facts —
+the branch state, the presence of the sandbox document — are read from the repository, never guessed.
 
 ---
 
@@ -59,7 +60,25 @@ artifact. Ask via AskUserQuestion (one question per message, 2–4 options):
    several git specs exist — ask whether one ref applies to all (`--ref <ref>`) or per-spec
    (`--ref <spec1>:<ref1> --ref <spec2>:<ref2>`).
 
-3. **Target environment (base URL of test runs)** — where the tests must send requests:
+3. **Run target and target environment (base URL of test runs)** — where the tests must send requests.
+   First check the sandbox capability on disk: `.goga/tools/pybuggy/sandbox.yml` in the target project
+   (resolved from the current working directory, no upward search). Then ask according to the fact:
+
+   - **The sandbox document exists** — ask the **run target** first (AskUserQuestion, 2–4 options):
+
+     - **"All cases in the sandbox"** — every case of the topic binds its client to the sandbox
+       instance; the base URL stays as configured (a bound test ignores `--base-url`), and the
+       recorded run commands carry no `--base-url`;
+     - **"Target env"** — all requests go to a target environment; continue with the base URL
+       sub-question below;
+     - **"Mixed — decided per case"** — the split is made at the `testcases` stage (the per-case
+       environment); continue with the base URL sub-question below (it applies to the target-env
+       part of the topic).
+
+   - **The sandbox document is absent** — the run target question is not offered (the tests are
+     written without the sandbox); ask the base URL sub-question directly.
+
+   The base URL sub-question (for the target env / mixed run targets):
 
    - **"Standard (.env / BASE_URL)"** — nothing changes;
    - **"Feature environment"** — the URL of the environment the branch is deployed to (user input);
@@ -113,10 +132,13 @@ Fill in every section. Empty sections are forbidden.
 [default branch | feature ref per spec (`<ref>` / `<spec>:<ref>`) | local, no pull — the user's confirmed
 decision; for a feature ref, why this ref (which service branch the topic tests)]
 
-## Target environment (base URL)
+## Run target and target environment (base URL)
 
-[standard (.env / BASE_URL) | the explicit URL of the environment under test — recorded test run
-commands will carry `pytest ... --base-url <url>`; for a feature environment, where the branch is deployed]
+[run target: all cases sandbox | target env | mixed (decided per case at the `testcases` stage) — asked only when
+`.goga/tools/pybuggy/sandbox.yml` exists; without the document: target env, no question offered. Base URL (target env /
+mixed): standard (.env / BASE_URL) | the explicit URL of the environment under test — recorded test run commands will
+carry `pytest ... --base-url <url>`; for a feature environment, where the branch is deployed. All cases sandbox: the
+base URL stays as configured — bound tests ignore `--base-url`, recorded run commands carry no `--base-url`]
 
 ## Known Signals
 

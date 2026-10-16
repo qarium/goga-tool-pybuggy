@@ -1,15 +1,3 @@
 prompt: |
   Answer (feedbacks, proposes, questions:`*.question.json` and etc) in Russian language.
   Any content written to the project files is in English.
-
-stages:
-  ad-hoc:
-    prompt: |
-      Ask user about task and implement it.
-  
-      Requirements:
-      - Ask user about approve plan before implementation
-  
-      Constraints:
-      - Don't implementation without approve from user
-      - Don't research before you receive the task from user

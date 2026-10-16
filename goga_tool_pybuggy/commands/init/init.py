@@ -45,7 +45,7 @@ def _walk(directory: Any, discovered: list[tuple[str, str]]) -> None:
 
 
 def _discover_usages(root: Any) -> list[tuple[str, str]]:
-    """Recursively discover ``.usages/*.md`` files under ``root`` (the installed goga_tool_pybuggy.api package)."""
+    """Recursively discover ``.usages/*.md`` files under an installed package ``root``."""
     discovered: list[tuple[str, str]] = []
 
     _walk(root, discovered)
@@ -53,8 +53,45 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
     return discovered
 
 
-# Hand-authored annotation line per usage stem; unknown stems fall back to a bare backtick
-# reference — the DSL requires every connected usage to be referenced in an annotation.
+# The packaged usage roots the bootstrap distributes, each paired with its destination subdirectory
+# of .goga/usages/cooks/pybuggy: the api cell (its walk also collects the ``asserts`` sub-package
+# riding that root) distributes flat, the sandbox subtree under its own ``sandbox`` subdirectory.
+# The plugin and commands cells are not roots — their usages stay out of the consumer target.
+_USAGE_ROOTS = (("goga_tool_pybuggy.api", ""), ("goga_tool_pybuggy.sandbox", "sandbox"))
+
+# The roots whose discovered usages are also registered in the consumer config — the always-on test
+# surface every cell consumes. The sandbox subtree is download-only: its capability usages may or may
+# not apply to a given cell, and the codemanifest usages of .goga/config.yml bind every cell of the
+# project, so their files are copied without config registration.
+_REGISTERED_USAGE_ROOTS = ("goga_tool_pybuggy.api",)
+
+
+def _discover_packaged_usages() -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Discover ``.usages/*.md`` files under every packaged usage root, roots in order.
+
+    Returns:
+        The ``(discovered, registered)`` pair — the ``(stem, text, subdir)`` triples of every
+        packaged usage file (six stems today: api, asserts, sandbox-session, sandbox-file,
+        data-operations, migration-set; the sandbox stems carry the ``sandbox`` destination
+        subdirectory, the api stems an empty one), and the stems of the registered roots in
+        discovery order (api and asserts today) for the config registration.
+    """
+    discovered: list[tuple[str, str, str]] = []
+    registered: list[str] = []
+
+    for root, subdir in _USAGE_ROOTS:
+        found = _discover_usages(importlib.resources.files(root))
+        discovered.extend((stem, text, subdir) for stem, text in found)
+
+        if root in _REGISTERED_USAGE_ROOTS:
+            registered.extend(stem for stem, _ in found)
+
+    return discovered, registered
+
+
+# Hand-authored annotation line per registered usage stem; unknown stems fall back to a bare backtick
+# reference — the DSL requires every connected usage to be referenced in an annotation. Only the
+# registered-root stems are ever looked up here — the download-only sandbox stems are never registered.
 PYBUGGY_ANNOTATIONS: dict[str, str] = {
     "api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
     "asserts": ("Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses."),
@@ -103,7 +140,7 @@ def _log_registration(
 
 
 def _gate_conftest(cwd: Path, template_mode: bool) -> None:
-    """Deliver the root ``conftest.py`` through the mode-dependent gate (bootstrap step 7).
+    """Deliver the root ``conftest.py`` through the mode-dependent gate (bootstrap step 8).
 
     Absent file → written; existing file → INFO skip in template mode, ``click.confirm`` (default no) in bare mode.
 
@@ -252,10 +289,10 @@ def run_bootstrap(template_mode: bool) -> int:
     config = cwd / ".goga" / "config.yml"
 
     try:
-        discovered = _discover_usages(importlib.resources.files("goga_tool_pybuggy.api"))
+        discovered, registered = _discover_packaged_usages()
 
-        for stem, text in discovered:
-            dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / f"{stem}.md"
+        for stem, text, subdir in discovered:
+            dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / subdir / f"{stem}.md"
 
             if dest.exists() and template_mode:
                 logger.info("existing file kept untouched", extra={"path": str(dest)})
@@ -283,9 +320,11 @@ def run_bootstrap(template_mode: bool) -> int:
         dockerfile = _resolve_dockerfile_path(config)
         install_pybuggy(dockerfile)
 
-        usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem, _ in discovered}
+        # Only the registered-root stems are registered — the sandbox capability usages are
+        # download-only (their files were copied above), never bound to every cell via the config.
+        usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem in registered}
         usage_keys["conventions"] = ".goga/usages/conventions.md"
-        annotation_lines = {f"pybuggy-{stem}": _annotation_for(stem) for stem, _ in discovered}
+        annotation_lines = {f"pybuggy-{stem}": _annotation_for(stem) for stem in registered}
         annotation_lines["conventions"] = _CONVENTION_LINE
 
         added_usage_keys = register_usages(config, usage_keys)

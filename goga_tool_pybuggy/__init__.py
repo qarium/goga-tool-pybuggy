@@ -4,6 +4,7 @@ from .cli import main
 from .env import EnvContext, load_env
 from .plugin import install
 from .reg_hooks import register_hooks
+from .sandbox.data import services
 from .tools import retries
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "main",
     "register_hooks",
     "retries",
+    "services",
 ]

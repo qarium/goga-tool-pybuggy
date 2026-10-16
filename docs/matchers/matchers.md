@@ -6,8 +6,12 @@ class), `MatchResult` (check outcome).
 
 ```python
 from goga_tool_pybuggy.matchcrest.matchers import (
-    BaseContext, BaseMatcher, MatchResult,
-    ValueIsEqualMatcher, ResponseCodeMatcher, RaisedExceptionMatcher,  # ... and so on
+    BaseContext,
+    BaseMatcher,
+    MatchResult,
+    ValueIsEqualMatcher,
+    ResponseCodeMatcher,
+    RaisedExceptionMatcher,  # ... and so on
 )
 ```
 
@@ -26,11 +30,11 @@ class ResponseContext(BaseContext):
 
     @property
     def value(self):
-        return self._response.status_code   # the value under test
+        return self._response.status_code  # the value under test
 
     @property
     def key(self):
-        return self._response.url           # the source label for report messages
+        return self._response.url  # the source label for report messages
 
     def update(self):
         self._response = refetch(self._response.url)  # refresh between retry attempts

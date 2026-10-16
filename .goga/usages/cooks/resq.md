@@ -7,8 +7,8 @@
 Import in code:
 ```python
 import resq
-from resq import Session          # the facade re-exports Session
-from resq.http import Response    # the response type for annotations
+from resq import Session  # the facade re-exports Session
+from resq.http import Response  # the response type for annotations
 ```
 
 ---
@@ -63,6 +63,7 @@ Sync resq runs `requests` under the hood, so `requests.auth.AuthBase` — any ca
 
 ```python
 from requests.auth import AuthBase
+
 
 class TokenAuth(AuthBase):
     def __call__(self, r):

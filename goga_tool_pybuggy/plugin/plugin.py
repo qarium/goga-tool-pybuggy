@@ -186,6 +186,9 @@ class ApiPlugin:
 
         Minimal profile — ``base_url``/``headers``/``timeout`` plus the assert options; no auth, no cookies.
 
+        The client carries the rendered static ``base_url``; binding an address (the running
+        sandbox) is explicit in the test body through ``Api.bind``/``Endpoint.bind``.
+
         Yields:
             An :class:`Api` constructed from the resolved options.
         """
@@ -199,6 +202,7 @@ class ApiPlugin:
             assert_field_class=self.assert_field_class,
             assert_response_class=self.assert_response_class,
         )
+
         yield api
         api.close()
 

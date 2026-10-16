@@ -1774,3 +1774,105 @@ paths:
 
     # the collision is detected in the collect/validate phase — nothing on disk
     assert not (tmp_path / "api").exists()
+
+
+# Spec-name segment sanitization tests ----------------------------------------
+
+
+def test_run_generate_hyphenated_spec_name_yields_importable_segment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A hyphenated config spec name sanitizes into an importable api/tests directory segment.
+
+    The config key stays raw (`--spec some-spec` keeps matching); only the derived artifact
+    segment is sanitized, so the generated fixture tree is importable under its dotted path.
+    """
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "some-spec.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+""",
+    )
+    _write_config(tmp_path, {"some-spec": ".specs/some-spec.yaml"})
+
+    run_generate(None, False)
+
+    # the raw hyphenated name never reaches the artifact trees
+    assert not (tmp_path / "api" / "some-spec").exists()
+    assert not (tmp_path / "tests" / "some-spec").exists()
+
+    endpoint_dir = tmp_path / "api" / "some_spec" / "clients_startup_get"
+    assert (endpoint_dir / "meta.json").exists()
+    assert (endpoint_dir / "schemas" / "200.json").exists()
+    assert (endpoint_dir / "api.py").exists()
+    assert (tmp_path / "api" / "some_spec" / "__init__.py").exists()
+    assert (tmp_path / "tests" / "some_spec" / "clients_startup_get").is_dir()
+
+    # the whole dotted path resolves — the import failure this fix closes
+    assert _module_is_pytest_plugin("api.some_spec.clients_startup_get.api")
+
+
+def test_run_generate_leading_digit_spec_name_gets_underscore_prefix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A spec name starting with a digit is prefixed like any identifier segment."""
+    monkeypatch.chdir(tmp_path)
+
+    _write_spec(
+        tmp_path / ".specs",
+        "2shop.yaml",
+        """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+""",
+    )
+    _write_config(tmp_path, {"2shop": ".specs/2shop.yaml"})
+
+    run_generate(None, False)
+
+    assert (tmp_path / "api" / "_2shop" / "clients_startup_get" / "api.py").exists()
+    assert (tmp_path / "tests" / "_2shop" / "clients_startup_get").is_dir()
+
+
+def test_run_generate_spec_segment_collision_raises_before_writes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two spec names sharing a sanitized segment raise before any artifact is written.
+
+    `some-spec` and `some_spec` would silently mix artifacts in one directory otherwise.
+    """
+    monkeypatch.chdir(tmp_path)
+
+    body = """\
+paths:
+  /clients/startup:
+    get:
+      description: Start a client
+"""
+    _write_spec(tmp_path / ".specs", "a.yaml", body)
+    _write_spec(tmp_path / ".specs", "b.yaml", body)
+    _write_config(tmp_path, {"some-spec": ".specs/a.yaml", "some_spec": ".specs/b.yaml"})
+
+    # the message names both offending spec names — the segment alone cannot tell them apart
+    with pytest.raises(click.ClickException, match=r"some-spec.*and.*some_spec.*some_spec"):
+        run_generate(None, False)
+
+    # the guard fires in the collect/validate phase — nothing on disk
+    assert not (tmp_path / "api").exists()
+    assert not (tmp_path / "tests").exists()

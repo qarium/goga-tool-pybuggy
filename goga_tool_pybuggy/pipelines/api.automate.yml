@@ -61,6 +61,8 @@ description: "Pybuggy API-test automate lifecycle"
 - name: coding-plan
   title: "Create coding plan"
   communication: true
+  prompt: |
+    Extract rules from the convention and add them to the plan as mandatory rules.
   skills:
     - goga-tool-pybuggy-api-automate-plan
 

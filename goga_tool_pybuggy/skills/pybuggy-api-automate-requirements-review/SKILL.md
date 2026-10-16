@@ -84,7 +84,9 @@ Verify that the artifact contains **all mandatory sections**:
    constraints and boundaries; every requirement carries an `REQ-<N>` identifier. A requirement
    without an identifier is **High** (invisible to case traceability in `testcases`).
 4. **Business preconditions and environment** — business preconditions (entities/roles/states as a
-   need), the environment.
+   need), the environment, the target environment, and the **Sandbox** entry — present/absent or a
+   placeholder here is **Medium** (the `testcases` stage needs the fact — and, when configured, the
+   recorded run target — to decide how the cases are assigned).
 5. **Roles and permissions** — who may and may not call the endpoints.
 6. **Integration aspects** — interaction with components, mocks, external dependencies.
 7. **Links and resources** — specs (location), design, API docs, etc.
@@ -166,6 +168,16 @@ Verify that the artifact contains **all mandatory sections**:
    unique (a duplicate is **High** — an ambiguous reference for cases) and continuous from 1 in
    subsection order (a gap/break is **Medium**); `REQ-<N>` appears only in §3 (outside §3 —
    **Medium**).
+9. **Sandbox fact (§4)** — cross-check the §4 "Sandbox" entry against
+   `.goga/tools/pybuggy/sandbox.yml` on disk: a "configured" claim without the document is **High**
+   (a false capability signal for `testcases`); a document the entry ignores ("not configured") is
+   **Medium**; when configured, the recorded image/services match the document. The recorded run
+   target must agree with the document and the rest of the artifact: a run target of
+   `all cases sandbox` or `mixed` while the document is absent is **High**; a missing run target
+   while configured is **Medium**; a run target of `all cases sandbox` alongside run commands
+   carrying `--base-url <url>` (§1) is **Medium** (a bound test ignores `--base-url`). The §8 sandbox
+   usages carry the matching mark (sandbox, active | sandbox, copied (inactive)) — a missing or
+   wrong mark is **Medium**.
 
 ---
 
@@ -182,8 +194,11 @@ Verify that the artifact contains **all mandatory sections**:
    may not (a foreign session, missing auth). An omission is **Medium** (or **High** if auth is a
    key part of the topic).
 4. **Business preconditions** — the preconditions (entities/roles/states) are concrete, not "prepare
-   data". Vague preconditions are **Medium**. The **Target environment (base URL)** entry of §4 agrees
-   with §1 (a non-standard environment ⇒ every recorded run command carries `--base-url <url>`); a
+   data". Vague preconditions are **Medium**. Preconditions phrased against the dev/target database
+   while the §4 run target is `all cases sandbox` are **Medium** (they must be stated as sandbox
+   seeding needs). The **Target environment (base URL)** entry of §4 agrees
+   with §1 (a non-standard environment ⇒ every recorded run command carries `--base-url <url>`; a
+   run target of `all cases sandbox` ⇒ no `--base-url`); a
    divergence between §1 and §4 is **High**.
 5. **Integrations and mocks** — if the topic touches several endpoints or external components,
    this is reflected (chains, mocks, side effects). An omission in the presence of such dependencies
@@ -266,5 +281,8 @@ Before you finish, verify:
    preconditions)?
 10. Did you present every finding one at a time with an Apply/Alternative/Skip choice?
 11. Did you apply the approved fixes with re-verification?
+12. Did you cross-check the §4 "Sandbox" entry against `.goga/tools/pybuggy/sandbox.yml` on disk
+    (and the §8 active/inactive marks of the sandbox usages)? Does the recorded run target agree
+    with the document, §1, and the phrasing of the §4 preconditions?
 
 If at least one answer is "no" — complete the unfinished check before you return.

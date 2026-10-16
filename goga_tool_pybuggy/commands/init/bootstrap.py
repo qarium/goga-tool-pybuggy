@@ -6,6 +6,7 @@ Six pure writers orchestrated by :func:`goga_tool_pybuggy.commands.init.run_boot
 import importlib.metadata
 import importlib.resources
 import logging
+import re
 from pathlib import Path
 
 from ruamel.yaml import YAML
@@ -15,6 +16,12 @@ from ruamel.yaml.scalarstring import LiteralScalarString
 from ...plugin import PluginConfigKeys
 
 logger = logging.getLogger(__name__)
+
+# Any pybuggy install line a previous release of this writer may have pinned (the spec
+# shape changed with the major.minor pin — e.g. ``-v 2.0.x`` before it). Matching the
+# command prefix, not the exact current line text, keeps re-running the bootstrap
+# idempotent across releases: the found line is repinned, never joined by a second one.
+_INSTALL_LINE = re.compile(r"^[ \t]*RUN goga install pybuggy\b[^\n]*$", re.MULTILINE)
 
 
 def _ensure_map(parent: CommentedMap, key: str) -> CommentedMap:
@@ -212,17 +219,20 @@ def ensure_review_skip(config_path: Path) -> bool:
 
 
 def install_pybuggy(dockerfile_path: Path) -> str | None:
-    """Append the pybuggy-install ``RUN`` line, derived from the installed package version.
+    """Write the pybuggy-install ``RUN`` line, pinned to the installed major.minor version line.
 
-    The version comes from the installed ``goga-tool-pybuggy`` distribution; only the install line is ever appended.
+    The version comes from the installed ``goga-tool-pybuggy`` distribution; only the install
+    line is ever written. An install line pinned by an older release of this writer (a
+    different spec shape, e.g. ``-v 2.0.x``) is repinned in place — never joined by a
+    second, conflicting line — so re-running the bootstrap stays idempotent across releases.
 
     Args:
         dockerfile_path: Path to the project Dockerfile (resolved from the consumer
             config ``dockerfile`` field by the bootstrap).
 
     Returns:
-        The appended ``RUN`` line text, or ``None`` when nothing was appended (file
-        absent or line already present).
+        The written ``RUN`` line text, or ``None`` when nothing was written (file
+        absent or line already present at the current pin).
 
     Raises:
         ValueError: When the running interpreter lacks the ``goga-tool-pybuggy``
@@ -240,11 +250,19 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
         ) from exc
 
     minor = ".".join(version.split(".")[:2])
-    line = f"RUN goga install pybuggy -v {minor}.x"
+    line = f"RUN goga install pybuggy -v {minor}"
 
     content = dockerfile_path.read_text(encoding="utf-8")
-    if line in content:
-        return None
+    existing = _INSTALL_LINE.search(content)
+
+    if existing is not None:
+        if existing.group(0).strip() == line:
+            return None
+
+        dockerfile_path.write_text(content[: existing.start()] + line + content[existing.end() :], encoding="utf-8")
+        logger.info("pybuggy install line repinned in Dockerfile", extra={"line": line, "path": str(dockerfile_path)})
+
+        return line
 
     if content and not content.endswith("\n"):
         content += "\n"

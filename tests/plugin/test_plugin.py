@@ -119,6 +119,12 @@ class TestApiPluginContract:
         """The api fixture method is callable on ApiPlugin."""
         assert callable(ApiPlugin.api)
 
+    def test_api_fixture_signature_has_no_request_parameter(self):
+        """The api fixture takes no request parameter — no fixture-closure sniffing can return."""
+        params = inspect.signature(ApiPlugin.api.__wrapped__).parameters
+
+        assert "request" not in params
+
     def test_api_plugin_has_collection_modifyitems_hook(self):
         """The pytest_collection_modifyitems hook is callable on ApiPlugin."""
         assert callable(ApiPlugin.pytest_collection_modifyitems)
@@ -185,6 +191,15 @@ class TestApiPluginContract:
 
         assert envvars.BASE_URL == "BASE_URL"
         assert envvars.API_TIMEOUT == "API_TIMEOUT"
+
+    def test_api_plugin_carries_no_sandbox_activation_state(self, tmp_path, monkeypatch):
+        """The plugin carries no sandbox arming state — the sandbox plugin owns it."""
+        monkeypatch.chdir(tmp_path)
+
+        plugin = ApiPlugin(context={})
+
+        assert not hasattr(plugin, "sandbox_activation")
+        assert "sandbox_activation" not in inspect.signature(ApiPlugin.__init__).parameters
 
 
 class TestApiPluginLogic:
@@ -799,3 +814,61 @@ class TestApiPluginRetries:
         plugin.plugin_config = {"retries": 5}
 
         plugin.pytest_collection_modifyitems([])  # no items — must not raise
+
+
+class TestApiPluginSandboxIntegration:
+    """The ``configure()`` sandbox interplay of the ``ApiPlugin`` options.
+
+    The api fixture itself never resolves the sandbox — address binding is explicit in the
+    test body via ``Api.bind``/``Endpoint.bind``; these tests pin the configphase contract
+    around a present sandbox document.
+    """
+
+    def test_configure_renders_base_url_unchanged(self, tmp_path, monkeypatch):
+        """configure() renders base_url exactly as before — it knows nothing about the sandbox."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setenv("BASE_URL", "http://{{ ENV_X }}/api")
+        monkeypatch.setenv("ENV_X", "x")
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(plugin)
+
+        assert plugin.base_url == "http://x/api"
+
+    def test_configure_accepts_base_url_cli_with_a_sandbox_document(self, tmp_path, monkeypatch):
+        """A typed --base-url renders without any usage error even when the sandbox document
+        sits in the tools home — the flag governs the tests that do not bind their api."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BASE_URL", raising=False)
+
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text(
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices: {}\n", encoding="utf-8"
+        )
+
+        plugin = ApiPlugin(context={})
+        _lifecycle(plugin, args=["--base-url", "http://x"], options={"base_url": "http://x"})
+
+        assert plugin.base_url == "http://x"
+
+    def test_configure_with_a_sandbox_document_still_requires_the_base_url_option(self, tmp_path, monkeypatch):
+        """The base_url option stays required when the document is present — the contract keeps it.
+
+        A test that binds its api to the sandbox overrides the address at bind time; the
+        option itself is still rendered in configure exactly as before, so a consumer
+        without any base_url source fails on the required-option error.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BASE_URL", raising=False)
+
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text(
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices: {}\n", encoding="utf-8"
+        )
+
+        plugin = ApiPlugin(context={})
+
+        with pytest.raises(ValueError, match=r'option "base_url" is required'):
+            _lifecycle(plugin)

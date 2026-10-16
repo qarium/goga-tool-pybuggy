@@ -25,7 +25,14 @@ You synthesize the final [TOPIC_SPEC] artifact from the outputs of all preceding
    ("Spec version") and the target environment into §1 ("Target environment") and §4 — verbatim, with the
    user's confirmed decision. Downstream pipelines (testcases → cells → apply → design → plan →
    accept → fix) read the version from here; every recorded test run command for a non-standard
-   environment carries `pytest ... --base-url <url>`.
+   environment carries `pytest ... --base-url <url>` (a run target of `all cases sandbox` carries
+   none — a bound test ignores `--base-url`).
+   Copy the sandbox fact and the run target from the "Sandbox" section of [DISCOVERY_REPORT] into
+   §4 ("Sandbox") — verbatim: `configured` (image, services) or `not configured`, plus the
+   reconciled run target (`all cases sandbox` | `target env` | `mixed — per case`). The
+   `testcases` stage reads the run target to decide how the cases are assigned: `all cases
+   sandbox` marks every case `sandbox`, `target env` never offers the sandbox, `mixed` asks per
+   case; `not configured` means the tests are written without the sandbox.
 6. Copy the topic description from the "Original request" section of [INTAKE_REPORT] into §1
    verbatim — the `elaborate` stage of the `testcases` pipeline matches this description against
    the API.
@@ -58,7 +65,8 @@ content follows the format below. Fill in every section. Empty sections are forb
 - **Spec version:** [default branch | `ref <ref>` (per spec when they differ) | local spec, no pull —
   the confirmed version context; pull/generate/diff commands of this topic use it]
 - **Target environment:** [standard (.env / BASE_URL) | `<url>` of the environment under test —
-  test run commands of this topic carry `--base-url <url>`]
+  test run commands of this topic carry `--base-url <url>`; a run target of `all cases sandbox`
+  (§4) — the base URL stays as configured, run commands carry no `--base-url`]
 
 **2. Topic endpoints:**
 
@@ -91,6 +99,10 @@ subsection order, no gaps, no duplicates) — the registry for test case traceab
 - Environment (env/version): [...]
 - Target environment (base URL): [standard `.env`/`BASE_URL` | `<url>` where the SUT of this
   topic is deployed — recorded run commands use `pytest ... --base-url <url>`]
+- Sandbox: [not configured — the tests are written without the sandbox | configured: `<image>`,
+  services `<name(kind)>`, ... — run target: all cases sandbox | target env | mixed (per case at
+  the `testcases` stage) — the user's intake decision, reconciled at discovery; bound tests
+  ignore `--base-url`]
 
 **5. Roles and permissions:**
 

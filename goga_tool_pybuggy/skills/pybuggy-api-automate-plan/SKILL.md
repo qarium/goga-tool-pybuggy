@@ -28,6 +28,9 @@ test-cells — so that all five conditions hold:
    failure cannot be fixed, leave the test failing and proceed to the next task without blocking the build;
    skipping tests (`pytest.skip`, skip-markers, `xfail`) is **prohibited**. This constraint carries the same
    weight as read-only CODEMANIFEST.
+6. when the CODEMANIFESTs carry sandbox Routines (the `sandbox` parameter + the bind step), the plan notes
+   the **docker-compatible container runtime** precondition next to the test-run commands — the sandbox
+   starts containers; the command itself does not change (a bound test ignores `--base-url`).
 
 ## Why this fixes `goga build`
 
@@ -53,6 +56,10 @@ tests into the plan → the tests get written but never run. This dispatch skill
 - **TDD inverted:** there is no separate "implementation code" — the test files themselves are the implementation.
   Contract tests verify the importability and signatures of the test functions; logic tests verify that the test
   case calls pybuggy correctly and asserts the response.
+- **Sandbox Routines:** a test materialized from a Routine with the `sandbox` parameter takes the product
+  `sandbox` fixture, binds the client to the sandbox as its first action, and seeds data / mocks
+  dependencies through the sandbox services (`.goga/usages/cooks/pybuggy/sandbox/**`) — per the Routine
+  annotation, verbatim; a bound test ignores `--base-url`.
 - **CRITICAL: Failing-test policy —** embed this instruction into **every** Task of the plan: if a test fails and
    you cannot fix the failure, leave that test failing and proceed to the next task without blocking the build.
    **Do NOT skip tests** (`pytest.skip`, skip-markers, `xfail`) — the failure must remain visible. This constraint
@@ -99,6 +106,9 @@ After `goga history path -f plan.md` is generated, verify the conditions below a
    build; do NOT skip tests (no `pytest.skip`, skip markers, or `xfail`)"*. If any Task lacks this instruction,
    append it to **every** Task. Verify that no test anywhere in the plan is marked with
    `pytest.skip`/skip-markers/`xfail`.
+6. **Sandbox Routines** — when the CODEMANIFESTs carry Routines with the `sandbox` parameter: the generating
+   Tasks materialize the sandbox bind verbatim from the Routine annotations, and the test-run commands carry
+   a note that the run needs a docker-compatible container runtime (the command itself does not change).
 
 If the plan fails the gate, append the missing pieces in the testing-mode spirit and report the additions to the user.
 
@@ -121,6 +131,8 @@ If the plan fails the gate, append the missing pieces in the testing-mode spirit
 - inject the testing pre-prompt before invoking `goga-plan`
 - carry the topic's target environment into every test-run command of the plan (`--base-url <url>`
   from the requirements §1/§4; no flag for the standard environment)
+- note the docker-compatible container runtime next to the test-run commands when sandbox Routines
+  exist (the command itself does not change — a bound test ignores `--base-url`)
 - run the Post-Dispatch Gate and refine the plan until pytest validation is in place
 - base the plan on the CODEMANIFEST test-cells and their `location` fields
 - load the pybuggy runtime reference and the DSL

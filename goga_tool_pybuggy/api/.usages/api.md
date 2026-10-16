@@ -81,8 +81,17 @@ Api(
 
 ### Methods
 
+- `bind(target) -> None` — re-point the client at the address of `target` (an object
+  exposing `base_url`, preferred, or `url`). The resq sessions are rebuilt at the new
+  address. When the target exposes callable `apply_pending` and `ensure_service` (the
+  running sandbox), both become the request pre-flight — the pending data batch applies and
+  the service liveness is ensured before **every** request; a target without them binds
+  URL-only. Re-binding replaces any previous pre-flight (the checks never stack). Every
+  `Endpoint` sharing the `Api` rebinds together; `TypeError` when the target exposes neither
+  attribute.
 - `request(method, url_path, **kwargs) -> resq.http.Response` — a single HTTP request:
-  serializes the pydantic `params`/`json` (with optional `by_alias` via `use_aliases`),
+  runs the installed pre-flight first (if any), serializes the pydantic `params`/`json`
+  (with optional `by_alias` via `use_aliases`),
   substitutes `:name` path parameters, injects auth/headers/cookies with call-level priority,
   resolves the effective adapter (call-level `adapter`, otherwise the `Api` default), selects
   the matching cached session, and dispatches to the resq verb
@@ -126,6 +135,10 @@ Endpoint(
 - `endpoint(**kwargs) -> ResponseWrapper` — the **positive** path (`is_negative=False`).
 - `endpoint.error(**kwargs) -> ResponseWrapper` — the **negative** path (`is_negative=True`):
   status and JSON schema are not checked in the auto-check.
+- `endpoint.bind(target) -> None` — re-points the **shared** `Api` at the target's address
+  (delegates to `api.bind`): all endpoints of one test rebind together. The primary use is
+  `endpoint.bind(sandbox)` in a sandbox test — the declared data then applies and the
+  service liveness is checked before every request.
 - `url_path -> str`, `method -> str` — the path and the verb (RO).
 - `adapter -> str | None` — the per-endpoint resq adapter (RO); `None` = fallback to the
   `Api` default.
@@ -268,7 +281,8 @@ def test_initiate(post_clients_calls_initiate: Endpoint):
 - `json=` — a pydantic `BaseModel` (serialized) or a `dict`. For schema-invalid requests
   (a missing required field, a wrong value type), **pass a raw `dict`**,
   not a model — otherwise pydantic raises a `ValidationError` before the request is sent,
-  and the SUT is never tested.
+  and the SUT is never tested. The inverse holds: a schema-valid body **always goes through
+  the model** — a raw `dict` for a valid body loses request validation and is **forbidden**.
 - `data=` — a raw body (string/bytes), sent as is, bypassing pydantic serialization.
   Used to test the handling of malformed JSON (e.g. `data="{"`). For a correct
   Content-Type, pass it in `headers=`.

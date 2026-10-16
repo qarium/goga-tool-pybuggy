@@ -2,7 +2,7 @@ site_name: goga-tool-pybuggy
 site_description: >-
   goga tool for testing:
   API - a pytest plugin and CLI that turn OpenAPI/Swagger specifications into ready-made fixtures, matchcrest matchers,
-  and an automated API-test lifecycle.
+  and an automated API-test lifecycle; Sandbox - session-scoped isolated service testing driven by the sandbox document (.goga/tools/pybuggy/sandbox.yml) and the product sandbox pytest fixture.
 site_url: https://qarium.github.io/goga-tool-pybuggy/
 repo_url: https://github.com/qarium/goga-tool-pybuggy
 repo_name: qarium/goga-tool-pybuggy
@@ -60,6 +60,7 @@ nav:
       - Overview: pipelines/index.md
       - api.automate: pipelines/api-automate.md
       - api.fix: pipelines/api-fix.md
+      - api.patch: pipelines/api-patch.md
       - Workflows: pipelines/workflows.md
   - CLI Reference:
       - goga tool pybuggy init: cli/init.md
@@ -69,6 +70,10 @@ nav:
       - goga tool pybuggy endpoint generate: cli/generate.md
       - goga tool pybuggy endpoint diff: cli/diff.md
   - Configuration: configuration.md
+  - Sandbox:
+      - Overview: sandbox/index.md
+      - Python API: sandbox/api.md
+      - Configuration: sandbox/configuration.md
   - Matchers:
       - Overview & assert_that: matchers/index.md
       - Assertions: matchers/asserts.md

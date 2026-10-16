@@ -1,18 +1,15 @@
 prompt: |
-  Answer (feedbacks, proposes, questions:`*.question.json` and etc) in Russian language.
+  **EXPRESSION STYLE**
+  - Explain technical concepts clearly for a Junior developer, with the precision expected by a Senior.
+    Avoid academic phrasing, unnecessary jargon, and condescension.
+  - Be concrete: describe behavior, causes, and consequences.
+    Briefly explain unfamiliar terms; use examples when helpful.
+  - Prefer concise, natural sentences and active voice.
+    Preserve logical connections; avoid choppy prose.
+  - Remove filler and repetition.
+    Preserve meaningful conditions, trade-offs, and uncertainty.
+  - Prioritize accuracy and coherence over brevity.
+    These rules govern wording, not response structure or formatting.
+  **LANGUAGE RULES**
+  Answer (feedbacks, proposes, questions:`*.question.json`, AFM plans) in Russian language.
   Any content written to the project files is in English.
-
-stages:
-  specify:
-    prompt: |
-      Task formalization process.
-
-      Requirements:
-      - Ask user about input task first
-      - When setting the task, it is necessary to develop stack technologies more carefully.
-      - Carefully examine all the link connections between cells
-
-      Constraints:
-      - Don't write code examples in the task
-      - Don't build architecture in the task
-      - Don't research project before request task

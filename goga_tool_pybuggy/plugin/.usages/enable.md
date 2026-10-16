@@ -98,3 +98,21 @@ loader:
   candidates through `sys.path`). Run `pytest` from the project root — the directory that both contains `api/` and
   is on `sys.path`. Running from another directory makes discovery silently return `[]`, so generated fixtures are
   not loaded and tests fail with `fixture '<name>' not found`.
+
+## Sandbox activation
+
+The same `plugin.install()` call also installs the pybuggy sandbox plugin: when the test
+repository holds the sandbox document at `.goga/tools/pybuggy/sandbox.yml` (under the pybuggy
+tools home), the plugin provides the product `sandbox` fixture — the sandbox starts lazily, on
+the first test that requests the fixture (mock dependency services and the instance under test,
+with visible progress), and stops at session finalization. With the document the call also
+normalizes the container-host address automatically (`host.docker.internal` inside a container,
+the host's own routable IP on a host run; an explicit `TESTCONTAINERS_HOST_OVERRIDE` always
+wins) — the sandbox works identically on a host and in a container, nothing to configure.
+Binding an api address to the sandbox is explicit — the test body calls
+`endpoint.bind(sandbox)` (or `api.bind(sandbox)`);
+the declared data then applies and the service liveness is ensured before every request.
+Without the document nothing changes — no fixture exists, and a test requesting it fails with
+pytest's standard `fixture 'sandbox' not found`. An invalid document fails the run at
+configphase, before any container. `--base-url` governs every test unless the test binds its
+api to the sandbox — a bound test uses the sandbox address.

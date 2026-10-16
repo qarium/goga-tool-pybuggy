@@ -41,6 +41,12 @@ Needs without a tool are a normal situation at this step: they are precisely the
 For each need, find a covering usage in the §8 registry (by the "data-mocks-utilities" role and
 the purpose). Record: need → existing key (covered) | no coverage (candidate for a new tool).
 
+For a case marked `sandbox` in [TESTCASES_PLAN], map its data-setup/mocking needs onto the two
+test-runtime sandbox usages of §8 (`sandbox-session`, `data-operations`, marked `sandbox, active`):
+data seeding and dependency mocks are covered by the sandbox services — no new tool is negotiated
+for them, and the sandbox usages are never edited. Needs the sandbox cannot satisfy (external
+utilities and the like) follow the regular path.
+
 ### Step 4. Agree on the tools with the user (WAIT)
 
 Via AskUserQuestion (one question per message, 2–4 options):

@@ -1,5 +1,6 @@
 language: python
-image: qarium/goga-python-3.13:2.0
+image: qarium/goga-tool-pybuggy:latest
+dockerfile: .goga/Dockerfile
 
 
 .base-ref: &base-ref 2.0.x
@@ -34,6 +35,10 @@ lint:
   ignore:
     - build/
     - .venv/
+
+tools:
+  basic-build: latest
+  autonomous: latest
 
 usages:
   github:

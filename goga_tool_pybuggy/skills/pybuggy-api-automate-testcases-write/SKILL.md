@@ -49,6 +49,10 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
   Source — the "requirements" column of the [TESTCASES_PLAN] matrix; every value belongs to the §3 registry
   from [TESTCASES_INTAKE]. A case from the reverse gap of elaborate (an API capability outside the user
   description) takes `—`.
+- **environment** — `sandbox` | `target env` (the default): from the "Sandbox assignment" decision in
+  [TESTCASES_PLAN]. `sandbox` is legal only when the requirements §4 "Sandbox" entry is `configured`;
+  the case's requests then go to the sandbox instance (bound in the test), ignoring the topic's
+  `--base-url`.
 
 **description** (multiline, subsections):
 
@@ -56,6 +60,9 @@ For each case in the matrix (`#### TC-<N>: <title>`), populate:
    factories, state transitions), prepared values. If a tool from [TOOLS_REPORT] performs the case's data
    setup, state in the Preconditions "data is prepared by the library `<key>`" (key — an existing usage
    from §8 or a new one from [TOOLS_REPORT]) **without** implementation details (no imports/calls).
+   A case with environment `sandbox` states its data setup in sandbox terms — which entities are seeded
+   into which sandbox dependency services, which dependencies are mocked and how — still behaviorally,
+   without tool keys for it (the sandbox usages cover it).
 2. **Execution steps** — numbered; for a chain case the steps follow the steps of its `TRACE-<N>` trace (Call
    → Effect → Verification); each step:
     - **Action:** what we do — a call to a topic endpoint. Positive — a call with valid data; negative —
@@ -158,6 +165,8 @@ not covered Z, excluded by decision W]
 - **severity** [blocker/critical/normal/minor/trivial]
 - **topic**
 - **requirements** [REQ-<N> — one or more, from the §3 requirements registry; "—" for a reverse-gap case]
+- **environment** [sandbox | target env — from the plan's Sandbox assignment; `sandbox` only when the
+  requirements §4 Sandbox is `configured`]
 - **description**
     - **Preconditions:**
         - [<system state and data for the scenario>]

@@ -44,6 +44,11 @@ keeping the two in lockstep. The `endpoint-ids` filter still keys on the raw id 
 (`/v1.0/clients` and `/v1_0/clients`), generate fails with a `ClickException` naming both —
 their directories are never merged.
 
+`<spec>` is the spec name sanitized by the same rule as `<endpoint.dir>` (so a spec named
+`some-spec` writes `api/some_spec/`); the config keys and the `--spec` filter keep the raw
+spec name. When two spec names sanitize to the same segment (`a-b` and `a_b`), generate
+fails with a `ClickException` naming both specs — detected before any write.
+
 Example — spec `shop`, endpoint `clients_startup_get` with statuses `200`, `404`:
 
 ```
@@ -137,6 +142,7 @@ def post_clients_calls_orderid_status(api: Api) -> Endpoint:
 | Non-finite YAML numbers (`.nan`, `.inf`) in a schema or contract value | Written as `null` — the JSON tokens `NaN`/`Infinity` are not valid strict JSON |
 | `ruff` not found, or a ruff invocation fails while formatting `api.py` | `click.ClickException` ("ruff executable not found…" / "ruff failed: …") — endpoints written before the failing one are already on disk |
 | Two distinct paths mapping to the same artifact directory | `click.ClickException` naming both paths — detected before any write |
+| Two spec names sanitizing to the same `<spec>` segment | `click.ClickException` naming both specs — detected before any write |
 
 ## Preconditions
 

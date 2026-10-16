@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from http.cookies import SimpleCookie
 from typing import TYPE_CHECKING, Any
 
@@ -65,56 +66,134 @@ class Api:
         self._assert_delay = assert_delay
         self._assert_field_class = assert_field_class
         self._assert_response_class = assert_response_class
+        self._preflight: tuple[Callable[[], None], Callable[[], None]] | None = None
 
     @property
     def base_url(self) -> str:
-        """Base URL held by the underlying resq.Session."""
+        """Base URL held by the underlying resq.Session.
+
+        Returns:
+            The base URL every request path resolves against.
+        """
         return self._client.base_url
 
     @property
     def adapter(self) -> str:
-        """Default resq adapter name fixed at construction (``"requests"`` in the sync runtime)."""
+        """Default resq adapter name fixed at construction (``"requests"`` in the sync runtime).
+
+        Returns:
+            The name of the default resq adapter.
+        """
         return self._default_adapter
 
     @property
     def auth(self) -> AuthBase | None:
-        """Default authenticator applied to every request."""
+        """Default authenticator applied to every request.
+
+        Returns:
+            The default authenticator, or None when none is set.
+        """
         return self._auth
 
     @auth.setter
     def auth(self, value: AuthBase | None) -> None:
-        """Set the default authenticator applied to every request."""
+        """Set the default authenticator applied to every request.
+
+        Args:
+            value: The authenticator to apply to every request, or None to clear it.
+        """
         self._auth = value
 
     @property
     def headers(self) -> dict[str, str]:
-        """Default request headers (empty dict when none given)."""
+        """Default request headers (empty dict when none given).
+
+        Returns:
+            The default request headers.
+        """
         return self._headers
 
     @property
     def cookies(self) -> SimpleCookie | None:
-        """Default request cookies, or None."""
+        """Default request cookies, or None.
+
+        Returns:
+            The default request cookies, or None when none were given.
+        """
         return self._cookies
 
     @property
     def assert_timeout(self) -> int | float | None:
-        """Baseline assert-polling timeout forwarded into each ``AssertConfig``."""
+        """Baseline assert-polling timeout forwarded into each ``AssertConfig``.
+
+        Returns:
+            The assert-polling timeout in seconds, or None when not set.
+        """
         return self._assert_timeout
 
     @property
     def assert_delay(self) -> int | float | None:
-        """Baseline assert-polling delay forwarded into each ``AssertConfig``."""
+        """Baseline assert-polling delay forwarded into each ``AssertConfig``.
+
+        Returns:
+            The assert-polling delay in seconds, or None when not set.
+        """
         return self._assert_delay
 
     @property
     def assert_field_class(self) -> str | None:
-        """Dotted path of a custom ``AssertField`` subclass (``module:Class``)."""
+        """Dotted path of a custom ``AssertField`` subclass (``module:Class``).
+
+        Returns:
+            The dotted path, or None when the default field class is used.
+        """
         return self._assert_field_class
 
     @property
     def assert_response_class(self) -> str | None:
-        """Dotted path of a custom ``Expect`` subclass (``module:Class``)."""
+        """Dotted path of a custom ``Expect`` subclass (``module:Class``).
+
+        Returns:
+            The dotted path, or None when the default response class is used.
+        """
         return self._assert_response_class
+
+    def bind(self, target: Any) -> None:
+        """Re-point this client at the address of ``target`` and adopt its request pre-flight.
+
+        The resq ``Session`` base URL is fixed at construction, so binding rebuilds the composed
+        session and closes and clears the cached override sessions. The pre-flight is adopted by
+        capability: a target exposing callable ``apply_pending`` and ``ensure_service`` (e.g. a
+        running sandbox) has both invoked before every request; any other target binds URL-only.
+        Re-binding replaces any previous pre-flight — the checks never stack. Every ``Endpoint``
+        over this ``Api`` rebinds together.
+
+        Args:
+            target: an object exposing ``base_url`` (preferred) or ``url``.
+
+        Raises:
+            TypeError: when ``target`` exposes neither a ``base_url`` nor a ``url`` attribute.
+        """
+        url = getattr(target, "base_url", None) or getattr(target, "url", None)
+
+        if not url:
+            raise TypeError(f"bind target must expose a 'base_url' or 'url' attribute, got {type(target).__name__}")
+
+        apply_pending = getattr(target, "apply_pending", None)
+        ensure_service = getattr(target, "ensure_service", None)
+        guarded = callable(apply_pending) and callable(ensure_service)
+        self._preflight = (apply_pending, ensure_service) if guarded else None
+
+        self._client.close()
+
+        for session in self._sessions.values():
+            session.close()
+
+        self._sessions.clear()
+        self._client = resq.Session(url, self._default_adapter, timeout=self._timeout)
+        self._base_url = url
+
+        logger.info("api bound", extra={"base_url": url, "guarded": guarded})
 
     def request(self, method: str, url_path: str, **kwargs: Any) -> resq.http.Response:
         """Dispatch a single serialized request to the matching resq verb.
@@ -130,6 +209,13 @@ class Api:
         Returns:
             The raw ``resq.http.Response``.
         """
+        if self._preflight is not None:
+            logger.debug("bound request pre-flight", extra={"method": method, "url_path": url_path})
+
+            apply_pending, ensure_service = self._preflight
+            apply_pending()
+            ensure_service()
+
         logger.debug("api request", extra={"method": method, "url_path": url_path})
 
         use_aliases = kwargs.pop("use_aliases", False)

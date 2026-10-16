@@ -1,6 +1,7 @@
 """Tests for the seven bootstrap writers — contract surface, round-trip guarantees, deltas.
 
-Covers the writers relocated from the 1.x ``init.py``, the two migration deltas, and the 2.0.1 restoration.
+Covers the writers relocated from the 1.x ``init.py``, the two migration deltas, the 2.0.1
+restoration, and the ``run_bootstrap`` packaged-usage distribution over the sandbox subtree.
 """
 
 import importlib.metadata
@@ -8,6 +9,7 @@ import importlib.resources
 import logging
 from pathlib import Path
 
+import click
 import pytest
 from goga_tool_pybuggy.commands.init import (
     document_config_examples,
@@ -15,6 +17,7 @@ from goga_tool_pybuggy.commands.init import (
     install_pybuggy,
     register_annotations,
     register_usages,
+    run_bootstrap,
     write_pybuggy_conftest,
     write_test_convention,
 )
@@ -35,6 +38,34 @@ _ANNOTATION_INPUT = {
     "pybuggy-api": "Use `pybuggy-api` for executing HTTP requests from test fixtures.",
     "conventions": "Use `conventions` for test code: pytest configuration, logging, and Allure reporting.",
 }
+
+# The packaged usage texts the bootstrap distributes — the api root (incl. ``asserts``) plus the
+# sandbox subtree; stems are unique across the two roots.
+_API_PACKAGE = importlib.resources.files("goga_tool_pybuggy.api")
+_SANDBOX_PACKAGE = importlib.resources.files("goga_tool_pybuggy.sandbox")
+_PACKAGED_USAGES = {
+    "api": (_API_PACKAGE / ".usages" / "api.md").read_text(encoding="utf-8"),
+    "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
+    "sandbox-session": (_SANDBOX_PACKAGE / ".usages" / "sandbox-session.md").read_text(encoding="utf-8"),
+    "sandbox-file": (_SANDBOX_PACKAGE / "config" / ".usages" / "sandbox-file.md").read_text(encoding="utf-8"),
+    "data-operations": (_SANDBOX_PACKAGE / "data" / ".usages" / "data-operations.md").read_text(encoding="utf-8"),
+    "migration-set": (_SANDBOX_PACKAGE / "migrations" / ".usages" / "migration-set.md").read_text(encoding="utf-8"),
+}
+
+# The four sandbox stems — download-only: copied as files, never registered in the consumer config.
+_SANDBOX_STEMS = ("sandbox-session", "sandbox-file", "data-operations", "migration-set")
+
+
+def _seed_bootstrap_target(root: Path) -> None:
+    """Seed a minimal bootstrappable consumer project — config plus the declared Dockerfile.
+
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
+    """
+    goga = root / ".goga"
+    goga.mkdir(exist_ok=True)
+    (goga / "config.yml").write_text("language: python\ndockerfile: Dockerfile\n", encoding="utf-8")
+    (root / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
 
 class TestBootstrapContract:
@@ -149,7 +180,7 @@ class TestNeverOverwriteGuards:
 
 
 class TestInstallPybuggy:
-    """Dynamic minor x-range install line derivation and idempotency."""
+    """Dynamic major.minor install line derivation and idempotency."""
 
     def test_install_pybuggy_derives_minor_line_and_is_idempotent(self, tmp_path, monkeypatch, caplog):
         """The line derives from the installed version, appends once, then no-ops."""
@@ -160,18 +191,18 @@ class TestInstallPybuggy:
         with caplog.at_level(logging.INFO):
             line = install_pybuggy(dockerfile)
 
-        assert line == "RUN goga install pybuggy -v 2.0.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert line == "RUN goga install pybuggy -v 2.0"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
         assert "pybuggy install line added to Dockerfile" in caplog.text
 
         assert install_pybuggy(dockerfile) is None
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
 
         dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "1.1.1.dev4+gabc")
 
-        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 1.1.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 1.1.x\n"
+        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 1.1"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 1.1\n"
 
     def test_install_pybuggy_ensures_newline_separator(self, tmp_path, monkeypatch):
         """A Dockerfile without a trailing newline still gets the install line on a fresh line."""
@@ -179,8 +210,24 @@ class TestInstallPybuggy:
         dockerfile.write_text("FROM python:3.12", encoding="utf-8")
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
 
-        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 2.0.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 2.0"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
+
+    def test_install_pybuggy_repins_a_stale_install_line_instead_of_appending(self, tmp_path, monkeypatch, caplog):
+        """An install line pinned by an older release (the ``.x`` spec) is repinned, never joined."""
+        dockerfile = tmp_path / "Dockerfile"
+        dockerfile.write_text("FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n", encoding="utf-8")
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        with caplog.at_level(logging.INFO):
+            line = install_pybuggy(dockerfile)
+
+        assert line == "RUN goga install pybuggy -v 2.0"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
+        assert "pybuggy install line repinned in Dockerfile" in caplog.text
+
+        assert install_pybuggy(dockerfile) is None
+        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0\n"
 
     def test_install_pybuggy_noop_without_file(self, tmp_path):
         """An absent Dockerfile is a no-op — the file is never created."""
@@ -448,3 +495,99 @@ class TestFixedAssetWriters:
 
         assert conftest.read_text(encoding="utf-8") == _EXPECTED_CONFTEST
         assert slot.read_text(encoding="utf-8") == packaged
+
+
+class TestRunBootstrapUsages:
+    """The ``run_bootstrap`` packaged-usage distribution — two roots, six stems, split destinations."""
+
+    def test_bootstrap_contract_distributes_six_stems_registers_api_pair_only(self, tmp_path, monkeypatch):
+        """After a template-mode bootstrap the api pair lands flat, the sandbox quartet in its subdirectory."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+
+        assert run_bootstrap(template_mode=True) == 0
+
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "sandbox"]
+        assert sorted(path.name[:-3] for path in (usages / "sandbox").iterdir()) == sorted(_SANDBOX_STEMS)
+
+        config = YAML().load(tmp_path / ".goga" / "config.yml")
+        assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
+        for stem in _SANDBOX_STEMS:
+            assert f"pybuggy-{stem}" not in config["codemanifest"]["usages"]
+            assert f"`pybuggy-{stem}`" not in config["codemanifest"]["annotations"]
+
+    def test_bootstrap_copies_all_and_registers_only_api_usages(self, tmp_path, monkeypatch):
+        """All six usage files land byte-identical at their destinations; only the api pair registers.
+
+        The scope constraint holds: nothing beyond the two packaged roots is copied — the plugin
+        and commands usage files never reach the target.
+        """
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+
+        assert run_bootstrap(template_mode=False) == 0
+
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "sandbox"]
+
+        for stem in ("api", "asserts"):
+            assert (usages / f"{stem}.md").read_text(encoding="utf-8") == _PACKAGED_USAGES[stem]
+
+        for stem in _SANDBOX_STEMS:
+            assert (usages / "sandbox" / f"{stem}.md").read_text(encoding="utf-8") == _PACKAGED_USAGES[stem]
+
+        config = YAML().load(tmp_path / ".goga" / "config.yml")
+        registered = config["codemanifest"]["usages"]
+        annotations = config["codemanifest"]["annotations"]
+
+        for stem in ("api", "asserts"):
+            assert registered[f"pybuggy-{stem}"] == f".goga/usages/cooks/pybuggy/{stem}.md"
+            assert f"`pybuggy-{stem}`" in annotations
+
+        for stem in _SANDBOX_STEMS:
+            assert f"pybuggy-{stem}" not in registered
+            assert f"`pybuggy-{stem}`" not in annotations
+
+    def test_bootstrap_template_mode_skips_existing_targets(self, tmp_path, monkeypatch, caplog):
+        """Template mode keeps an existing sandbox-usage sentinel across reruns; bare mode overwrites it."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+        target = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox" / "sandbox-session.md"
+        target.parent.mkdir(parents=True)
+        target.write_text("sentinel\n", encoding="utf-8")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=True) == 0
+
+        assert target.read_text(encoding="utf-8") == "sentinel\n"
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=True) == 0
+
+        assert target.read_text(encoding="utf-8") == "sentinel\n"
+        assert any(
+            record.message == "existing file kept untouched" and record.path == str(target) for record in caplog.records
+        )
+
+        monkeypatch.setattr(click, "confirm", lambda *_args, **_kwargs: False)
+        assert run_bootstrap(template_mode=False) == 0
+        assert target.read_text(encoding="utf-8") == _PACKAGED_USAGES["sandbox-session"]
+
+    def test_bootstrap_keeps_a_stale_flat_sandbox_copy(self, tmp_path, monkeypatch):
+        """A flat sandbox copy from an earlier distribution survives — no migration of old layouts."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+        stale = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox-session.md"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("old flat copy\n", encoding="utf-8")
+
+        assert run_bootstrap(template_mode=True) == 0
+
+        assert stale.read_text(encoding="utf-8") == "old flat copy\n"
+        fresh = stale.parent / "sandbox" / "sandbox-session.md"
+        assert fresh.read_text(encoding="utf-8") == _PACKAGED_USAGES["sandbox-session"]

@@ -20,11 +20,11 @@ returns nothing.
 `from_config` accepts a bare dotted name or a mapping:
 
 ```python
-PackageLoader.from_config("api")                                    # required=True
-PackageLoader.from_config({"name": "api", "required": False})       # mapping form
+PackageLoader.from_config("api")  # required=True
+PackageLoader.from_config({"name": "api", "required": False})  # mapping form
 ModuleLoader.from_config("my_plugin.conftest")
 
-PackageLoader("api")                 # positional construction; required=True (default)
+PackageLoader("api")  # positional construction; required=True (default)
 ModuleLoader("my_plugin.conftest")
 ```
 

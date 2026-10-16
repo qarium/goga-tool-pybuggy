@@ -25,7 +25,10 @@ for name, entry in config.specs.items():
     repo_ref = git.ref  # Optional[str]; branch/tag to clone; None → default branch
 ```
 
-- `name` (the dict key) is used by consumers for output and for the `--spec` filter.
+- `name` (the dict key) is used by consumers for output and for the `--spec` filter. The key is
+  free-form; consumers that lay artifacts on the filesystem derive a Python-identifier segment
+  from it (every non-word character becomes `_`, a leading digit is prefixed with `_` — the key
+  `some-spec` yields the `some_spec` directory), so any name is safe to declare.
 - `entry.git` can be `None` — the consumer treats such a spec as local and skips it silently.
 - `git.ref` is the default ref for cloning; the consumer can override it with the `--ref` option (priority order: `--ref` > `git.ref` > default branch).
 

@@ -125,7 +125,8 @@ def run_list(spec_name: Optional[str], with_status: bool = False) -> None:
         if not with_status:
             print(render_list(name, entry.location, endpoints))
             continue
-        statuses, removed = endpoint_statuses(cwd / "api" / name, endpoints)
+        # The spec segment is sanitized exactly as generate derives it, so the tree is always located.
+        statuses, removed = endpoint_statuses(cwd / "api" / sanitize_id(name), endpoints)
         # Print a block only when it has at least one line; removed segments count as lines.
         if endpoints or removed:
             print(render_status_list(name, entry.location, endpoints, statuses, removed))

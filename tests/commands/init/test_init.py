@@ -28,8 +28,8 @@ _PACKAGED_USAGES = {
     "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
 }
 
-# The install line expected under the patched package version "2.0.3" (minor x-range derivation).
-_INSTALL_LINE = "RUN goga install pybuggy -v 2.0.x"
+# The install line expected under the patched package version "2.0.3" (major.minor pin derivation).
+_INSTALL_LINE = "RUN goga install pybuggy -v 2.0"
 
 
 class _FakeCtx:
@@ -482,10 +482,24 @@ class TestRunBootstrap:
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         assert config["build"]["review"]["skip"] is True
         assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        assert config["codemanifest"]["usages"]["pybuggy-asserts"] == ".goga/usages/cooks/pybuggy/asserts.md"
         assert config["codemanifest"]["usages"]["conventions"] == ".goga/usages/conventions.md"
+        # The sandbox capability usages are download-only: files copied into the sandbox
+        # subdirectory, never registered.
+        assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
+        sandbox = usages / "sandbox"
+        assert (sandbox / "sandbox-session.md").exists()
+        assert (sandbox / "sandbox-file.md").exists()
+        assert (sandbox / "data-operations.md").exists()
+        assert (sandbox / "migration-set.md").exists()
         annotations = config["codemanifest"]["annotations"]
         assert "`pybuggy-api`" in annotations
+        assert "`pybuggy-asserts`" in annotations
         assert "`conventions`" in annotations
+        assert "`pybuggy-sandbox-session`" not in annotations
+        assert "`pybuggy-sandbox-file`" not in annotations
+        assert "`pybuggy-data-operations`" not in annotations
+        assert "`pybuggy-migration-set`" not in annotations
 
         assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == _EXPECTED_CONFTEST
         dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")

@@ -11,7 +11,11 @@ goga pipeline pybuggy:api.automate   # 3. run the pipeline
 ## 1. Install: `goga install pybuggy`
 
 Installs the pybuggy package into the **goga**(<https://github.com/qarium/goga>)
-environment of the target project.
+environment of the target project. The package carries the container/DB/Kafka stack as
+main dependencies (`testcontainers`, `psycopg`, `kafka-python`, `requests`); running
+tests with a sandbox document (`.goga/tools/pybuggy/sandbox.yml`) present additionally
+requires a docker-compatible container runtime in the test environment (see
+[Sandbox](sandbox/index.md)).
 
 ## 2. Initialize: `goga tool pybuggy init`
 
@@ -31,11 +35,14 @@ the goga-python family hints, newest as the default) and the built-image name, t
 `base_url` (required, a Jinja2 template), the optional scalar plugin keys
 (Enter skips), and the first spec (`name`, `type`, `location`, optional git fields).
 The Dockerfile itself is never asked about — it is always created at
-`.goga/Dockerfile` from the answered base image. After the block, pybuggy asks its two
+`.goga/Dockerfile` from the answered base image. After the block, pybuggy asks its
 follow-ups itself: the additional specs (`Add another spec?`, a per-field loop), then
-the autonomy confirm (**"Run the api.automate pipeline unattended (autonomous mode)?"
-defaults to No**; Yes writes the `pipelines` section entry — see
-[Autonomous runs](pipelines/api-automate.md#autonomous-runs)). Whatever you answer to
+one autonomy confirm per pipeline — **"Run the api.automate pipeline unattended
+(autonomous mode)?"** and **"Run the api.patch pipeline unattended (autonomous
+mode)?"**, each defaulting to No**; a Yes writes that pipeline's entry in the
+`pipelines` section (see [Automate — Autonomous
+runs](pipelines/api-automate.md#autonomous-runs) and [Patch — Autonomous
+runs](pipelines/api-patch.md#autonomous-runs)). Whatever you answer to
 the core tools question, pybuggy is always recorded in `.goga/config.yml`. The session
 writes `.goga/config.yml`, the Dockerfile, and the tool config
 `.goga/tools/pybuggy/config.yml`:
@@ -60,12 +67,13 @@ See [Configuration](configuration.md).
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/api.md`, `asserts.md` — the packaged usages | written (bare overwrites; template skips existing) |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) | written (bare overwrites; template skips existing) |
+| `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | written (bare overwrites; template skips existing); flat copies from earlier distributions stay untouched |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted (idempotent, comment-only) |
 | `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
-| `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version range is derived from the installed pybuggy version |
-| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten) |
+| `RUN goga install pybuggy -v <N.M>` in the project Dockerfile | appended when the file exists (idempotent); the version is derived from the installed pybuggy version |
+| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten); the sandbox capability usage files are copied to `.goga/usages/cooks/pybuggy/sandbox/` without registration — they may or may not apply to a given cell, and the config usages bind every cell |
 | root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
 The command requires a Dockerfile — and the session always creates one (the fixed

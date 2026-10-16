@@ -561,16 +561,21 @@ single document per tool is correct).
 
 **Constants:**
 ```python
-_PIPELINE = "api.automate"                      # lives in amendment.py
+_PIPELINE = "api.automate"  # lives in amendment.py
 _WINDOW_STAGES = (
-    "review-testcases", "create-testcases", "code-design", "design-review",
-    "coding-plan", "plan-review", "commit-changes",
+    "review-testcases",
+    "create-testcases",
+    "code-design",
+    "design-review",
+    "coding-plan",
+    "plan-review",
+    "commit-changes",
 )
 _BUILD_NAME = "build"
 _BUILD_TITLE = "Build tests"
 _BUILD_SCRIPT = 'python3 -P -m goga.build "$(python3 -m goga history path -f plan.md)"'
 _BUILD_AFTER_SCRIPT = "rm -rf .ralphex"
-_BUILD_TIMEOUT = "8h"                           # Go duration grammar, verbatim
+_BUILD_TIMEOUT = "8h"  # Go duration grammar, verbatim
 _BUILD_AFTER = ("commit-changes",)
 ```
 
@@ -746,29 +751,40 @@ tests/
 Recorder doubles (no mocks of business logic; platform boundaries only):
 
 ```python
-class _RecorderHooks:                    # subscription surface
+class _RecorderHooks:  # subscription surface
     calls: list[tuple[str, str, str, object]]
-    def subscribe(self, domain, action, name, hook): self.calls.append((domain, action, name, hook))
 
-class _RecorderContext:                  # status registration surface
+    def subscribe(self, domain, action, name, hook):
+        self.calls.append((domain, action, name, hook))
+
+
+class _RecorderContext:  # status registration surface
     calls: list[tuple[str, str, str | None, str | None]]
-    def register(self, name, artifact, after=None, before=None): self.calls.append(...)
 
-class _AmendmentView:                    # WorkflowAmendment double
-    def __init__(self, pipeline): self.pipeline, self.contributed = pipeline, []
-    def contribute(self, document): self.contributed.append(document)
+    def register(self, name, artifact, after=None, before=None):
+        self.calls.append(...)
+
+
+class _AmendmentView:  # WorkflowAmendment double
+    def __init__(self, pipeline):
+        self.pipeline, self.contributed = pipeline, []
+
+    def contribute(self, document):
+        self.contributed.append(document)
 ```
 
 The config seam fixture (replaces every `CONFIG_PATH` monkeypatch):
 
 ```python
 @pytest.fixture
-def tool_config(tmp_path, monkeypatch):          # writes the standard tree under a chdir'd root
+def tool_config(tmp_path, monkeypatch):  # writes the standard tree under a chdir'd root
     monkeypatch.chdir(tmp_path)
+
     def _write(text: str) -> None:
         path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
+
     return _write
 ```
 

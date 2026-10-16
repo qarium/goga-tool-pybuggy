@@ -9,8 +9,8 @@ An HTTP library for Python. matchcrest uses it directly (not through resq) in tw
 ```python
 import requests
 
-requests.codes["ok"]          # 200
-requests.codes["not_found"]   # 404
+requests.codes["ok"]  # 200
+requests.codes["not_found"]  # 404
 ```
 
 `matchcrest.matchers.response.ResponseCodeMatcher` uses this registry — the matcher accepts a code name as a string and resolves it to a number via `requests.codes[name]`.
@@ -21,7 +21,7 @@ requests.codes["not_found"]   # 404
 import requests
 
 response = requests.get(url)
-response.status_code   # int
+response.status_code  # int
 ```
 
 `matchcrest.utils.utils.url_is_live` uses this call — a liveness probe over GET; 2xx counts as "alive".

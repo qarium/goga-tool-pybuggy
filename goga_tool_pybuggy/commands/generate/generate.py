@@ -45,10 +45,11 @@ _NON_IDENT_RE = re.compile(r"\W")
 def _safe_identifier(text: str) -> str:
     """Make ``text`` usable as a Python identifier segment (package dir or def name).
 
-    Applied identically to the endpoint directory name and the fixture name, so the two never disagree.
+    Applied identically to the spec directory name, the endpoint directory name and the fixture
+    name, so every directory of the artifact path is importable and the names never disagree.
 
     Args:
-        text: Lowercased identifier candidate (typically an endpoint id).
+        text: Identifier candidate (a spec name or an endpoint id).
 
     Returns:
         Text safe for use as a package directory name and a ``def`` name.
@@ -389,18 +390,22 @@ def _write_artifacts(to_generate: list[tuple[str, list[Endpoint]]], force: bool,
         OSError: If any schema/meta.json/api.py/``__init__.py`` write fails.
     """
     for name, endpoints in to_generate:
+        # The spec segment and the endpoint segment share one sanitization rule, so every
+        # directory of the artifact path is a valid Python package segment.
+        spec_seg = _safe_identifier(name)
+
         for endpoint in endpoints:
             # One sanitized id drives both the directory and the fixture name, so the two never disagree.
             safe_id = _safe_identifier(endpoint.id)
-            endpoint_dir = cwd / "api" / name / safe_id
+            endpoint_dir = cwd / "api" / spec_seg / safe_id
             schemas_dir = endpoint_dir / "schemas"
             schemas_dir.mkdir(parents=True, exist_ok=True)
 
-            test_dir = cwd / "tests" / name / safe_id
+            test_dir = cwd / "tests" / spec_seg / safe_id
             test_dir.mkdir(parents=True, exist_ok=True)
 
             # Empty __init__.py markers on every directory of the api.py path
-            # (api/, api/<name>/, api/<name>/<id>/) so the fixture tree is an importable package.
+            # (api/, api/<spec>/, api/<spec>/<id>/) so the fixture tree is an importable package.
             _write_package_markers(endpoint_dir, cwd / "api", force)
 
             for status_code, schema in endpoint.response.items():
@@ -442,7 +447,8 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
         click.ClickException: If spec_name is set but not found in config specs; a selected spec has
             no "paths"; a selected spec is invalid (not a mapping, or a response key outside the
             legal status-key shapes); endpoint_ids contains an id not found in any selected spec;
-            or two endpoint ids of one spec map to the same directory name.
+            two endpoint ids of one spec map to the same directory name; or two selected spec
+            names map to the same directory name.
     """
     # Step 1: Load the config from the fixed path
     config: Config = load_config()
@@ -482,6 +488,16 @@ def run_generate(spec_name: Optional[str], force: bool, endpoint_ids: Optional[l
                     f"rename one path"
                 )
             owners[safe_id] = (endpoint.id, endpoint.path)
+
+    # Step 5.6: Reject sanitized spec-segment collisions before any write; colliding specs would mix artifacts.
+    spec_owners: dict[str, str] = {}
+    for name, _ in to_generate:
+        spec_seg = _safe_identifier(name)
+        if spec_seg in spec_owners:
+            raise click.ClickException(
+                f"specs {spec_owners[spec_seg]!r} and {name!r} both map to directory {spec_seg!r}; rename one spec"
+            )
+        spec_owners[spec_seg] = name
 
     # Step 6: Phase 2 — scaffold artifacts for each selected spec/endpoint
     _write_artifacts(to_generate, force, cwd)

@@ -1,0 +1,70 @@
+name: PybuggyApiPatch
+description: "Pybuggy API-test patch lifecycle"
+---
+
+- name: collect-intent
+  title: "Collect patch intent"
+  communication: true
+  prompt: |
+    Constraints:
+      - Don't research a project until you receive the task
+  skills:
+    - goga-tool-pybuggy-api-patch-collect
+
+- name: analyze-impact
+  title: "Analyze impact"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-patch-analyze
+
+- name: review-impact
+  title: "Review impact dossier"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-patch-impact-review
+
+- name: apply-manifests
+  title: "Apply manifest changes"
+  skills:
+    - goga-tool-pybuggy-api-patch-apply
+
+- name: code-design
+  title: "Design code changes"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-patch-design
+
+- name: design-review
+  title: "Review code design"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-patch-design-review
+
+- name: coding-plan
+  title: "Create coding plan"
+  communication: true
+  prompt: |
+    Extract rules from the convention and add them to the plan as mandatory rules.
+  skills:
+    - goga-tool-pybuggy-api-patch-plan
+
+- name: plan-review
+  title: "Review coding plan"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-api-patch-plan-review
+
+- name: commit-changes
+  title: "Commit changes"
+  communication: true
+  prompt: |
+    Commit all added and modified files.
+
+- name: accept-result
+  title: "Accept patch results"
+  communication: true
+  trigger: manual
+  prompt: |
+    Commit changes after fixes
+  skills:
+    - goga-tool-pybuggy-api-patch-accept

@@ -9,17 +9,23 @@ extending the contribution.
 
 ## What the cell provides
 
-- `amend_workflow(context)` — the amendment moment: resolves autonomy for the running
-  pipeline and contributes the document when enabled; a silent no-op otherwise. The gate
-  reads the `name` of the platform-delivered `PipelineIdentity` — the discovered,
-  installer-namespaced form `pybuggy:api.automate`.
-- `build_autonomous_workflow()` — the pure builder of the contributed document: the
-  seven-stage auto-approval window (review-testcases, create-testcases, code-design,
-  design-review, coding-plan, plan-review, commit-changes) and the build stage added after
-  commit-changes (the topic plan build, eight-hour timeout, scratch-tree cleanup). The
+- `amend_workflow(context)` — the amendment moment: resolves the contribution record for the
+  running pipeline and contributes the document when autonomy is enabled; a silent no-op
+  otherwise. The gate reads the `name` of the platform-delivered `PipelineIdentity` — the
+  discovered, installer-namespaced form (pybuggy:api.automate or pybuggy:api.patch) — and
+  matches it against the compile-time contribution records.
+- `PipelineContribution` — the record type of one pipeline's contribution: the qualifying run
+  identity, the tool-config axis key, the auto-approval window, and the build artifact. The
+  package ships two records:
+  - automate — axis `api.automate`, window review-testcases … commit-changes, build over
+    `plan.md`;
+  - patch — axis `api.patch`, window review-impact … commit-changes, build over `workplan.md`.
+- `build_autonomous_workflow(contribution)` — the pure builder of the contributed document:
+  the record's auto-approval window and the build stage added after commit-changes (the
+  topic build of the record's artifact, eight-hour timeout, scratch-tree cleanup). The
   acceptance stage is never part of the contribution. The builder returns a real platform
-  `WorkflowDocument` (the models are imported at call time) — the delivery reads the
-  buffer by attribute, so a plain mapping cannot be contributed.
+  `WorkflowDocument` (the models are imported at call time) — the delivery reads the buffer
+  by attribute, so a plain mapping cannot be contributed.
 
 ## Subscribe from the registration surface
 
@@ -36,8 +42,9 @@ def register_hooks(hooks):
 
 ## Preconditions and side effects relevant to the consumer
 
-- Autonomy is enabled per pipeline name in the tool config `pipelines` axis; the hook is a
-  silent no-op for every other pipeline and for every disabled configuration.
+- Autonomy is enabled per pipeline name in the tool config `pipelines` axis — the record's
+  axis key (`api.automate`, `api.patch`); the hook is a silent no-op for every other
+  pipeline and for every disabled configuration.
 - A raised error inside the hook stops the command with a clean error naming pybuggy — the
   consumer never wraps the hook in error suppression.
 - An authored project workflow wins per slot over the contribution — a project can

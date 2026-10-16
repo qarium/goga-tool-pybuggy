@@ -68,8 +68,9 @@ An empty section = an incomplete sub-skill = pipeline STOP.
   the backbone of test-case traceability
 - confirm the endpoint selection and ambiguous decisions with the user
 - record the paths of the generated artifacts (`api.py`, `schemas`)
-- record the topic version context (spec ref + target environment with its base URL) in the
-  requirements artifact — downstream pipelines and every recorded test run command
-  (`pytest ... --base-url <url>`) rely on it
+- record the topic version context (spec ref + target environment with its base URL + the
+  run-target decision — `all cases sandbox` / `target env` / `mixed` — asked at intake when the
+  sandbox document exists) in the requirements artifact — downstream pipelines and every recorded
+  test run command (`pytest ... --base-url <url>`) rely on it
 - store the final requirements artifact at the path printed by `goga history path -f requirements.md` (the current topic's history directory)
 - ask the user open questions with answer options
