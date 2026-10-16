@@ -57,6 +57,7 @@ docs/sandbox/api.md:
   - goga_tool_pybuggy/sandbox
   - goga_tool_pybuggy/sandbox/data
   - goga_tool_pybuggy/plugin
+  - goga_tool_pybuggy/api
 docs/sandbox/configuration.md:
   - goga_tool_pybuggy/sandbox/config
   - goga_tool_pybuggy/sandbox/migrations

@@ -1,6 +1,6 @@
 # Python API
 
-The Python surface of the sandbox: the product `sandbox` fixture, the session baseline,
+The Python surface of the sandbox: the built-in `sandbox` fixture, the session baseline,
 binding the api to the running instance, and the data operations tests declare on the
 dependency services. Data operations are write-only — reading dependency state back is
 not part of the surface; assert on the responses of the service under test. The services
@@ -10,10 +10,10 @@ environments) is covered in the [overview](index.md).
 
 ## The sandbox fixture
 
-The product owns the `sandbox` fixture (session-scoped): do not define your own — a
-consumer definition would shadow it and feed the reset and the api pre-flight a foreign
-object. Take the fixture as a test argument, or let the `@services` preset decorator
-request it for you:
+pybuggy owns the session-scoped `sandbox` fixture — do not define your own; a consumer
+definition would shadow it and feed the reset and the api pre-flight a foreign object.
+Take the fixture as a test argument, or let the `@services` preset decorator request it
+for you:
 
 ```python
 def test_direct(sandbox):  # requests the sandbox explicitly
@@ -25,12 +25,12 @@ def test_marked(api):  # the decorator's usefixtures mark pulls the sandbox in
     ...
 ```
 
-The sandbox starts on the first use and stops at session finalization; the stop is
-product-owned.
+Starting and stopping are automatic — the sandbox starts on first use and stops at
+session finalization.
 
 ## Session baseline
 
-A session-scoped consumer fixture depending on the product one establishes the
+A session-scoped consumer fixture depending on the built-in one establishes the
 code-declared baseline:
 
 ```python
@@ -40,26 +40,25 @@ import pytest
 
 @pytest.fixture(scope="session")
 def seeded(sandbox):
-    with sandbox.baseline():  # the baseline boundary — author code
+    with sandbox.baseline():  # the baseline block — author code
         sandbox.postgresql("db").insert("customers", rows=[{"id": 1, "name": "Ann"}])
         sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
-    yield sandbox  # stop is product-owned — do not stop manually
+    yield sandbox  # stopping is automatic — do not stop manually
 ```
 
-Operations inside the baseline boundary apply immediately and become the session baseline:
-after every reset the services return to exactly this state. Baseline rows may use
-`$ref` / `$lookup` references like any declaration — after every reset the journal replay
-re-applies and re-resolves them, so generated keys stay consistent between the baseline
-and the tests built on top of it.
+Operations inside the `with sandbox.baseline()` block apply immediately and become the
+session baseline: after every reset the services return to exactly this state. Baseline
+rows may use `$ref` / `$lookup` references like any declaration — after every reset the
+journal replay re-applies and re-resolves them, so generated keys stay consistent
+between the baseline and the tests built on top of it.
 
 ## Binding the api
 
-Binding the api to the sandbox is explicit — call `endpoint.bind(sandbox)` (or
-`api.bind(sandbox)`) once in the test body. The bind replaces the client's address with the
-sandbox's service address and installs the request pre-flight: the test's declared data
-applies as one batch and the instance liveness is ensured before every request. Every other
-test uses the configured `base_url` (`--base-url` / `BASE_URL`
-/ config) with no pre-flight.
+Binding is explicit — call `endpoint.bind(sandbox)` (or `api.bind(sandbox)`) once in
+the test body. The bind replaces the client's address with the sandbox's service
+address and installs the request pre-flight: the test's declared data applies as one
+batch and the instance liveness is checked before every request. Every other test uses
+the configured `base_url` (`--base-url` / `BASE_URL` / config) with no pre-flight.
 
 ```python
 from goga_tool_pybuggy.api import Api, Endpoint
@@ -78,14 +77,14 @@ def test_checkout(checkout, sandbox):
 ```
 
 - All endpoints of one test share one `Api` — one `bind(sandbox)` rebinds them together.
-- `--base-url` applies to the tests that do not bind; a bound test uses the sandbox address.
-  The option itself stays required (see
+- `--base-url` applies to the tests that do not bind; a bound test uses the sandbox
+  address. The option itself stays required (see
   [Preconditions](index.md#preconditions-and-side-effects)).
-- Declared operations apply automatically as one batch before the first service call — also
-  the moment when `$ref` / `$lookup` row values resolve, so a declaration made after
+- Declared operations apply automatically as one batch before the first service call —
+  also the moment `$ref` / `$lookup` row values resolve, so a declaration made after
   earlier service calls may reference rows those calls created (`$lookup`).
-- A crashed instance fails the affected tests with an indication that the instance died
-  and its output attached.
+- A crashed instance fails the affected tests, with the instance output attached to the
+  failure.
 
 ## Service views
 
@@ -101,7 +100,7 @@ sandbox.kafka("events")    # a kafka service named events
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped
 address the `{{<service>.host}}` / `{{<service>.port}}` placeholders of the instance env
 resolve to. The sandbox object itself exposes `base_url` — the address of the running
-instance under test, the value a bound api client resolves to. Nothing is executed at
+service under test, the value a bound api client resolves to. Nothing executes at
 declaration time — the sandbox applies the accumulated batch automatically before the
 first call to the service under test; an unknown service name fails fast.
 
@@ -111,8 +110,9 @@ first call to the service under test; an unknown service name fails fast.
 sandbox.postgresql("db").insert("orders", rows=[{"id": 1, "total": 100}])
 ```
 
-One `insert` call targets one table; the rows apply in list order inside one transaction.
-A plain mapping column value binds as JSON text — the json/jsonb column form.
+One `insert` call targets one table; the rows apply in list order inside one
+transaction. A plain mapping column value binds as JSON text — the json/jsonb column
+form.
 
 ### Referencing rows
 
@@ -127,13 +127,13 @@ hardcoded key. Two reference forms:
   sandbox.postgresql("db").insert("orders", rows=[{"customer_id": {"$ref": "customers.0.id"}, "total": 500}])
   ```
 
-  The value is the real applied column value — an autoincrement id resolves to whatever the
-  sequence generated (deterministic after a reset: 1, 2, 3 in application order). A later row
-  of one insert may reference an earlier row; inserting an extra earlier parent row shifts
-  the indexes.
+  The value is the real applied column value — an autoincrement id resolves to whatever
+  the sequence generated (deterministic after a reset: 1, 2, 3 in application order). A
+  later row of one insert may reference an earlier row; inserting an extra earlier
+  parent row shifts the indexes.
 
-- **`$lookup`** — matches the current database state by predicate, regardless of who created
-  the row (the service under test included):
+- **`$lookup`** — matches the current database state by predicate, regardless of who
+  created the row (the service under test included):
 
   ```python
   # the service itself created the customer through its API
@@ -146,18 +146,18 @@ hardcoded key. Two reference forms:
   ```
 
   The predicate must match exactly one row — zero matches fail naming the missing
-  precondition, several matches fail naming the ambiguity. The resolved column defaults to
-  the table's primary key; pass `"column"` to choose another.
+  precondition, several matches fail naming the ambiguity. The resolved column defaults
+  to the table's primary key; pass `"column"` to choose another.
 
 Common rules:
 
 - References are recognized only as top-level row values; a nested dict carrying `$ref`
   stays plain column data — and a plain mapping column value binds as JSON text (the
   json/jsonb column form).
-- The reference grammar is validated at declaration — a malformed form fails before anything
-  executes.
-- Resolution happens at apply time, right before the first service call; declarations are
-  never rewritten, so baseline replay re-resolves references after every reset.
+- The reference grammar is validated at declaration — a malformed form fails before
+  anything executes.
+- Resolution happens at apply time, right before the first service call; declarations
+  are never rewritten, so baseline replay re-resolves references after every reset.
 - References resolve within one postgres service; rows created by raw sql startup
   statements are addressable only through `$lookup`.
 
@@ -191,21 +191,22 @@ path (the [mock credentials](index.md#preconditions-and-side-effects) apply).
 sandbox.kafka("events").produce("orders.events", {"id": 1}, key="1")
 ```
 
-A produced topic must be declared on the kafka service entry of the sandbox document — an
-undeclared topic fails the operation. The wire encoding is fixed: a mapping value arrives as
-JSON bytes, a plain string value as UTF-8 bytes, and the key (when given) as UTF-8 — the
-service under test consumes exactly that.
+A produced topic must be declared on the kafka service entry of the sandbox document —
+an undeclared topic fails the operation. The wire encoding is fixed: a mapping value
+arrives as JSON bytes, a plain string value as UTF-8 bytes, and the key (when given) as
+UTF-8 — the service under test consumes exactly that.
 
 ## Presets
 
-Data can also be declared directly on the test as a **preset** — each declaration carries
-the same fields as the matching view operation, and presets apply on top of the reset
-state, ahead of the test's own operations. All four kinds are accepted (`postgresql`,
-`kafka`, `vault`, `http`); an unsupported kind or a malformed row fails at decoration
-time, before anything starts. The decorator also stamps a `usefixtures` mark
-that pulls the sandbox into the test's fixture closure, so the reset and the presets run.
-The mark does not imply binding: a preset-declaring test that calls the service still
-takes the `sandbox` argument and calls `endpoint.bind(sandbox)` explicitly:
+Data can also be declared directly on the test as a **preset** — each declaration
+carries the same fields as the matching view operation, and presets apply on top of the
+reset state, ahead of the test's own operations. All four kinds are accepted
+(`postgresql`, `kafka`, `vault`, `http`); an unsupported kind or a malformed row fails
+at decoration time, before anything starts. The decorator also stamps a `usefixtures`
+mark that pulls the sandbox into the test's fixture closure, so the reset and the
+presets run. The mark does not imply binding: a preset-declaring test that calls the
+service still takes the `sandbox` argument and calls `endpoint.bind(sandbox)`
+explicitly:
 
 ```python
 from goga_tool_pybuggy import services
@@ -229,7 +230,7 @@ def test_checkout(api, sandbox):
 
 ## Ordering and apply timing
 
-Operations apply in the order declared, per service: presets first, then in-test
-operations in call order; foreign-key chains are expressed by declaring parents before
-children — one `insert` call targets one table (the database constraint still requires the
-parent row first). Reset-side cleanup needs no ordering from the author.
+Operations apply in declaration order, per service: presets first, then in-test
+operations in call order. Foreign-key chains are expressed by declaring parents before
+children — one `insert` call targets one table (the database constraint still requires
+the parent row first). Reset-side cleanup needs no ordering from the author.
