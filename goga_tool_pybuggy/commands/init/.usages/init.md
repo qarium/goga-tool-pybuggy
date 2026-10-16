@@ -69,7 +69,8 @@ buffers the config amendments — the tool's declared intent in the session answ
   `.goga/config.yml`; the `pybuggy init` bootstrap enforces it afterwards (`ensure_review_skip`);
 - the Dockerfile pair — the fixed `.goga/Dockerfile` path plus the answered FROM (the engine's generator writes the
   Dockerfile from exactly this pair) and the answered built-image name;
-- the `tools` record `pybuggy: <installed-major.minor>` — a quoted string, e.g. `"2.0"` — merged over whatever
+- the `tools` record `pybuggy: <installed-major.minor>.x` — a quoted string, e.g. `"2.0.x"` (the floating
+  x-range pin — a concrete `"2.0"` would pin `==2.0` forever) — merged over whatever
   the core tools question collected, so pybuggy is always recorded in `.goga/config.yml` whatever the answer to
   `Add tools?` was.
 
@@ -87,7 +88,7 @@ After the session (bare and template modes only), the command delivers the files
 | commented example records for the absent members of `.goga/tools/pybuggy/config.yml` | added when the file exists, idempotent |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
-| the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `RUN goga install pybuggy -v <major.minor>` | written when the file exists — appended when absent, repinned in place when a previous release's line shape differs; idempotent at the current pin |
+| the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `RUN goga install pybuggy -v <major.minor>.x` | written when the file exists — appended when absent, repinned in place when a previous release's line shape differs (e.g. the concrete `-v 2.0`); idempotent at the current pin |
 | the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`) | always registered, idempotent; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 

@@ -129,7 +129,7 @@ class TestSessionSmoke:
         assert config["image"] == "pybuggy-smoke:latest"
         assert config["dockerfile"] == ".goga/Dockerfile"  # the amended fixed path
         assert set(config["tools"]) == {"pybuggy"}  # amended regardless of the declined gate
-        assert re.fullmatch(r"\d+\.\d+", config["tools"]["pybuggy"])  # major.minor, a string value
+        assert re.fullmatch(r"\d+\.\d+\.x", config["tools"]["pybuggy"])  # major.minor x-range, a string value
         assert isinstance(config["tools"]["pybuggy"], str)
         assert "build" not in config  # the build.review.skip amendment never reaches the config (q2/A)
         assert "codemanifest" not in config  # both gates declined — the offline guarantee
@@ -176,7 +176,7 @@ class TestSessionSmoke:
         assert (
             (tmp_path / ".goga" / "Dockerfile")
             .read_text(encoding="utf-8")
-            .endswith("RUN goga install pybuggy -v 2.0\n")
+            .endswith("RUN goga install pybuggy -v 2.0.x\n")
         )
         assert (tmp_path / "conftest.py").exists()
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]

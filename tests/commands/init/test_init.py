@@ -28,8 +28,8 @@ _PACKAGED_USAGES = {
     "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
 }
 
-# The install line expected under the patched package version "2.0.3" (major.minor pin derivation).
-_INSTALL_LINE = "RUN goga install pybuggy -v 2.0"
+# The install line expected under the patched package version "2.0.3" (major.minor x-range pin derivation).
+_INSTALL_LINE = "RUN goga install pybuggy -v 2.0.x"
 
 
 class _FakeCtx:

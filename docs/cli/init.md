@@ -70,8 +70,8 @@ Two core sections are skipped by pybuggy:
   file.
 
 The `tools` core question stays: whatever the user answers (or declines), pybuggy
-amends the recorded tools with its own entry — `pybuggy: <installed-major.minor>`, a
-quoted string (e.g. `"2.0"`), the same major.minor line the Dockerfile install line
+amends the recorded tools with its own entry — `pybuggy: <installed-major.minor>.x`, a
+quoted string (e.g. `"2.0.x"`), the same x-range the Dockerfile install line
 pins — so pybuggy is always recorded in `.goga/config.yml`; tools the user added
 are kept.
 
@@ -120,8 +120,9 @@ bootstrap is skipped, the code is propagated unchanged.
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
 The install line is derived from the **installed pybuggy version** — e.g. an
-installed `2.0.3` yields `RUN goga install pybuggy -v 2.0` (a concrete major.minor
-form is a valid `goga install` version pin); there is no hardcoded version pin. The Dockerfile
+installed `2.0.3` yields `RUN goga install pybuggy -v 2.0.x` (the minor x-range
+form — a floating patch pin within the installed major.minor line; a concrete
+`-v 2.0` would pin `==2.0` forever); there is no hardcoded version pin. The Dockerfile
 path is resolved from the consumer config `dockerfile` field so the line lands in the
 project's actual Dockerfile (a custom session answer wins).
 

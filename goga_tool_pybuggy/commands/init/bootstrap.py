@@ -18,7 +18,7 @@ from ...plugin import PluginConfigKeys
 logger = logging.getLogger(__name__)
 
 # Any pybuggy install line a previous release of this writer may have pinned (the spec
-# shape changed with the major.minor pin — e.g. ``-v 2.0.x`` before it). Matching the
+# shape changed with the x-range pin — e.g. the concrete ``-v 2.0`` before it). Matching the
 # command prefix, not the exact current line text, keeps re-running the bootstrap
 # idempotent across releases: the found line is repinned, never joined by a second one.
 _INSTALL_LINE = re.compile(r"^[ \t]*RUN goga install pybuggy\b[^\n]*$", re.MULTILINE)
@@ -219,11 +219,13 @@ def ensure_review_skip(config_path: Path) -> bool:
 
 
 def install_pybuggy(dockerfile_path: Path) -> str | None:
-    """Write the pybuggy-install ``RUN`` line, pinned to the installed major.minor version line.
+    """Write the pybuggy-install ``RUN`` line, pinned to the installed major.minor x-range.
 
-    The version comes from the installed ``goga-tool-pybuggy`` distribution; only the install
-    line is ever written. An install line pinned by an older release of this writer (a
-    different spec shape, e.g. ``-v 2.0.x``) is repinned in place — never joined by a
+    The version comes from the installed ``goga-tool-pybuggy`` distribution; the pin is the
+    floating x-range form (e.g. ``-v 2.0.x`` — a concrete ``-v 2.0`` would pin ``==2.0``
+    forever, freezing the consumer at the line's zeroth patch); only the install line is
+    ever written. An install line pinned by an older release of this writer (a different
+    spec shape, e.g. the concrete ``-v 2.0``) is repinned in place — never joined by a
     second, conflicting line — so re-running the bootstrap stays idempotent across releases.
 
     Args:
@@ -249,8 +251,8 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
             "run an installed package (goga install pybuggy), not a metadata-less source tree"
         ) from exc
 
-    minor = ".".join(version.split(".")[:2])
-    line = f"RUN goga install pybuggy -v {minor}"
+    pin = ".".join(version.split(".")[:2]) + ".x"
+    line = f"RUN goga install pybuggy -v {pin}"
 
     content = dockerfile_path.read_text(encoding="utf-8")
     existing = _INSTALL_LINE.search(content)

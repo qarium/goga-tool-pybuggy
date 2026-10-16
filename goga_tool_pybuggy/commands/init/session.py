@@ -243,18 +243,20 @@ def build_config_data(
 
 
 def _pybuggy_version_axis() -> str:
-    """Derive the recorded pybuggy version form — the installed package's major.minor line.
+    """Derive the recorded pybuggy version form — the installed package's major.minor x-range.
 
-    Mirrors the Dockerfile install pin of ``install_pybuggy`` (the same major.minor line; the engine's
-    YAML serialization keeps the value a quoted string, never a float); a metadata-less source-tree run
-    records ``latest`` — the amend-moment contribution is soft and must never die on unreadable metadata.
+    Mirrors the Dockerfile install pin of ``install_pybuggy`` (the same x-range line, e.g. ``2.0.x`` —
+    a floating patch pin, never the concrete line, which the installer would pin to ``==N.M`` forever;
+    the engine's YAML serialization keeps the value a quoted string, never a float); a metadata-less
+    source-tree run records ``latest`` — the amend-moment contribution is soft and must never die on
+    unreadable metadata.
     """
     try:
         version = importlib.metadata.version("goga-tool-pybuggy")
     except importlib.metadata.PackageNotFoundError:
         return "latest"
 
-    return ".".join(version.split(".")[:2])
+    return ".".join(version.split(".")[:2]) + ".x"
 
 
 def build_config_amendments(answers: dict[str, object]) -> dict[str, object]:
@@ -262,7 +264,7 @@ def build_config_amendments(answers: dict[str, object]) -> dict[str, object]:
 
     Fixed entries — ``build.review.skip`` true (consumer enforcement is the bootstrap's
     ``ensure_review_skip``) and the ``tools`` record pinning pybuggy to the installed
-    major.minor line — a quoted string value, e.g. ``"2.0"`` (merged over any user-collected
+    major.minor x-range — a quoted string value, e.g. ``"2.0.x"`` (merged over any user-collected
     tools, so pybuggy is always recorded). The
     Dockerfile pair — the fixed path plus the answered base image (the generator writes the
     file from exactly this pair) — and the answered built-image name.

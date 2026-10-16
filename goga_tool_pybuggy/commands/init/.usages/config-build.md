@@ -64,8 +64,9 @@ confirms, buffers the contribution, and the engine commits it:
 - the Dockerfile pair amendment — the fixed `.goga/Dockerfile` path plus the answered `base_image` (the engine's
   generator writes the Dockerfile from exactly this pair), and the answered `image` as the built-image name — the
   engine's core docker-image section is skipped, so the file is delivered through the answers, never asked about;
-- the `tools` amendment — the record `pybuggy: <installed-major.minor>` (a quoted string, e.g. `"2.0"` — the
-  same major.minor line the Dockerfile install line pins; `latest` in a metadata-less run). The platform merge
+- the `tools` amendment — the record `pybuggy: <installed-major.minor>.x` (a quoted string, e.g. `"2.0.x"` — the
+  same x-range the Dockerfile install line pins, a floating patch form; `latest` in a metadata-less run). The
+  platform merge
   folds it into whatever the core tools question collected — pybuggy is always recorded in `.goga/config.yml`,
   and a user-typed pybuggy entry is overridden by the installed line.
 
