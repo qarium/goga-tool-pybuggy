@@ -11,7 +11,7 @@ from goga_tool_pybuggy.sandbox.config import (
     StartupData,
     TopicConfig,
 )
-from goga_tool_pybuggy.sandbox.data import PostgresInstance, VaultInstance
+from goga_tool_pybuggy.sandbox.data import PostgresInstance, RedisInstance, VaultInstance
 from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 
 from .conftest import FakeEngine, FakeNetwork, FakeService
@@ -21,13 +21,13 @@ def sandbox_config() -> SandboxConfig:
     """Build the sample sandbox configuration of the harness scenario.
 
     The scenario carries one service of every kind — vault, http, kafka with inline topics,
-    postgresql — each of the data-carrying kinds with its startup data — and one instance
-    env placeholder per service, so start exercises the startup-op assembly, the address
-    render and the env hand-off end to end.
+    postgresql, redis — each of the data-carrying kinds with its startup data — and one
+    instance env placeholder per service, so start exercises the startup-op assembly, the
+    address render and the env hand-off end to end.
 
     Returns:
-        A ``SandboxConfig`` declaring the ``secrets``, ``payments``, ``events`` and ``db``
-        services and one instance under test.
+        A ``SandboxConfig`` declaring the ``secrets``, ``payments``, ``events``, ``db`` and
+        ``cache`` services and one instance under test.
     """
     return SandboxConfig(
         instance=InstanceConfig(
@@ -37,6 +37,7 @@ def sandbox_config() -> SandboxConfig:
                 "PAYMENTS_URL": "http://{{payments.host}}:{{payments.port}}/pay",
                 "KAFKA_BOOTSTRAP": "{{events.host}}:{{events.port}}",
                 "DATABASE_URL": "postgres://{{db.host}}:{{db.port}}/x",
+                "REDIS_URL": "redis://{{cache.host}}:{{cache.port}}/0",
             },
             port=8080,
         ),
@@ -45,11 +46,13 @@ def sandbox_config() -> SandboxConfig:
             "payments": ServiceConfig(name="payments", kind="http"),
             "events": ServiceConfig(name="events", kind="kafka", topics=[TopicConfig(name="orders.events")]),
             "db": ServiceConfig(name="db", kind="postgresql"),
+            "cache": ServiceConfig(name="cache", kind="redis"),
         },
         data=StartupData(
             vault={"secrets": [{"path": "kv/app", "data": {"token": "abc"}}]},
             http={"payments": [{"request": {"method": "GET", "url": "/pay"}, "response": {"status": 200}}]},
             postgres={"db": ["CREATE TABLE orders (id int PRIMARY KEY)"]},
+            redis={"cache": [{"action": "set", "key": "feature-flag/a", "value": "enabled"}]},
         ),
     )
 
@@ -129,6 +132,12 @@ class SandboxHarness:
                 address=InstanceAddress(host="127.0.0.2", port=5432),
                 events=self.events,
             ),
+            "cache": FakeEngine(
+                name="cache",
+                kind="redis",
+                address=InstanceAddress(host="127.0.0.6", port=6379),
+                events=self.events,
+            ),
         }
         self.service = FakeService(
             alive=service_alive, logs=service_logs, host="127.0.0.9", port=9000, events=self.events
@@ -199,6 +208,7 @@ class TestSandboxContract:
             "kafka",
             "vault",
             "http",
+            "redis",
         ):
             assert callable(getattr(Sandbox, name)), name
 
@@ -217,7 +227,7 @@ class TestSandboxContract:
 
         assert parameters == ["self", "presets"]
 
-        for name in ("postgresql", "kafka", "vault", "http"):
+        for name in ("postgresql", "kafka", "vault", "http", "redis"):
             parameters = list(inspect.signature(getattr(Sandbox, name)).parameters)
 
             assert parameters == ["self", "name"], name
@@ -238,6 +248,7 @@ class TestSandboxStart:
             "engine:payments:start",
             "engine:events:start",
             "engine:db:start",
+            "engine:cache:start",
             "instance:start",
         ]
 
@@ -267,9 +278,17 @@ class TestSandboxStart:
                 payload={"sql": "CREATE TABLE orders (id int PRIMARY KEY)"},
             )
         ]
+        assert started.engines["cache"].journaled == [
+            DataOperation(
+                instance="cache",
+                kind="redis",
+                action="set",
+                payload={"key": "feature-flag/a", "value": "enabled"},
+            )
+        ]
 
     def test_sandbox_start_applies_startup_data_in_fixed_order(self, monkeypatch: pytest.MonkeyPatch):
-        """Startup data reaches each engine in the fixed vault -> http -> postgres order.
+        """Startup data reaches each engine in the fixed vault -> http -> postgres -> redis order.
 
         The kafka engine's startup list is empty — its topology comes from the inline topic
         declaration at container build; the render consumes the mapped service addresses;
@@ -294,11 +313,13 @@ class TestSandboxStart:
                 "payments": InstanceAddress(host="127.0.0.3", port=8080),
                 "events": InstanceAddress(host="127.0.0.5", port=9092),
                 "db": InstanceAddress(host="127.0.0.2", port=5432),
+                "cache": InstanceAddress(host="127.0.0.6", port=6379),
             }
         ]
         assert [(op.action, op.kind) for op in harness.engines["secrets"].journaled] == [("put", "vault")]
         assert [(op.action, op.kind) for op in harness.engines["payments"].journaled] == [("stub", "http")]
         assert [(op.action, op.kind) for op in harness.engines["db"].journaled] == [("insert", "postgresql")]
+        assert [(op.action, op.kind) for op in harness.engines["cache"].journaled] == [("set", "redis")]
         assert harness.engines["events"].journaled == []
         assert harness.events[-1] == "instance:start"
         assert harness.service.started_env == {
@@ -306,6 +327,7 @@ class TestSandboxStart:
             "PAYMENTS_URL": "http://127.0.0.3:8080/pay",
             "KAFKA_BOOTSTRAP": "127.0.0.5:9092",
             "DATABASE_URL": "postgres://127.0.0.2:5432/x",
+            "REDIS_URL": "redis://127.0.0.6:6379/0",
         }
 
     def test_startup_operations_assemble_put_stub_sql_within_one_service(self):
@@ -327,6 +349,28 @@ class TestSandboxStart:
             ("stub", "http"),
             ("insert", "postgresql"),
         ]
+
+    def test_startup_operations_assemble_the_redis_section_last(self, started: SandboxHarness):
+        """The redis section assembles after the other sections, stripping the action key.
+
+        The harness config populates all four data sections; the cache service carries only
+        redis declarations, so its assembled list is exactly the one redis operation with
+        the action key stripped into a fresh payload — the declaration itself is never
+        mutated.
+        """
+        declaration = started.config.data.redis["cache"][0]
+
+        operations = started.sandbox._startup_operations("cache")
+
+        assert operations == [
+            DataOperation(
+                instance="cache",
+                kind="redis",
+                action="set",
+                payload={"key": "feature-flag/a", "value": "enabled"},
+            )
+        ]
+        assert declaration == {"action": "set", "key": "feature-flag/a", "value": "enabled"}
 
     def test_sandbox_uses_instance_and_services_keys(self, monkeypatch: pytest.MonkeyPatch):
         """The constructor builds the engines from ``config.services`` and the container from
@@ -353,7 +397,7 @@ class TestSandboxStart:
         sandbox = sandbox_module.Sandbox(harness.config)
         sandbox.start()
 
-        assert built_from == ["secrets", "payments", "events", "db"]
+        assert built_from == ["secrets", "payments", "events", "db", "cache"]
         assert built_container_configs == [harness.config.instance]
 
         view = sandbox.postgresql("db")
@@ -373,6 +417,7 @@ class TestSandboxStart:
             "PAYMENTS_URL": "http://127.0.0.3:8080/pay",
             "KAFKA_BOOTSTRAP": "127.0.0.5:9092",
             "DATABASE_URL": "postgres://127.0.0.2:5432/x",
+            "REDIS_URL": "redis://127.0.0.6:6379/0",
         }
 
     def test_start_creates_one_labeled_network_and_hands_it_to_the_instance(self, started: SandboxHarness):
@@ -396,6 +441,7 @@ class TestSandboxStart:
             "engine:secrets:start",
             "engine:payments:start",
             "instance:stop",
+            "engine:cache:stop",
             "engine:db:stop",
             "engine:events:stop",
             "engine:payments:stop",
@@ -419,6 +465,7 @@ class TestSandboxStart:
         assert harness.events == [
             "runtime-check",
             "instance:stop",
+            "engine:cache:stop",
             "engine:db:stop",
             "engine:events:stop",
             "engine:payments:stop",
@@ -495,6 +542,25 @@ class TestSandboxViews:
 
         assert started.engines["secrets"].applied[-1].payload == {"path": "kv/app", "data": {"token": "abc"}}
 
+    def test_sandbox_redis_factory_binds_the_redis_view(self, started: SandboxHarness):
+        """The redis factory binds a redis view of the named service, declaring into the batch."""
+        view = started.sandbox.redis("cache")
+
+        assert isinstance(view, RedisInstance)
+        assert (view.name, view.host, view.port) == ("cache", "127.0.0.6", 6379)
+
+        view.set("feature-flag/a", "enabled")
+        started.sandbox.apply_pending()
+
+        assert started.engines["cache"].applied == [
+            DataOperation(
+                instance="cache",
+                kind="redis",
+                action="set",
+                payload={"key": "feature-flag/a", "value": "enabled"},
+            )
+        ]
+
     def test_sandbox_view_kind_mismatch_lists_configured(self, started: SandboxHarness):
         """A factory of another kind fails fast naming the service and the configured ones."""
         with pytest.raises(ValueError, match=r"no kafka service named 'db'"):
@@ -504,6 +570,14 @@ class TestSandboxViews:
         """An unknown service name fails fast listing the configured services."""
         with pytest.raises(ValueError, match=r"no postgresql service named 'ghost'.*db \(postgresql\)"):
             started.sandbox.postgresql("ghost")
+
+    def test_sandbox_redis_view_kind_mismatch_and_unknown_name(self, started: SandboxHarness):
+        """The redis factory fails fast on another kind's service and on unknown names."""
+        with pytest.raises(ValueError, match=r"no redis service named 'db'"):
+            started.sandbox.redis("db")
+
+        with pytest.raises(ValueError, match=r"no redis service named 'ghost'.*cache \(redis\)"):
+            started.sandbox.redis("ghost")
 
 
 class TestSandboxLifecycle:
@@ -535,6 +609,7 @@ class TestSandboxLifecycle:
             "engine:payments:reset",
             "engine:events:reset",
             "engine:db:reset",
+            "engine:cache:reset",
         ]
         assert started.service.stopped is False
         assert started.service.started is True
@@ -556,6 +631,7 @@ class TestSandboxLifecycle:
 
         assert started.events == [
             "instance:stop",
+            "engine:cache:stop",
             "engine:db:stop",
             "engine:events:stop",
             "engine:payments:stop",
@@ -577,6 +653,7 @@ class TestSandboxLifecycle:
 
         assert harness.events == [
             "instance:stop",
+            "engine:cache:stop",
             "engine:db:stop",
             "engine:events:stop",
             "engine:payments:stop",
@@ -605,6 +682,7 @@ class TestSandboxLifecycle:
         assert removals == ["refused"]
         assert started.events == [
             "instance:stop",
+            "engine:cache:stop",
             "engine:db:stop",
             "engine:events:stop",
             "engine:payments:stop",
@@ -624,6 +702,35 @@ class TestSandboxEnqueuePresets:
 
         with pytest.raises(ValueError, match=r"no postgresql service named 'ghost'.*db \(postgresql\)"):
             started.sandbox.enqueue_presets(presets)
+
+    def test_enqueue_presets_fails_redis_declaration_without_action(self, started: SandboxHarness):
+        """A redis preset declaration without a known action key fails naming the preset."""
+        presets = {"redis": {"cache": [{"key": "k", "value": "v"}]}}
+
+        with pytest.raises(
+            ValueError, match=r"services preset 'redis\.cache': every declaration requires an 'action' key"
+        ):
+            started.sandbox.enqueue_presets(presets)
+
+    def test_enqueue_presets_reads_the_redis_action_from_the_declaration(self, started: SandboxHarness):
+        """A redis preset's action key names the operation; the payload keeps the view fields."""
+        declaration = {"action": "hset", "key": "user:1", "values": {"name": "Ann"}}
+
+        enqueued = started.sandbox.enqueue_presets({"redis": {"cache": [declaration]}})
+
+        assert enqueued == 1
+
+        started.sandbox.apply_pending()
+
+        assert started.engines["cache"].applied == [
+            DataOperation(
+                instance="cache",
+                kind="redis",
+                action="hset",
+                payload={"key": "user:1", "values": {"name": "Ann"}},
+            )
+        ]
+        assert declaration == {"action": "hset", "key": "user:1", "values": {"name": "Ann"}}
 
     def test_enqueue_presets_prepends_presets_into_the_current_batch(self, started: SandboxHarness):
         """Valid presets enqueue into the current batch ahead of in-test declarations."""

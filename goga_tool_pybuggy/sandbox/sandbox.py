@@ -7,20 +7,30 @@ from testcontainers.core.network import Network
 
 from .baseline import BaselineBoundary
 from .config import SandboxConfig
-from .data import DataBatch, HttpInstance, KafkaInstance, PostgresInstance, VaultInstance
+from .data import DataBatch, HttpInstance, KafkaInstance, PostgresInstance, RedisInstance, VaultInstance
 from .engines import BaseEngine, DataOperation, InstanceAddress, build_engine, check_runtime
 from .env_render import render_service_env
 from .service_container import ServiceContainer
 
 logger = logging.getLogger(__name__)
 
-ViewT = TypeVar("ViewT", PostgresInstance, KafkaInstance, VaultInstance, HttpInstance)
+ViewT = TypeVar("ViewT", PostgresInstance, KafkaInstance, VaultInstance, HttpInstance, RedisInstance)
 
 SANDBOX_NETWORK_LABELS = {"pybuggy-sandbox": "true"}
 
 # The payload action every supported kind's enqueued preset operations carry — the same
-# actions the kind's view methods declare through.
-_KIND_ACTIONS: dict[str, str] = {"postgresql": "insert", "kafka": "produce", "vault": "put", "http": "stub"}
+# actions the kind's view methods declare through. Redis maps to None: the kind has no
+# single fixed action — every declaration names its own through the action key.
+_KIND_ACTIONS: dict[str, str | None] = {
+    "postgresql": "insert",
+    "kafka": "produce",
+    "vault": "put",
+    "http": "stub",
+    "redis": None,
+}
+
+# The action keys a redis preset declaration may name — the enqueue-time validation set.
+_REDIS_ACTIONS: frozenset[str] = frozenset({"set", "hset", "rpush", "sadd"})
 
 
 class Sandbox:
@@ -193,7 +203,9 @@ class Sandbox:
         """Validate ``presets`` and enqueue them into the current batch, ahead of in-test declarations.
 
         The ``pybuggy_services`` marker payload lands ahead of the test's own view
-        declarations: presets apply before them within one service group. While a baseline
+        declarations: presets apply before them within one service group. Redis
+        declarations name their own operation through the ``action`` key — the enqueued
+        payload carries the fields of the matching view operation. While a baseline
         boundary is open the routing of ``_current_batch`` carries the presets into the
         boundary batch instead.
 
@@ -206,7 +218,8 @@ class Sandbox:
 
         Raises:
             ValueError: A preset targets an unknown service or one of another kind — the
-                message lists the configured services.
+                message lists the configured services; a redis declaration carries no
+                known ``action`` key.
         """
         enqueued = 0
 
@@ -215,9 +228,22 @@ class Sandbox:
                 self._require_service(kind, name)
 
                 for declaration in declarations:
-                    self._current_batch().add(
-                        DataOperation(instance=name, kind=kind, action=_KIND_ACTIONS[kind], payload=declaration)
-                    )
+                    action = _KIND_ACTIONS[kind]
+
+                    if action is None:
+                        action = declaration.get("action")
+
+                        if not isinstance(action, str) or action not in _REDIS_ACTIONS:
+                            raise ValueError(
+                                f"services preset 'redis.{name}': every declaration requires an "
+                                f"'action' key (set, hset, rpush, or sadd)"
+                            )
+
+                        payload = {field: value for field, value in declaration.items() if field != "action"}
+                    else:
+                        payload = declaration
+
+                    self._current_batch().add(DataOperation(instance=name, kind=kind, action=action, payload=payload))
                     enqueued += 1
 
         return enqueued
@@ -282,6 +308,21 @@ class Sandbox:
         """
         return self._view(HttpInstance, "http", name)
 
+    def redis(self, name: str) -> RedisInstance:
+        """The test-facing view of the named redis service.
+
+        Args:
+            name: The service name from the sandbox configuration.
+
+        Returns:
+            The view of the service, bound to the current batch.
+
+        Raises:
+            ValueError: Unknown name or kind mismatch — the message lists the configured
+                services.
+        """
+        return self._view(RedisInstance, "redis", name)
+
     def _start_engines(self) -> dict[str, InstanceAddress]:
         """Start every service engine with its startup data, in declaration order.
 
@@ -326,10 +367,10 @@ class Sandbox:
     def _startup_operations(self, name: str) -> list[DataOperation]:
         """Assemble the startup operations of one service from the startup data sections.
 
-        The fixed section order is vault secrets, http mappings, then postgres init —
-        within a section the declaration order is the application order. Kafka services
-        carry no startup operations: their topology is declared inline on the service
-        entry and consumed at container build.
+        The fixed section order is vault secrets, http mappings, postgres init, then
+        redis data — within a section the declaration order is the application order.
+        Kafka services carry no startup operations: their topology is declared inline on
+        the service entry and consumed at container build.
 
         Args:
             name: The service name whose startup data is assembled.
@@ -356,6 +397,16 @@ class Sandbox:
         for statement in data.postgres.get(name, []):
             operations.append(
                 DataOperation(instance=name, kind="postgresql", action="insert", payload={"sql": statement})
+            )
+
+        for declaration in data.redis.get(name, []):
+            operations.append(
+                DataOperation(
+                    instance=name,
+                    kind="redis",
+                    action=declaration["action"],
+                    payload={field: value for field, value in declaration.items() if field != "action"},
+                )
             )
 
         return operations

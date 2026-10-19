@@ -1214,27 +1214,27 @@ orderings, counts; the full-suite gate catches any missed one). Tests extend
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
-- [ ] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/test_sandbox.py` — extend
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
+- [x] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/test_sandbox.py` — extend
       `test_sandbox_exposes_the_view_factories` (the callable-factories loop) and
       `test_sandbox_methods_carry_the_declared_signatures` (the factory-signature loop)
       with `"redis"`; add `test_sandbox_redis_factory_binds_the_redis_view` skeleton:
       `sandbox.redis("cache")` returns a `RedisInstance` with
       `(view.name, view.host, view.port)` bound to the engine address. Expected to fail
       now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: `sandbox.py` per the algorithm — the import, the `ViewT`
+- [x] **STEP 2 (IMPLEMENTATION)**: `sandbox.py` per the algorithm — the import, the `ViewT`
       bound, the re-typed `_KIND_ACTIONS` with `"redis": None`, the `redis()` factory
       (docstring mirroring the other factories), the `enqueue_presets` branch, the
       `_startup_operations` redis loop last with the fresh-dict payload.
-- [ ] **REPL cycle (M4)**: in the venv REPL over a wired harness — `sandbox.redis("cache")`
+- [x] **REPL cycle (M4)**: in the venv REPL over a wired harness — `sandbox.redis("cache")`
       binds the view; `enqueue_presets({"redis": {"cache": [{"action": "hset", ...}]}})`
       returns 1 and lands the stripped payload; a declaration without `action` raises the
       preset-style message; `_startup_operations("cache")` strips `action` into a fresh
       dict and leaves the declaration untouched (compare before/after); reload after each
       edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/sandbox/test_sandbox.py
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/sandbox/test_sandbox.py
       -v` — the contract tests pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `test_sandbox.py` —
+- [x] **STEP 4 (LOGIC TESTS)**: in `test_sandbox.py` —
       `test_enqueue_presets_reads_the_redis_action_from_the_declaration` (harness with the
       redis service; `enqueue_presets({"redis": {"cache": [{"action": "hset", "key":
       "user:1", "values": {"name": "Ann"}}]}})` → returns 1; the batch operation equals
@@ -1257,18 +1257,18 @@ orderings, counts; the full-suite gate catches any missed one). Tests extend
       declaration requires an 'action' key")`). Harness: extend `sandbox_config()` /
       `SandboxHarness` with the `cache` redis service and fix the affected existing
       assertions.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass (including every harness-extended assertion).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: the `Sandbox` contract holds — start step 3
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: the `Sandbox` contract holds — start step 3
       fixes the section order vault → http → postgres → redis; the requirements clause
       lists redis among the view-bound kinds; `redis(name)` fail-fast lists configured
       services; presets land ahead of in-test declarations.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
       (M3.3); commit exactly `goga_tool_pybuggy/sandbox/sandbox.py`,
       `tests/sandbox/test_sandbox.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 9: Integration tests — the docker-gated redis engine roundtrips (integration tests)
 
