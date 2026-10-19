@@ -877,15 +877,15 @@ records commands as `(name, args, kwargs)`, serves scripted errors, counts `clos
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/sandbox/engines/test_redis.py` —
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/sandbox/engines/test_redis.py` —
       `test_redis_engine_is_importable_and_subclasses_base` (class `TestRedisEngineContract`):
       `from goga_tool_pybuggy.sandbox.engines import RedisEngine`;
       `issubclass(RedisEngine, BaseEngine)`; `"RedisEngine" in
       goga_tool_pybuggy.sandbox.engines.__all__`; `__init__` signature `["self", "config"]`;
       `RedisEngine._wait_ready is not BaseEngine._wait_ready` (engine-owned readiness);
       `RedisEngine._container_port == 6379`. Expected to fail now (module absent).
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/sandbox/engines/redis.py` per
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/sandbox/engines/redis.py` per
       the algorithm above — imports (`json`, `logging`, `redis`,
       `from testcontainers.community.redis import RedisContainer`,
       `from testcontainers.core.wait_strategy import WaitStrategy`, relative `..config.service`,
@@ -894,17 +894,17 @@ records commands as `(name, args, kwargs)`, serves scripted errors, counts `clos
       with `extra` metadata (never the password). Update
       `goga_tool_pybuggy/sandbox/engines/__init__.py`: import, `__all__` entry, docstring
       list.
-- [ ] **REPL cycle (M4)**: in the venv REPL — pin the library facts against the installed
+- [x] **REPL cycle (M4)**: in the venv REPL — pin the library facts against the installed
       versions: `inspect.signature(RedisContainer.__init__)` shows `password`; construct a
       `RedisContainer` and call `waiting_for(...)` — observe `_wait_strategy` replaced;
       `redis.exceptions.AuthenticationError.__mro__` shows the `ConnectionError` ancestry
       (the clause order is load-bearing); `json.dumps` forms of `5`/`True`/`None`/`2.5`;
       import the facade and reload (`importlib.reload`) after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
       tests/sandbox/engines/test_redis.py -v` — the contract test passes; facade probe
       (M3.4): `.venv/bin/python -c "from goga_tool_pybuggy.sandbox.engines import
       RedisEngine"`.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/sandbox/engines/test_redis.py` (fakes per the
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/sandbox/engines/test_redis.py` (fakes per the
       general setup; every scenario from the design):
       - Container build: `test_build_uses_the_pinned_image_labels_and_port`
         (`container.image == "redis:8-alpine"`;
@@ -967,20 +967,20 @@ records commands as `(name, args, kwargs)`, serves scripted errors, counts `clos
         (`_journal = []` → commands == `[("flushdb", (), {})]`);
         `test_stop_is_safe_before_start` (`RedisEngine(config).stop()` twice on a fresh
         engine — no exception, nothing touched).
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: every `RedisEngine` contract requirement
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: every `RedisEngine` contract requirement
       holds: one connection to the declared db closed on stop; wipe and seed address the
       declared db only; failed commands surface as `EngineError` naming service, operation,
       cause; readiness bounded by the declaration; the declared payload never rewritten.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — decompose if complexity rules
       demand it.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
       (M3.3); commit exactly `goga_tool_pybuggy/sandbox/engines/redis.py`,
       `goga_tool_pybuggy/sandbox/engines/__init__.py`,
       `tests/sandbox/engines/test_redis.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 5: engines cell — the `build_engine` redis mapping and the contract-mirroring docstrings (TDD coding)
 
