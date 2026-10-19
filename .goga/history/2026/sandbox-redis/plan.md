@@ -1067,42 +1067,42 @@ the structural reference).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
-- [ ] **STEP 1 (CONTRACT TESTS)**: create `tests/sandbox/data/test_redis.py` —
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
+- [x] **STEP 1 (CONTRACT TESTS)**: create `tests/sandbox/data/test_redis.py` —
       `test_redis_instance_is_importable_from_the_data_facade`:
       `from goga_tool_pybuggy.sandbox.data import RedisInstance`;
       `"RedisInstance" in goga_tool_pybuggy.sandbox.data.__all__`; the `__init__`
       signature is `["self", "name", "address", "batch"]`; the four method signatures match
       the contract (`set(key, value)`, `hset(key, values)`, `rpush(key, values)`,
       `sadd(key, members)`); the three properties exist. Expected to fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/sandbox/data/redis.py` per the
+- [x] **STEP 2 (IMPLEMENTATION)**: create `goga_tool_pybuggy/sandbox/data/redis.py` per the
       algorithm (imports: relative `..engines` for `DataOperation`/`InstanceAddress`,
       `.batch` for `DataBatch`); update `data/__init__.py` (import, `__all__`, docstring).
-- [ ] **REPL cycle (M4)**: in the venv REPL — build a `RedisInstance("cache",
+- [x] **REPL cycle (M4)**: in the venv REPL — build a `RedisInstance("cache",
       InstanceAddress("127.0.0.2", 16379), DataBatch())`, call all four methods, take the
       batch, observe the four `DataOperation` payloads field-for-field; confirm nothing
       executes (no engine involved); reload after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/sandbox/data/test_redis.py
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest tests/sandbox/data/test_redis.py
       -v` — the contract test passes; facade probe (M3.4): `.venv/bin/python -c "from
       goga_tool_pybuggy.sandbox.data import RedisInstance"`.
-- [ ] **STEP 4 (LOGIC TESTS)**: `test_redis_view_declares_the_four_operations` —
+- [x] **STEP 4 (LOGIC TESTS)**: `test_redis_view_declares_the_four_operations` —
       `set("k", "v")`; `hset("h", {"f": 1})`; `rpush("l", [1, 2])`; `sadd("s", ["a"])` →
       `[(op.action, op.payload) for op in batch.take()] == [("set", {"key": "k", "value":
       "v"}), ("hset", {"key": "h", "values": {"f": 1}}), ("rpush", {"key": "l", "values":
       [1, 2]}), ("sadd", {"key": "s", "members": ["a"]})]`; `(view.name, view.host,
       view.port) == ("cache", "127.0.0.2", 16379)`; the batch drains on take; a non-str
       value (`{"on": True}`) rides as given — no serialization at declaration.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: the payload shapes equal the engines payload
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: the payload shapes equal the engines payload
       contract field-for-field; declaration-only semantics hold; the facade exposes
       `RedisInstance`.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
       (M3.3); commit exactly `goga_tool_pybuggy/sandbox/data/redis.py`,
       `goga_tool_pybuggy/sandbox/data/__init__.py`, `tests/sandbox/data/test_redis.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 7: data cell — `services` redis presets and the decoration-time grammar (TDD coding)
 
