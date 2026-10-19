@@ -26,8 +26,27 @@ class TestServiceConfigContract:
             assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
 
     def test_service_config_declares_the_contract_fields(self):
-        """The model declares the ``name``, ``kind``, ``image``, ``topics``, ``probe`` and ``migrations`` fields."""
-        assert set(ServiceConfig.model_fields) == {"name", "kind", "image", "topics", "probe", "migrations"}
+        """The model declares name, kind, image, topics, probe, migrations, password and db."""
+        assert set(ServiceConfig.model_fields) == {
+            "name",
+            "kind",
+            "image",
+            "topics",
+            "probe",
+            "migrations",
+            "password",
+            "db",
+        }
+
+    def test_service_config_accepts_the_redis_fields_with_defaults(self):
+        """``password`` and ``db`` default to ``None`` and ``0``; the model stays extra-forbid."""
+        config = ServiceConfig(name="cache", kind="redis")
+
+        assert config.password is None
+        assert config.db == 0
+
+        with pytest.raises(ValidationError):
+            ServiceConfig(name="cache", kind="redis", unexpected="x")
 
     def test_service_config_declares_migrations_after_probe(self):
         """The ``migrations`` field sits after ``probe`` in the declaration order."""
@@ -121,3 +140,17 @@ class TestServiceConfigLogic:
         service = ServiceConfig(name="x", kind="made-up-kind")
 
         assert service.kind == "made-up-kind"
+
+    def test_service_config_carries_declared_password_and_db(self):
+        """Declared redis credentials reach the model — the reach-through contract the engine reads."""
+        config = ServiceConfig(name="cache", kind="redis", password="sandbox-redis", db=7)
+
+        assert config.password == "sandbox-redis"
+        assert config.db == 7
+
+    def test_service_config_redis_fields_default_on_non_redis_entries(self):
+        """A non-redis entry builds identically with the redis fields defaulted (regression guard)."""
+        service = ServiceConfig(name="db", kind="postgresql", image="postgres:17-alpine")
+
+        assert service.password is None
+        assert service.db == 0

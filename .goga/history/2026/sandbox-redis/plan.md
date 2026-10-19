@@ -577,8 +577,8 @@ place.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv (M1.2).
-- [ ] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/config/test_service.py` —
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv (M1.2).
+- [x] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/config/test_service.py` —
       `test_service_config_accepts_the_redis_fields_with_defaults`:
       `ServiceConfig(name="cache", kind="redis")` builds; `config.password is None`;
       `config.db == 0`; `model_config` still kw_only + extra-forbid (an extra key still
@@ -586,38 +586,38 @@ place.
       `test_startup_data_defaults_the_redis_section_empty`: `StartupData()` →
       `data.redis == {}`; the section attribute order is exactly vault, http, postgres,
       redis (`list(StartupData.model_fields)`). Expected to fail now (fields absent).
-- [ ] **STEP 2 (IMPLEMENTATION)**: `config/service.py` — add `password: str | None = None`
+- [x] **STEP 2 (IMPLEMENTATION)**: `config/service.py` — add `password: str | None = None`
       and `db: int = 0` after `migrations`; extend the class docstring (kinds list five,
       the two field docs per the contract annotation). `config/startup_data.py` — add
       `redis: dict[str, list[dict[str, object]]] = {}` after `postgres`; extend the
       docstring (four-section order, the declaration grammar summary).
-- [ ] **REPL cycle (M4)**: in the venv REPL — construct `ServiceConfig(name="c",
+- [x] **REPL cycle (M4)**: in the venv REPL — construct `ServiceConfig(name="c",
       kind="redis")` and `ServiceConfig(name="c", kind="redis", password="p", db=7)`;
       confirm defaults and reach-through; confirm a non-redis entry still builds identically
       with the new fields defaulted (regression guard); reload after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
       tests/sandbox/config/test_service.py tests/sandbox/config/test_startup_data.py -v` —
       all pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `test_service.py` —
+- [x] **STEP 4 (LOGIC TESTS)**: in `test_service.py` —
       `test_service_config_carries_declared_password_and_db`:
       `ServiceConfig(name="cache", kind="redis", password="sandbox-redis", db=7)` →
       `password == "sandbox-redis"`, `db == 7` (the reach-through contract the engine reads).
       In `test_startup_data.py` — a plain-redis-declaration storage check:
       `StartupData(redis={"cache": [{"action": "set", "key": "k", "value": "v"}]})` holds
       the declarations verbatim (dict equality).
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe — `.venv/bin/python -c "from
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: facade probe — `.venv/bin/python -c "from
       goga_tool_pybuggy.sandbox.config import ServiceConfig, StartupData"`; the new fields
       match the CODEMANIFEST signatures (`password: str | None = None`, `db: int = 0`;
       `redis: dict[str, list[dict[str, object]]] = {}`).
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
       (M3.3); commit exactly `goga_tool_pybuggy/sandbox/config/service.py`,
       `goga_tool_pybuggy/sandbox/config/startup_data.py`,
       `tests/sandbox/config/test_service.py`, `tests/sandbox/config/test_startup_data.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 3: config cell — `validate_sandbox_config` redis validation and the re-pointed negative examples (TDD coding)
 
