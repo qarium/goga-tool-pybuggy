@@ -536,25 +536,27 @@ the editable package with the `test` extras. No `.py` file changes in this task.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task (`Task 1: Packaging — the
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task (`Task 1: Packaging — the
       redis dependencies and the project virtualenv`); create the venv if missing:
       `python3 -m venv .venv && .venv/bin/pip install -e ".[test]"` (after the pyproject
       edit below, so the redis deps land in one install).
-- [ ] **Edit `pyproject.toml`**: `"testcontainers[postgres]>=4.15"` →
+- [x] **Edit `pyproject.toml`**: `"testcontainers[postgres]>=4.15"` →
       `"testcontainers[postgres,redis]>=4.15"`; add `"redis>=7.0"` to `dependencies`
       (after `"kafka-python>=3.0"`, the data-plane client group).
-- [ ] **Install**: `.venv/bin/pip install -e ".[test]"`; then
+- [x] **Install**: `.venv/bin/pip install -e ".[test]"`; then
       `.venv/bin/pip check` → clean.
-- [ ] **Verify the pinned surface (REPL probe, M4.1)**:
+- [x] **Verify the pinned surface (REPL probe, M4.1)**:
       `.venv/bin/python -c "import redis; from testcontainers.community.redis import
       RedisContainer; import inspect; print(redis.__version__);
-      print(inspect.signature(RedisContainer.__init__))"` → redis 7.x resolves and the
-      constructor shows the `password` parameter.
-- [ ] Verify the suite baseline is green before any code change:
+      print(inspect.signature(RedisContainer.__init__))"` → redis resolves against the
+      `>=7.0` floor (8.1.0 — the single resolution pip picks) and the constructor shows
+      the `password` parameter; `AuthenticationError` MRO confirms the `ConnectionError`
+      ancestry.
+- [x] Verify the suite baseline is green before any code change:
       `.venv/bin/pytest tests/ -x` (docker-gated tests skip where docker is unavailable).
-- [ ] **Lint gate (M3.2)**: `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` and
+- [x] **Lint gate (M3.2)**: `.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` and
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/` → clean (no `.py` touched).
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: run the local commit gate (M3.3) and commit
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: run the local commit gate (M3.3) and commit
       exactly `pyproject.toml`.
 
 ### Task 2: config cell — `ServiceConfig` password/db and the `StartupData` redis section (TDD coding)
