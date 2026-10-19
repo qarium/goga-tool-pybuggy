@@ -1126,21 +1126,21 @@ unsupported example) breaks — re-point it to `mysql` in this task (D10). Tests
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
-- [ ] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/data/test_presets.py` —
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
+- [x] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/data/test_presets.py` —
       `test_services_accepts_redis_presets_for_all_actions`:
       `services(redis={"cache": [four valid declarations]})` applied to a dummy function →
       the marker carries the presets verbatim; `usefixtures("sandbox")` stamped; no
       exception. Expected to fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: `data/presets.py` — the constant, the helper, the
+- [x] **STEP 2 (IMPLEMENTATION)**: `data/presets.py` — the constant, the helper, the
       per-declaration call for `kind == "redis"` (the postgresql rows-validation call-site
       precedent); docstring kinds list five and the redis grammar sentence.
-- [ ] **REPL cycle (M4)**: in the venv REPL — decorate scratch functions with valid and
+- [x] **REPL cycle (M4)**: in the venv REPL — decorate scratch functions with valid and
       invalid redis presets; observe the exact `services preset 'redis.cache'` messages;
       confirm nothing executes at decoration; reload after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
       tests/sandbox/data/test_presets.py -v` — the contract test passes.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `test_presets.py` — negative:
+- [x] **STEP 4 (LOGIC TESTS)**: in `test_presets.py` — negative:
       `test_services_fails_redis_preset_without_action`
       (`services(redis={"cache": [{"key": "k", "value": "v"}]})` →
       `pytest.raises(ValueError, match=r"services preset 'redis\.cache'.*'action' key")`);
@@ -1150,17 +1150,17 @@ unsupported example) breaks — re-point it to `mysql` in this task (D10). Tests
       `test_services_rejects_unknown_kind_at_decoration` input → `services(mysql={"x":
       []})` with `match="mysql"`; `test_services_unknown_kind_error_lists_supported_kinds`
       match extends to `postgresql.*kafka.*vault.*http.*redis`.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: the decoration algorithm holds: five kinds;
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: the decoration algorithm holds: five kinds;
       redis grammar enforced with the preset-naming messages; decoration executes nothing;
       the marker + usefixtures mechanics unchanged.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
       (M3.3); commit exactly `goga_tool_pybuggy/sandbox/data/presets.py`,
       `tests/sandbox/data/test_presets.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 8: sandbox root — the `redis` view factory, preset enqueue, and the redis startup loop (TDD coding)
 
