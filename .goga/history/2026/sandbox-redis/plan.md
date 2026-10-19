@@ -1002,40 +1002,40 @@ redis kind)". No behavior changes beyond the registry entry. Tests extend
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
-- [ ] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/engines/test_runtime.py` — extend the
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
+- [x] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/engines/test_runtime.py` — extend the
       parametrized `test_build_engine_returns_the_kind_engine` with the redis case
       (`build_engine(ServiceConfig(name="cache", kind="redis"))` →
       `isinstance(engine, RedisEngine)`, `engine.config.name == "cache"`). Expected to fail
       now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: the `runtime.py` import + registry entry + docstring;
+- [x] **STEP 2 (IMPLEMENTATION)**: the `runtime.py` import + registry entry + docstring;
       the `operation.py` docstring; the `base.py` docstring lines.
-- [ ] **REPL cycle (M4)**: in the venv REPL — `from
+- [x] **REPL cycle (M4)**: in the venv REPL — `from
       goga_tool_pybuggy.sandbox.engines import build_engine`;
       `build_engine(ServiceConfig(name="c", kind="redis"))` returns a `RedisEngine`;
       `KIND_ENGINES` keys are the five kinds; a fabricated `kind="grpc"` raises the
       `EngineError` listing all five; reload after the edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
       tests/sandbox/engines/test_runtime.py -v` — all pass.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `test_runtime.py` — update
+- [x] **STEP 4 (LOGIC TESTS)**: in `test_runtime.py` — update
       `test_build_engine_fails_unmapped_kind` / the unmapped-kind match to
       `match=r"service 'x': kind 'grpc' has no engine.*postgresql.*kafka.*vault.*http.*redis"`
       (the five-kind listing); `test_build_engine_carries_the_service_declaration` extends
       with a redis config carrying `password`/`db` — the built engine's `config` holds them
       (the reach-through contract).
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass.
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: `build_engine` maps redis and passes the
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: `build_engine` maps redis and passes the
       declarations through; the unmapped error lists the five kinds; the docstrings of
       `operation.py` / `base.py` / `runtime.py` match the CODEMANIFEST wording they mirror.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
       (M3.3); commit exactly `goga_tool_pybuggy/sandbox/engines/runtime.py`,
       `goga_tool_pybuggy/sandbox/engines/operation.py`,
       `goga_tool_pybuggy/sandbox/engines/base.py`,
       `tests/sandbox/engines/test_runtime.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 6: data cell — the `RedisInstance` declare-only view (TDD coding)
 

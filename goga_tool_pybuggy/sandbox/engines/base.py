@@ -42,7 +42,8 @@ class BaseEngine:
 
     Attributes:
         config: The service declaration — name, kind, image override, topics, probe,
-            migrations declaration (consumed by the postgres kind).
+            migrations declaration (consumed by the postgres kind), password and db
+            declarations (consumed by the redis kind).
     """
 
     _container_port: int
@@ -52,7 +53,8 @@ class BaseEngine:
 
         Args:
             config: The service declaration — name, kind, image override, topics, probe,
-                migrations declaration (consumed by the postgres kind).
+                migrations declaration (consumed by the postgres kind), password and db
+                declarations (consumed by the redis kind).
         """
         self.config = config
         self._journal: list[DataOperation] = []
