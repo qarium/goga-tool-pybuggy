@@ -683,25 +683,25 @@ the five-kind list). Tests extend `tests/sandbox/config/test_loader.py` in place
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
-- [ ] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/config/test_loader.py` —
+- [x] **STEP 0 (DECLARATION + ENVIRONMENT)**: declare this task; ensure the venv.
+- [x] **STEP 1 (CONTRACT TESTS)**: in `tests/sandbox/config/test_loader.py` —
       `test_load_accepts_a_redis_service_with_password_and_db` (contract-level): a
       `sandbox_yaml` document with `services: {cache: {kind: redis, password:
       sandbox-redis, db: 2}}` and a valid instance validates;
       `config.services["cache"].kind == "redis"`, `.password == "sandbox-redis"`,
       `.db == 2`. Expected to fail now.
-- [ ] **STEP 2 (IMPLEMENTATION)**: `config/loader.py` — the `_SUPPORTED_KINDS`,
+- [x] **STEP 2 (IMPLEMENTATION)**: `config/loader.py` — the `_SUPPORTED_KINDS`,
       `_SECTION_KINDS`, `_REDIS_ACTIONS` constants; `_validate_redis_keys` called in
       `_read_services` after `_validate_migrations`; `_validate_redis_declarations` called
       from `_read_section` for `section == "redis"` (the vault-check call-site precedent),
       with Google docstrings per module style.
-- [ ] **REPL cycle (M4)**: in the venv REPL — drive `validate_sandbox_config` over scratch
+- [x] **REPL cycle (M4)**: in the venv REPL — drive `validate_sandbox_config` over scratch
       documents: one valid redis service + `data.redis` four-action section; each invalid
       variant below; observe the exact messages; confirm non-redis entries with password/db
       fail naming the entry; reload after each edit.
-- [ ] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
+- [x] **STEP 3 (INTERFACE VERIFICATION)**: `.venv/bin/pytest
       tests/sandbox/config/test_loader.py -v` — the contract test passes.
-- [ ] **STEP 4 (LOGIC TESTS)**: in `tests/sandbox/config/test_loader.py` (all via
+- [x] **STEP 4 (LOGIC TESTS)**: in `tests/sandbox/config/test_loader.py` (all via
       `sandbox_yaml`, asserting `pytest.raises(ValueError, match=...)`):
       - `test_load_accepts_the_redis_data_section_for_all_four_actions` — the four
         declarations (`{action: set, key: feature-flag/a, value: enabled}`,
@@ -749,23 +749,23 @@ the five-kind list). Tests extend `tests/sandbox/config/test_loader.py` in place
       - Re-pointed: the unknown-kind test input `kind: redis` → `kind: mysql`, match
         `mysql.*postgresql.*kafka.*vault.*http.*redis`; the unknown-data-section match
         extends to `vault, http, postgres, redis`.
-- [ ] **Re-point the plugin gates**: `tests/plugin/test_install.py` and
+- [x] **Re-point the plugin gates**: `tests/plugin/test_install.py` and
       `tests/plugin/test_sandbox_plugin.py` — the unsupported-kind documents
       `cache: { kind: redis }` → `cache: { kind: mysql }`; the matches re-point to
       `mysql.*not one of the supported kinds` carrying the five-kind list.
-- [ ] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
+- [x] **STEP 5 (DEBUGGING)**: `.venv/bin/pytest tests/ -x` — fix implementation code until
       all tests pass (the re-pointed plugin tests must be green again in the same run).
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)**: the loader algorithm steps 3–4 of the
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)**: the loader algorithm steps 3–4 of the
       CODEMANIFEST hold: kind list five; password/db placement + db range; `data.redis`
       grammar; every failure message names the location and the entry; `data.kafka`
       rejection and the existing four-kind behaviors unchanged.
-- [ ] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
+- [x] **STEP 7 (LINT)**: `.venv/bin/ruff format goga_tool_pybuggy/ tests/` then
       `.venv/bin/ruff check goga_tool_pybuggy/ tests/`.
-- [ ] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
+- [x] **STEP 8 (COMPLETION + COMMIT GATE)**: mark checkboxes complete; run the commit gate
       (M3.3); commit exactly `goga_tool_pybuggy/sandbox/config/loader.py`,
       `tests/sandbox/config/test_loader.py`, `tests/plugin/test_install.py`,
       `tests/plugin/test_sandbox_plugin.py`.
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 4: engines cell — `RedisEngine` lifecycle, readiness, plane, and the four operations (TDD coding)
 
