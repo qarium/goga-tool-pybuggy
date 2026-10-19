@@ -95,6 +95,7 @@ sandbox.postgresql("db")   # a postgresql service named db
 sandbox.http("payments")   # an http service named payments
 sandbox.vault("secrets")   # a vault service named secrets
 sandbox.kafka("events")    # a kafka service named events
+sandbox.redis("cache")     # a redis service named cache
 ```
 
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped
@@ -196,17 +197,41 @@ an undeclared topic fails the operation. The wire encoding is fixed: a mapping v
 arrives as JSON bytes, a plain string value as UTF-8 bytes, and the key (when given) as
 UTF-8 — the service under test consumes exactly that.
 
+## Redis operations
+
+```python
+sandbox.redis("cache").set("feature-flag/a", "enabled")
+sandbox.redis("cache").hset("user:1", {"name": "Ann", "plan": "pro"})
+sandbox.redis("cache").rpush("queue:orders", [{"id": 1}, {"id": 2}])
+sandbox.redis("cache").sadd("members:vip", ["ann", "bob"])
+```
+
+The operation names mirror the redis commands, and the choice is part of your visibility
+contract — the writer must be type-correct for the service's read path: a `set`-seeded
+key is invisible to a service reading `HGET`. Pick by the reader — `GET` (`set`),
+`HGET`/`HGETALL` (`hset`), `LRANGE` (`rpush`), `SMEMBERS` (`sadd`).
+
+- Values are strings or JSON-serializable plain data; serialization to the wire form
+  happens at execution and the declared payload is never rewritten — a string passes
+  through as given, everything else arrives as its JSON text.
+- Operations apply to the logical database declared on the service entry (`db`, default
+  `0` — see the [sandbox document](configuration.md#services)); align the service's own
+  db configuration with it, or the service will not see the seeded data.
+- Later writes to the same key follow the redis command semantics — a second `set`
+  overwrites, `rpush`/`sadd` append.
+
 ## Presets
 
 Data can also be declared directly on the test as a **preset** — each declaration
-carries the same fields as the matching view operation, and presets apply on top of the
-reset state, ahead of the test's own operations. All four kinds are accepted
-(`postgresql`, `kafka`, `vault`, `http`); an unsupported kind or a malformed row fails
-at decoration time, before anything starts. The decorator also stamps a `usefixtures`
-mark that pulls the sandbox into the test's fixture closure, so the reset and the
-presets run. The mark does not imply binding: a preset-declaring test that calls the
-service still takes the `sandbox` argument and calls `endpoint.bind(sandbox)`
-explicitly:
+carries the same fields as the matching view operation — redis declarations additionally
+name the operation through the `action` key (`set` / `hset` / `rpush` / `sadd`), because
+the kind has four operations — and presets apply on top of the reset state, ahead of the
+test's own operations. All five kinds are accepted (`postgresql`, `kafka`, `vault`,
+`http`, `redis`); an unsupported kind or a malformed row fails at decoration time,
+before anything starts. The decorator also stamps a `usefixtures` mark that pulls the
+sandbox into the test's fixture closure, so the reset and the presets run. The mark does
+not imply binding: a preset-declaring test that calls the service still takes the
+`sandbox` argument and calls `endpoint.bind(sandbox)` explicitly:
 
 ```python
 from goga_tool_pybuggy import services
@@ -222,6 +247,12 @@ from goga_tool_pybuggy import services
             }
         ]
     },
+    redis={
+        "cache": [
+            {"action": "set", "key": "feature-flag/a", "value": "enabled"},
+            {"action": "hset", "key": "user:1", "values": {"name": "Ann", "plan": "pro"}},
+        ]
+    },
 )
 def test_checkout(api, sandbox):
     api.bind(sandbox)
@@ -233,4 +264,9 @@ def test_checkout(api, sandbox):
 Operations apply in declaration order, per service: presets first, then in-test
 operations in call order. Foreign-key chains are expressed by declaring parents before
 children — one `insert` call targets one table (the database constraint still requires
-the parent row first). Reset-side cleanup needs no ordering from the author.
+the parent row first). Redis operations apply in declaration order against the declared
+database — later writes to the same key follow the redis command semantics (a second
+`set` overwrites, `rpush`/`sadd` append). The per-test reset of a redis service is
+`FLUSHDB` of the declared logical database plus the baseline journal replay — the
+container keeps running through the reset, and keys written by one test never leak into
+the next. Reset-side cleanup needs no ordering from the author.

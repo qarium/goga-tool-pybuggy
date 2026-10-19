@@ -1338,17 +1338,20 @@ no new pages.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Update `docs/sandbox/configuration.md` — five-kind lists, redis keys, image row,
+- [x] Update `docs/sandbox/configuration.md` — five-kind lists, redis keys, image row,
       `data.redis` row + example, placeholder note, extended failure list.
-- [ ] Update `docs/sandbox/api.md` — `sandbox.redis(name)`, `RedisInstance` operations,
+- [x] Update `docs/sandbox/api.md` — `sandbox.redis(name)`, `RedisInstance` operations,
       `@services(redis=...)` example, ordering and FLUSHDB reset notes.
-- [ ] Update `docs/sandbox/index.md` — the five-kind lists.
-- [ ] Verify grounding: `grep -rn "redis" docs/sandbox/` shows the three pages covering
+- [x] Update `docs/sandbox/index.md` — the five-kind lists.
+- [x] Verify grounding: `grep -rn "redis" docs/sandbox/` shows the three pages covering
       configuration, api, and index; a repository-wide search for stale four-kind lists
-      (`postgresql, kafka, vault, http` without redis) in `docs/` returns nothing.
-- [ ] **Stage gate (M3.2)** over the unchanged `.py` tree (both ruff commands exit 0) +
+      (`postgresql, kafka, vault, http` without redis) in `docs/` returns nothing
+      (two stale lists outside `docs/sandbox/` — `docs/index.md` and
+      `docs/pipelines/api-automate.md` — were re-pointed to five kinds to satisfy this).
+- [x] **Stage gate (M3.2)** over the unchanged `.py` tree (both ruff commands exit 0) +
       **commit gate (M3.3)**: commit exactly `docs/sandbox/configuration.md`,
-      `docs/sandbox/api.md`, `docs/sandbox/index.md`.
+      `docs/sandbox/api.md`, `docs/sandbox/index.md` (plus the two re-pointed pages and
+      the plan).
 
 ---
 
@@ -1367,31 +1370,31 @@ no new pages.
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location` (`engines/redis.py`,
+- [x] Every contract entity is implemented in the correct `location` (`engines/redis.py`,
       `data/redis.py`; the changed entities in `service.py`, `startup_data.py`,
       `loader.py`, `runtime.py`, `presets.py`, `sandbox.py`)
-- [ ] Every contract entity is accessible from the facade (`RedisEngine` from
+- [x] Every contract entity is accessible from the facade (`RedisEngine` from
       `goga_tool_pybuggy.sandbox.engines`, `RedisInstance` from
       `goga_tool_pybuggy.sandbox.data`)
-- [ ] Properties and methods match the declared API (`RedisEngine` hooks and family
+- [x] Properties and methods match the declared API (`RedisEngine` hooks and family
       contract; `RedisInstance` four methods + three properties; `Sandbox.redis(name)`;
       model fields with the declared defaults)
-- [ ] Descriptions are reflected in behavior (bounded PING readiness, auth fast-fail,
+- [x] Descriptions are reflected in behavior (bounded PING readiness, auth fast-fail,
       wire serialization at execution, FLUSHDB-of-declared-db reset, journal determinism,
       fail-fast messages naming the location and entry)
-- [ ] Contract dependencies are met (config ← engines ← data ← root order; no new
+- [x] Contract dependencies are met (config ← engines ← data ← root order; no new
       cross-cell edges)
-- [ ] Re-exports are accessible from the facades
-- [ ] Every coding task followed the TDD workflow (contract tests → code → REPL cycle →
+- [x] Re-exports are accessible from the facades
+- [x] Every coding task followed the TDD workflow (contract tests → code → REPL cycle →
       verification → logic tests → debugging → re-verification → lint)
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding
       task; the docker-gated integration tests exist as the separate Task 9
-- [ ] No package boundary was expanded (no new cells; internal decomposition only within
+- [x] No package boundary was expanded (no new cells; internal decomposition only within
       the engines/data modules)
-- [ ] `CODEMANIFEST` files were not modified (contract is read-only); the cell `.usages/`
+- [x] `CODEMANIFEST` files were not modified (contract is read-only); the cell `.usages/`
       files were not modified (current by the apply stage)
-- [ ] All validation commands pass
-- [ ] Every Usages entry is mentioned in at least one task (`redis`, `testcontainers`,
+- [x] All validation commands pass
+- [x] Every Usages entry is mentioned in at least one task (`redis`, `testcontainers`,
       `conventions`, `sandbox-file`, `data-operations`, `migration-set` — context only)
-- [ ] The Mandatory Rules held at every stage: M1 style, M2 tests, M3 lint/format stage +
+- [x] The Mandatory Rules held at every stage: M1 style, M2 tests, M3 lint/format stage +
       commit gates on every local commit, M4 REPL cycle in every coding task

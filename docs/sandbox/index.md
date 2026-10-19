@@ -3,10 +3,10 @@
 The **sandbox** is pybuggy's session-scoped service isolation for integration tests: when
 a `sandbox.yml` document is present, the built-in `sandbox` pytest fixture becomes
 available. The first test that requests it starts the **service under test** and its
-mocked dependency **services** (**postgresql**, **kafka**, **vault**, **http**) in
-containers and injects their addresses into the service's environment; the test targets
-the running instance with `endpoint.bind(sandbox)`. Without the document nothing
-sandbox-related is registered — no fixture, no containers.
+mocked dependency **services** (**postgresql**, **kafka**, **vault**, **http**,
+**redis**) in containers and injects their addresses into the service's environment; the
+test targets the running instance with `endpoint.bind(sandbox)`. Without the document
+nothing sandbox-related is registered — no fixture, no containers.
 
 The sandbox has two surfaces: the [sandbox document](configuration.md) — the declarative
 description of the service under test, its dependencies, and their startup data — and the
@@ -82,8 +82,9 @@ limitation).
 
 - The test environment needs a **docker-compatible container runtime**; the startup
   error names the requirement when it is missing.
-- The sandbox pulls the container/DB/Kafka stack into the environment
-  (`testcontainers`, `psycopg`, `kafka-python`, `requests` — package dependencies).
+- The sandbox pulls the container/DB/Kafka/redis stack into the environment
+  (`testcontainers`, `psycopg`, `kafka-python`, `redis`, `requests` — package
+  dependencies).
 - The dependency mocks use fixed test credentials that the instance env must match:
   postgres accepts user `test`, password `test`, database `test` (connect with
   `postgres://test:test@{{db.host}}:{{db.port}}/test`); vault runs in dev mode with the
