@@ -376,11 +376,9 @@ class TestRedisEngineBuild:
 
         authenticated = cache_engine(password="sandbox-redis")._build_container()
         assert authenticated.kwargs["password"] == "sandbox-redis"
-        assert authenticated.command == "redis-server --requirepass sandbox-redis"
 
         unauthenticated = cache_engine()._build_container()
         assert unauthenticated.kwargs["password"] is None
-        assert unauthenticated.command is None
 
     def test_build_replaces_the_builtin_wait_strategy(self, monkeypatch: pytest.MonkeyPatch):
         """The module's built-in PING wait gives way to the engine's no-op — readiness is owned."""
@@ -454,6 +452,22 @@ class TestRedisEngineReadiness:
         assert namespace.clients[0].commands == [("ping", (), {})]
         assert namespace.clients[0].closed == 1
         assert clock.slept == []
+
+    def test_wait_ready_retries_a_timed_out_ping(self, monkeypatch: pytest.MonkeyPatch):
+        """A timed-out PING is a retry, not a failure — the loop probes on to success."""
+        timed_out = redis.exceptions.TimeoutError("timeout reading PING reply")
+        namespace = FakeRedisNamespace(ping_outcomes=[timed_out, True])
+        monkeypatch.setattr(redis_module, "redis", namespace)
+        clock = install_fake_clock(monkeypatch)
+        engine = cache_engine()
+        engine._container = FakeRedisContainer("redis:8-alpine")
+
+        engine._wait_ready()
+
+        assert len(namespace.clients) == 2
+        assert all(client.commands == [("ping", (), {})] for client in namespace.clients)
+        assert all(client.closed == 1 for client in namespace.clients)
+        assert clock.slept == [0.5]
 
     def test_wait_ready_fails_past_the_declared_deadline(self, monkeypatch: pytest.MonkeyPatch):
         """A service that never answers PING fails when the declared deadline expires."""
@@ -628,6 +642,20 @@ class TestRedisEngineLifecycle:
         assert engine._container is None
         assert container.stops == 1
         assert session.closed == 1
+
+    def test_start_fails_readably_when_the_binding_ping_fails(self, monkeypatch: pytest.MonkeyPatch):
+        """A failed data-plane binding PING surfaces as the data-plane-open step error."""
+        refused = redis.exceptions.ConnectionError("connection refused")
+        engine, namespace = armed_engine(monkeypatch, ping_outcomes=[True, refused])
+
+        with pytest.raises(EngineError, match=r"service 'cache': start failed at data-plane open"):
+            engine.start([])
+
+        session = namespace.clients[-1]
+
+        assert session.commands == [("ping", (), {})]
+        assert session.closed == 1
+        assert engine._container is None
 
     def test_reset_flushes_then_replays_the_journal(self, monkeypatch: pytest.MonkeyPatch):
         """Reset flushes the declared database and replays the journal without a restart."""

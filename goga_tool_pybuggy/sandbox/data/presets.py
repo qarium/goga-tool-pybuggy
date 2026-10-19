@@ -18,10 +18,9 @@ _REDIS_ACTIONS = {
     "rpush": ("key", "values"),
     "sadd": ("key", "members"),
 }
-# The container-field type of every action — a `set` value rides as any plain object and
-# is serialized at execution time, so its check is the always-true isinstance over `object`.
+# The container-field type of the collection actions — a `set` value rides as any plain
+# object and is serialized at execution time, so the action carries no field-type check.
 _REDIS_FIELD_TYPES = {
-    "set": ("value", object),
     "hset": ("values", dict),
     "rpush": ("values", list),
     "sadd": ("members", list),
@@ -130,7 +129,7 @@ def _validate_redis_declarations(name: str, declarations: list[dict[str, object]
     for declaration in declarations:
         action = declaration.get("action")
 
-        if action not in _REDIS_ACTIONS:
+        if not isinstance(action, str) or action not in _REDIS_ACTIONS:
             raise ValueError(f"{context}: every declaration requires an 'action' key (set, hset, rpush, or sadd)")
 
         _validate_redis_declaration_fields(context, declaration, action)
@@ -174,9 +173,10 @@ def _validate_redis_declaration_fields(
     if not isinstance(key, str) or not key.strip():
         raise ValueError(f"{context}: every '{action}' declaration requires a non-empty string 'key'")
 
-    field, field_type = _REDIS_FIELD_TYPES[action]
+    if action in _REDIS_FIELD_TYPES:
+        field, field_type = _REDIS_FIELD_TYPES[action]
 
-    if not isinstance(declaration.get(field), field_type):
-        shape = "mapping" if field_type is dict else "list"
+        if not isinstance(declaration.get(field), field_type):
+            shape = "mapping" if field_type is dict else "list"
 
-        raise ValueError(f"{context}: a '{action}' declaration requires a {shape} '{field}'")
+            raise ValueError(f"{context}: a '{action}' declaration requires a {shape} '{field}'")

@@ -712,6 +712,13 @@ class TestSandboxEnqueuePresets:
         ):
             started.sandbox.enqueue_presets(presets)
 
+    def test_enqueue_presets_fails_a_non_mapping_redis_declaration(self, started: SandboxHarness):
+        """A non-mapping redis declaration fails readably instead of crashing the enqueue loop."""
+        presets = {"redis": {"cache": ["set"]}}
+
+        with pytest.raises(ValueError, match=r"services preset 'redis\.cache': every declaration must be a mapping"):
+            started.sandbox.enqueue_presets(presets)
+
     def test_enqueue_presets_reads_the_redis_action_from_the_declaration(self, started: SandboxHarness):
         """A redis preset's action key names the operation; the payload keeps the view fields."""
         declaration = {"action": "hset", "key": "user:1", "values": {"name": "Ann"}}

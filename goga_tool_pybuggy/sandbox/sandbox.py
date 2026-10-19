@@ -218,8 +218,8 @@ class Sandbox:
 
         Raises:
             ValueError: A preset targets an unknown service or one of another kind — the
-                message lists the configured services; a redis declaration carries no
-                known ``action`` key.
+                message lists the configured services; a redis declaration is not a
+                mapping or carries no known ``action`` key.
         """
         enqueued = 0
 
@@ -231,6 +231,9 @@ class Sandbox:
                     action = _KIND_ACTIONS[kind]
 
                     if action is None:
+                        if not isinstance(declaration, dict):
+                            raise ValueError(f"services preset 'redis.{name}': every declaration must be a mapping")
+
                         action = declaration.get("action")
 
                         if not isinstance(action, str) or action not in _REDIS_ACTIONS:

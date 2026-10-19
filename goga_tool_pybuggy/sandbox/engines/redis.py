@@ -19,12 +19,7 @@ PLANE_TIMEOUT = 5
 PROBE_CONNECT_TIMEOUT = 2
 SANDBOX_LABELS = {"pybuggy-sandbox": "true"}
 
-_REDIS_ACTIONS = {
-    "set": ("key", "value"),
-    "hset": ("key", "values"),
-    "rpush": ("key", "values"),
-    "sadd": ("key", "members"),
-}
+_REDIS_ACTIONS: frozenset[str] = frozenset({"set", "hset", "rpush", "sadd"})
 
 
 class _NoWaitStrategy(WaitStrategy):
@@ -189,7 +184,7 @@ class RedisEngine(BaseEngine):
                 converts it into ``EngineError`` naming the service, the action and the cause.
         """
         if operation.action not in _REDIS_ACTIONS:
-            raise RuntimeError(f"unknown redis action '{operation.action}' ({', '.join(_REDIS_ACTIONS)})")
+            raise RuntimeError(f"unknown redis action '{operation.action}' ({', '.join(sorted(_REDIS_ACTIONS))})")
 
         payload = operation.payload
         key = payload["key"]

@@ -213,6 +213,11 @@ class TestServicesLogic:
         with pytest.raises(ValueError, match=r"services preset 'redis\.cache'.*'action' key"):
             services(redis={"cache": [{"key": "k", "value": "v"}]})
 
+    def test_services_fails_redis_preset_with_non_string_action(self):
+        """A non-string action value fails the action-key error instead of a type crash."""
+        with pytest.raises(ValueError, match=r"services preset 'redis\.cache'.*'action' key"):
+            services(redis={"cache": [{"action": ["set"], "key": "k", "value": "v"}]})
+
     @pytest.mark.parametrize(
         "declaration",
         [
@@ -235,6 +240,7 @@ class TestServicesLogic:
             ({"action": "rpush", "key": "k", "values": {"a": 1}}, "values"),
             ({"action": "sadd", "key": "k", "members": "x"}, "members"),
             ({"action": "set", "key": 5, "value": "v"}, "key"),
+            ({"action": "set", "key": "  ", "value": "v"}, "key"),
         ],
     )
     def test_services_fails_redis_preset_with_wrong_field_types(self, declaration, field):

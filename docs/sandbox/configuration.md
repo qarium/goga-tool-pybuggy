@@ -145,7 +145,9 @@ the service needs.
   <password>`); omit it and redis starts without authentication (the primary mode). The
   value reaches the service under test as an env literal in the instance env — e.g.
   `REDIS_PASSWORD: "sandbox-redis"` — the postgres-URL precedent; no placeholder exists
-  for it.
+  for it. The password rides the redis container command line, so it must carry no
+  whitespace, quotes, or backslashes — a value with such characters fails the load naming
+  the entry.
 - Redis `db` (optional) is the logical database index, `0` by default (the conventional
   client default); it must be an integer within 0–15, checked at document load — an
   out-of-range value, a non-integer, or an empty `password` fails the load naming the

@@ -32,10 +32,9 @@ _REDIS_ACTIONS = {
 # The highest redis logical database index — the engine's one connection addresses a db of
 # the declared index; the valid range is 0-15 (the redis SELECT ceiling).
 _REDIS_DB_MAX = 15
-# The container-field type of every action — a `set` value rides as any plain object and is
-# serialized at execution time, so its check is the always-true isinstance over `object`.
+# The container-field type of the collection actions — a `set` value rides as any plain
+# object and is serialized at execution time, so the action carries no field-type check.
 _REDIS_FIELD_TYPES = {
-    "set": ("value", object),
     "hset": ("values", dict),
     "rpush": ("values", list),
     "sadd": ("members", list),
@@ -269,8 +268,10 @@ def _validate_redis_keys(entry: dict[str, object], scope: str) -> None:
     Both keys are accepted on the redis kind only — the placement check runs before any
     value shape, so a stray ``password`` or ``db`` on another kind fails naming the entry.
     On a redis entry the password must be a non-empty string (absent starts the service
-    without authentication) and the db index an integer within 0-15 — booleans are
-    rejected explicitly, since ``bool`` is an ``int`` subclass in Python.
+    without authentication) free of whitespace, quotes, and backslashes — it rides the
+    redis container command line, where such characters break or silently alter the shell
+    wiring — and the db index an integer within 0-15 — booleans are rejected explicitly,
+    since ``bool`` is an ``int`` subclass in Python.
 
     Args:
         entry: The raw service entry mapping.
@@ -290,6 +291,12 @@ def _validate_redis_keys(entry: dict[str, object], scope: str) -> None:
 
     if "password" in entry and (not isinstance(password, str) or not password):
         raise ValueError(f"{scope}.password: must be a non-empty string")
+
+    if "password" in entry and any(char.isspace() or char in "\"'\\" for char in password):
+        raise ValueError(
+            f"{scope}.password: must carry no whitespace, quotes, or backslashes — "
+            f"it rides the redis container command line"
+        )
 
     db = entry.get("db")
 
@@ -447,7 +454,7 @@ def _validate_redis_declarations(target: str, declarations: object, location: Pa
 
         action = declaration.get("action")
 
-        if action not in _REDIS_ACTIONS:
+        if not isinstance(action, str) or action not in _REDIS_ACTIONS:
             raise ValueError(
                 f"{location}: data.redis.{target}: every declaration requires an "
                 f"'action' key (set, hset, rpush, or sadd)"
@@ -498,13 +505,14 @@ def _validate_redis_declaration_fields(
             f"{location}: data.redis.{target}: every '{action}' declaration requires a non-empty string 'key'"
         )
 
-    field, field_type = _REDIS_FIELD_TYPES[action]
-    value = declaration.get(field)
+    if action in _REDIS_FIELD_TYPES:
+        field, field_type = _REDIS_FIELD_TYPES[action]
+        value = declaration.get(field)
 
-    if not isinstance(value, field_type):
-        shape = "mapping" if field_type is dict else "list"
+        if not isinstance(value, field_type):
+            shape = "mapping" if field_type is dict else "list"
 
-        raise ValueError(f"{location}: data.redis.{target}: a '{action}' declaration requires a {shape} '{field}'")
+            raise ValueError(f"{location}: data.redis.{target}: a '{action}' declaration requires a {shape} '{field}'")
 
 
 def _validate_placeholders(instance: InstanceConfig, services: dict[str, ServiceConfig], location: Path) -> None:

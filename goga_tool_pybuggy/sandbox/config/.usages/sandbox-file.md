@@ -106,7 +106,9 @@ data:                               # startup data layer, applied before the ins
   (`--requirepass <password>`); omit it and redis starts without authentication (the primary
   mode). The value travels to the service under test as an env literal in the sandbox
   document (the postgres-URL precedent) — e.g. `REDIS_PASSWORD: "sandbox-redis"` — no
-  placeholder kind exists for it.
+  placeholder kind exists for it. The password rides the redis container command line, so it
+  must carry no whitespace, quotes, or backslashes — a value with such characters fails the
+  load naming the entry.
 - `db` (optional) — the logical database index, `0` by default (the conventional client
   default); must be an integer within 0–15, checked at document load. The engine connects,
   seeds, and wipes the declared database — align the service's own db configuration with it

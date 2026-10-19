@@ -921,11 +921,32 @@ class TestValidateSandboxConfigRedisLogic:
         with pytest.raises(ValueError, match=r"services\.cache\.db: must be an integer within 0-15"):
             validate_written()
 
-    def test_load_fails_empty_password(self, sandbox_yaml):
-        """An empty password string fails naming the entry and the rule."""
-        sandbox_yaml('instance:\n  image: i\n  port: 1\n  env: {}\nservices:\n  cache: { kind: redis, password: "" }\n')
+    @pytest.mark.parametrize("password_entry", ['""', "123"])
+    def test_load_fails_empty_or_mistyped_password(self, sandbox_yaml, password_entry):
+        """An empty or non-string password fails naming the entry and the rule."""
+        sandbox_yaml(
+            f"instance:\n  image: i\n  port: 1\n  env: {{}}\n"
+            f"services:\n  cache: {{ kind: redis, password: {password_entry} }}\n"
+        )
 
         with pytest.raises(ValueError, match=r"services\.cache\.password: must be a non-empty string"):
+            validate_written()
+
+    @pytest.mark.parametrize(
+        "password",
+        ['"my secret"', "'pa\"ss'", '"pa\\\\ss"'],
+    )
+    def test_load_fails_password_with_command_breaking_characters(self, sandbox_yaml, password):
+        """A password carrying whitespace, quotes, or backslashes fails the load naming the rule."""
+        sandbox_yaml(
+            f"instance:\n  image: i\n  port: 1\n  env: {{}}\n"
+            f"services:\n  cache: {{ kind: redis, password: {password} }}\n"
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"services\.cache\.password: must carry no whitespace, quotes, or backslashes",
+        ):
             validate_written()
 
     def test_load_fails_topics_on_redis(self, sandbox_yaml):
@@ -998,6 +1019,27 @@ class TestValidateSandboxConfigRedisLogic:
         ):
             validate_written()
 
+    def test_load_fails_redis_declaration_with_non_string_action(self, sandbox_yaml):
+        """A non-string action value fails the action-key error instead of a type crash."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            "    cache:\n"
+            "      - { action: [set], key: k, value: v }\n"
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"data\.redis\.cache: every declaration requires an 'action' key \(set, hset, rpush, or sadd\)",
+        ):
+            validate_written()
+
     @pytest.mark.parametrize(
         "declaration",
         [
@@ -1034,6 +1076,7 @@ class TestValidateSandboxConfigRedisLogic:
             ("{ action: rpush, key: k, values: { a: 1 } }", "values"),
             ("{ action: sadd, key: k, members: x }", "members"),
             ("{ action: set, key: 5, value: v }", "key"),
+            ("{ action: set, key: '  ', value: v }", "key"),
         ],
     )
     def test_load_fails_redis_declaration_with_wrong_field_types(self, sandbox_yaml, declaration, field):
@@ -1052,6 +1095,30 @@ class TestValidateSandboxConfigRedisLogic:
         )
 
         with pytest.raises(ValueError, match=rf"data\.redis\.cache.*{field}"):
+            validate_written()
+
+    @pytest.mark.parametrize(
+        ("section", "detail"),
+        [
+            ("cache: not-a-list", r"redis\.cache: Input should be a valid list"),
+            ("cache:\n      - set", r"redis\.cache\.0: Input should be a valid dictionary"),
+        ],
+    )
+    def test_load_fails_a_malformed_redis_section_at_the_model_build(self, sandbox_yaml, section, detail):
+        """Non-list section values and non-mapping declarations fail the model build naming the scope."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            f"    {section}\n"
+        )
+
+        with pytest.raises(ValueError, match=rf"data: {detail}"):
             validate_written()
 
     def test_load_fails_redis_section_targeting_a_non_redis_service(self, sandbox_yaml):
