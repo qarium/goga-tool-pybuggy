@@ -91,7 +91,10 @@ Annotations: |
     `migrations`: the optional migrations declaration — accepted on the postgresql kind only;
     a declaration on any other kind fails at document load with the entry named.
     `password`: the redis auth password — optional, accepted on the redis kind only; absent
-    starts the service without authentication; present starts it with --requirepass.
+    starts the service without authentication; present starts it with --requirepass. A declared
+    value must be a non-empty string free of whitespace, quotes, and backslashes — it rides the
+    redis container command line, where such characters break the shell wiring; anything else
+    fails at document load naming the entry.
     `db`: the redis logical database index — optional, accepted on the redis kind only; 0 by
     default; the valid range is 0-15.
 
@@ -118,7 +121,8 @@ Annotations: |
     "migrations -> MigrationsConfig | None": |
       The migrations declaration; None — no migrations.
     "password -> str | None": |
-      The redis auth password; None — the service starts without authentication.
+      The redis auth password; None — the service starts without authentication. A declared
+      value carries no whitespace, quotes, or backslashes (the container command line).
     "db -> int": |
       The redis logical database index; 0 by default; valid range 0-15.
 
@@ -277,7 +281,9 @@ Annotations: |
     the scope and the offending path or URL, with the original error as the cause. A password
     and a db are accepted on the redis kind only — either on any other kind fails naming the
     entry; db must be an integer within 0-15 — anything else fails at document load naming
-    the entry.
+    the entry. A declared password must be a non-empty string free of whitespace, quotes,
+    and backslashes — it rides the redis container command line; anything else fails at
+    document load naming the entry.
     4. Validate the startup data sections — every declaration targets an existing service of
     the matching kind; a kafka section fails as removed — the topology is declared inline on
     the service entry; redis declarations carry the action key (set, hset, rpush, or sadd)
@@ -294,6 +300,8 @@ Annotations: |
     - The probe bounds are validated — a positive timeout and interval, the interval never
     exceeding the timeout.
     - The redis db index is validated at load — an integer within 0-15.
+    - The redis password is validated at load — a non-empty string free of whitespace,
+      quotes, and backslashes.
     - A migrations declaration is validated fully at load for local sources (folder checks)
     and by URL shape for remote sources — remote content resolves at engine startup.
     - Every failure message names the carried document location and the offending entry.
