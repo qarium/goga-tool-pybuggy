@@ -38,6 +38,7 @@ from goga_tool_pybuggy import services
 
 def test_direct(sandbox):  # requests the sandbox explicitly
     sandbox.postgresql("db").insert("orders", rows=[{"id": 100}])
+    sandbox.redis("cache").set("feature-flag/a", "enabled")
 
 
 @services(postgresql={"db": [{"table": "customers", "rows": [{"id": 1}]}]})
@@ -60,6 +61,7 @@ def seeded(sandbox):
     with sandbox.baseline():  # the baseline boundary — author code
         sandbox.postgresql("db").insert("customers", rows=[{"id": 1, "name": "Ann"}])
         sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
+        sandbox.redis("cache").set("feature-flag/a", "enabled")
     yield sandbox  # stop is product-owned — do not stop manually
 ```
 
@@ -67,6 +69,8 @@ Operations inside the baseline boundary apply immediately and become the session
 every reset the services return to exactly this state. Baseline rows may use `$ref` / `$lookup`
 references like any declaration — after every reset the journal replay re-applies and re-resolves
 them, so generated keys stay consistent between the baseline and the tests built on top of it.
+Redis baseline operations journal the same way — the reset replays them onto the flushed
+database.
 
 ## Per-test reset
 
@@ -74,6 +78,8 @@ Product-owned: before every sandbox test the plugin's per-test fixture returns e
 service to the baseline and enqueues the test's marked presets. Test order cannot change
 outcomes, and no consumer autouse reset is needed. Only dependency data resets; the instance
 container keeps running (service in-memory state not resetting is an accepted v1 limitation).
+A redis service resets by `FLUSHDB` of its declared logical database plus the baseline replay —
+the container keeps running through the reset.
 
 ## Calling the service
 

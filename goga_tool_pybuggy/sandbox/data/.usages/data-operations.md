@@ -3,10 +3,10 @@
 ## Domain
 
 Declaring the data a service under test will see: rows in postgres, stub responses of http
-dependencies, secrets in vault, messages in kafka topics. Target audience: service test authors.
-Operations are declared from tests through instance views, or on the test itself as a preset; they
-are lazy — the sandbox applies them as one consistent batch right before the first call to the
-service under test.
+dependencies, secrets in vault, messages in kafka topics, keys and values in redis. Target
+audience: service test authors. Operations are declared from tests through instance views, or
+on the test itself as a preset; they are lazy — the sandbox applies them as one consistent
+batch right before the first call to the service under test.
 
 ## Reaching an instance
 
@@ -17,6 +17,7 @@ sandbox.postgresql("db").insert(...)  # a postgresql service named db
 sandbox.http("payments").stub(...)  # an http service named payments
 sandbox.vault("secrets").put(...)  # a vault service named secrets
 sandbox.kafka("events").produce(...)  # a kafka service named events
+sandbox.redis("cache").set(...)  # a redis service named cache
 ```
 
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped address the
@@ -37,6 +38,11 @@ sandbox.http("payments").stub(
 sandbox.vault("secrets").put("payment/api-key", {"api_key": "test-key"})
 
 sandbox.kafka("events").produce("orders.events", {"id": 1}, key="1")
+
+sandbox.redis("cache").set("feature-flag/a", "enabled")
+sandbox.redis("cache").hset("user:1", {"name": "Ann", "plan": "pro"})
+sandbox.redis("cache").rpush("queue:orders", [{"id": 1}, {"id": 2}])
+sandbox.redis("cache").sadd("members:vip", ["ann", "bob"])
 ```
 
 Nothing is executed at declaration time. The sandbox applies the accumulated batch automatically
@@ -46,6 +52,14 @@ before the first call to the service under test — there is no manual apply.
   topic fails the operation.
 - The kafka wire encoding is fixed: a mapping value arrives as JSON bytes, a plain string value
   as UTF-8 bytes, and the key (when given) as UTF-8.
+- Redis operation names mirror the redis commands. The operation choice is part of your
+  visibility contract — the writer must be type-correct for the service's read path: a
+  `set`-seeded key is invisible to a service reading `HGET` (wrong value encoding). Pick by the
+  reader — GET (`set`), HGET/HGETALL (`hset`), LRANGE (`rpush`), SMEMBERS (`sadd`).
+- Redis values are strings or JSON-serializable plain data; serialization to the wire form
+  happens at execution and the declared payload is never rewritten.
+- Redis data applies to the logical database declared on the service entry (`db`, default 0) —
+  align the service's own db configuration with it, or the service will not see the seeded data.
 
 ## Per-test presets
 
@@ -70,12 +84,20 @@ from goga_tool_pybuggy import services
             }
         ]
     },
+    redis={
+        "cache": [
+            {"action": "set", "key": "feature-flag/a", "value": "enabled"},
+            {"action": "hset", "key": "user:1", "values": {"name": "Ann", "plan": "pro"}},
+        ]
+    },
 )
 def test_checkout(api): ...
 ```
 
-Each declaration carries the same fields as the matching view operation. Presets apply only to the
-test declaring them, on top of the reset state, ahead of the test's own operations.
+Each declaration carries the same fields as the matching view operation — redis declarations
+additionally name the operation through the `action` key (`set` / `hset` / `rpush` / `sadd`),
+because the kind has four operations. Presets apply only to the test declaring them, on top of
+the reset state, ahead of the test's own operations.
 
 ## Ordering and foreign keys
 
@@ -83,6 +105,8 @@ Operations apply in the order declared, per service: presets first, then in-test
 call order; rows within one insert apply in list order. Foreign-key chains follow the declaration
 order — parents before children, one `insert` call targeting one table (the database constraint
 still needs the parent row applied first). Reset-side cleanup needs no ordering from the author.
+Redis operations apply in declaration order against the declared database — later writes to the
+same key follow the redis command semantics (a second `set` overwrites, `rpush`/`sadd` append).
 
 ## Referencing rows
 
@@ -129,6 +153,7 @@ Rules common to both forms:
   the declaration.
 - References resolve within one postgres service; rows created by raw sql startup statements are
   addressable only through `$lookup`.
+- References are a postgres surface — redis declarations carry plain values only.
 
 ## Preconditions and side effects
 
@@ -136,3 +161,5 @@ Rules common to both forms:
   (`.goga/tools/pybuggy/sandbox.yml`); an unknown name fails fast.
 - A failed operation fails the test with a readable error identifying the operation.
 - Read-back of dependency state is not part of this iteration — assert on service responses.
+- Redis state resets between tests — `FLUSHDB` of the declared database plus the baseline
+  replay; keys written by one test never leak into the next.

@@ -75,14 +75,14 @@ Annotations: |
     "probe -> ProbeConfig | None": |
       Readiness declaration; None keeps the default wait.
 
-"ServiceConfig(name: str, kind: str, image: str | None, topics: list[TopicConfig], probe: ProbeConfig | None, migrations: MigrationsConfig | None)":
+"ServiceConfig(name: str, kind: str, image: str | None, topics: list[TopicConfig], probe: ProbeConfig | None, migrations: MigrationsConfig | None, password: str | None = None, db: int = 0)":
   location: service.py
   annotations: |
     One named dependency service declaration.
 
     `name`: the service name — the key tests address the service by and the placeholder name
     used inside the instance env values.
-    `kind`: the dependency kind — postgresql, kafka, vault, or http.
+    `kind`: the dependency kind — postgresql, kafka, vault, http, or redis.
     `image`: optional image override; absent keeps the product-pinned default of the kind.
     `topics`: the kafka topic declarations — required and non-empty for the kafka kind, rejected
     for every other kind.
@@ -90,13 +90,17 @@ Annotations: |
     check.
     `migrations`: the optional migrations declaration — accepted on the postgresql kind only;
     a declaration on any other kind fails at document load with the entry named.
+    `password`: the redis auth password — optional, accepted on the redis kind only; absent
+    starts the service without authentication; present starts it with --requirepass.
+    `db`: the redis logical database index — optional, accepted on the redis kind only; 0 by
+    default; the valid range is 0-15.
 
     Requirements:
     - pydantic model, kw_only.
     - A kafka entry without topics is invalid — the mock would open no listener.
 
     Constraints:
-    - Do not accept any kind outside the four supported ones.
+    - Do not accept any kind outside the five supported ones.
     - Do not accept a probe path here — the path belongs to the instance-under-test entry only.
 
     Use `conventions` for the data-model rules.
@@ -104,7 +108,7 @@ Annotations: |
     "name -> str": |
       Service name — the addressable key and the placeholder name.
     "kind -> str": |
-      Dependency kind: postgresql, kafka, vault, or http.
+      Dependency kind: postgresql, kafka, vault, http, or redis.
     "image -> str | None": |
       Image override; None keeps the product-pinned default.
     "topics -> list[TopicConfig]": |
@@ -113,16 +117,23 @@ Annotations: |
       Readiness declaration; None keeps the default wait.
     "migrations -> MigrationsConfig | None": |
       The migrations declaration; None — no migrations.
+    "password -> str | None": |
+      The redis auth password; None — the service starts without authentication.
+    "db -> int": |
+      The redis logical database index; 0 by default; valid range 0-15.
 
-"StartupData(vault: dict[str, list[dict[str, object]]], http: dict[str, list[dict[str, object]]], postgres: dict[str, list[str]])":
+"StartupData(vault: dict[str, list[dict[str, object]]], http: dict[str, list[dict[str, object]]], postgres: dict[str, list[str]], redis: dict[str, list[dict[str, object]]] = {})":
   location: startup_data.py
   annotations: |
     Startup data layer declarations, in the fixed section order — vault secrets, http mappings,
-    then postgres init.
+    postgres init, then redis data.
 
     `vault`: service name → secret declarations (path, data).
     `http`: service name → stub mapping declarations (request, response).
     `postgres`: service name → init SQL statements.
+    `redis`: service name → data declarations; each declaration carries the action key — set,
+    hset, rpush, or sadd — plus the fields of the matching view operation (key with
+    value/values/members), and converts to one startup operation.
 
     Requirements:
     - Sections default empty; declarations target services by name.
@@ -141,6 +152,9 @@ Annotations: |
     "postgres -> dict[str, list[str]]": |
       Service name → init SQL statements; each statement converts to one startup insert operation
       whose payload carries the sql key (executed as given).
+    "redis -> dict[str, list[dict[str, object]]]": |
+      Service name → data declarations; each carries the action key (set, hset, rpush, sadd)
+      plus the matching view operation fields, and converts to one startup operation.
 
 "ProbeConfig(timeout: float = 30.0, interval: float = 0.5, path: str | None = None)":
   location: probe.py
@@ -253,17 +267,21 @@ Annotations: |
     3. Validate every service entry — a non-empty unique name matching the template identifier
     grammar — letters, digits, underscores, not starting with a digit (it names the
     `{{<name>.host}}` / `{{<name>.port}}` placeholders); a kind of postgresql, kafka,
-    vault, or http; the grpc kind fails with an explicit "not supported yet" error; an optional
-    image override; kafka entries declare a non-empty topics list; non-kafka entries declare
-    none; the probe carries no path. A migrations declaration is accepted on the postgresql
-    kind only — any other kind fails naming the entry; a declared local source resolves its
-    location against the current working directory and passes through `check_local_migrations`;
-    a declared remote source passes its URL through `check_git_url`.
+    vault, http, or redis; the grpc kind fails with an explicit "not supported yet" error; an
+    optional image override; kafka entries declare a non-empty topics list; non-kafka entries
+    declare none; the probe carries no path. A migrations declaration is accepted on the
+    postgresql kind only — any other kind fails naming the entry; a declared local source
+    resolves its location against the current working directory and passes through
+    `check_local_migrations`; a declared remote source passes its URL through `check_git_url`.
     A `MigrationError` raised by either check is wrapped into the reader's ValueError naming
-    the scope and the offending path or URL, with the original error as the cause.
+    the scope and the offending path or URL, with the original error as the cause. A password
+    and a db are accepted on the redis kind only — either on any other kind fails naming the
+    entry; db must be an integer within 0-15 — anything else fails at document load naming
+    the entry.
     4. Validate the startup data sections — every declaration targets an existing service of
     the matching kind; a kafka section fails as removed — the topology is declared inline on
-    the service entry.
+    the service entry; redis declarations carry the action key (set, hset, rpush, or sadd)
+    plus the matching view operation fields — anything else fails naming the entry.
     5. Validate the instance env values — every service placeholder name references a
     configured service.
     6. Return the model.
@@ -275,6 +293,7 @@ Annotations: |
     name fails before any container starts.
     - The probe bounds are validated — a positive timeout and interval, the interval never
     exceeding the timeout.
+    - The redis db index is validated at load — an integer within 0-15.
     - A migrations declaration is validated fully at load for local sources (folder checks)
     and by URL shape for remote sources — remote content resolves at engine startup.
     - Every failure message names the carried document location and the offending entry.

@@ -141,6 +141,47 @@ Annotations: |
 
       `mapping`: the mapping object of the http mock.
 
+"RedisInstance(name: str, address: InstanceAddress, batch: DataBatch)":
+  location: redis.py
+  annotations: |
+    Test-facing view of a started redis service.
+
+    `name`: the service name from the sandbox document.
+    `address`: the mapped address of the started service.
+    `batch`: the accumulation target of declared operations.
+
+    Requirements:
+    - Operations declare only — execution happens when the session facade applies the batch.
+  properties:
+    "name -> str": |
+      The configured service name.
+    "host -> str": |
+      The mapped host — the value the env placeholders of the instance under test resolve to.
+    "port -> int": |
+      The published port — the value the env placeholders of the instance under test resolve to.
+  methods:
+    "set(key: str, value: object)": |
+      Declare one string value write — the GET reader's key.
+
+      `key`: the target key.
+      `value`: a string or JSON-serializable plain data — serialized to the wire form at
+      execution; the declared payload is never rewritten.
+    "hset(key: str, values: dict[str, object])": |
+      Declare one hash write — the HGET / HGETALL readers' key.
+
+      `key`: the target key.
+      `values`: the field-to-value mapping of the hash.
+    "rpush(key: str, values: list[object])": |
+      Declare one list tail append — the LRANGE readers' key.
+
+      `key`: the target key.
+      `values`: the values appended, in list order.
+    "sadd(key: str, members: list[object])": |
+      Declare one set members add — the SMEMBERS readers' key.
+
+      `key`: the target key.
+      `members`: the members added to the set.
+
 "services(...presets: dict[str, dict[str, list[dict[str, object]]]]) -> decorator: Callable":
   location: presets.py
   annotations: |
@@ -151,9 +192,11 @@ Annotations: |
     `decorator`: the marker applied to the test.
 
     Algorithm:
-    1. Validate the declarations at decoration — only the four supported kinds; anything else
+    1. Validate the declarations at decoration — only the five supported kinds; anything else
     fails listing the supported kinds. Postgresql rows run the `validate_insert_rows` grammar
-    validation — a malformed $ref / $lookup fails naming the declaration location.
+    validation — a malformed $ref / $lookup fails naming the declaration location. Redis
+    declarations carry the action key — set, hset, rpush, or sadd — plus the matching fields
+    (key with value, values, or members); anything else fails naming the declaration.
     2. Mark the test with the presets, then stamp it with a usefixtures mark requesting the
     sandbox fixture — a preset-declaring test needs no explicit sandbox parameter.
     3. At the test's start the product per-test fixture enqueues the marked presets into that
