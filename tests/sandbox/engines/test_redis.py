@@ -6,10 +6,17 @@ import pytest
 import redis
 from goga_tool_pybuggy.sandbox import engines as engines_facade
 from goga_tool_pybuggy.sandbox.config import ProbeConfig, ServiceConfig
-from goga_tool_pybuggy.sandbox.engines import BaseEngine, DataOperation, EngineError, RedisEngine
+from goga_tool_pybuggy.sandbox.engines import (
+    BaseEngine,
+    DataOperation,
+    EngineError,
+    InstanceAddress,
+    RedisEngine,
+)
 from goga_tool_pybuggy.sandbox.engines import redis as redis_module
 from testcontainers.community.redis import PingWaitStrategy
 
+from ..conftest import requires_docker
 from .test_http import install_fake_clock
 
 
@@ -44,6 +51,46 @@ def redis_op(action: str, payload: dict[str, object]) -> DataOperation:
         A sample operation targeted at the ``cache`` service.
     """
     return DataOperation(instance="cache", kind="redis", action=action, payload=payload)
+
+
+def set_op(key: str, value: object) -> DataOperation:
+    """Build one redis ``set`` operation of the sample ``cache`` service.
+
+    Args:
+        key: The redis key of the string value write.
+        value: The declared value of the write.
+
+    Returns:
+        A sample ``set`` operation targeted at the ``cache`` service.
+    """
+    return redis_op("set", {"key": key, "value": value})
+
+
+def hset_op(key: str, values: dict[str, object]) -> DataOperation:
+    """Build one redis ``hset`` operation of the sample ``cache`` service.
+
+    Args:
+        key: The redis key of the hash write.
+        values: The field-to-value mapping of the hash write.
+
+    Returns:
+        A sample ``hset`` operation targeted at the ``cache`` service.
+    """
+    return redis_op("hset", {"key": key, "values": values})
+
+
+def verification_client(address: InstanceAddress, db: int) -> redis.Redis:
+    """Build one verification client of a checked logical database.
+
+    Args:
+        address: The mapped address of the started redis service.
+        db: The logical database the verification client connects to.
+
+    Returns:
+        A separate client of the official library — one per checked database, sharing no
+        engine state, reading values in their bytes form.
+    """
+    return redis.Redis(host=address.host, port=address.port, db=db)
 
 
 class FakeRedisContainer:
@@ -620,3 +667,61 @@ class TestRedisEngineLifecycle:
 
         engine.stop()
         engine.stop()
+
+
+@requires_docker
+class TestRedisEngineContainer:
+    """Live behavior of the redis engine against a real container (docker-gated)."""
+
+    def test_redis_engine_container_roundtrip(self):
+        """Startup operations land on the declared db; other logical databases see nothing."""
+        engine = cache_engine(db=2)
+        engine.start([set_op("feature-flag/a", "enabled"), hset_op("user:1", {"name": "Ann"})])
+
+        try:
+            address = engine.address
+
+            with verification_client(address, db=2) as declared, verification_client(address, db=0) as outsider:
+                assert declared.get("feature-flag/a") == b"enabled"
+                assert declared.hgetall("user:1") == {b"name": b"Ann"}
+                assert outsider.get("feature-flag/a") is None
+                assert outsider.hgetall("user:1") == {}
+        finally:
+            engine.stop()
+
+    def test_redis_engine_container_reset_flushes_only_the_declared_db(self):
+        """Reset flushes the declared db and replays the journal; other dbs and the port stay."""
+        engine = cache_engine(db=1)
+        engine.start([set_op("feature-flag/a", "enabled")])
+
+        try:
+            address = engine.address
+
+            with verification_client(address, db=1) as declared, verification_client(address, db=0) as outsider:
+                declared.set("extra:1", "scratch")
+                outsider.set("other:0", "survivor")
+
+                port_before = engine.address.port
+                engine.reset()
+
+                assert declared.keys(b"*") == [b"feature-flag/a"]
+                assert declared.get("feature-flag/a") == b"enabled"
+                assert outsider.get("other:0") == b"survivor"
+
+            assert engine.address.port == port_before
+        finally:
+            engine.stop()
+
+    def test_redis_engine_container_password_mode(self):
+        """A declared password authenticates the engine while a passwordless client is refused."""
+        engine = cache_engine(password="sandbox-redis")
+        engine.start([])
+
+        try:
+            with (
+                verification_client(engine.address, db=0) as outsider,
+                pytest.raises(redis.exceptions.AuthenticationError),
+            ):
+                outsider.ping()
+        finally:
+            engine.stop()

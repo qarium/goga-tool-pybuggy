@@ -1289,28 +1289,28 @@ gated on availability, never replacing the unit contract/logic tests of Task 4. 
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create the `TestRedisEngineContainer` class in
+- [x] Create the `TestRedisEngineContainer` class in
       `tests/sandbox/engines/test_redis.py` with the `requires_docker` gate.
-- [ ] `test_redis_engine_container_roundtrip`:
+- [x] `test_redis_engine_container_roundtrip`:
       `RedisEngine(ServiceConfig(name="cache", kind="redis", db=2))`;
       `engine.start([set_op("feature-flag/a", "enabled"), hset_op("user:1", {"name":
       "Ann"})])`; a verification client on `db=2` reads back `GET feature-flag/a ==
       b"enabled"` and `HGETALL user:1 == {b"name": b"Ann"}`; a client on `db=0` sees none
       of the keys (declared-db isolation proves connect and visibility); `engine.stop()`.
-- [ ] `test_redis_engine_container_reset_flushes_only_the_declared_db`: as above on `db=1`
+- [x] `test_redis_engine_container_reset_flushes_only_the_declared_db`: as above on `db=1`
       with a journaled `set_op`; after start, write an extra key on `db=1` and one key on
       `db=0` through verification clients; `engine.reset()` → `db=1` holds exactly the
       journaled key again, the `db=0` key survives, the container was never restarted (the
       same mapped port before/after); stop.
-- [ ] `test_redis_engine_container_password_mode`:
+- [x] `test_redis_engine_container_password_mode`:
       `RedisEngine(ServiceConfig(name="cache", kind="redis", password="sandbox-redis"))`;
       `engine.start([])` completes (the engine PING with the password succeeded — the
       container requires auth); a passwordless verification client's `ping` raises
       `AuthenticationError`; stop.
-- [ ] Run validation: `.venv/bin/pytest tests/sandbox/engines/test_redis.py -v` (the
+- [x] Run validation: `.venv/bin/pytest tests/sandbox/engines/test_redis.py -v` (the
       container class runs where docker is available, skips otherwise — a skip is green);
       then `.venv/bin/pytest tests/ -x`.
-- [ ] **Lint gate (M3.2)** + **commit gate (M3.3)**: commit exactly
+- [x] **Lint gate (M3.2)** + **commit gate (M3.3)**: commit exactly
       `tests/sandbox/engines/test_redis.py`.
 
 ### Task 10: Docs — the redis pages of the sandbox documentation (package data)
