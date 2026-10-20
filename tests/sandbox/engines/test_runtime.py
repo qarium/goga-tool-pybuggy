@@ -14,6 +14,7 @@ from goga_tool_pybuggy.sandbox.engines import (
     HttpEngine,
     KafkaEngine,
     PostgresEngine,
+    RedisEngine,
     VaultEngine,
     build_engine,
     check_runtime,
@@ -60,6 +61,7 @@ class TestRuntimeContract:
             ("kafka", KafkaEngine),
             ("vault", VaultEngine),
             ("http", HttpEngine),
+            ("redis", RedisEngine),
         ],
     )
     def test_build_engine_returns_the_kind_engine(self, kind: str, engine_class: type[BaseEngine]):
@@ -200,12 +202,13 @@ class TestBuildEngine:
 
         with pytest.raises(
             EngineError,
-            match=r"service 'x': kind 'grpc' has no engine.*postgresql.*kafka.*vault.*http",
+            match=r"service 'x': kind 'grpc' has no engine.*postgresql.*kafka.*vault.*http.*redis",
         ):
             build_engine(config)
 
     def test_build_engine_carries_the_service_declaration(self):
-        """The engine keeps the declaration — the name, image override, topics and probe reach it."""
+        """The engine keeps the declaration — name, image override, topics, probe and the
+        redis password/db reach it."""
         override = build_engine(ServiceConfig(name="db", kind="postgresql", image="postgres:17-alpine"))
         events = build_engine(
             ServiceConfig(
@@ -215,6 +218,7 @@ class TestBuildEngine:
                 probe=ProbeConfig(timeout=45.0, interval=1.0),
             ),
         )
+        cache = build_engine(ServiceConfig(name="cache", kind="redis", password="sandbox-redis", db=7))
 
         assert override.config.name == "db"
         assert override.config.image == "postgres:17-alpine"
@@ -224,3 +228,7 @@ class TestBuildEngine:
         assert events.config.probe is not None
         assert events.config.probe.timeout == 45.0
         assert events.config.probe.interval == 1.0
+        assert isinstance(cache, RedisEngine)
+        assert cache.config.name == "cache"
+        assert cache.config.password == "sandbox-redis"
+        assert cache.config.db == 7

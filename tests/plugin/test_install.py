@@ -144,7 +144,7 @@ class TestInstallLogic:
         document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
         document.parent.mkdir(parents=True)
         document.write_text(
-            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  cache: { kind: redis }\n",
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  cache: { kind: mysql }\n",
             encoding="utf-8",
         )
         monkeypatch.chdir(tmp_path)
@@ -165,7 +165,9 @@ class TestInstallLogic:
 
         sandbox_plugin.init_pytest_config(mock.Mock())
 
-        with pytest.raises(ValueError, match=r"redis.*not one of the supported kinds"):
+        with pytest.raises(
+            ValueError, match=r"mysql.*not one of the supported kinds \(postgresql, kafka, vault, http, redis\)"
+        ):
             sandbox_plugin.configure()
 
         assert sandbox_plugin.activation is None

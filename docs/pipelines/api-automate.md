@@ -59,7 +59,7 @@ tests/<spec>/<id>/  # the materialized test code (in the project tree)
 
 When the consumer project carries a sandbox document (`.goga/tools/pybuggy/sandbox.yml` —
 see [Sandbox](../sandbox/index.md)), part of the topic's cases can run against the sandbox: the
-isolated instance with mocked dependency services (postgresql/kafka/vault/http) started by
+isolated instance with mocked dependency services (postgresql/kafka/vault/http/redis) started by
 the product `sandbox` fixture. The decision travels the pipeline as data:
 
 - `create-requirements` records the fact — §4 "Sandbox": `configured` (image, services)

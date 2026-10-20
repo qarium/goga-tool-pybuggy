@@ -25,9 +25,16 @@ class TestStartupDataContract:
         for parameter in signature.parameters.values():
             assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
 
-    def test_startup_data_declares_the_three_sections(self):
-        """The model declares the ``vault``, ``http`` and ``postgres`` fields only."""
-        assert set(StartupData.model_fields) == {"vault", "http", "postgres"}
+    def test_startup_data_declares_the_four_sections(self):
+        """The model declares the ``vault``, ``http``, ``postgres`` and ``redis`` fields only."""
+        assert set(StartupData.model_fields) == {"vault", "http", "postgres", "redis"}
+
+    def test_startup_data_defaults_the_redis_section_empty(self):
+        """``redis`` defaults to an empty mapping; the fixed section order gains redis last."""
+        data = StartupData()
+
+        assert data.redis == {}
+        assert list(StartupData.model_fields) == ["vault", "http", "postgres", "redis"]
 
     def test_startup_data_has_no_kafka_section(self):
         """The kafka topology is declared inline on the service entry — no kafka section."""
@@ -67,12 +74,18 @@ class TestStartupDataLogic:
         assert data.http == {}
         assert data.postgres == {}
 
-    def test_startup_data_field_order_is_vault_http_postgres(self):
-        """The field order is the fixed section application order: vault, http, postgres."""
-        assert list(StartupData.model_fields) == ["vault", "http", "postgres"]
+    def test_startup_data_field_order_is_vault_http_postgres_redis(self):
+        """The field order is the fixed section application order: vault, http, postgres, redis."""
+        assert list(StartupData.model_fields) == ["vault", "http", "postgres", "redis"]
 
     def test_startup_data_preserves_declaration_order_within_sections(self):
         """List semantics keep the declaration order inside every section."""
         data = StartupData(postgres={"db": ["CREATE TABLE a (id int)", "CREATE TABLE b (id int)"]})
 
         assert data.postgres["db"] == ["CREATE TABLE a (id int)", "CREATE TABLE b (id int)"]
+
+    def test_startup_data_holds_redis_declarations_verbatim(self):
+        """Redis declarations ride as given — dict equality, no rewriting at the model."""
+        data = StartupData(redis={"cache": [{"action": "set", "key": "k", "value": "v"}]})
+
+        assert data.redis == {"cache": [{"action": "set", "key": "k", "value": "v"}]}

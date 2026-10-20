@@ -8,13 +8,15 @@ class DataOperation(BaseModel):
 
     One operation covers every data-plane interaction: startup data, presets, in-test
     declarations and journal entries. The fixed action set is ``insert`` / ``produce`` / ``put``
-    / ``stub``; the payload carries plain serializable data — for postgresql startup inserts
-    a raw ``sql`` key instead of ``table`` + ``rows``, executed as given, opaque.
+    / ``stub`` / ``set`` / ``hset`` / ``rpush`` / ``sadd``; the payload carries plain
+    serializable data — for postgresql startup inserts a raw ``sql`` key instead of ``table``
+    + ``rows``, executed as given, opaque. A redis operation's payload carries the key plus
+    ``value``, ``values``, or ``members`` — the fields of the matching view operation.
 
     Attributes:
         instance: Name of the target service (a configured service key).
-        kind: Dependency kind of the target service: postgresql, kafka, vault, or http.
-        action: Data-plane action: insert, produce, put, or stub.
+        kind: Dependency kind of the target service: postgresql, kafka, vault, http, or redis.
+        action: Data-plane action: insert, produce, put, stub, set, hset, rpush, or sadd.
         payload: Plain serializable operation data; the shape follows the kind and action.
     """
 

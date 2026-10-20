@@ -261,12 +261,14 @@ class TestSandboxPluginConfigure:
         monkeypatch.setattr(
             type(plugin),
             "plugin_config",
-            {"instance": {"image": "i", "port": 1, "env": {}}, "services": {"db": {"kind": "redis"}}},
+            {"instance": {"image": "i", "port": 1, "env": {}}, "services": {"db": {"kind": "mysql"}}},
             raising=False,
         )
         plugin.init_pytest_config(_FakePytestConfig())
 
-        with pytest.raises(ValueError, match=r"redis.*not one of the supported kinds"):
+        with pytest.raises(
+            ValueError, match=r"mysql.*not one of the supported kinds \(postgresql, kafka, vault, http, redis\)"
+        ):
             plugin.configure()
 
 

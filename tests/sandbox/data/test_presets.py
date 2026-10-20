@@ -93,12 +93,12 @@ class TestServicesLogic:
 
     def test_services_rejects_unknown_kind_at_decoration(self):
         """A preset key outside the supported kinds fails at decoration naming the kind."""
-        with pytest.raises(ValueError, match="redis"):
-            services(redis={"x": []})
+        with pytest.raises(ValueError, match="mysql"):
+            services(mysql={"x": []})
 
     def test_services_unknown_kind_error_lists_supported_kinds(self):
         """The decoration failure names every supported kind."""
-        with pytest.raises(ValueError, match=r"postgresql.*kafka.*vault.*http"):
+        with pytest.raises(ValueError, match=r"postgresql.*kafka.*vault.*http.*redis"):
             services(grpc={"events": []})
 
     def test_services_rejects_kind_value_that_is_not_a_mapping(self):
@@ -180,6 +180,73 @@ class TestServicesLogic:
         mark = sample_test.pytestmark[0]
 
         assert mark.kwargs["presets"] == declarations
+
+    def test_services_accepts_redis_presets_for_all_actions(self):
+        """Redis declarations of all four actions decorate a test and reach the marker verbatim."""
+        declarations = {
+            "redis": {
+                "cache": [
+                    {"action": "set", "key": "feature-flag/a", "value": "enabled"},
+                    {"action": "hset", "key": "user:1", "values": {"name": "Ann"}},
+                    {"action": "rpush", "key": "queue:orders", "values": [{"id": 1}, {"id": 2}]},
+                    {"action": "sadd", "key": "members:vip", "members": ["ann", "bob"]},
+                ]
+            }
+        }
+
+        @services(**declarations)
+        def sample_test() -> int:
+            return 42
+
+        mark = next(mark for mark in sample_test.pytestmark if mark.name == "pybuggy_services")
+
+        assert mark.kwargs["presets"] == declarations
+        assert sample_test() == 42
+
+        usefixtures = [mark for mark in sample_test.pytestmark if mark.name == "usefixtures"]
+
+        assert len(usefixtures) == 1
+        assert usefixtures[0].args == ("sandbox",)
+
+    def test_services_fails_redis_preset_without_action(self):
+        """A redis preset declaration without the action key fails naming the declaration."""
+        with pytest.raises(ValueError, match=r"services preset 'redis\.cache'.*'action' key"):
+            services(redis={"cache": [{"key": "k", "value": "v"}]})
+
+    def test_services_fails_redis_preset_with_non_string_action(self):
+        """A non-string action value fails the action-key error instead of a type crash."""
+        with pytest.raises(ValueError, match=r"services preset 'redis\.cache'.*'action' key"):
+            services(redis={"cache": [{"action": ["set"], "key": "k", "value": "v"}]})
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            {"action": "set", "key": "k"},
+            {"action": "hset", "key": "k", "members": {"field": "v"}},
+            {"action": "rpush", "key": "k", "values": ["v"], "value": "extra"},
+        ],
+    )
+    def test_services_fails_redis_preset_with_wrong_fields(self, declaration):
+        """A redis declaration whose key set differs from its action's fields fails naming it."""
+        with pytest.raises(
+            ValueError, match=r"services preset 'redis\.cache': a '(set|hset|rpush|sadd)' declaration carries exactly"
+        ):
+            services(redis={"cache": [declaration]})
+
+    @pytest.mark.parametrize(
+        ("declaration", "field"),
+        [
+            ({"action": "hset", "key": "k", "values": [1]}, "values"),
+            ({"action": "rpush", "key": "k", "values": {"a": 1}}, "values"),
+            ({"action": "sadd", "key": "k", "members": "x"}, "members"),
+            ({"action": "set", "key": 5, "value": "v"}, "key"),
+            ({"action": "set", "key": "  ", "value": "v"}, "key"),
+        ],
+    )
+    def test_services_fails_redis_preset_with_wrong_field_types(self, declaration, field):
+        """A mistyped redis declaration field fails naming the declaration and the field."""
+        with pytest.raises(ValueError, match=rf"services preset 'redis\.cache'.*'{field}'"):
+            services(redis={"cache": [declaration]})
 
     def test_services_with_no_presets_marks_with_empty_payload(self):
         """An empty decorator call is valid — the marker carries an empty presets mapping."""

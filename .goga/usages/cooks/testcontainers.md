@@ -4,17 +4,18 @@
 
 `testcontainers` (the `testcontainers-python` package) is the container engine of the pybuggy sandbox
 capability. It starts and removes the instance under test and every mocked dependency service
-(postgres, mokapi, vault, wiremock), checks container-runtime availability before the first start,
-and provides the crash-safe cleanup guarantee ("no leftover containers on any exit path").
+(postgres, mokapi, vault, wiremock, redis), checks container-runtime availability before the first
+start, and provides the crash-safe cleanup guarantee ("no leftover containers on any exit path").
 
 Import in code:
 ```python
 from testcontainers.community.postgres import PostgresContainer
+from testcontainers.community.redis import RedisContainer
 from testcontainers.core.container import DockerContainer
 from testcontainers.core.waiting_utils import wait_for
 ```
 
-Install: the core package plus module extras — `testcontainers[postgres]`.
+Install: the core package plus module extras — `testcontainers[postgres,redis]`.
 
 ---
 

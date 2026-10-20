@@ -20,6 +20,7 @@ Imports:
       - KafkaInstance
       - VaultInstance
       - HttpInstance
+      - RedisInstance
     Usages:
       - data-operations
     From: goga_tool_pybuggy/sandbox/data
@@ -60,17 +61,17 @@ Annotations: |
     - Stop removes everything on every exit path — success, failure, interruption.
     - The service address is readable as the base_url after start.
     - Start creates one sandbox network — the per-session isolation boundary — and every
-    container the session starts (service engines and the instance) joins it; stop removes
-    the network after the containers left it. Mapped-address consumption is unchanged: the
-    network isolates parallel sessions, the runner keeps using the published host ports.
+      container the session starts (service engines and the instance) joins it; stop removes
+      the network after the containers left it. Mapped-address consumption: the network
+      isolates parallel sessions, the runner keeps using the published host ports.
     - The session lifecycle owns one `DataBatch` per test: the product-owned per-test fixture
-    (the sandbox plugin's reset step) creates a fresh batch before the test, the service views
-    returned by postgresql/kafka/vault/http bind to it, and apply_pending takes exactly that
-    batch; a new test never sees a previous test's operations.
+      (the sandbox plugin's reset step) creates a fresh batch before the test, the service views
+      returned by postgresql/kafka/vault/http/redis bind to it, and apply_pending takes exactly that
+      batch; a new test never sees a previous test's operations.
 
     Constraints:
     - `Sandbox` never reads or gates on the configuration document — the plugin installation
-    owns the gate; the sandbox runs only what it was constructed with.
+      owns the gate; the sandbox runs only what it was constructed with.
     - Do not restart the instance container on reset — only dependency service data resets.
 
     Use `sandbox-file` for the configuration semantics.
@@ -78,7 +79,9 @@ Annotations: |
   properties:
     "base_url -> str": |
       The service address of the running sandbox — the value the api client's bind resolves
-      when the sandbox is bound to it (ahead of the configured base_url).
+      when the sandbox is bound to it (ahead of the configured base_url). Carries the
+      instance entry's declared base_path prefix when one is declared; an empty prefix keeps
+      the bare host:port address.
   methods:
     "start()": |
       Bring the sandbox up in the ordered sequence.
@@ -89,7 +92,7 @@ Annotations: |
       session starts joins.
       3. Start every configured service engine — built with `build_engine` — with its startup
       data as `DataOperation` entries taken from the `StartupData` sections in the fixed order —
-      vault secrets, http mappings, then postgres init.
+      vault secrets, http mappings, postgres init, then redis data.
       4. Render the instance environment values against the started service addresses.
       5. Start the instance container and wait for readiness — the port, or the health path when
       declared — within the readiness declaration's deadline at its interval; an expired
@@ -179,6 +182,11 @@ Annotations: |
       configured services.
     "http(name: str) -> instance: HttpInstance": |
       The test-facing view of the named http service.
+
+      `name`: the service name; an unknown name or a kind mismatch fails fast listing the
+      configured services.
+    "redis(name: str) -> instance: RedisInstance": |
+      The test-facing view of the named redis service.
 
       `name`: the service name; an unknown name or a kind mismatch fails fast listing the
       configured services.

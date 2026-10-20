@@ -15,6 +15,7 @@ anything starts.
 instance:
   image: my-service:latest          # required — the image under test
   port: 8080                        # required — the container port the service serves on
+  base_path: /api/v1                # optional — the API path prefix the sandbox base_url carries
   probe:                            # optional — readiness declaration
     path: /health                   # health path; omit to wait for the port only
     timeout: 60.0                   # readiness deadline seconds; default 30.0
@@ -24,6 +25,7 @@ instance:
     KAFKA_BOOTSTRAP: "{{events.host}}:{{events.port}}"
     VAULT_ADDR: "http://{{secrets.host}}:{{secrets.port}}"
     VAULT_TOKEN: "sandbox-root"
+    REDIS_URL: "redis://{{cache.host}}:{{cache.port}}/0"
 
 services:                           # named dependency services; several of one kind are allowed
   db:
@@ -46,6 +48,10 @@ services:                           # named dependency services; several of one 
     kind: vault
   payments:
     kind: http
+  cache:                            # redis — a real redis container
+    kind: redis
+    # password: sandbox-redis      # optional — omit to start redis WITHOUT authentication
+    # db: 2                        # optional — logical database index 0–15; default 0
 
 data:                               # startup data layer, applied before the instance starts
   vault:
@@ -66,11 +72,17 @@ data:                               # startup data layer, applied before the ins
   postgres:
     db:
       - "INSERT INTO customers (email) VALUES ('ann@x.io')"
+  redis:
+    cache:
+      - action: set            # set / hset / rpush / sadd — the view operation
+        key: feature-flag/a
+        value: enabled
 ```
 
 ## Services
 
-- Every service has a name (the key) and a `kind`: `postgresql`, `kafka`, `vault`, or `http`.
+- Every service has a name (the key) and a `kind`: `postgresql`, `kafka`, `vault`, `http`,
+  or `redis`.
 - The name is a template identifier — letters, digits, underscores, not starting with a digit —
   because it names the `{{<name>.host}}` / `{{<name>.port}}` placeholders (a hyphenated name
   such as `my-db` is rejected at load time).
@@ -82,9 +94,27 @@ data:                               # startup data layer, applied before the ins
 | `kafka` | `mokapi/mokapi:0.52.0` |
 | `vault` | `hashicorp/vault:1.17` |
 | `http` | `wiremock/wiremock:3.13.0` |
+| `redis` | `redis:8-alpine` |
 
 - Any subset of kinds may be configured; configure only the dependencies the service needs.
 - A `grpc` kind is rejected at document load with an explicit "not supported yet" error.
+
+### Redis keys
+
+`password` and `db` exist only on redis entries — the common kind-specific-key rule:
+
+- `password` (optional) — when present, redis starts with authentication
+  (`--requirepass <password>`); omit it and redis starts without authentication (the primary
+  mode). The value travels to the service under test as an env literal in the sandbox
+  document — e.g. `REDIS_PASSWORD: "sandbox-redis"` — no placeholder kind exists for it. The
+  password rides the redis container command line, so it must carry no whitespace, quotes, or
+  backslashes — a value with such characters fails the load naming the entry.
+- `db` (optional) — the logical database index, `0` by default (the conventional client
+  default); must be an integer within 0–15, checked at document load. The engine connects,
+  seeds, and wipes the declared database — align the service's own db configuration with it
+  (a service configured to db 2 will not see db-0-seeded data).
+- A `topics` or `migrations` declaration on a redis entry is rejected at load, exactly as on
+  every other non-matching kind.
 
 ## Migrations
 
@@ -157,8 +187,12 @@ Readiness is declared per target, Kubernetes-probe-like, as an optional `probe` 
   `interval` are the only knobs they accept — a `path` there is rejected.
 - The postgresql service readiness is an engine-owned driver connection probe bounded by
   the declared timeout and interval.
+- The redis service readiness is an engine-owned PING probe bounded by the declared timeout
+  and interval — a wrong password surfaces as an auth error within the deadline, never a hang.
 - The health `path` must start with `/` — it is appended to `http://<host>:<port>`; a path
   without the leading slash fails at document load.
+- The health `path` stays relative to the host:port root regardless of the instance
+  `base_path` — health endpoints commonly live outside the API prefix.
 - The `interval` must not exceed the `timeout` — declare a smaller interval alongside a
   sub-second timeout.
 - Omitting the block (or any field) keeps the established behavior — defaults reproduce it
@@ -170,14 +204,17 @@ Readiness is declared per target, Kubernetes-probe-like, as an optional `probe` 
 Instance env values are Jinja2 templates over the started service addresses:
 
 - `{{<service>.host}}` and `{{<service>.port}}` resolve to the mapped address of the named
-  service — e.g. `{{db.host}}` / `{{db.port}}` for the service named `db`.
+  service — e.g. `{{db.host}}` / `{{db.port}}` for the service named `db`; they apply to a
+  redis service unchanged (e.g. `{{cache.host}}` / `{{cache.port}}`).
 - Placeholders resolve only for configured service names; an unknown name fails validation.
 - Values without placeholders pass through unchanged.
 - The dependency mocks carry fixed test credentials the instance env must match: postgres
   accepts user `test`, password `test`, database `test`
   (`postgres://test:test@{{db.host}}:{{db.port}}/test`); vault runs in dev mode with the
   root token `sandbox-root` (send it as `VAULT_TOKEN` / `X-Vault-Token`; secrets live on the
-  default KV v2 `secret/` mount).
+  default KV v2 `secret/` mount). A redis service with a declared `password` carries it as an
+  env literal (`REDIS_PASSWORD: "sandbox-redis"`) — the same literal the sandbox passes to the
+  container; an undeclared password means no authentication at all.
 
 ## Startup data layer
 
@@ -188,6 +225,7 @@ Applied in a fixed order after all services are up and before the instance start
 | `vault` | vault services | `{path, data}` secret writes |
 | `http` | http services | WireMock mapping objects (`request` + `response`) |
 | `postgres` | postgresql services | SQL statements (seed data) |
+| `redis` | redis services | `{action: set/hset/rpush/sadd, key, value/values/members}` — the action key plus the matching view operation fields |
 
 - A `kafka` section does not exist — declaring one fails; the kafka topology lives on the
   service entry.
@@ -197,6 +235,9 @@ Applied in a fixed order after all services are up and before the instance start
 - Postgres statements run after the service's migrations (when declared), against the migrated
   schema, and replay on every per-test reset — write them idempotent; the TRUNCATE-based reset
   keeps tables (and the migrated schema), only data is wiped.
+- Redis declarations seed the declared logical database and replay on every per-test reset
+  (FLUSHDB of the declared db, then replay); values are strings or JSON-serializable plain
+  data — the declaration is never rewritten.
 
 ## Locating the document
 
@@ -209,11 +250,12 @@ Applied in a fixed order after all services are up and before the instance start
 
 - An invalid document (unknown kind, unknown service reference, missing or unknown entry key,
   malformed placeholder or declaration, kafka entry without topics, topics on a non-kafka
-  entry, migrations on a non-postgresql entry, invalid migrations declaration — missing or
-  empty local folder, no `.sql` files, invalid migration filename, duplicate version prefixes
-  (local sources; a remote source fails on its URL shape here and on its folder at apply),
-  git URL outside the allowlist or with embedded credentials — probe `path` on a service or
-  without its leading slash, unparsable YAML) fails the run before any container starts,
-  with an error naming the entry.
+  entry, migrations on a non-postgresql entry, `password` or `db` on a non-redis entry, redis
+  `db` outside 0–15, invalid migrations declaration — missing or empty local folder, no `.sql`
+  files, invalid migration filename, duplicate version prefixes (local sources; a remote
+  source fails on its URL shape here and on its folder at apply), git URL outside the
+  allowlist or with embedded credentials — probe `path` on a service or without its leading
+  slash, instance `base_path` without its leading slash, unparsable YAML) fails the run
+  before any container starts, with an error naming the entry.
 - Without the document the product is fully inert — nothing starts, nothing changes.
 - A container runtime must be available in the environment running the tests.

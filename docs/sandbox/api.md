@@ -4,9 +4,9 @@ The Python surface of the sandbox: the built-in `sandbox` fixture, the session b
 binding the api to the running instance, and the data operations tests declare on the
 dependency services. Data operations are write-only — reading dependency state back is
 not part of the surface; assert on the responses of the service under test. The services
-themselves — names, kinds, images, topics, migrations — come from the
-[sandbox document](configuration.md); the lifecycle (activation, reset ownership,
-environments) is covered in the [overview](index.md).
+themselves — names, kinds, images, topics, migrations, the redis `password`/`db` — come
+from the [sandbox document](configuration.md); the lifecycle (activation, reset
+ownership, environments) is covered in the [overview](index.md).
 
 ## The sandbox fixture
 
@@ -95,12 +95,15 @@ sandbox.postgresql("db")   # a postgresql service named db
 sandbox.http("payments")   # an http service named payments
 sandbox.vault("secrets")   # a vault service named secrets
 sandbox.kafka("events")    # a kafka service named events
+sandbox.redis("cache")     # a redis service named cache
 ```
 
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped
 address the `{{<service>.host}}` / `{{<service>.port}}` placeholders of the instance env
 resolve to. The sandbox object itself exposes `base_url` — the address of the running
-service under test, the value a bound api client resolves to. Nothing executes at
+service under test, the value a bound api client resolves to; it carries the instance
+entry's declared `base_path` prefix when one is declared (see
+[configuration](configuration.md#instance)). Nothing executes at
 declaration time — the sandbox applies the accumulated batch automatically before the
 first call to the service under test; an unknown service name fails fast.
 
@@ -196,17 +199,43 @@ an undeclared topic fails the operation. The wire encoding is fixed: a mapping v
 arrives as JSON bytes, a plain string value as UTF-8 bytes, and the key (when given) as
 UTF-8 — the service under test consumes exactly that.
 
+## Redis operations
+
+```python
+sandbox.redis("cache").set("feature-flag/a", "enabled")
+sandbox.redis("cache").hset("user:1", {"name": "Ann", "plan": "pro"})
+sandbox.redis("cache").rpush("queue:orders", [{"id": 1}, {"id": 2}])
+sandbox.redis("cache").sadd("members:vip", ["ann", "bob"])
+```
+
+The operation names mirror the redis commands, and the choice is part of your visibility
+contract — the writer must be type-correct for the service's read path: a `set`-seeded
+key is invisible to a service reading `HGET`. Pick by the reader — `GET` (`set`),
+`HGET`/`HGETALL` (`hset`), `LRANGE` (`rpush`), `SMEMBERS` (`sadd`).
+
+- Values are strings or JSON-serializable plain data; serialization to the wire form
+  happens at execution and the declared payload is never rewritten — a string passes
+  through as given, everything else arrives as its JSON text.
+- Operations apply to the logical database declared on the service entry (`db`, default
+  `0` — see the [sandbox document](configuration.md#services)); align the service's own
+  db configuration with it, or the service will not see the seeded data.
+- Later writes to the same key follow the redis command semantics — a second `set`
+  overwrites, `rpush`/`sadd` append.
+- An empty `values` or `members` collection (an empty list or an empty hash mapping)
+  executes nothing — the postgres empty-rows precedent.
+
 ## Presets
 
 Data can also be declared directly on the test as a **preset** — each declaration
-carries the same fields as the matching view operation, and presets apply on top of the
-reset state, ahead of the test's own operations. All four kinds are accepted
-(`postgresql`, `kafka`, `vault`, `http`); an unsupported kind or a malformed row fails
-at decoration time, before anything starts. The decorator also stamps a `usefixtures`
-mark that pulls the sandbox into the test's fixture closure, so the reset and the
-presets run. The mark does not imply binding: a preset-declaring test that calls the
-service still takes the `sandbox` argument and calls `endpoint.bind(sandbox)`
-explicitly:
+carries the same fields as the matching view operation — redis declarations additionally
+name the operation through the `action` key (`set` / `hset` / `rpush` / `sadd`), because
+the kind has four operations — and presets apply on top of the reset state, ahead of the
+test's own operations. All five kinds are accepted (`postgresql`, `kafka`, `vault`,
+`http`, `redis`); an unsupported kind or a malformed declaration fails at decoration
+time, before anything starts. The decorator also stamps a `usefixtures` mark that pulls the
+sandbox into the test's fixture closure, so the reset and the presets run. The mark does
+not imply binding: a preset-declaring test that calls the service still takes the
+`sandbox` argument and calls `endpoint.bind(sandbox)` explicitly:
 
 ```python
 from goga_tool_pybuggy import services
@@ -222,6 +251,12 @@ from goga_tool_pybuggy import services
             }
         ]
     },
+    redis={
+        "cache": [
+            {"action": "set", "key": "feature-flag/a", "value": "enabled"},
+            {"action": "hset", "key": "user:1", "values": {"name": "Ann", "plan": "pro"}},
+        ]
+    },
 )
 def test_checkout(api, sandbox):
     api.bind(sandbox)
@@ -233,4 +268,9 @@ def test_checkout(api, sandbox):
 Operations apply in declaration order, per service: presets first, then in-test
 operations in call order. Foreign-key chains are expressed by declaring parents before
 children — one `insert` call targets one table (the database constraint still requires
-the parent row first). Reset-side cleanup needs no ordering from the author.
+the parent row first). Redis operations apply in declaration order against the declared
+database — later writes to the same key follow the redis command semantics (a second
+`set` overwrites, `rpush`/`sadd` append). The per-test reset of a redis service is
+`FLUSHDB` of the declared logical database plus the baseline journal replay — the
+container keeps running through the reset, and keys written by one test never leak into
+the next. Reset-side cleanup needs no ordering from the author.

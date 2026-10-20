@@ -15,6 +15,7 @@ from .base import BaseEngine, EngineError
 from .http import HttpEngine
 from .kafka import KafkaEngine
 from .postgres import PostgresEngine
+from .redis import RedisEngine
 from .vault import VaultEngine
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ KIND_ENGINES: dict[str, type[BaseEngine]] = {
     "kafka": KafkaEngine,
     "vault": VaultEngine,
     "http": HttpEngine,
+    "redis": RedisEngine,
 }
 
 # The testcontainers env knob rewriting the host every container address resolves through —
@@ -151,8 +153,9 @@ def build_engine(config: ServiceConfig) -> BaseEngine:
 
     Returns:
         The engine of the service's kind, constructed with the declaration — the image
-        override, the topic declarations, the readiness declaration, and the migrations
-        declaration reach the engine via ``config``.
+        override, the topic declarations, the readiness declaration, the migrations
+        declaration, and the redis password and db declarations reach the engine via
+        ``config``.
 
     Raises:
         EngineError: The service kind has no engine; the message lists the supported kinds.

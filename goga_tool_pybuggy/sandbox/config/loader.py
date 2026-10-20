@@ -20,9 +20,25 @@ logger = logging.getLogger(__name__)
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 _TOP_LEVEL_KEYS = ("instance", "services", "data")
-_SUPPORTED_KINDS = ("postgresql", "kafka", "vault", "http")
+_SUPPORTED_KINDS = ("postgresql", "kafka", "vault", "http", "redis")
 _REQUIRED_INSTANCE_FIELDS = ("image", "env", "port")
-_SECTION_KINDS = {"vault": "vault", "http": "http", "postgres": "postgresql"}
+_SECTION_KINDS = {"vault": "vault", "http": "http", "postgres": "postgresql", "redis": "redis"}
+_REDIS_ACTIONS = {
+    "set": ("key", "value"),
+    "hset": ("key", "values"),
+    "rpush": ("key", "values"),
+    "sadd": ("key", "members"),
+}
+# The highest redis logical database index — the engine's one connection addresses a db of
+# the declared index; the valid range is 0-15 (the redis SELECT ceiling).
+_REDIS_DB_MAX = 15
+# The container-field type of the collection actions — a `set` value rides as any plain
+# object and is serialized at execution time, so the action carries no field-type check.
+_REDIS_FIELD_TYPES = {
+    "hset": ("values", dict),
+    "rpush": ("values", list),
+    "sadd": ("members", list),
+}
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 _PLACEHOLDER_ATTRIBUTE = re.compile(r"^(?P<name>[^.\s]+)\.(?:host|port)$")
@@ -121,7 +137,8 @@ def _read_services(document: dict[str, object], location: Path) -> dict[str, Ser
         The validated service entries keyed by service name.
 
     Raises:
-        ValueError: A service name, kind, topics, probe, or migrations entry is invalid.
+        ValueError: A service name, kind, topics, probe, migrations, password, or db entry
+            is invalid.
     """
     raw = document.get("services", {})
 
@@ -149,6 +166,7 @@ def _read_services(document: dict[str, object], location: Path) -> dict[str, Ser
         _validate_kind(entry, scope)
         _validate_topics(entry, scope)
         _validate_migrations(entry, scope)
+        _validate_redis_keys(entry, scope)
         services[name] = _build_model(ServiceConfig, dict(entry, name=name), scope)
 
     return services
@@ -244,6 +262,48 @@ def _validate_migrations(entry: dict[str, object], scope: str) -> None:
             raise ValueError(f"{scope}.migrations: {exc}") from exc
 
 
+def _validate_redis_keys(entry: dict[str, object], scope: str) -> None:
+    """Validate the password and db declarations of one service entry.
+
+    Both keys are accepted on the redis kind only — the placement check runs before any
+    value shape, so a stray ``password`` or ``db`` on another kind fails naming the entry.
+    On a redis entry the password must be a non-empty string (absent starts the service
+    without authentication) free of whitespace, quotes, and backslashes — it rides the
+    redis container command line, where such characters break or silently alter the shell
+    wiring — and the db index an integer within 0-15 — booleans are rejected explicitly,
+    since ``bool`` is an ``int`` subclass in Python.
+
+    Args:
+        entry: The raw service entry mapping.
+        scope: The error scope naming the document location and the entry.
+
+    Raises:
+        ValueError: The password or db declaration sits on a non-redis entry or is
+            malformed.
+    """
+    if entry.get("kind") != "redis":
+        if "password" in entry or "db" in entry:
+            raise ValueError(f"{scope}: password and db are accepted only on redis entries")
+
+        return
+
+    password = entry.get("password")
+
+    if "password" in entry and (not isinstance(password, str) or not password):
+        raise ValueError(f"{scope}.password: must be a non-empty string")
+
+    if "password" in entry and any(char.isspace() or char in "\"'\\" for char in password):
+        raise ValueError(
+            f"{scope}.password: must carry no whitespace, quotes, or backslashes — "
+            f"it rides the redis container command line"
+        )
+
+    db = entry.get("db")
+
+    if "db" in entry and (not isinstance(db, int) or isinstance(db, bool) or not 0 <= db <= _REDIS_DB_MAX):
+        raise ValueError(f"{scope}.db: must be an integer within 0-15")
+
+
 def _read_data(document: dict[str, object], location: Path, services: dict[str, ServiceConfig]) -> StartupData:
     """Validate the startup data sections and build the startup data layer.
 
@@ -327,6 +387,9 @@ def _read_section(
         if section == "vault":
             _validate_vault_declarations(name, value, location)
 
+        if section == "redis":
+            _validate_redis_declarations(name, value, location)
+
         declarations[name] = value
 
     return declarations
@@ -363,6 +426,93 @@ def _validate_vault_declarations(target: str, declarations: object, location: Pa
 
         if not isinstance(declaration.get("data"), dict):
             raise ValueError(f"{location}: data.vault.{target}: every secret declaration requires a mapping 'data'")
+
+
+def _validate_redis_declarations(target: str, declarations: object, location: Path) -> None:
+    """Validate the shape of one redis section's data declarations.
+
+    Every declaration must be a mapping carrying the ``action`` key (set, hset, rpush, or
+    sadd) plus exactly the fields of the matching view operation — ``key`` with
+    ``value``, ``values``, or ``members``. A malformed declaration fails here, at load
+    time, instead of crashing the sandbox start with a bare lookup or serialization error.
+
+    Args:
+        target: The redis service name the declarations target.
+        declarations: The raw section value — the target's declaration list.
+        location: The resolved document location.
+
+    Raises:
+        ValueError: A declaration misses its ``action`` key, carries a field set outside
+            its action's grammar, or carries a mistyped field.
+    """
+    if not isinstance(declarations, list):
+        return  # a non-list section value fails the model build with the scope-named error
+
+    for declaration in declarations:
+        if not isinstance(declaration, dict):
+            continue  # a non-mapping declaration fails the model build the same way
+
+        action = declaration.get("action")
+
+        if not isinstance(action, str) or action not in _REDIS_ACTIONS:
+            raise ValueError(
+                f"{location}: data.redis.{target}: every declaration requires an "
+                f"'action' key (set, hset, rpush, or sadd)"
+            )
+
+        _validate_redis_declaration_fields(target, declaration, action, location)
+
+
+def _validate_redis_declaration_fields(
+    target: str,
+    declaration: dict[str, object],
+    action: str,
+    location: Path,
+) -> None:
+    """Validate one redis declaration against its action's field grammar.
+
+    Args:
+        target: The redis service name the declarations target.
+        declaration: The raw declaration mapping.
+        action: The declared action — one of ``_REDIS_ACTIONS``.
+        location: The resolved document location.
+
+    Raises:
+        ValueError: The declaration's key set differs from the action's fields or a field
+            carries a value of the wrong type.
+    """
+    expected = {"action", *_REDIS_ACTIONS[action]}
+    actual = set(declaration)
+
+    if actual != expected:
+        problems = []
+
+        if expected - actual:
+            problems.append(f"missing {', '.join(sorted(expected - actual))}")
+
+        if actual - expected:
+            problems.append(f"unexpected {', '.join(sorted(actual - expected))}")
+
+        raise ValueError(
+            f"{location}: data.redis.{target}: a '{action}' declaration carries exactly "
+            f"{', '.join(sorted(expected))}, got {' and '.join(problems)}"
+        )
+
+    key = declaration.get("key")
+
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError(
+            f"{location}: data.redis.{target}: every '{action}' declaration requires a non-empty string 'key'"
+        )
+
+    if action in _REDIS_FIELD_TYPES:
+        field, field_type = _REDIS_FIELD_TYPES[action]
+        value = declaration.get(field)
+
+        if not isinstance(value, field_type):
+            shape = "mapping" if field_type is dict else "list"
+
+            raise ValueError(f"{location}: data.redis.{target}: a '{action}' declaration requires a {shape} '{field}'")
 
 
 def _validate_placeholders(instance: InstanceConfig, services: dict[str, ServiceConfig], location: Path) -> None:

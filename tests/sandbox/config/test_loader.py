@@ -134,6 +134,22 @@ class TestValidateSandboxConfigLogic:
         assert not hasattr(config.data, "kafka")
         assert "kafka" not in StartupData.model_fields
 
+    def test_load_carries_the_declared_base_path(self, sandbox_yaml):
+        """A declared ``base_path`` prefix loads onto the instance entry; absent keeps ``""``."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: my-service:latest\n"
+            "  port: 8080\n"
+            "  base_path: /api/v1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db: { kind: postgresql }\n"
+        )
+
+        config = validate_written()
+
+        assert config.instance.base_path == "/api/v1"
+
     def test_load_fails_naming_rename_for_service_key(self, sandbox_yaml):
         """Scenario 3: the former 'service' top-level key fails naming the rename to 'instance'."""
         path = sandbox_yaml(
@@ -362,12 +378,12 @@ class TestValidateSandboxConfigLogic:
             validate_written()
 
     def test_load_fails_unknown_service_kind(self, sandbox_yaml):
-        """A kind outside the four supported ones fails listing them."""
+        """A kind outside the five supported ones fails listing them."""
         sandbox_yaml(
-            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  cache: { kind: redis }\n"
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  cache: { kind: mysql }\n"
         )
 
-        with pytest.raises(ValueError, match=r"redis.*postgresql.*kafka.*vault.*http"):
+        with pytest.raises(ValueError, match=r"mysql.*postgresql.*kafka.*vault.*http.*redis"):
             validate_written()
 
     def test_load_fails_data_targeting_unknown_service(self, sandbox_yaml):
@@ -426,7 +442,7 @@ class TestValidateSandboxConfigLogic:
             ),
             (
                 "instance:\n  image: i\n  port: 1\n  env: {}\nservices: {}\ndata:\n  cache: {}",
-                r"data\.cache.*unknown data section.*vault, http, postgres",
+                r"data\.cache.*unknown data section.*vault, http, postgres, redis",
             ),
             (
                 "instance:\n  image: i\n  port: [1]\n  env: {}\nservices: {}",
@@ -553,11 +569,16 @@ class TestValidateSandboxConfigLogic:
                 "instance:\n  image: i\n  port: 1\n  env: {}\n  probe: {path: health, timeout: 3}\nservices: {}",
                 r"instance.*probe.*path must start with '/'",
             ),
+            (
+                "instance:\n  image: i\n  port: 1\n  env: {}\n  base_path: api/v1\nservices: {}",
+                r"instance.*base_path must start with '/'",
+            ),
         ],
     )
     def test_load_fails_on_unknown_or_malformed_entry_keys(self, sandbox_yaml, document, match):
         """A mistyped entry key (``imag`` for ``image``) fails at load instead of silently
-        dropping the declaration; a health path without the leading slash fails the same way."""
+        dropping the declaration; a health path or an API path prefix without the leading
+        slash fails the same way."""
         sandbox_yaml(document)
 
         with pytest.raises(ValueError, match=match):
@@ -816,3 +837,348 @@ class TestValidateSandboxConfigMigrationsLogic:
         assert "1_a.sql" in message
         assert "0001_b.sql" in message
         assert isinstance(excinfo.value.__cause__, MigrationError)
+
+
+class TestValidateSandboxConfigRedisContract:
+    """Contract of the redis kind and ``data.redis`` validation steps."""
+
+    def test_load_accepts_a_redis_service_with_password_and_db(self, sandbox_yaml):
+        """A redis entry carrying password and db loads into the typed ``ServiceConfig``."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: my-service:latest\n"
+            "  port: 8080\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis, password: sandbox-redis, db: 2 }\n"
+        )
+
+        config = validate_written()
+
+        assert config.services["cache"].kind == "redis"
+        assert config.services["cache"].password == "sandbox-redis"
+        assert config.services["cache"].db == 2
+
+
+class TestValidateSandboxConfigRedisLogic:
+    """Validation behavior of the redis kind and the ``data.redis`` section."""
+
+    def test_load_accepts_the_redis_data_section_for_all_four_actions(self, sandbox_yaml):
+        """The four action declarations load and reach the model verbatim, in order."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            "    cache:\n"
+            "      - { action: set, key: feature-flag/a, value: enabled }\n"
+            '      - { action: hset, key: "user:1", values: { name: Ann } }\n'
+            '      - { action: rpush, key: "queue:orders", values: [{ id: 1 }, { id: 2 }] }\n'
+            '      - { action: sadd, key: "members:vip", members: [ann, bob] }\n'
+        )
+
+        config = validate_written()
+
+        assert config.data.redis["cache"] == [
+            {"action": "set", "key": "feature-flag/a", "value": "enabled"},
+            {"action": "hset", "key": "user:1", "values": {"name": "Ann"}},
+            {"action": "rpush", "key": "queue:orders", "values": [{"id": 1}, {"id": 2}]},
+            {"action": "sadd", "key": "members:vip", "members": ["ann", "bob"]},
+        ]
+
+    def test_load_accepts_redis_placeholders_in_instance_env(self, sandbox_yaml):
+        """The generic placeholder path covers redis host and port references."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env:\n"
+            '    REDIS_URL: "redis://{{cache.host}}:{{cache.port}}/0"\n'
+            "services:\n"
+            "  cache: { kind: redis }\n"
+        )
+
+        config = validate_written()
+
+        assert config.instance.env["REDIS_URL"] == "redis://{{cache.host}}:{{cache.port}}/0"
+
+    def test_load_fails_password_on_a_non_redis_entry(self, sandbox_yaml):
+        """A password on a non-redis entry fails naming the entry."""
+        sandbox_yaml(
+            "instance:\n  image: i\n  port: 1\n  env: {}\nservices:\n  db: { kind: postgresql, password: x }\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.db.*password and db are accepted only on redis entries"):
+            validate_written()
+
+    def test_load_fails_db_on_a_non_redis_entry(self, sandbox_yaml):
+        """A db on a non-redis entry fails naming the entry."""
+        sandbox_yaml("instance:\n  image: i\n  port: 1\n  env: {}\nservices:\n  payments: { kind: http, db: 3 }\n")
+
+        with pytest.raises(ValueError, match=r"services\.payments.*password and db are accepted only on redis entries"):
+            validate_written()
+
+    @pytest.mark.parametrize("db", [16, -1])
+    def test_load_fails_db_outside_the_range(self, sandbox_yaml, db):
+        """A db index outside 0-15 fails naming the entry and the range."""
+        sandbox_yaml(
+            f"instance:\n  image: i\n  port: 1\n  env: {{}}\nservices:\n  cache: {{ kind: redis, db: {db} }}\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.cache\.db: must be an integer within 0-15"):
+            validate_written()
+
+    @pytest.mark.parametrize("db_entry", ["2.5", '"2"', "true"])
+    def test_load_fails_db_of_wrong_type(self, sandbox_yaml, db_entry):
+        """A non-integer db — float, string, or bool — fails the same db error."""
+        sandbox_yaml(
+            f"instance:\n  image: i\n  port: 1\n  env: {{}}\nservices:\n  cache: {{ kind: redis, db: {db_entry} }}\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.cache\.db: must be an integer within 0-15"):
+            validate_written()
+
+    @pytest.mark.parametrize("password_entry", ['""', "123"])
+    def test_load_fails_empty_or_mistyped_password(self, sandbox_yaml, password_entry):
+        """An empty or non-string password fails naming the entry and the rule."""
+        sandbox_yaml(
+            f"instance:\n  image: i\n  port: 1\n  env: {{}}\n"
+            f"services:\n  cache: {{ kind: redis, password: {password_entry} }}\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.cache\.password: must be a non-empty string"):
+            validate_written()
+
+    @pytest.mark.parametrize(
+        "password",
+        ['"my secret"', "'pa\"ss'", '"pa\\\\ss"'],
+    )
+    def test_load_fails_password_with_command_breaking_characters(self, sandbox_yaml, password):
+        """A password carrying whitespace, quotes, or backslashes fails the load naming the rule."""
+        sandbox_yaml(
+            f"instance:\n  image: i\n  port: 1\n  env: {{}}\n"
+            f"services:\n  cache: {{ kind: redis, password: {password} }}\n"
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"services\.cache\.password: must carry no whitespace, quotes, or backslashes",
+        ):
+            validate_written()
+
+    def test_load_fails_topics_on_redis(self, sandbox_yaml):
+        """A topics list on a redis entry is rejected by the kafka-only placement check."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis, topics: [{name: orders.events}] }\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.cache: topics are accepted only on kafka entries"):
+            validate_written()
+
+    def test_load_fails_migrations_on_redis(self, sandbox_yaml):
+        """A migrations declaration on a redis entry is rejected by the postgresql-only check."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis, migrations: { location: x } }\n"
+        )
+
+        with pytest.raises(ValueError, match=r"services\.cache: migrations are accepted only on postgresql entries"):
+            validate_written()
+
+    def test_load_fails_redis_declaration_without_action(self, sandbox_yaml):
+        """A data.redis declaration without the action key fails naming the section."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            "    cache:\n"
+            "      - { key: k, value: v }\n"
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"data\.redis\.cache: every declaration requires an 'action' key \(set, hset, rpush, or sadd\)",
+        ):
+            validate_written()
+
+    def test_load_fails_redis_declaration_with_unknown_action(self, sandbox_yaml):
+        """An action outside the four commands fails with the action-key error."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            "    cache:\n"
+            "      - { action: zadd, key: k, value: v }\n"
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"data\.redis\.cache: every declaration requires an 'action' key \(set, hset, rpush, or sadd\)",
+        ):
+            validate_written()
+
+    def test_load_fails_redis_declaration_with_non_string_action(self, sandbox_yaml):
+        """A non-string action value fails the action-key error instead of a type crash."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            "    cache:\n"
+            "      - { action: [set], key: k, value: v }\n"
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"data\.redis\.cache: every declaration requires an 'action' key \(set, hset, rpush, or sadd\)",
+        ):
+            validate_written()
+
+    @pytest.mark.parametrize(
+        "declaration",
+        [
+            "{ action: set, key: k }",
+            "{ action: hset, key: k }",
+            "{ action: rpush, key: k, values: [a], members: [b] }",
+            "{ action: set, key: k, value: v, values: [v] }",
+        ],
+    )
+    def test_load_fails_redis_declaration_with_missing_or_extra_fields(self, sandbox_yaml, declaration):
+        """A declaration whose key set differs from the action's fields fails naming them."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            "    cache:\n"
+            f"      - {declaration}\n"
+        )
+
+        with pytest.raises(
+            ValueError, match=r"data\.redis\.cache: a '(set|hset|rpush|sadd)' declaration carries exactly"
+        ):
+            validate_written()
+
+    @pytest.mark.parametrize(
+        ("declaration", "field"),
+        [
+            ("{ action: hset, key: k, values: [1] }", "values"),
+            ("{ action: rpush, key: k, values: { a: 1 } }", "values"),
+            ("{ action: sadd, key: k, members: x }", "members"),
+            ("{ action: set, key: 5, value: v }", "key"),
+            ("{ action: set, key: '  ', value: v }", "key"),
+        ],
+    )
+    def test_load_fails_redis_declaration_with_wrong_field_types(self, sandbox_yaml, declaration, field):
+        """A mistyped declaration field fails naming the section and the field."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            "    cache:\n"
+            f"      - {declaration}\n"
+        )
+
+        with pytest.raises(ValueError, match=rf"data\.redis\.cache.*{field}"):
+            validate_written()
+
+    @pytest.mark.parametrize(
+        ("section", "detail"),
+        [
+            ("cache: not-a-list", r"redis\.cache: Input should be a valid list"),
+            ("cache:\n      - set", r"redis\.cache\.0: Input should be a valid dictionary"),
+        ],
+    )
+    def test_load_fails_a_malformed_redis_section_at_the_model_build(self, sandbox_yaml, section, detail):
+        """Non-list section values and non-mapping declarations fail the model build naming the scope."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  cache: { kind: redis }\n"
+            "data:\n"
+            "  redis:\n"
+            f"    {section}\n"
+        )
+
+        with pytest.raises(ValueError, match=rf"data: {detail}"):
+            validate_written()
+
+    def test_load_fails_redis_section_targeting_a_non_redis_service(self, sandbox_yaml):
+        """A data.redis target of another kind fails naming both kinds."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: i\n"
+            "  port: 1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db: { kind: postgresql }\n"
+            "data:\n"
+            "  redis:\n"
+            "    db:\n"
+            "      - { action: set, key: k, value: v }\n"
+        )
+
+        with pytest.raises(
+            ValueError,
+            match=r"data\.redis\.db: targets service 'db' of kind 'postgresql', the section requires kind 'redis'",
+        ):
+            validate_written()
+
+    @pytest.mark.parametrize("db", [0, 15])
+    def test_load_accepts_db_boundaries_zero_and_fifteen(self, sandbox_yaml, db):
+        """The inclusive range boundaries load and the value reaches the model."""
+        sandbox_yaml(
+            f"instance:\n  image: i\n  port: 1\n  env: {{}}\nservices:\n  cache: {{ kind: redis, db: {db} }}\n"
+        )
+
+        config = validate_written()
+
+        assert config.services["cache"].db == db
+
+    def test_load_ignores_absent_password_and_db(self, sandbox_yaml):
+        """A bare redis entry keeps the model defaults — the primary no-auth mode."""
+        sandbox_yaml("instance:\n  image: i\n  port: 1\n  env: {}\nservices:\n  cache: { kind: redis }\n")
+
+        config = validate_written()
+
+        assert config.services["cache"].password is None
+        assert config.services["cache"].db == 0

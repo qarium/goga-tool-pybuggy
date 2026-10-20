@@ -11,8 +11,8 @@ goga pipeline pybuggy:api.automate   # 3. run the pipeline
 ## 1. Install: `goga install pybuggy`
 
 Installs the pybuggy package into the **goga**(<https://github.com/qarium/goga>)
-environment of the target project. The package carries the container/DB/Kafka stack as
-main dependencies (`testcontainers`, `psycopg`, `kafka-python`, `requests`); running
+environment of the target project. The package carries the container/DB/Kafka/redis stack as
+main dependencies (`testcontainers`, `psycopg`, `kafka-python`, `redis`, `requests`); running
 tests with a sandbox document (`.goga/tools/pybuggy/sandbox.yml`) present additionally
 requires a docker-compatible container runtime in the test environment (see
 [Sandbox](sandbox/index.md)).

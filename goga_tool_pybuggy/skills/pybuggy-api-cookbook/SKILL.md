@@ -91,12 +91,13 @@ Usages:
 ### Sandbox usages (sandbox tests)
 
 A sandbox test runs against the sandbox — the isolated instance with mocked dependency services
-(postgresql/kafka/vault/http) started by the product session `sandbox` fixture. The capability
+(postgresql/kafka/vault/http/redis) started by the product session `sandbox` fixture. The capability
 exists only when the project holds `.goga/tools/pybuggy/sandbox.yml` — the usage files alone never
 activate it.
 
 - Connect the two sandbox usages — `sandbox-session` (the `sandbox` fixture and the bind) and
-  `data-operations` (seeding rows, dependency stubs, secrets, kafka messages, `$ref`/`$lookup`),
+  `data-operations` (seeding rows, dependency stubs, secrets, kafka messages, redis
+  keys/values, `$ref`/`$lookup`),
   both at `.goga/usages/cooks/pybuggy/sandbox/` — like any cell-specific usage: a `<key>: <path>`
   line in `Usages` + a ``Use `<key>` for …`` line in `Annotations`, only into the cells whose
   Routines run in the sandbox. The base block stays unchanged; cells without sandbox Routines
