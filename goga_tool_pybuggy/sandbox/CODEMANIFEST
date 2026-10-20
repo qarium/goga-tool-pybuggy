@@ -62,8 +62,8 @@ Annotations: |
     - The service address is readable as the base_url after start.
     - Start creates one sandbox network — the per-session isolation boundary — and every
       container the session starts (service engines and the instance) joins it; stop removes
-      the network after the containers left it. Mapped-address consumption is unchanged: the
-      network isolates parallel sessions, the runner keeps using the published host ports.
+      the network after the containers left it. Mapped-address consumption: the network
+      isolates parallel sessions, the runner keeps using the published host ports.
     - The session lifecycle owns one `DataBatch` per test: the product-owned per-test fixture
       (the sandbox plugin's reset step) creates a fresh batch before the test, the service views
       returned by postgresql/kafka/vault/http/redis bind to it, and apply_pending takes exactly that

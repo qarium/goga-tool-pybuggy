@@ -430,16 +430,14 @@ Annotations: |
     redis kind — a real redis service.
 
     Container: the community redis module container with the product-pinned default image
-    (redis:8-alpine, the postgres:16-alpine precedent) unless the config overrides it; the
-    module's built-in wait strategy is replaced through the core container's waiting_for —
-    readiness is the engine's PING probe bounded by the declared deadline at the declared
-    interval (the same principle by which the postgres engine disables its module's internal
-    wait); an expired deadline or a wrong password surfaces as the engine error naming the
-    service and the waited check — never a hang. A declared password reaches the container
-    command through the module constructor (--requirepass); an absent password starts redis
-    without authentication — the primary mode.
+    (redis:8-alpine, a major-version pin) unless the config overrides it; the module's
+    built-in wait strategy is replaced — readiness is the engine's PING probe bounded by
+    the declared deadline at the declared interval; an expired deadline or a wrong password
+    surfaces as the engine error naming the service and the waited check — never a hang.
+    A declared password starts the container with authentication (--requirepass); an absent
+    password starts redis without authentication — the primary mode.
     Data plane: the official redis client over one connection to the declared logical database,
-    opened after readiness, held for the session, closed on stop. The four v1 operations apply
+    opened after readiness, held for the session, closed on stop. The four operations apply
     as their redis commands — set, hset, rpush, sadd — with values serialized to the wire form
     at execution; the declared payload is never rewritten, so journal replay is deterministic.
     The migrate hook stays the no-op default — migrations are rejected on the redis kind at

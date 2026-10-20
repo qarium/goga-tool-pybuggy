@@ -100,8 +100,7 @@ Annotations: |
     `password`: the redis auth password — optional, accepted on the redis kind only; absent
     starts the service without authentication; present starts it with --requirepass. A declared
     value must be a non-empty string free of whitespace, quotes, and backslashes — it rides the
-    redis container command line, where such characters break the shell wiring; anything else
-    fails at document load naming the entry.
+    redis container command line; anything else fails at document load naming the entry.
     `db`: the redis logical database index — optional, accepted on the redis kind only; 0 by
     default; the valid range is 0-15.
 

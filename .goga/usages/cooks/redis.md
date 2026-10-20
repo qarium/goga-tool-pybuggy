@@ -30,16 +30,15 @@ container = RedisContainer(image="redis:8-alpine", password=password or None)
 container.waiting_for(engine_probe)  # replaces the module's built-in PingWaitStrategy
 ```
 
-- The product-pinned default image is `redis:8-alpine` (major pin, the `postgres:16-alpine`
-  precedent); the service entry's `image` override replaces it.
+- The product-pinned default image is `redis:8-alpine` (major pin); the service entry's
+  `image` override replaces it.
 - The module constructor hardcodes its `PingWaitStrategy`. The engine replaces it through
   `waiting_for(...)` — the core container sets `_wait_strategy` from that call — so readiness
-  stays engine-owned, bounded by the declared probe deadline and interval (the same principle
-  by which the postgres engine disables its module's internal wait).
+  stays engine-owned, bounded by the declared probe deadline and interval.
 - Auth: pass `password` to the constructor and the module wires the container command
   (`redis-server --requirepass <password>`) itself; omit it and the container starts without
   authentication — the primary mode. The password reaches the service under test as an env
-  literal in the sandbox document (the postgres-URL precedent), no new placeholder kind.
+  literal in the sandbox document — no placeholder kind exists for it.
 - No volume is mounted — the state is in-memory by design; the reset never restarts the
   container.
 - `get_client(**kwargs)` builds a `redis.Redis` against the mapped host/port with the module
@@ -91,7 +90,7 @@ client.sadd(key, *members)          # SMEMBERS readers
 
 - The writer must be type-correct for the service's read path: a SET-seeded key is invisible
   to a service reading HGET (wrong value encoding) — the operation choice is part of the
-  author's visibility contract, the same way the insert/produce/put/stub choices are.
+  author's visibility contract.
 - Values are strings or JSON-serializable plain data. Serialization to the wire form happens
   at execution — the declared payload is never rewritten, so baseline-journal replay is
   deterministic.
@@ -109,7 +108,5 @@ client.sadd(key, *members)          # SMEMBERS readers
   db-0-seeded data.
 - Reset between tests: `client.flushdb()` of the declared database, then baseline-journal
   replay through the same execution path as apply. The wipe is one cheap command; the
-  data-plane connection survives the reset and the container never restarts (the postgres
-  style — restart-based reset stays reserved for kinds whose state cannot be wiped by
-  command: kafka, vault).
+  data-plane connection survives the reset and the container never restarts.
 - `FLUSHDB` wipes only the declared logical database — other databases keep their keys.
