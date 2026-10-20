@@ -221,6 +221,8 @@ key is invisible to a service reading `HGET`. Pick by the reader — `GET` (`set
   db configuration with it, or the service will not see the seeded data.
 - Later writes to the same key follow the redis command semantics — a second `set`
   overwrites, `rpush`/`sadd` append.
+- An empty `values` or `members` collection (an empty list or an empty hash mapping)
+  executes nothing — the postgres empty-rows precedent.
 
 ## Presets
 
@@ -229,8 +231,8 @@ carries the same fields as the matching view operation — redis declarations ad
 name the operation through the `action` key (`set` / `hset` / `rpush` / `sadd`), because
 the kind has four operations — and presets apply on top of the reset state, ahead of the
 test's own operations. All five kinds are accepted (`postgresql`, `kafka`, `vault`,
-`http`, `redis`); an unsupported kind or a malformed row fails at decoration time,
-before anything starts. The decorator also stamps a `usefixtures` mark that pulls the
+`http`, `redis`); an unsupported kind or a malformed declaration fails at decoration
+time, before anything starts. The decorator also stamps a `usefixtures` mark that pulls the
 sandbox into the test's fixture closure, so the reset and the presets run. The mark does
 not imply binding: a preset-declaring test that calls the service still takes the
 `sandbox` argument and calls `endpoint.bind(sandbox)` explicitly:
