@@ -71,8 +71,10 @@ class Sandbox:
         Returns:
             The mapped instance address — the value ``Api.bind`` resolves when the sandbox
             is bound to the api client of a test; readable once the instance has started.
+            Carries the declared ``base_path`` prefix of the instance entry when one is
+            declared; an empty prefix keeps the bare ``http://<host>:<port>`` address.
         """
-        return f"http://{self.service.host}:{self.service.port}"
+        return f"http://{self.service.host}:{self.service.port}{self.config.instance.base_path}"
 
     def start(self) -> None:
         """Bring the sandbox up in the ordered sequence.

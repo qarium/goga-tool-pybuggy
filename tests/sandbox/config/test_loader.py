@@ -134,6 +134,22 @@ class TestValidateSandboxConfigLogic:
         assert not hasattr(config.data, "kafka")
         assert "kafka" not in StartupData.model_fields
 
+    def test_load_carries_the_declared_base_path(self, sandbox_yaml):
+        """A declared ``base_path`` prefix loads onto the instance entry; absent keeps ``""``."""
+        sandbox_yaml(
+            "instance:\n"
+            "  image: my-service:latest\n"
+            "  port: 8080\n"
+            "  base_path: /api/v1\n"
+            "  env: {}\n"
+            "services:\n"
+            "  db: { kind: postgresql }\n"
+        )
+
+        config = validate_written()
+
+        assert config.instance.base_path == "/api/v1"
+
     def test_load_fails_naming_rename_for_service_key(self, sandbox_yaml):
         """Scenario 3: the former 'service' top-level key fails naming the rename to 'instance'."""
         path = sandbox_yaml(
@@ -553,11 +569,16 @@ class TestValidateSandboxConfigLogic:
                 "instance:\n  image: i\n  port: 1\n  env: {}\n  probe: {path: health, timeout: 3}\nservices: {}",
                 r"instance.*probe.*path must start with '/'",
             ),
+            (
+                "instance:\n  image: i\n  port: 1\n  env: {}\n  base_path: api/v1\nservices: {}",
+                r"instance.*base_path must start with '/'",
+            ),
         ],
     )
     def test_load_fails_on_unknown_or_malformed_entry_keys(self, sandbox_yaml, document, match):
         """A mistyped entry key (``imag`` for ``image``) fails at load instead of silently
-        dropping the declaration; a health path without the leading slash fails the same way."""
+        dropping the declaration; a health path or an API path prefix without the leading
+        slash fails the same way."""
         sandbox_yaml(document)
 
         with pytest.raises(ValueError, match=match):

@@ -101,7 +101,9 @@ sandbox.redis("cache")     # a redis service named cache
 Each view also exposes `name`, `host`, and `port` — `host` and `port` are the mapped
 address the `{{<service>.host}}` / `{{<service>.port}}` placeholders of the instance env
 resolve to. The sandbox object itself exposes `base_url` — the address of the running
-service under test, the value a bound api client resolves to. Nothing executes at
+service under test, the value a bound api client resolves to; it carries the instance
+entry's declared `base_path` prefix when one is declared (see
+[configuration](configuration.md#instance)). Nothing executes at
 declaration time — the sandbox applies the accumulated batch automatically before the
 first call to the service under test; an unknown service name fails fast.
 

@@ -15,6 +15,7 @@ anything starts (the activation rules are covered in the
 instance:                           # the entry under test
   image: my-service:latest          # required — the image under test
   port: 8080                        # required — the container port the service serves on
+  base_path: /api/v1                # optional — the API path prefix the sandbox base_url carries
   probe:                            # optional — readiness probe
     path: /health                   # health path; omit to wait for the port only
     timeout: 60.0                   # readiness deadline seconds; default 30.0
@@ -87,8 +88,16 @@ suggests `instance`, `instances` suggests `services`.
 |---|---|---|---|
 | `image` | `str` | required | the image under test |
 | `port` | `int` | required | the container port the service serves on |
+| `base_path` | `str` | `""` | URL path prefix of the service API — carried by the sandbox `base_url` the bound api client resolves; must start with `/` |
 | `env` | `map[str, str]` | required | environment values of the instance — Jinja2 templates over the started service addresses |
 | `probe` | `map` | — | readiness probe; the `path` field is accepted here only (see [probe](#probe)) |
+
+`base_path` prefixes every bound request URL of the sandbox session — declare it when the
+service mounts its API under a path prefix (`http://localhost:8080/api/v1` →
+`base_path: /api/v1`). It must start with `/` (it is appended to
+`http://<host>:<port>`); a prefix without the leading slash fails at document load. The
+readiness `probe.path` stays relative to the host:port root regardless of `base_path` —
+health endpoints commonly live outside the API prefix.
 
 Instance env values are Jinja2 templates over the started service addresses:
 

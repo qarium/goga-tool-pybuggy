@@ -120,7 +120,7 @@ class RedisEngine(BaseEngine):
                 port=address.port,
                 password=self.config.password or None,
                 socket_timeout=PROBE_CONNECT_TIMEOUT,
-                connect_timeout=PROBE_CONNECT_TIMEOUT,
+                socket_connect_timeout=PROBE_CONNECT_TIMEOUT,
             )
 
             try:
@@ -159,7 +159,7 @@ class RedisEngine(BaseEngine):
             db=self.config.db,
             password=self.config.password or None,
             socket_timeout=PLANE_TIMEOUT,
-            connect_timeout=PLANE_TIMEOUT,
+            socket_connect_timeout=PLANE_TIMEOUT,
         )
         self._client.ping()
 

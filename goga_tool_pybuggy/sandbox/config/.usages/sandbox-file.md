@@ -15,6 +15,7 @@ anything starts.
 instance:
   image: my-service:latest          # required — the image under test
   port: 8080                        # required — the container port the service serves on
+  base_path: /api/v1                # optional — the API path prefix the sandbox base_url carries
   probe:                            # optional — readiness declaration
     path: /health                   # health path; omit to wait for the port only
     timeout: 60.0                   # readiness deadline seconds; default 30.0
@@ -191,6 +192,8 @@ Readiness is declared per target, Kubernetes-probe-like, as an optional `probe` 
   and interval — a wrong password surfaces as an auth error within the deadline, never a hang.
 - The health `path` must start with `/` — it is appended to `http://<host>:<port>`; a path
   without the leading slash fails at document load.
+- The health `path` stays relative to the host:port root regardless of the instance
+  `base_path` — health endpoints commonly live outside the API prefix.
 - The `interval` must not exceed the `timeout` — declare a smaller interval alongside a
   sub-second timeout.
 - Omitting the block (or any field) keeps the established behavior — defaults reproduce it
@@ -253,7 +256,7 @@ Applied in a fixed order after all services are up and before the instance start
   files, invalid migration filename, duplicate version prefixes (local sources; a remote
   source fails on its URL shape here and on its folder at apply), git URL outside the
   allowlist or with embedded credentials — probe `path` on a service or without its leading
-  slash, unparsable YAML) fails the run before any container starts, with an error naming the
-  entry.
+  slash, instance `base_path` without its leading slash, unparsable YAML) fails the run
+  before any container starts, with an error naming the entry.
 - Without the document the product is fully inert — nothing starts, nothing changes.
 - A container runtime must be available in the environment running the tests.

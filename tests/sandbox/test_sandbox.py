@@ -17,13 +17,17 @@ from goga_tool_pybuggy.sandbox.engines import DataOperation, InstanceAddress
 from .conftest import FakeEngine, FakeNetwork, FakeService
 
 
-def sandbox_config() -> SandboxConfig:
+def sandbox_config(instance_base_path: str = "") -> SandboxConfig:
     """Build the sample sandbox configuration of the harness scenario.
 
     The scenario carries one service of every kind — vault, http, kafka with inline topics,
     postgresql, redis — each of the data-carrying kinds with its startup data — and one
     instance env placeholder per service, so start exercises the startup-op assembly, the
     address render and the env hand-off end to end.
+
+    Args:
+        instance_base_path: The instance entry's declared API path prefix; ``""`` keeps the
+            bare host:port address.
 
     Returns:
         A ``SandboxConfig`` declaring the ``secrets``, ``payments``, ``events``, ``db`` and
@@ -40,6 +44,7 @@ def sandbox_config() -> SandboxConfig:
                 "REDIS_URL": "redis://{{cache.host}}:{{cache.port}}/0",
             },
             port=8080,
+            base_path=instance_base_path,
         ),
         services={
             "secrets": ServiceConfig(name="secrets", kind="vault"),
@@ -92,6 +97,7 @@ class SandboxHarness:
         service_alive: bool = True,
         service_logs: str = "",
         fail_db_stop: bool = False,
+        instance_base_path: str = "",
     ) -> None:
         """Initialize the fakes of the sample scenario.
 
@@ -102,9 +108,11 @@ class SandboxHarness:
             service_logs: The diagnostic output every ``logs()`` call of the fake instance
                 reports.
             fail_db_stop: Make the db engine's ``stop`` raise — the guarded-teardown scenario.
+            instance_base_path: The instance entry's declared API path prefix the harness
+                configuration carries.
         """
         self.events: list[str] = []
-        self.config = sandbox_config()
+        self.config = sandbox_config(instance_base_path)
         db_engine = RefusingStopEngine if fail_db_stop else FakeEngine
         self.engines: dict[str, FakeEngine] = {
             "secrets": FakeEngine(
@@ -235,6 +243,14 @@ class TestSandboxContract:
     def test_sandbox_base_url_readable_after_start(self, started: SandboxHarness):
         """``base_url`` resolves from the started instance address right after start."""
         assert started.sandbox.base_url == "http://127.0.0.9:9000"
+
+    def test_sandbox_base_url_carries_the_declared_base_path(self, monkeypatch: pytest.MonkeyPatch):
+        """``base_url`` carries the instance entry's declared ``base_path`` prefix."""
+        harness = SandboxHarness(instance_base_path="/api/v1")
+
+        harness.wire(monkeypatch).start()
+
+        assert harness.sandbox.base_url == "http://127.0.0.9:9000/api/v1"
 
 
 class TestSandboxStart:

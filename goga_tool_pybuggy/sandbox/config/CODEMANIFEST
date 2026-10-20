@@ -46,7 +46,7 @@ Annotations: |
     "data -> StartupData": |
       The startup data layer declarations.
 
-"InstanceConfig(image: str, env: dict[str, str], port: int, probe: ProbeConfig | None)":
+"InstanceConfig(image: str, env: dict[str, str], port: int, base_path: str = '', probe: ProbeConfig | None)":
   location: instance.py
   annotations: |
     Instance-under-test entry.
@@ -55,6 +55,10 @@ Annotations: |
     `env`: environment values; values may carry service address placeholders resolved at sandbox
     start.
     `port`: the container port the service serves on.
+    `base_path`: optional URL path prefix of the service API — carried by the sandbox base URL
+    the bound api client resolves; empty by default, keeping the bare host:port address; must
+    carry a leading slash — it is appended to the host:port address, and a prefix without
+    the slash fails at document load.
     `probe`: optional readiness declaration — the health path and the wait bounds; absent keeps
     the default wait — port readiness with the default deadline and interval.
 
@@ -63,6 +67,7 @@ Annotations: |
 
     Constraints:
     - The probe path applies only here — the single readiness check with a configurable path.
+    - The probe path stays relative to the host:port root — never to the base_path prefix.
 
     Use `conventions` for the data-model rules.
   properties:
@@ -72,6 +77,8 @@ Annotations: |
       Environment values; values may carry service address placeholders.
     "port -> int": |
       Container port the service serves on.
+    "base_path -> str": |
+      URL path prefix of the service API; empty keeps the bare host:port address.
     "probe -> ProbeConfig | None": |
       Readiness declaration; None keeps the default wait.
 
@@ -266,7 +273,8 @@ Annotations: |
     1. Apply the top-level key diagnostics — a "service" key fails naming the rename to
     "instance"; an "instances" key fails naming the rename to "services"; any other unknown
     top-level key fails as unknown.
-    2. Validate the instance entry — image, env, port are required; the probe is optional with
+    2. Validate the instance entry — image, env, port are required; the base_path is optional,
+    empty by default, and must carry a leading slash when declared; the probe is optional with
     the path confined to this entry.
     3. Validate every service entry — a non-empty unique name matching the template identifier
     grammar — letters, digits, underscores, not starting with a digit (it names the
@@ -299,6 +307,8 @@ Annotations: |
     name fails before any container starts.
     - The probe bounds are validated — a positive timeout and interval, the interval never
     exceeding the timeout.
+    - The instance base_path is validated at load — empty by default, a leading slash
+      when declared.
     - The redis db index is validated at load — an integer within 0-15.
     - The redis password is validated at load — a non-empty string free of whitespace,
       quotes, and backslashes.

@@ -429,7 +429,7 @@ class TestRedisEngineReadiness:
                     "port": 16379,
                     "password": "sandbox-redis",
                     "socket_timeout": 2,
-                    "connect_timeout": 2,
+                    "socket_connect_timeout": 2,
                 }
             ]
             * 3
@@ -504,7 +504,7 @@ class TestRedisEnginePlane:
                 "db": 3,
                 "password": "p",
                 "socket_timeout": 5,
-                "connect_timeout": 5,
+                "socket_connect_timeout": 5,
             }
         ]
         assert "decode_responses" not in namespace.constructions[0]

@@ -79,7 +79,9 @@ Annotations: |
   properties:
     "base_url -> str": |
       The service address of the running sandbox — the value the api client's bind resolves
-      when the sandbox is bound to it (ahead of the configured base_url).
+      when the sandbox is bound to it (ahead of the configured base_url). Carries the
+      instance entry's declared base_path prefix when one is declared; an empty prefix keeps
+      the bare host:port address.
   methods:
     "start()": |
       Bring the sandbox up in the ordered sequence.

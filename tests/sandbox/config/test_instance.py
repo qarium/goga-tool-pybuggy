@@ -4,7 +4,7 @@ import inspect
 
 import pytest
 from goga_tool_pybuggy.sandbox.config import InstanceConfig, ProbeConfig
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 
 class TestInstanceConfigContract:
@@ -26,8 +26,8 @@ class TestInstanceConfigContract:
             assert parameter.kind is inspect.Parameter.KEYWORD_ONLY
 
     def test_instance_config_declares_the_contract_fields(self):
-        """The model declares the ``image``, ``env``, ``port`` and ``probe`` fields only."""
-        assert set(InstanceConfig.model_fields) == {"image", "env", "port", "probe"}
+        """The model declares the ``image``, ``env``, ``port``, ``base_path`` and ``probe`` fields only."""
+        assert set(InstanceConfig.model_fields) == {"image", "env", "port", "base_path", "probe"}
 
     def test_instance_config_properties_return_declared_types(self):
         """Construction with sample data exposes the declared property types."""
@@ -86,3 +86,21 @@ class TestInstanceConfigLogic:
         assert instance.probe is not None
         assert instance.probe.path is None
         assert instance.probe.timeout == 10.0
+
+    def test_instance_config_base_path_defaults_to_empty_string(self):
+        """``base_path`` defaults to ``""`` — the bare host:port address stays."""
+        instance = InstanceConfig(image="my-service:latest", port=8080)
+
+        assert instance.base_path == ""
+
+    def test_instance_config_base_path_accepts_a_leading_slash(self):
+        """A declared prefix with the leading slash is carried verbatim."""
+        instance = InstanceConfig(image="my-service:latest", port=8080, base_path="/api/v1")
+
+        assert instance.base_path == "/api/v1"
+
+    def test_instance_config_base_path_without_leading_slash_fails(self):
+        """A prefix without the leading slash is rejected at construction — it would misform
+        every bound request URL."""
+        with pytest.raises(ValidationError, match=r"base_path must start with '/'"):
+            InstanceConfig(image="my-service:latest", port=8080, base_path="api/v1")
