@@ -4,9 +4,9 @@ The Python surface of the sandbox: the built-in `sandbox` fixture, the session b
 binding the api to the running instance, and the data operations tests declare on the
 dependency services. Data operations are write-only — reading dependency state back is
 not part of the surface; assert on the responses of the service under test. The services
-themselves — names, kinds, images, topics, migrations — come from the
-[sandbox document](configuration.md); the lifecycle (activation, reset ownership,
-environments) is covered in the [overview](index.md).
+themselves — names, kinds, images, topics, migrations, the redis `password`/`db` — come
+from the [sandbox document](configuration.md); the lifecycle (activation, reset
+ownership, environments) is covered in the [overview](index.md).
 
 ## The sandbox fixture
 

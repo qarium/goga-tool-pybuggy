@@ -5,8 +5,9 @@ path** relative to the project root. There is no `--config` option; every comman
 the config itself. (The sandbox capability reads a separate, fixed-path document —
 `.goga/tools/pybuggy/sandbox.yml` under the pybuggy tools home — described in
 [the sandbox document](sandbox/configuration.md); it is not part of this file. The sandbox service entries carry
-their own vocabulary — `kind`, `image`, `probe`, kafka `topics`, and the optional,
-postgresql-only `migrations` block — covered there, not here.)
+their own vocabulary — `kind`, `image`, `probe`, kafka `topics`, the optional,
+postgresql-only `migrations` block, and the redis `password`/`db` pair — covered there,
+not here.)
 
 The file carries four concerns: the **plugin options** (feed the `api` fixture), the
 **`specs`** section (what the CLI commands operate on), the optional **`loader`**
