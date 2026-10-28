@@ -1326,16 +1326,16 @@ Example-record texts (module constants, verbatim):
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_bootstrap.py`, expected to fail):
+- [x] **Contract tests** (in `tests/commands/init/test_bootstrap.py`, expected to fail):
   `from goga_tool_pybuggy.commands.init import document_web_config_examples, install_playwright`
   — importable; both accept the documented single argument
-- [ ] **Code**: add the two routines + the module constants (example-record texts, the
+- [x] **Code**: add the two routines + the module constants (example-record texts, the
   `_PLAYWRIGHT_LINE` regex) to `goga_tool_pybuggy/commands/init/bootstrap.py` per the traces;
   ruamel (`YAML()`) for the lenient read; the lenient no-op logs WARNING with the design
   wording `web config unreadable — playwright install line skipped`; Google docstrings
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_bootstrap.py
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_bootstrap.py
   -v` — pass
-- [ ] **Logic tests** (design scenarios, verbatim):
+- [x] **Logic tests** (design scenarios, verbatim):
   - `test_document_web_config_examples_documents_absent_keys` — setup `tmp_path` web.yml written
     as the engine would: `provider: openai\ngeneration_model: g\nclassification_model: c\nbrowser:
     \n  name: chromium\n  headless: true\nstrict: false\ninteractive: false\n`; trace: first call
@@ -1366,11 +1366,11 @@ Example-record texts (module constants, verbatim):
     `generation_model:`; generation_prompt and classification_prompt before `strict:`); the tail
     records (polling_timeout … CACHE_ROOT, BROWSER) are dropped, not appended at the end; exit
     without error; the second call returns `[]` and the file bytes are unchanged (idempotent)
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/commands/init/ -x` — fix implementation
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/commands/init/ -x` — fix implementation
   code until all tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: example-record texts exact; the repin is prefix-match;
+- [x] **Contract re-verification**: example-record texts exact; the repin is prefix-match;
   writers never create the Dockerfile or `web.yml`; WARNING + no-op on lenient paths
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 13: `commands/init/init.py` + facade — web-aware bootstrap and the 25-name `__all__` (TDD)

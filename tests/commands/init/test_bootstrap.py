@@ -1,7 +1,8 @@
-"""Tests for the seven bootstrap writers — contract surface, round-trip guarantees, deltas.
+"""Tests for the nine bootstrap writers — contract surface, round-trip guarantees, deltas.
 
 Covers the writers relocated from the 1.x ``init.py``, the two migration deltas, the 2.0.1
-restoration, and the ``run_bootstrap`` packaged-usage distribution over the sandbox subtree.
+restoration, the web-kind documenter/playwright writers, and the ``run_bootstrap`` packaged-usage
+distribution over the sandbox subtree.
 """
 
 import importlib.metadata
@@ -13,7 +14,9 @@ import click
 import pytest
 from goga_tool_pybuggy.commands.init import (
     document_config_examples,
+    document_web_config_examples,
     ensure_review_skip,
+    install_playwright,
     install_pybuggy,
     register_annotations,
     register_usages,
@@ -69,17 +72,19 @@ def _seed_bootstrap_target(root: Path) -> None:
 
 
 class TestBootstrapContract:
-    """Facade exposure and signature surface of the seven bootstrap writers."""
+    """Facade exposure and signature surface of the nine bootstrap writers."""
 
-    def test_facade_exports_seven_bootstrap_writers(self):
-        """All seven writer routines are importable from the cell facade."""
+    def test_facade_exports_nine_bootstrap_writers(self):
+        """All nine writer routines are importable from the cell facade."""
         assert callable(ensure_review_skip)
         assert callable(install_pybuggy)
+        assert callable(install_playwright)
         assert callable(register_usages)
         assert callable(register_annotations)
         assert callable(write_pybuggy_conftest)
         assert callable(write_test_convention)
         assert callable(document_config_examples)
+        assert callable(document_web_config_examples)
 
     @pytest.mark.parametrize(
         ("routine", "expected"),
@@ -87,10 +92,12 @@ class TestBootstrapContract:
             (write_test_convention, {"path": Path, "return": None}),
             (ensure_review_skip, {"config_path": Path, "return": bool}),
             (install_pybuggy, {"dockerfile_path": Path, "return": str | None}),
+            (install_playwright, {"dockerfile_path": Path, "return": str | None}),
             (register_usages, {"config_path": Path, "usage_keys": dict[str, str], "return": list[str]}),
             (register_annotations, {"config_path": Path, "annotation_lines": dict[str, str], "return": list[str]}),
             (write_pybuggy_conftest, {"path": Path, "return": None}),
             (document_config_examples, {"config_path": Path, "return": list[str]}),
+            (document_web_config_examples, {"config_path": Path, "return": list[str]}),
         ],
     )
     def test_writer_signature_matches_contract(self, routine, expected):
@@ -252,6 +259,66 @@ class TestInstallPybuggy:
         assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\n"
 
 
+class TestInstallPlaywright:
+    """The browser install line — surveyed browser, prefix repin, lenient config reads."""
+
+    def test_install_playwright_appends_and_repins(self, tmp_path, monkeypatch):
+        """The line appends once from the surveyed browser, then repins in place when the browser changes."""
+        monkeypatch.chdir(tmp_path)
+        tools = tmp_path / ".goga" / "tools" / "pybuggy"
+        tools.mkdir(parents=True)
+        (tools / "web.yml").write_text("browser: {name: chromium}\n", encoding="utf-8")
+        dockerfile = tmp_path / "Dockerfile"
+        dockerfile.write_text("FROM base\n", encoding="utf-8")
+
+        assert install_playwright(dockerfile) == "RUN playwright install --with-deps chromium"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM base\nRUN playwright install --with-deps chromium\n"
+
+        snapshot = dockerfile.read_bytes()
+        assert install_playwright(dockerfile) is None
+        assert dockerfile.read_bytes() == snapshot
+
+        (tools / "web.yml").write_text("browser: {name: firefox}\n", encoding="utf-8")
+
+        assert install_playwright(dockerfile) == "RUN playwright install --with-deps firefox"
+        content = dockerfile.read_text(encoding="utf-8")
+        assert content.count("RUN playwright install") == 1
+        assert content == "FROM base\nRUN playwright install --with-deps firefox\n"
+
+    def test_install_playwright_noop_paths(self, tmp_path, monkeypatch, caplog):
+        """Absent Dockerfile, absent/unreadable web config, and a newline-less Dockerfile all behave."""
+        monkeypatch.chdir(tmp_path)
+        tools = tmp_path / ".goga" / "tools" / "pybuggy"
+        tools.mkdir(parents=True)
+
+        absent = tmp_path / "Dockerfile"
+        assert install_playwright(absent) is None
+        assert not absent.exists()
+
+        dockerfile = tmp_path / "Dockerfile"
+        dockerfile.write_text("FROM base\n", encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING):
+            assert install_playwright(dockerfile) is None
+
+        assert "web config unreadable" in caplog.text
+        assert dockerfile.read_text(encoding="utf-8") == "FROM base\n"
+
+        caplog.clear()
+        (tools / "web.yml").write_text("provider: [unclosed\n", encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING):
+            assert install_playwright(dockerfile) is None
+
+        assert "web config unreadable" in caplog.text
+
+        (tools / "web.yml").write_text("browser:\n  name: chromium\n", encoding="utf-8")
+        dockerfile.write_text("FROM base", encoding="utf-8")
+
+        assert install_playwright(dockerfile) == "RUN playwright install --with-deps chromium"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM base\nRUN playwright install --with-deps chromium\n"
+
+
 class TestDocumentConfigExamples:
     """The commented example records — the 1.x option surface restored post-session."""
 
@@ -381,6 +448,95 @@ class TestDocumentConfigExamples:
         assert f"# {_HEADERS_FIRST_LINE}" in text
         assert f"# {_LOADER_FIRST_LINE}" in text
         assert "# base_url:" not in text
+
+
+class TestDocumentWebConfigExamples:
+    """The commented web example records — the option surface the engine serialization does not carry."""
+
+    def test_document_web_config_examples_documents_absent_keys(self, tmp_path):
+        """Absent web keys land as commented records; the second run adds nothing and never touches values."""
+        web = tmp_path / "web.yml"
+        web.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\nbrowser:\n"
+            "  name: chromium\n  headless: true\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+
+        documented = document_web_config_examples(web)
+
+        assert len(documented) == 13  # every absent member except the six active ones
+        text = web.read_text(encoding="utf-8")
+        assert "# base_url: (skipped optional scalar)" in text
+        assert "# cache_root: (path example — the step cache root, e.g. tests/.web_cache)" in text
+
+        snapshot = web.read_bytes()
+        assert document_web_config_examples(web) == []
+        assert web.read_bytes() == snapshot
+
+        data = YAML().load(web)
+        assert data["provider"] == "openai"
+        assert data["generation_model"] == "g"
+        assert data["classification_model"] == "c"
+        assert data["browser"] == {"name": "chromium", "headless": True}
+        assert data["strict"] is False
+        assert data["interactive"] is False
+
+    def test_document_web_config_examples_pins_before_next_active_key(self, tmp_path):
+        """Records land in walk order pinned before the next active key — browser is the terminal anchor."""
+        web = tmp_path / "web.yml"
+        web.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\nbrowser:\n"
+            "  name: chromium\n  headless: true\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+
+        document_web_config_examples(web)
+
+        text = web.read_text(encoding="utf-8")
+        assert text.index("# base_url: (skipped optional scalar)") < text.index("generation_model:")
+        assert text.index("# model: (skipped optional scalar)") < text.index("generation_model:")
+        assert text.index("# generation_prompt: |") < text.index("strict:")
+        assert text.index("# classification_prompt: |") < text.index("strict:")
+        assert text.index("# generation_attempts: (skipped optional scalar)") < text.index("browser:")
+        assert text.index("# cache_root: (path example") < text.index("browser:")
+
+    def test_document_web_config_examples_noop_when_absent_or_non_mapping(self, tmp_path):
+        """An absent web config and a non-mapping document are no-ops — the file is never created."""
+        absent = tmp_path / "web.yml"
+        assert document_web_config_examples(absent) == []
+        assert not absent.exists()
+
+        listed = tmp_path / "list.yml"
+        listed.write_text("- a\n- b\n", encoding="utf-8")
+        assert document_web_config_examples(listed) == []
+        assert listed.read_text(encoding="utf-8") == "- a\n- b\n"
+
+    def test_document_web_config_examples_drops_pending_without_browser(self, tmp_path):
+        """Without the browser anchor the tail records are dropped silently; the run stays idempotent."""
+        web = tmp_path / "web.yml"
+        web.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+
+        documented = document_web_config_examples(web)
+
+        assert [record.split("\n", 1)[0] for record in documented] == [
+            "base_url: (skipped optional scalar)",
+            "model: (skipped optional scalar)",
+            "generation_prompt: |",
+            "classification_prompt: |",
+        ]
+        text = web.read_text(encoding="utf-8")
+        assert text.index("# base_url:") < text.index("generation_model:")
+        assert text.index("# generation_prompt: |") < text.index("strict:")
+        assert "# polling_timeout" not in text
+        assert "# cache_root" not in text
+        assert "# browser:" not in text
+
+        snapshot = web.read_bytes()
+        assert document_web_config_examples(web) == []
+        assert web.read_bytes() == snapshot
 
 
 class TestRegistrations:

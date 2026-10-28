@@ -9,11 +9,12 @@ import logging
 import re
 from pathlib import Path
 
-from ruamel.yaml import YAML
+from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString
 
 from ...plugin import PluginConfigKeys
+from ...web import WebConfigKeys
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +23,11 @@ logger = logging.getLogger(__name__)
 # command prefix, not the exact current line text, keeps re-running the bootstrap
 # idempotent across releases: the found line is repinned, never joined by a second one.
 _INSTALL_LINE = re.compile(r"^[ \t]*RUN goga install pybuggy\b[^\n]*$", re.MULTILINE)
+
+# Any playwright install line a previous run may have pinned to a different browser. Matching the
+# command prefix, not the exact line text, keeps the writer idempotent across browser changes: the
+# found line is repinned, never joined by a second one.
+_PLAYWRIGHT_LINE = re.compile(r"^[ \t]*RUN playwright install\b[^\n]*$", re.MULTILINE)
 
 
 def _ensure_map(parent: CommentedMap, key: str) -> CommentedMap:
@@ -83,6 +89,20 @@ _CONFTEST_TEMPLATE = (
 _HEADERS_BLOCK = "headers: example (skipped complex member)\n  X-Example: value\n  default request headers dict"
 _LOADER_BLOCK = "loader: example (skipped complex member)\n  packages:\n    - api\n  modules: []"
 
+# Commented example records for web keys the session never captures — the prompts as block-scalar
+# examples, cache_root as a path example, the scalars as one-line records.
+_GENERATION_PROMPT_BLOCK = (
+    "generation_prompt: |\n  extra instructions appended to the generation prompt (skipped optional scalar)"
+)
+_CLASSIFICATION_PROMPT_BLOCK = (
+    "classification_prompt: |\n  extra instructions appended to the classification prompt (skipped optional scalar)"
+)
+_CACHE_ROOT_RECORD = "cache_root: (path example — the step cache root, e.g. tests/.web_cache)"
+_BROWSER_BLOCK = (
+    "browser:\n  name: chromium\n  screen: ''\n  headless: true\n  endpoint: ''\n"
+    "  accept_dialogs: false\n  speed: 100\n  timeout: 30"
+)
+
 
 def write_test_convention(path: Path) -> None:
     """Occupy the consumer's ``conventions`` slot with the packaged pybuggy test convention.
@@ -121,6 +141,32 @@ def _example_record(member: PluginConfigKeys) -> str:
 
     if member is PluginConfigKeys.LOADER:
         return _LOADER_BLOCK
+
+    return f"{member.value}: (skipped optional scalar)"
+
+
+def _web_example_record(member: WebConfigKeys) -> str:
+    """Return the commented example record text of one web config key.
+
+    Complex members resolve to their example blocks; scalars to the ``(skipped optional scalar)`` record.
+
+    Args:
+        member: The web config key to document.
+
+    Returns:
+        The record text emitted as ``# ``-prefixed comment lines.
+    """
+    if member is WebConfigKeys.GENERATION_PROMPT:
+        return _GENERATION_PROMPT_BLOCK
+
+    if member is WebConfigKeys.CLASSIFICATION_PROMPT:
+        return _CLASSIFICATION_PROMPT_BLOCK
+
+    if member is WebConfigKeys.CACHE_ROOT:
+        return _CACHE_ROOT_RECORD
+
+    if member is WebConfigKeys.BROWSER:
+        return _BROWSER_BLOCK
 
     return f"{member.value}: (skipped optional scalar)"
 
@@ -170,6 +216,58 @@ def document_config_examples(config_path: Path) -> list[str]:
     if pending and "specs" in data:
         data.yaml_set_comment_before_after_key("specs", before="\n".join(pending))
         documented.extend(pending)
+
+    if documented:
+        yaml.dump(data, config_path)
+
+    return documented
+
+
+def document_web_config_examples(config_path: Path) -> list[str]:
+    """Document the absent web config keys of ``web.yml`` as commented example records.
+
+    Idempotent comment-only edit: records are pinned in ``WebConfigKeys`` walk order before the next
+    active key (``browser`` is the terminal anchor); active keys are never modified.
+
+    Args:
+        config_path: Path to the web config file (``<cwd>/.goga/tools/pybuggy/web.yml``).
+
+    Returns:
+        The record texts added; empty when the file is absent, holds no mapping, or every
+        absent key is already documented.
+
+    Raises:
+        YAMLError: If the existing file contains invalid YAML.
+    """
+    if not config_path.exists():
+        return []
+
+    yaml = YAML()
+    yaml.preserve_quotes = True
+    yaml.width = 4096
+
+    data = yaml.load(config_path)
+
+    if not isinstance(data, CommentedMap):
+        return []
+
+    text = config_path.read_text(encoding="utf-8")
+    pending: list[str] = []
+    documented: list[str] = []
+
+    for member in WebConfigKeys:
+        if member is WebConfigKeys.FILENAME:
+            continue
+
+        record = _web_example_record(member)
+
+        if member.value in data:
+            if pending:
+                data.yaml_set_comment_before_after_key(member.value, before="\n".join(pending))
+                documented.extend(pending)
+                pending = []
+        elif record.split("\n", 1)[0] not in text:
+            pending.append(record)
 
     if documented:
         yaml.dump(data, config_path)
@@ -271,6 +369,88 @@ def install_pybuggy(dockerfile_path: Path) -> str | None:
 
     dockerfile_path.write_text(content + line + "\n", encoding="utf-8")
     logger.info("pybuggy install line added to Dockerfile", extra={"line": line, "path": str(dockerfile_path)})
+
+    return line
+
+
+def _read_surveyed_browser_name() -> str | None:
+    """Read the surveyed browser name leniently from the written ``web.yml`` (cwd-relative).
+
+    Returns:
+        The ``browser.name`` string, or ``None`` when the document is absent, unreadable,
+        or carries no usable browser name.
+    """
+    web_config = Path(".goga/tools/pybuggy/web.yml")
+
+    if not web_config.exists():
+        return None
+
+    try:
+        data = YAML().load(web_config)
+    except YAMLError:
+        return None
+
+    browser = data.get("browser") if isinstance(data, CommentedMap) else None
+    name = browser.get("name") if isinstance(browser, CommentedMap) else None
+
+    if not isinstance(name, str) or not name:
+        return None
+
+    return name
+
+
+def install_playwright(dockerfile_path: Path) -> str | None:
+    """Write the playwright browser-install ``RUN`` line to the consumer Dockerfile.
+
+    The browser comes from the written ``web.yml`` (the surveyed ``browser.name``); an absent or
+    unreadable document is a lenient no-op with a WARNING. A playwright line pinned to a different
+    browser is repinned in place — never joined by a second, conflicting line — so re-running the
+    bootstrap stays idempotent across browser changes.
+
+    Args:
+        dockerfile_path: Path to the project Dockerfile (resolved from the consumer config
+            ``dockerfile`` field by the bootstrap).
+
+    Returns:
+        The written ``RUN`` line text, or ``None`` when nothing was written (file absent,
+        web config unreadable, or line already present at the current browser).
+
+    Raises:
+        OSError: Forwarded unchanged on a Dockerfile read/write failure.
+    """
+    if not dockerfile_path.exists():
+        return None
+
+    browser = _read_surveyed_browser_name()
+
+    if browser is None:
+        logger.warning(
+            "web config unreadable — playwright install line skipped", extra={"document": ".goga/tools/pybuggy/web.yml"}
+        )
+
+        return None
+
+    line = f"RUN playwright install --with-deps {browser}"
+
+    content = dockerfile_path.read_text(encoding="utf-8")
+    existing = _PLAYWRIGHT_LINE.search(content)
+
+    if existing is not None:
+        if existing.group(0).strip() == line:
+            return None
+
+        dockerfile_path.write_text(content[: existing.start()] + line + content[existing.end() :], encoding="utf-8")
+        logger.info(
+            "playwright install line repinned to Dockerfile", extra={"line": line, "path": str(dockerfile_path)}
+        )
+
+        return line
+
+    if content and not content.endswith("\n"):
+        content += "\n"
+
+    dockerfile_path.write_text(content + line + "\n", encoding="utf-8")
+    logger.info("playwright install line added to Dockerfile", extra={"line": line, "path": str(dockerfile_path)})
 
     return line
 
