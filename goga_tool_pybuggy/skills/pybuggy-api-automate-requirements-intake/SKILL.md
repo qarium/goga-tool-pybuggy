@@ -56,7 +56,7 @@ artifact. Ask via AskUserQuestion (one question per message, 2–4 options):
 
 2. **Git ref** (only when "Feature branch" was chosen) — the ref per spec; propose options derived
    from the topic wording (a slug of the topic usually matches the service branch name) and the
-   config `git.ref` of `.goga/tools/pybuggy/config.yml`; other values come via user input. When
+   config `git.ref` of `.goga/tools/pybuggy/api.yml`; other values come via user input. When
    several git specs exist — ask whether one ref applies to all (`--ref <ref>`) or per-spec
    (`--ref <spec1>:<ref1> --ref <spec2>:<ref2>`).
 

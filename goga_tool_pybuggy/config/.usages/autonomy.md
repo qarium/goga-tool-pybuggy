@@ -2,7 +2,7 @@
 
 ## Domain
 
-Cell `goga_tool_pybuggy/config` resolves the `pipelines` axis of `.goga/tools/pybuggy/config.yml`: which pipeline names run unattended. Target audience: workflow-amendment consumers that gate their contribution on the autonomy flag.
+Cell `goga_tool_pybuggy/config` resolves the `pipelines` axis of `.goga/tools/pybuggy/api.yml`: which pipeline names run unattended. Target audience: workflow-amendment consumers that gate their contribution on the autonomy flag.
 
 ## The config axis
 

@@ -1,6 +1,6 @@
 # Configuration
 
-pybuggy reads a single YAML file — `.goga/tools/pybuggy/config.yml` — from a **fixed
+pybuggy reads a single YAML file — `.goga/tools/pybuggy/api.yml` — from a **fixed
 path** relative to the project root. There is no `--config` option; every command loads
 the config itself. (The sandbox capability reads a separate, fixed-path document —
 `.goga/tools/pybuggy/sandbox.yml` under the pybuggy tools home — described in

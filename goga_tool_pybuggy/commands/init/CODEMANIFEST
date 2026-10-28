@@ -9,6 +9,11 @@ Imports:
   - Types:
       - PluginConfigKeys
     From: goga_tool_pybuggy/plugin
+  - Types:
+      - WebConfigKeys
+    Usages:
+      - pybuggy-web
+    From: goga_tool_pybuggy/web
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -51,6 +56,19 @@ Annotations: |
   install line, the usage and annotation registrations of the api-root usages only (the sandbox capability usages
   are copied as files without registration — they may or may not apply to a given cell, while the codemanifest
   usages of .goga/config.yml bind every cell), and the root conftest. Use relative imports inside the cell.
+
+  The pybuggy question block is kind-aware: the first record asks the test kind (api / web / both) and
+  gates every downstream block on it. The declarative block carries only the unconditional records —
+  the kind, the base image, and the built-image name; every kind-dependent survey happens at the
+  amendment moment, where the tool reads the kind from the answer view and branches: the api branch
+  surveys the api options, the specs (first and additional), and the autonomy confirms; the web branch
+  surveys the web minimum (LLM provider, generation/classification model, browser, headless). Both
+  tool config files — api.yml and web.yml — are buffered through the session contribution and written
+  by the engine. The bootstrap closes kind-dependently: the written file is the kind signal — the api
+  examples document into api.yml; the web examples, the pybuggy-web usage registration, and the
+  Dockerfile playwright line apply only when web.yml was written. The api and web question sets never
+  cross. The web config keys are `WebConfigKeys` from Imports — the single source for the survey, the
+  payload, and the commented examples.
 
 ---
 
@@ -144,19 +162,26 @@ Annotations: |
 
     Algorithm:
     1. Resolve the output root as the current working directory.
-    2. Discover every .usages/*.md under the packaged usage roots — the api cell and the cells of
-    the sandbox subtree that carry usage files; copy each under .goga/usages/cooks/pybuggy/ at its
-    root's destination — the api usages flat as <stem>.md, the sandbox subtree usages in the
-    sandbox/ subdirectory — template mode: an existing target is skipped with an INFO log; bare
-    mode: an existing target is overwritten.
-    3. Document the absent plugin members of .goga/tools/pybuggy/config.yml as commented example records via
+    2. Discover every .usages/*.md under the packaged usage roots — the api cell, the cells of
+    the sandbox subtree, and the web cell that carry usage files; copy each under
+    .goga/usages/cooks/pybuggy/ at its root's destination — the api and web usages flat as
+    <stem>.md, the sandbox subtree usages in the sandbox/ subdirectory — template mode: an
+    existing target is skipped with an INFO log; bare mode: an existing target is overwritten.
+    3. Document the absent plugin members of .goga/tools/pybuggy/api.yml as commented example records via
        `document_config_examples` — idempotent; a no-op when the session wrote no tool config.
+    3b. When the web config was written (the kind signal — the file the session wrote), document its
+        absent keys via `document_web_config_examples` — idempotent; a no-op when the session wrote
+        no web config.
     4. Deliver the `conventions` slot: when .goga/usages/conventions.md does not exist, call `write_test_convention`;
        when it exists, log INFO and leave the file untouched.
     5. Enforce build.review.skip: true via `ensure_review_skip` — idempotent; runs on every pass, including when the
        session ended immediately on an existing config.
     6. Resolve the Dockerfile path from the consumer config dockerfile field (fallback .goga/Dockerfile), then
        augment it via `install_pybuggy` — idempotent; a no-op when the file is absent.
+    6b. When the web config was written, register the pybuggy-web usage key and its annotation line via
+        `register_usages` and `register_annotations` — idempotent.
+    6c. When the web config was written, augment the Dockerfile via `install_playwright` (the browser
+        comes from the written web config).
     7. Register the api-root usage keys (pybuggy-api, pybuggy-asserts) plus `conventions` via
        `register_usages` and their annotation lines via `register_annotations` — idempotent. The
        sandbox-subtree usages are download-only: copied in step 2, never registered — they may or may not apply
@@ -172,6 +197,10 @@ Annotations: |
       packaged usage — including the sandbox capability usages — is copied; the tool config carries the commented
       examples of its absent optional members (when the session wrote it); the `conventions` slot is occupied
       when it was absent; the root conftest exists.
+    - When the web kind was chosen — the web config carries the commented examples of its absent
+      keys, the pybuggy-web usage key and its annotation line are registered, and the Dockerfile
+      carries the playwright install line. The api steps no-op naturally when api.yml is absent
+      (web-only) and the web steps no-op when web.yml is absent (api-only).
     - The sandbox capability usage files land in the sandbox subdirectory of the cooks directory — their own
     distribution path, apart from the flat api usages — and are never registered in the consumer config:
     their capabilities are optional per cell, and the codemanifest usages of .goga/config.yml bind every
@@ -181,16 +210,19 @@ Annotations: |
     - A write failure in any step is logged (ERROR) and fails the command with a non-zero exit.
 
     Constraints:
-    - Do not copy usages beyond the packaged usage roots (the api cell and the sandbox subtree
-    cells).
+    - Do not copy usages beyond the packaged usage roots (the api cell, the sandbox subtree
+    cells, and the web cell).
+    - Do not prompt about the web delivery — the gates are file presence; the kind answer never
+    crosses the session boundary.
     - Do not remove or relocate a pre-existing flat sandbox copy — no migration; the
     bootstrap delivers the sandbox subdirectory layout only.
     - Do not merge into an existing conftest — either a confirmed overwrite (bare) or a skip.
     - Do not prompt about existing files in template mode — the template expresses the user's intent.
     - Do not create the Dockerfile when the engine did not write it — report and fail.
 
-    Use `write_test_convention`, `document_config_examples`, `ensure_review_skip`, `install_pybuggy`,
-    `register_usages`, `register_annotations`, `write_pybuggy_conftest`. Use `click` for the bare-mode gates.
+    Use `write_test_convention`, `document_config_examples`, `document_web_config_examples`,
+    `ensure_review_skip`, `install_pybuggy`, `install_playwright`, `register_usages`,
+    `register_annotations`, `write_pybuggy_conftest`. Use `click` for the bare-mode gates.
     Use `conventions` for logging and testing.
 
 "run_session() -> exit_code:int":
@@ -251,23 +283,28 @@ Annotations: |
 "amend_pybuggy_config(context: object)":
   location: session.py
   annotations: |
-    Amendment moment of the participation contract: survey the additional specs and then the autonomy confirms, read
-    the isolated answer view, and buffer the pybuggy contribution — the config amendments and the tool config file.
+    Amendment moment of the participation contract: survey the kind-gated branches (api options,
+    specs, autonomy confirms / web minimum), read the isolated answer view, and buffer the pybuggy
+    contribution — the config amendments and the tool config files.
 
     `context`: the amendment surface delivered by the platform.
 
     Algorithm:
     1. Return immediately when the session did not invite this tool.
-    2. Read the answer view from the context (the survey never touches it — the two reads are
-       independent).
-    3. Survey the additional specs via `survey_extra_specs` (the confirm-gated per-field follow-up).
-    4. Survey the autonomy confirms via `survey_autonomy` — one per autonomous pipeline, after the
-       spec survey, so the autonomy questions never interleave the spec fields.
-    5. Buffer every entry of `build_config_amendments` as a config amendment.
-    6. Buffer the tool config file with `build_config_data`.
+    2. Read the answer view from the context.
+    3. Read the kind answer.
+    4. api or both: survey the api options via `survey_api_options`, the specs via `survey_specs`,
+       then the autonomy confirms via `survey_autonomy` — specs first, autonomy after them.
+    5. web or both: survey the web minimum via `survey_web_config`.
+    6. Buffer every entry of `build_config_amendments` as a config amendment (unconditional — the
+       image inputs are kind-neutral).
+    7. api or both: buffer the api tool config file with `build_config_data`.
+    8. web or both: buffer the web tool config file with `build_web_config_data`.
 
     Requirements:
     - The answer view carries the core answers plus this tool's own answers under local names.
+    - The api and web question sets never cross — an api-only session never asks a web question and
+      vice versa; a both-kind session asks both branches in order (api first, web after it).
     - An exception raised here — including a cancelled extra-spec prompt — drops the whole contribution with a warning
       naming the tool; the session continues.
 
@@ -275,70 +312,104 @@ Annotations: |
     - Do not write files directly — the engine serializes and writes the buffered config.
     - Do not read another tool's answers — they are never visible.
 
-    Use `survey_extra_specs`, `survey_autonomy`, `build_config_amendments`, `build_config_data`.
+    Use `survey_api_options`, `survey_specs`, `survey_autonomy`, `survey_web_config`,
+    `build_config_amendments`, `build_config_data`, `build_web_config_data`.
     Use `goga-onboarding-hooks` for the member contract and the failure behavior. Use `goga-onboarding-generator`
     for the buffered file serialization.
 
 "pybuggy_questions() -> items:list[Question]":
   location: session.py
   annotations: |
-    Build the declarative pybuggy question block — the image survey and the survey of the tool configuration, asked
+    Build the declarative pybuggy question block — the kind question and the image survey, asked
     by the engine.
 
     `items`: the question records of the block, in survey order.
 
     Algorithm:
-    1. Declare base_image as an input — the FROM of the always-created Dockerfile; the prompt embeds the goga-python
-       family hints completed with the runtime minor tag, the newest member is the default.
-    2. Declare image as an input — the built-image name; the default is "{project}:latest" from the git-derived
-       project name, and the input is required when the name is not derivable.
-    3. Declare base_url as a required input — a Jinja2 template string.
-    4. Declare every scalar member of `PluginConfigKeys` except BASE_URL, HEADERS, and LOADER as an optional input,
-       each prompt stating what the field is for (BASE_URL is the required base_url input of step 3).
-    5. Declare the first-spec group: name (input), type (choice swagger|openapi), location (input), and the optional
-       git fields (input; an empty git url means no git source).
+    1. Declare kind as a choice of api|web|both (default api) — the first record of the block; every
+       downstream survey gates on it.
+    2. Declare base_image as an input — the FROM of the always-created Dockerfile; the prompt embeds
+       the goga-python family hints completed with the runtime minor tag, the newest member is the
+       default.
+    3. Declare image as an input — the built-image name; the default is "{project}:latest" from the
+       git-derived project name, and the input is required when the name is not derivable.
 
     Requirements:
     - The block holds exactly one nesting level — groups carry simple children only.
-    - base_image always carries an answer (its default); image carries one through the default or a required input.
-    - base_url is required and its answer is a Jinja2 template; the remaining scalars are optional.
-    - The first-spec group makes at least one spec structurally unavoidable: its answer is always recorded.
+    - base_image always carries an answer (its default); image carries one through the default or a
+      required input; kind always carries an answer (its default).
 
     Constraints:
-    - Do not survey HEADERS or LOADER — the bootstrap documents them as commented example records in the tool config.
-    - Do not declare a Dockerfile-path question — the path is the fixed constant delivered by `build_config_amendments`.
-    - Do not declare autonomy questions — the autonomy confirms are surveyed by `survey_autonomy` at the amendment
-      moment, after the spec survey.
-    - Do not declare a compact additional-specs record — the additional specs are surveyed by `survey_extra_specs` at
-      the amendment moment (a confirm-gated repeated group is beyond the declarative records).
-    - Do not duplicate plugin key names — iterate `PluginConfigKeys`.
+    - Do not declare kind-dependent records (base_url, the scalar plugin keys, the spec group) —
+      they are surveyed at the amendment moment (`survey_api_options`, `survey_specs`); the
+      declarative engine records carry no conditional visibility.
+    - Do not survey HEADERS or LOADER — the bootstrap documents them as commented example records.
+    - Do not declare autonomy questions — the autonomy confirms are surveyed by `survey_autonomy` at
+      the amendment moment, after the spec survey.
+    - Do not declare web records — the web minimum is surveyed by `survey_web_config` at the
+      amendment moment.
+    - Do not declare a Dockerfile-path question — the path is the fixed constant delivered by
+      `build_config_amendments`.
 
     Use `goga-onboarding-questions` for the record kinds and the nesting rule. Use `PluginConfigKeys` for the scalar
     key set. Use `autonomy` for the axis the amend-moment answer gates. Use `conventions` for type hints and testing.
 
-"survey_extra_specs() -> specs:list[dict[str, object]]":
+"survey_api_options() -> answers:dict[str, object]":
   location: session.py
   annotations: |
-    Interactively survey the additional specs — the confirm-gated per-field follow-up of the pybuggy block, asked by
-    the tool at the amendment moment (right after the engine survey asked the first-spec group).
+    Interactively survey the api plugin options — the kind-gated api branch of the amendment moment
+    (moved from the former declarative block: the declarative records carry no conditional
+    visibility).
 
-    `specs`: the surveyed specs — one mapping per accepted spec, keyed by the first-spec field names.
+    `answers`: the answered api scalar keys; unanswered keys dropped.
 
     Algorithm:
-    1. Ask "Add another spec?" as a confirm (default no); a decline ends the survey with no specs.
-    2. For each accepted spec ask the fields in the first-spec order: name (required — an empty entry re-asks with a
-       required prompt), type (a swagger|openapi choice), location (required — re-asked when empty), then the optional
-       git fields (input; an empty git url means no git source, an empty git ref the default branch).
-    3. Repeat the confirm after every accepted spec until declined; return the collected mappings.
+    1. Ask base_url as a required input — a Jinja2 template string; an empty entry re-asks with a
+       required prompt.
+    2. Ask every scalar member of `PluginConfigKeys` except BASE_URL, HEADERS, and LOADER as an
+       optional input, each prompt stating what the field is for; Enter skips.
 
     Requirements:
-    - The prompt texts mirror the first-spec group so both surveys read as one flow.
-    - Required fields are validated at the prompt — an empty name or location never reaches the payload.
+    - Prompt texts preserved from the former declarative block so both flows read as one.
+    - Required fields validated at the prompt — an empty base_url never reaches the payload.
+
+    Constraints:
+    - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole
+      contribution with a warning (the session continues).
+    - Do not survey HEADERS or LOADER — the bootstrap documents them as commented examples.
+
+    Use `PluginConfigKeys` for the scalar key set. Use `conventions` for logging-free TTY practices
+    and testing.
+
+"survey_specs() -> specs:list[dict[str, object]]":
+  location: session.py
+  annotations: |
+    Interactively survey the specs — the first spec and the confirm-gated additional specs as one
+    flow (absorbs the former extra-specs follow-up; the first spec moved from the declarative
+    block).
+
+    `specs`: one mapping per accepted spec, keyed by the first-spec field names.
+
+    Algorithm:
+    1. Ask the first spec field by field: name (required — an empty entry re-asks with a required
+       prompt), type (a swagger|openapi choice), location (required — re-asked when empty), then the
+       optional git fields (input; an empty git url means no git source, an empty git ref the default
+       branch).
+    2. Ask "Add another spec?" as a confirm (default no); a decline ends the survey with no
+       additional specs.
+    3. For each accepted additional spec ask the fields in the first-spec order; repeat the confirm
+       after every accepted spec until declined; return the collected mappings (the first spec
+       first).
+
+    Requirements:
+    - The prompt texts mirror across the first and the additional specs so both read as one flow.
+    - Required fields validated at the prompt.
+    - At least the first spec always lands.
 
     Constraints:
     - Do not validate spec semantics here — `parse_specs` owns the entry assembly.
-    - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole contribution
-      with a warning (the session continues).
+    - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole
+      contribution with a warning (the session continues).
 
     Use `conventions` for logging-free TTY practices and testing.
 
@@ -346,7 +417,7 @@ Annotations: |
   location: session.py
   annotations: |
     Interactively survey the autonomy confirms — the closing questions of the amendment moment, asked by the tool
-    after `survey_extra_specs` completed, so the autonomy questions never interleave the spec fields.
+    after `survey_specs` completed, so the autonomy questions never interleave the spec fields.
 
     `answers`: the autonomy answers keyed by pipeline axis — true enables that pipeline's unattended window.
 
@@ -361,25 +432,55 @@ Annotations: |
     - The disabled default per axis keeps that pipeline interactive until opted in.
 
     Constraints:
+    - Called only for the api and both kinds, after `survey_specs` completed.
     - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole contribution
       with a warning (the session continues).
 
     Use `autonomy` for the axis each answer gates. Use `conventions` for logging-free TTY practices and testing.
 
-"build_config_data(answers: dict[str, object], extra_specs: list[dict[str, object]] | None, autonomous: dict[str, bool] | None) -> data:dict[str, object]":
+"survey_web_config() -> answers:dict[str, object]":
+  location: session.py
+  annotations: |
+    Interactively survey the web minimum — the kind-gated web branch of the amendment moment.
+
+    `answers`: the surveyed web keys.
+
+    Algorithm:
+    1. Ask provider as a choice of openai|anthropic (default openai).
+    2. Ask generation_model as a required input (re-asked when empty).
+    3. Ask classification_model as a required input (re-asked when empty).
+    4. Ask browser_name as an input (default chromium).
+    5. Ask headless as a confirm (default yes).
+
+    Requirements:
+    - The minimum only — the remaining `WebConfigKeys` arrive as commented examples in web.yml.
+    - The answers shape feeds `build_web_config_data`.
+
+    Constraints:
+    - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole
+      contribution with a warning (the session continues).
+    - Do not survey prompts, attempts, polling, or cache keys — the bootstrap documents them as
+      commented examples.
+
+    Use `WebConfigKeys` from Imports for the key set.
+    Use `pybuggy-web` from Imports for the consumer meaning of the surveyed fields.
+    Use `conventions` for logging-free TTY practices and testing.
+
+"build_config_data(answers: dict[str, object], specs: list[dict[str, object]], autonomous: dict[str, bool]) -> data:dict[str, object]":
   location: session.py
   annotations: |
     Pure mapping of the tool answer view into the tool config file payload: the specs mapping, the answered scalar
     keys, and the conditional pipelines axis entries.
 
-    `answers`: the tool answer view — the block answers under local names.
-    `extra_specs`: the `survey_extra_specs` mappings; None when the gate was declined.
-    `autonomous`: the `survey_autonomy` answers keyed by axis; None or an all-disabled mapping writes no axis
+    `answers`: the `survey_api_options` answers plus the block answers under local names.
+    `specs`: the `survey_specs` output — the surveyed spec mappings, the first spec first.
+    `autonomous`: the `survey_autonomy` answers keyed by axis; an all-disabled mapping writes no axis
       entries.
-    `data`: the serializable payload of .goga/tools/pybuggy/config.yml.
+    `data`: the serializable payload of .goga/tools/pybuggy/api.yml.
 
     Algorithm:
-    1. Build the specs mapping via `parse_specs` from the first-spec group answer and the surveyed extra specs.
+    1. Build the specs mapping via `parse_specs` from the surveyed specs list — the first mapping is
+       the first spec (strictly validated), the rest are the additional specs.
     2. Collect the answered scalar keys from the `PluginConfigKeys` members, dropping unanswered ones.
     3. Read `autonomous`; for every axis of the fixed autonomy axis order with a true answer, add its pipelines
        record with autonomous true; an absent, None, or all-disabled mapping adds no axis entries.
@@ -391,6 +492,7 @@ Annotations: |
     - Each axis entry matches the pipelines contract (see `autonomy`); the section is absent when no axis is
       enabled — existing projects stay untouched until the user opts in per pipeline.
     - The payload is plain serializable data — the engine writes the YAML.
+    - Called only for the api and both kinds — the caller owns the kind gate.
 
     Constraints:
     - Do not prompt or touch the filesystem — pure.
@@ -399,6 +501,31 @@ Annotations: |
 
     Use `parse_specs`. Use `PluginConfigKeys` for the scalar key set. Use `configuration` for schema compatibility.
     Use `autonomy` for the axis shape. Use `conventions` for type hints and testing.
+
+"build_web_config_data(web_answers: dict[str, object]) -> data:dict[str, object]":
+  location: session.py
+  annotations: |
+    Pure mapping of the surveyed web answers into the web config file payload.
+
+    `web_answers`: the `survey_web_config` answers.
+    `data`: the serializable payload of .goga/tools/pybuggy/web.yml.
+
+    Algorithm:
+    1. Map the surveyed minimum into active keys: provider, generation_model, classification_model,
+       browser.name, browser.headless.
+    2. Add the active defaults: strict false, interactive false.
+    3. Return the payload.
+
+    Requirements:
+    - The payload satisfies the web config schema — every key is a `WebConfigKeys` member; the
+      document carries the surveyed minimum plus the strict/interactive defaults.
+    - The payload is plain serializable data — the engine writes the YAML.
+
+    Constraints:
+    - Do not prompt or touch the filesystem — pure.
+    - Do not emit commented records — `document_web_config_examples` adds them in the bootstrap.
+
+    Use `WebConfigKeys` from Imports for the key set. Use `conventions` for type hints and testing.
 
 "build_config_amendments(answers: dict[str, object]) -> amendments:dict[str, object]":
   location: session.py
@@ -439,7 +566,8 @@ Annotations: |
     Pure, lenient assembly of the specs mapping: the first-spec group answer plus the surveyed extra specs.
 
     `spec_answers`: the first-spec group answer under local names.
-    `extra_specs`: the `survey_extra_specs` mappings; None when the gate was declined.
+    `extra_specs`: the additional surveyed mappings of `survey_specs`; None when only the first spec
+      was surveyed.
     `specs`: the specs mapping keyed by spec name.
 
     Algorithm:
@@ -487,7 +615,7 @@ Annotations: |
 "document_config_examples(config_path: Path) -> documented:list[str]":
   location: bootstrap.py
   annotations: |
-    Round-trip edit of .goga/tools/pybuggy/config.yml documenting the absent plugin members as commented example
+    Round-trip edit of .goga/tools/pybuggy/api.yml documenting the absent plugin members as commented example
     records — the option surface the engine's plain serialization does not carry.
 
     `config_path`: path to the tool config file.
@@ -512,6 +640,38 @@ Annotations: |
     - Do not touch keys or comments beyond the added records.
 
     Use `PluginConfigKeys` for the member walk. Use `ruamel-yaml` for the round-trip edit. Use `conventions` for
+    testing.
+
+"document_web_config_examples(config_path: Path) -> documented:list[str]":
+  location: bootstrap.py
+  annotations: |
+    Round-trip edit of .goga/tools/pybuggy/web.yml documenting the absent web keys as commented
+    example records — the option surface the engine's plain serialization does not carry.
+
+    `config_path`: path to the web config file.
+    `documented`: the record texts added; empty when nothing was added.
+
+    Algorithm:
+    1. No-op (return an empty list) when the file is absent or holds no mapping.
+    2. Walk the `WebConfigKeys` members in declaration order; a member absent as an active key whose
+       record marker is not already in the file text accumulates its example record — the browser
+       subkeys as nested records, the prompts as block-scalar examples, the scalars as one-line
+       records, cache_root as a path example.
+    3. Pin the accumulated records, in walk order, before the next active key via the
+       before-comment — the browser section is the terminal anchor.
+    4. Write the document back only when at least one record was added.
+
+    Requirements:
+    - Idempotent by marker detection: a repeat run over its own output adds nothing.
+    - Active keys and their values are never modified — only comments are added.
+    - The surveyed keys (provider, the models, browser.name, browser.headless) and the
+      strict/interactive defaults stay active and are never documented.
+
+    Constraints:
+    - Do not create the file when absent — only document an existing web config.
+    - Do not touch keys or comments beyond the added records.
+
+    Use `WebConfigKeys` from Imports for the member walk. Use `ruamel-yaml` for the round-trip edit. Use `conventions` for
     testing.
 
 "ensure_review_skip(config_path: Path) -> changed:bool":
@@ -573,6 +733,37 @@ Annotations: |
     - Do not hardcode the version — it is derived from the installed package.
 
     Use `conventions` for logging and testing.
+
+"install_playwright(dockerfile_path: Path) -> line:str | None":
+  location: bootstrap.py
+  annotations: |
+    Write the playwright browser-install RUN line to the consumer Dockerfile — the web-kind
+    environment step (browser binaries are an environment requirement).
+
+    `dockerfile_path`: path to the consumer Dockerfile.
+    `line`: the written install line; None when nothing was written.
+
+    Algorithm:
+    1. No-op (return None) when the Dockerfile does not exist — never create the file here.
+    2. Read the browser name leniently from the written web.yml (the browser.name key); an absent or
+       unreadable document or key is a no-op with a WARNING.
+    3. When a playwright install line is already present: return None when it equals the current
+       form; otherwise repin it in place — the match keys on the command prefix, not the exact line
+       text.
+    4. Otherwise ensure the content ends with a newline, append RUN playwright install
+       --with-deps <browser>, write the file back; log INFO; return the line.
+
+    Requirements:
+    - The line installs the browsers of the surveyed browser name with their dependencies.
+    - The existing Dockerfile content is preserved — the install line is the only line this step
+      ever writes; appended when absent, repinned in place when a previous form differs.
+    - Idempotent at the current browser within a single Dockerfile.
+
+    Constraints:
+    - Do not create the Dockerfile when absent — only augment an existing one.
+    - Do not hardcode the browser — it is read from the written web config.
+
+    Use `ruamel-yaml` for the lenient read. Use `conventions` for logging and testing.
 
 "register_usages(config_path: Path, usage_keys: dict[str, str]) -> added_keys:list[str]":
   location: bootstrap.py
@@ -655,4 +846,5 @@ Author: Goga
 CreatedAt: 01/10/26
 Description: |
   Init command cell — initializes the consumer's goga project (bare, from a template, or a template upgrade) and
-  bootstraps the pybuggy test environment.
+  bootstraps the pybuggy test environment. The question block is kind-aware: the kind record (api / web / both)
+  gates the amendment-moment surveys and the bootstrap delivery of both tool configs.

@@ -24,6 +24,12 @@ Imports:
       - SandboxConfig
       - validate_sandbox_config
     From: goga_tool_pybuggy/sandbox/config
+  - Types:
+      - WebPlugin
+      - WebConfigKeys
+    Usages:
+      - pybuggy-web
+    From: goga_tool_pybuggy/web
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -67,12 +73,22 @@ Annotations: |
   (see `api_usage`); the plugin cell owns only fixture construction and teardown.
   Use `sandbox-session` for the consumer fixture patterns of the sandbox.
 
+  The cell carries the fixture-driven web activation: the installation entry gates on the presence of
+  the web config document (named by `WebConfigKeys` from Imports) — with the document the `WebPlugin`
+  joins the same installation call and owns the web test kind: the web fixture (a per-test
+  prettyplay runtime with the step cache next to the test file), the --strict-mode and --interactive
+  options, Allure step reporting, and the prettyplay event log formatter. The web plugin reads and
+  validates its own document in its configure step — an invalid document fails the run at
+  configphase; without the document nothing web-related is registered, and a test requesting the web
+  fixture gets pytest's standard "fixture 'web' not found".
+  Use `pybuggy-web` from Imports for the consumer patterns of web tests.
+
 ---
 
 "ApiPlugin(*, context: dict, loaders: list[BaseLoader] | None = None, default_retries: int | None = None, default_assert_timeout: int | None = None, default_assert_delay: int | float | None = None)":
   location: plugin.py
   annotations: |
-    Plugin class providing configurable options and the api fixture. Decorated with @define.plugin bound to the pybuggy config file.
+    Plugin class providing configurable options and the api fixture. Decorated with @define.plugin bound to the pybuggy api config file.
 
     `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is populated on construction.
     `loaders`: explicit loaders in addition to those in the loader config section; defaults to none.
@@ -179,7 +195,14 @@ Annotations: |
     and validates its config itself in its configure step; without the document nothing
     sandbox-related is registered (the address normalization included), and a test requesting
     the sandbox fixture gets pytest's standard "fixture 'sandbox' not found".
-    5. Call install_pytest_plugins with both plugins to inject pytest_addoption/pytest_configure/pytest_collection_finish into that namespace (see `pluginator`).
+    5. Gate the `WebPlugin` on the presence of the web config document (the file check of the fixed
+       platform tool-config path named by the FILENAME member of `WebConfigKeys` from Imports): with the document,
+       append a `WebPlugin` instance to the same positional plugin list — the plugin reads and
+       validates its config itself in its configure step; without the document nothing web-related
+       is registered, and a test requesting the web fixture gets pytest's standard "fixture
+       'web' not found".
+    6. Call install_pytest_plugins with every gated plugin to inject pytest_addoption/
+       pytest_configure/pytest_collection_finish into that namespace (see `pluginator`).
 
     Requirements:
     - `install` must be the one-level wrapper around call_context(); calling call_context() directly would resolve the wrong stack frame.
@@ -187,12 +210,15 @@ Annotations: |
     - The address normalization runs only with the document present, defaults the env (never
       overrides an explicit value), and its failure is a no-op — a failed detection keeps the
       mapped-localhost behavior.
-    - The same installation call enables the ApiPlugin and — when the document is present — the
-    `SandboxPlugin`; no new enablement surface exists.
+    - The same installation call enables the ApiPlugin and — when the documents are present — the
+    `SandboxPlugin` and the `WebPlugin`; no new enablement surface exists.
+    - The web gate performs no validation — the document is only checked for presence; validation
+    belongs to the web plugin's configure step (an invalid document fails at configphase).
 
     Use `pluginator` for install_pytest_plugins and call_context.
     Use `registration` for the loader-driven registration step.
     Use `testcontainers` for the container-host override seam of the address normalization.
+    Use `pybuggy-web` from Imports for the consumer patterns of the web test kind.
 
 "SandboxPlugin()":
   location: sandbox_plugin.py
@@ -263,7 +289,7 @@ Annotations: |
   location: plugin.py
   annotations: |
     Fixed value set of the pybuggy plugin config keys — the canonical key set consumed by ApiPlugin via pluginator
-    (option resolution chain) and written into .goga/tools/pybuggy/config.yml. Each member is a str whose value is
+    (option resolution chain) and written into .goga/tools/pybuggy/api.yml. Each member is a str whose value is
     the lowercase config-key string. Exposed as an importable contract type: declared in this CODEMANIFEST and
     re-exported through the plugin facade (__all__) so consumers iterate the key set data-driven instead of duplicating
     key names.
@@ -280,7 +306,7 @@ Annotations: |
     - assert_response_class — dotted module:Class of a custom Expect subclass
 
     Requirements:
-    - Members map to the lowercase config-key strings written into .goga/tools/pybuggy/config.yml and resolved by ApiPlugin.
+    - Members map to the lowercase config-key strings written into .goga/tools/pybuggy/api.yml and resolved by ApiPlugin.
     - Scalar members (base_url, timeout, retries, assert_timeout, assert_delay, assert_field_class,
       assert_response_class) are single values; complex members (headers, loader) carry nested structure.
 
@@ -316,4 +342,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 16/07/26
 Description: |
-  pybuggy pytest-plugin cell: the ApiPlugin plugin class with configurable options and the api fixture, and the install() entry point that wires the plugin into pytest. Built on pluginator. Exposes PluginConfigKeys as a contract type (the config-key enum) for data-driven consumption by other cells.
+  pybuggy pytest-plugin cell: the ApiPlugin plugin class with configurable options and the api fixture, and the install() entry point that wires the plugin into pytest. Built on pluginator. Exposes PluginConfigKeys as a contract type (the config-key enum) for data-driven consumption by other cells. The installation entry gates the product sandbox plugin on the sandbox document and the web plugin on the web document (goga_tool_pybuggy/web).

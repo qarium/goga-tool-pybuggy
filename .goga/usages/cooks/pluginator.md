@@ -17,7 +17,7 @@ from pluginator import install_pytest_plugins, call_context
 `define.plugin` is a class decorator. It sets the plugin name, the yaml config path, the default config, and the lists of dependencies and actions. The decorator mixes `BasePlugin` into the class bases and places `__meta__: PluginMeta` on the class. The plugin reads its config lazily via `plugin_config` (see below).
 
 ```python
-@define.plugin("pybuggy", config=".goga/tools/pybuggy/config.yml")
+@define.plugin("pybuggy", config=".goga/tools/pybuggy/api.yml")
 class PyBuggyPlugin:
     plugin_config: dict  # the parsed yaml lands in this attribute (see BasePlugin.plugin_config)
 
@@ -62,7 +62,7 @@ The resolved value passes through the `hook` (when set), and the descriptor coer
 
 ## plugin_config — reading yaml
 
-`BasePlugin.plugin_config` (a `cached_property`) reads `meta.config_file` and merges the file with `meta.default_config` (`default_config | loaded`). When the file is absent, the property returns only `default_config` (or `{}`). Consequently, options with a `plugin_config_key` take values from `.goga/tools/pybuggy/config.yml`, and `default_config` supplies the built-in defaults.
+`BasePlugin.plugin_config` (a `cached_property`) reads `meta.config_file` and merges the file with `meta.default_config` (`default_config | loaded`). When the file is absent, the property returns only `default_config` (or `{}`). Consequently, options with a `plugin_config_key` take values from `.goga/tools/pybuggy/api.yml`, and `default_config` supplies the built-in defaults.
 
 ---
 

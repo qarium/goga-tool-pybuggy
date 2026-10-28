@@ -81,7 +81,7 @@ goga_tool_pybuggy.plugin.install(loaders=[])
 ```
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 loader:
   packages:
     - name: api        # walk the api/ package tree (dots map to path separators)
@@ -93,7 +93,7 @@ loader:
 ## Preconditions and side effects
 
 - The `api/` tree is discovered by default; a missing tree is tolerated (`required=False`).
-- The plugin reads `.goga/tools/pybuggy/config.yml` at import; a missing file is tolerated (defaults apply).
+- The plugin reads `.goga/tools/pybuggy/api.yml` at import; a missing file is tolerated (defaults apply).
 - Loader paths walk the filesystem relative to the **current working directory** (while the plugin probe imports
   candidates through `sys.path`). Run `pytest` from the project root — the directory that both contains `api/` and
   is on `sys.path`. Running from another directory makes discovery silently return `[]`, so generated fixtures are
@@ -116,3 +116,16 @@ Without the document nothing changes — no fixture exists, and a test requestin
 pytest's standard `fixture 'sandbox' not found`. An invalid document fails the run at
 configphase, before any container. `--base-url` governs every test unless the test binds its
 api to the sandbox — a bound test uses the sandbox address.
+
+## Web activation
+
+The same `plugin.install()` call also installs the pybuggy web plugin: when the test repository
+holds the web config document at `.goga/tools/pybuggy/web.yml`, the plugin provides the `web`
+fixture — a per-test browser runtime for step-sentence tests (each step sentence becomes Playwright
+code once, cached next to the test file and replayed without any LLM involvement). The web plugin
+validates the document at configphase; an invalid document fails the run before any collection.
+Without the document nothing changes — no fixture exists, and a test requesting it fails with
+pytest's standard "fixture 'web' not found". Run web suites with `--strict-mode` in CI (replay-only,
+zero LLM calls); `--interactive` enables interactive step healing locally. Writing web tests means
+authoring step sentences consumed by the `web` fixture (one action per sentence, full URLs); the
+step cache lands next to the test file and is committed to the repository.

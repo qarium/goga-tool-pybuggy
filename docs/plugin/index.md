@@ -85,7 +85,7 @@ goga_tool_pybuggy.plugin.install(loaders=[])  # disable discovery entirely
 ```
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 loader:
   packages:
     - name: api        # walk the api/ package tree (dots map to path separators)
@@ -102,7 +102,7 @@ loader:
   the containers start on the first one (see [Sandbox](../sandbox/index.md)).
 - The `api/` tree is discovered by default; a missing tree is tolerated
   (`required=False`).
-- The plugin reads `.goga/tools/pybuggy/config.yml` at import; a missing file is
+- The plugin reads `.goga/tools/pybuggy/api.yml` at import; a missing file is
   tolerated (defaults apply).
 - Loader paths walk the filesystem relative to the **current working directory** (while
   candidate imports go through `sys.path`). Run `pytest` from the project root — the

@@ -60,12 +60,12 @@ the environment variable — its resolution lives in the Click wrapper `pull_cmd
   this requirement (a different ref for each repository).
 - A spec without `git` → skip (local-only), without an error.
 - `--spec <name>` narrows the selection to a single spec.
-- The config is loaded from the fixed path (`.goga/tools/pybuggy/config.yml`) via `load_config()`.
+- The config is loaded from the fixed path (`.goga/tools/pybuggy/api.yml`) via `load_config()`.
 - Clone/missing-path errors → `click.ClickException` (a single non-zero exit).
 
 ## Preconditions
 
-- The config is valid and located at the fixed path `.goga/tools/pybuggy/config.yml`.
+- The config is valid and located at the fixed path `.goga/tools/pybuggy/api.yml`.
 - Tokens are not embedded in clone URLs — rely on git credential helpers.
 - The repository is read-only (no commit/push).
 - `PYBUGGY_REF` is optional; the root CLI group loads `.env` (an explicit `--env-file` or `.env` from the CWD) before

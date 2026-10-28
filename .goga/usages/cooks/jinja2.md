@@ -39,7 +39,7 @@ Jinja2 ships no built-in regex filter/test. pybuggy registers a custom **test**,
 A variable:
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 base_url: "http://{{ env }}.svc.example/api"
 ```
 

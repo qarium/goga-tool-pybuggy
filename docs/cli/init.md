@@ -55,9 +55,14 @@ command propagates them without wrapping.
 (`goga.onboarding`, goga ≥ 2.0.1) with pybuggy invited: the engine asks the core goga
 questions — the language, the optional codemanifest / build-agent / pipeline sections,
 the tools, the usages records — and then the pybuggy block under a heading with the
-tool name. pybuggy prompts on its own only at the amendment moment (the extra specs
-and the autonomy confirms, below); everything else is asked by the engine from the
-declared records.
+tool name. The block is **kind-aware**: its first record asks the test kind — `api`,
+`web`, or `both` (default `api`) — and gates every downstream survey on it. The
+declarative block carries only the unconditional records (the kind and the two image
+questions, below); every kind-dependent ask happens at the amendment moment, where
+pybuggy prompts on its own, branching on the kind answer (the api branch: the api
+options, the specs, the autonomy confirms; the web branch: the web minimum — see the
+[Interactive tool-config survey](#interactive-tool-config-survey) below). The api and
+web question sets never cross.
 
 Two core sections are skipped by pybuggy:
 
@@ -86,13 +91,17 @@ Session semantics that shape the modes:
 - A failing tool contribution is soft: the engine discards it with a warning naming
   pybuggy and continues; the session still returns 0.
 
-Through the session pybuggy delivers the tool config file
-`.goga/tools/pybuggy/config.yml` and buffers the config amendments — the tool's
+Through the session pybuggy delivers its tool config files —
+`.goga/tools/pybuggy/api.yml` when the kind is api or both, and
+`.goga/tools/pybuggy/web.yml` when the kind is web or both — and buffers the config
+amendments — the tool's
 declared intent in the session answer space: `build.review.skip: true` (the engine's
 config mapper does not carry that flag into the generated `.goga/config.yml`; the
 bootstrap enforces it afterwards), the Dockerfile pair (the fixed `.goga/Dockerfile`
 path plus the answered FROM — the engine's generator writes the Dockerfile from
 exactly this pair — and the answered built-image name), and the `tools` record above.
+An old `.goga/tools/pybuggy/config.yml` is not read — pybuggy 2.1 renamed the file to
+`api.yml` (clean break): rename an existing `config.yml` by hand.
 Consequence: a native `goga init -t pybuggy` session (without the pybuggy CLI) runs
 no bootstrap and sets no flag — add `build.review.skip: true` and the pybuggy-owned
 files by hand, or run the pybuggy CLI.
@@ -102,21 +111,27 @@ files by hand, or run the pybuggy CLI.
 Two stages in bare and template modes; upgrade mode skips both.
 
 **Stage 1 — the onboarding session** (see above). Writes `.goga/config.yml`, the
-Dockerfile (always — created from the answered base image), and
-`.goga/tools/pybuggy/config.yml`. A non-zero session exit stops the command — the
+Dockerfile (always — created from the answered base image), and the tool config of
+the chosen kind — `.goga/tools/pybuggy/api.yml` (kind api or both) and
+`.goga/tools/pybuggy/web.yml` (kind web or both). A non-zero session exit stops the
+command — the
 bootstrap is skipped, the code is propagated unchanged.
 
-**Stage 2 — the pybuggy bootstrap.** Delivers the files the session does not carry:
+**Stage 2 — the pybuggy bootstrap.** Delivers the files the session does not carry.
+The web steps are gated on the written `web.yml` (the kind signal) and no-op for an
+api-only project; the api steps no-op naturally when `api.yml` is absent (web-only):
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) | template: skip existing (INFO); bare: overwrite |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) and the web usage (`pybuggy-web.md`) | template: skip existing (INFO); bare: overwrite |
 | `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | template: skip existing (INFO); bare: overwrite; flat copies from earlier distributions stay untouched |
-| commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted, idempotent, comment-only |
+| commented example records for absent plugin members in `.goga/tools/pybuggy/api.yml` | emitted, idempotent, comment-only |
+| commented example records for absent web keys in `.goga/tools/pybuggy/web.yml` | emitted when the web config was written, idempotent, comment-only |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
 | the pybuggy install `RUN` line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |
-| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`) | always registered, idempotent; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
+| the playwright browser-install `RUN` line — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change, idempotent |
+| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`); the `pybuggy-web` usage key with its annotation line | always registered, idempotent — the `pybuggy-web` key only when `web.yml` was written; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
 The install line is derived from the **installed pybuggy version** — e.g. an
@@ -137,36 +152,39 @@ re-run — a repeat bare `pybuggy init` is refused by the already-initialized gu
 
 ## Interactive tool-config survey
 
-The pybuggy block of the session asks the image questions and builds
-`.goga/tools/pybuggy/config.yml`. What is asked, in order:
+The pybuggy block of the session asks the kind and the image questions; the
+kind-dependent surveys build `.goga/tools/pybuggy/api.yml` (kind api or both) and
+`.goga/tools/pybuggy/web.yml` (kind web or both). What is asked, in order:
 
-1. The **base image** (`base_image`) — the FROM of the always-created Dockerfile. The
+1. The **test kind** (`kind`) — a choice of `api` | `web` | `both`, default `api`;
+   the first record of the block, gating every downstream survey.
+2. The **base image** (`base_image`) — the FROM of the always-created Dockerfile. The
    prompt lists the goga-python image family hints of the running goga minor line
    (`qarium/goga-python-3.10` … `qarium/goga-python-3.14`, each tagged with the minor
    line); the newest member is the default. The pybuggy test runtime is pytest, so the
    python family serves every pybuggy project.
-2. The **built-image name** (`image`) — the name the project image is built and tagged
+3. The **built-image name** (`image`) — the name the project image is built and tagged
    with. Default `{project}:latest` derived from the git origin; a required input when
    no origin is configured.
-3. `base_url` — **required** (empty input is re-asked). A Jinja2 URL template — a plain
-   URL is a valid template that renders to itself.
-4. The optional scalar plugin keys, one input each, skippable with Enter: `timeout`,
-   `retries`, `assert_timeout`, `assert_delay`, `assert_field_class`,
-   `assert_response_class`. Numeric answers are coerced (`timeout`/`assert_delay` →
-   float, `retries`/`assert_timeout` → int).
-5. The first spec, field by field: `name`, `type` (a choice of `swagger`|`openapi`),
-   `location` — all required — and the optional git fields `git_url`, `git_location`,
-   `git_ref`. A git block is attached only when both `git_url` and `git_location` are
-   non-empty; an empty `git_ref` means the default branch. The first spec is validated
-   strictly, so at least one spec always lands in the config.
 
-Two follow-ups are asked by pybuggy itself at the amendment moment, **after** the
-block:
+The **api branch** (kind `api` or `both`) is asked by pybuggy itself at the amendment
+moment, **after** the block:
 
-- The **additional specs** (`Add another spec?`, default No) — a confirm-gated
-  per-field loop mirroring the first-spec prompts: `name` / `type` / `location`
-  (required, re-asked when empty) and the optional git fields. Any number of extras;
-  a decline ends the survey.
+- `base_url` — **required** (empty input is re-asked). A Jinja2 URL template — a plain
+  URL is a valid template that renders to itself.
+- The optional scalar plugin keys, one input each, skippable with Enter: `timeout`,
+  `retries`, `assert_timeout`, `assert_delay`, `assert_field_class`,
+  `assert_response_class`. Numeric answers are coerced (`timeout`/`assert_delay` →
+  float, `retries`/`assert_timeout` → int).
+- The **specs as one flow** — the first spec field by field: `name`, `type` (a choice
+  of `swagger`|`openapi`), `location` — all required — and the optional git fields
+  `git_url`, `git_location`, `git_ref`. A git block is attached only when both
+  `git_url` and `git_location` are non-empty; an empty `git_ref` means the default
+  branch. The first spec is validated strictly, so at least one spec always lands in
+  the config. Then `Add another spec?` (default No) gates the **additional specs** —
+  a confirm-gated per-field loop mirroring the first-spec prompts: `name` / `type` /
+  `location` (required, re-asked when empty) and the optional git fields. Any number
+  of extras; a decline ends the survey.
 - The **autonomy confirms**, asked last — after the spec survey completed, so the
   questions never interleave the spec fields: one per pipeline, `Run the api.automate
   pipeline unattended (autonomous mode)?` and then `Run the api.patch pipeline
@@ -186,7 +204,24 @@ block:
   (see [Automate — Autonomous runs](../pipelines/api-automate.md#autonomous-runs) and
   [Patch — Autonomous runs](../pipelines/api-patch.md#autonomous-runs)).
 
-`headers` and `loader` are **never surveyed**, and the session writes the tool config
+The **web branch** (kind `web` or `both`) is asked by pybuggy at the amendment moment
+as well — the web minimum:
+
+- `provider` — the LLM provider: a choice of `openai` | `anthropic`, default `openai`.
+- `generation_model` — **required** (empty input is re-asked); the model for
+  step-code generation.
+- `classification_model` — **required** (empty input is re-asked); the model for step
+  classification.
+- `browser_name` — the browser for web tests; default `chromium`.
+- `headless` — whether the browser runs without a visible window; a confirm, default
+  yes.
+
+A `both` session asks both branches in order — the api branch first, the web branch
+after it. LLM API keys are never surveyed: they live only in `env`/`.env`, and
+`web.yml` never carries keys.
+
+`headers` and `loader` are **never surveyed** (api), and the session writes the tool
+configs
 as plain YAML carrying only the answered values (unanswered keys are dropped, never
 written empty). The bootstrap then documents every absent member with commented
 example records — pinned before the next active key, idempotent, never touching
@@ -202,7 +237,11 @@ active entries — so the two complex sections stay visible as comments:
 #   modules: []
 ```
 
-The generated file is valid for [configuration](../configuration.md) loading.
+The same documentation pass runs over `web.yml`: every key beyond the surveyed minimum
+(the prompts, the attempts, the polling, the screenshots, the probe timeout,
+`cache_root`, the browser subkeys beyond name/headless) lands as a commented example
+record. The generated api file is valid for
+[configuration](../configuration.md) loading.
 
 ## Idempotency
 
@@ -242,9 +281,11 @@ The generated file is valid for [configuration](../configuration.md) loading.
   installed package) — the session itself stays offline; template/upgrade modes reach
   the template source (a git URL) through the engine.
 - Only the packaged usage roots are copied — the `api` cell root (its `asserts`
-  sub-package rides along; both land flat under `.goga/usages/cooks/pybuggy/`) and the
+  sub-package rides along; both land flat under `.goga/usages/cooks/pybuggy/`), the
+  `web` cell root (`pybuggy-web` — flat under `.goga/usages/cooks/pybuggy/`), and the
   `sandbox` subtree roots (`sandbox-session`, `sandbox-file`, `data-operations`,
   `migration-set` — under `.goga/usages/cooks/pybuggy/sandbox/`); the `plugin` and `commands`
   cells and internal development cells (`config`/`spec`/`output`/…) are not copied. Only the
-  api-root usages are registered in `codemanifest`; the sandbox capability usages stay
+  api-root usages are registered in `codemanifest` (plus `pybuggy-web`, when the web
+  config was written); the sandbox capability usages stay
   download-only.

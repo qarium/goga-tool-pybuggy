@@ -138,7 +138,7 @@ pipeline through the `pipelines` section of the tool config — set it by hand o
 the `api.patch` autonomy confirm of [`pybuggy init`](../cli/init.md):
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 pipelines:
   api.patch:
     autonomous: true

@@ -58,7 +58,7 @@ fine-grained control: [CLI Reference](cli/init.md).
 - [Getting Started](getting-started.md) — end-to-end walkthrough.
 - [Pipelines](pipelines/index.md) — the automated API-test lifecycle.
 - [CLI Reference](cli/init.md) — every command with options and behavior.
-- [Configuration](configuration.md) — `.goga/tools/pybuggy/config.yml`.
+- [Configuration](configuration.md) — `.goga/tools/pybuggy/api.yml`.
 - [Sandbox](sandbox/index.md) — `.goga/tools/pybuggy/sandbox.yml` and the product `sandbox`
   fixture for session-scoped service testing.
 - [Matchers](matchers/index.md) — assertions and the matcher catalog.

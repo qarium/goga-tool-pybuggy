@@ -22,7 +22,7 @@ configuration.
 
 Each option resolves by the first non-empty source, in this order (the pluginator chain):
 
-1. plugin config key (from `.goga/tools/pybuggy/config.yml`)
+1. plugin config key (from `.goga/tools/pybuggy/api.yml`)
 2. env variable
 3. CLI flag
 4. `default` (or required/None)
@@ -35,7 +35,7 @@ pluginator chain alone would let the config/env win). When the flag is not typed
 above (config → env → required). The CLI value is itself a Jinja2 template and renders against the same context:
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 base_url: https://cfg.example
 ```
 
@@ -43,6 +43,10 @@ base_url: https://cfg.example
 pytest --base-url https://cli.example   # -> https://cli.example (CLI wins over the config file)
 pytest --base-url "https://{{ env }}.cli.example" --env=dev   # -> https://dev.cli.example
 ```
+
+These options belong to the api plugin reading `api.yml`; the web plugin reads its own `web.yml`
+with its own key set. An old `config.yml` is not read — pybuggy 2.1 renamed the file to `api.yml`
+(clean break): rename an existing `config.yml` by hand.
 
 ## base_url template rendering
 
@@ -53,7 +57,7 @@ dependency of pybuggy (declared in `pyproject.toml`), so no extra install is nee
 rendered value is stored back onto the `base_url` option for the `api` fixture to consume.
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 base_url: "https://{{ env }}.svc.example/api/{{ api_version }}"
 ```
 
@@ -118,7 +122,7 @@ pytest --service-version=1.2.3         # -> http://x/api/v1
 Options live in the same yaml the pybuggy CLI reads:
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 base_url: https://api.example.com
 headers:
   X-Custom: value

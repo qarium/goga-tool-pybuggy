@@ -55,5 +55,5 @@ runs before the output, so an unknown id does not print a partial result.
 
 - Spec files must reside at `location` (after `pull` or placed manually).
 - Endpoint ids are built by the `build_endpoint_id` algorithm.
-- The config is valid and resides at the fixed path `.goga/tools/pybuggy/config.yml`.
+- The config is valid and resides at the fixed path `.goga/tools/pybuggy/api.yml`.
 - The command is read-only — it does not modify specs or the config.

@@ -1,0 +1,505 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+  prettyplay: .goga/usages/cooks/prettyplay.md
+  allure-pytest: .goga/usages/cooks/allure-pytest.md
+  pluginator: .goga/usages/cooks/pluginator.md
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, docstrings, and testing.
+  Use `pluginator` for the plugin framework contract — @define.plugin bound to the web config file,
+  define.option with the option resolution chain and CLI authority, fixtures as plugin-class methods,
+  the configure() lifecycle hook, and gate-driven construction.
+  Use `prettyplay` for the prettyplay contract — the PrettyConfig field table, PrettyPlay construction
+  (cache_key/cache_path/config), the StepHooks event set, and the security rules.
+  Use `allure-pytest` for the guarded import and the StepHooks-to-Allure mapping with failure
+  screenshots.
+
+  Web-test cell — the prettyplay test kind. Provides the WebPlugin (the web fixture, the
+  strict/interactive options, Allure step reporting, the prettyplay event log formatter) and the web
+  config surface: the WebConfig model validated from web.yml and mapped onto an explicit PrettyConfig.
+  web.yml is the single configuration source for web tests: every field the document carries
+  (non-empty) wins over the library's pyproject+env layer — prettyplay 0.0.3 merges per field, so an
+  empty or None field keeps the library default. The env layer never reaches the runtime: configure
+  scrubs the PRETTYPLAY_* variables of the process once at configphase. The library's pyproject
+  auto-search runs at every runtime construction all the same — a repository without a pyproject.toml
+  upward from the cwd fails web tests at fixture setup with the library's FileNotFoundError (a
+  prettyplay 0.0.x limitation, an upstream-fix candidate; the <0.1.0 pin covers it), and a
+  [tool.prettyplay] pyproject section may fill the keys web.yml leaves empty. LLM API keys live only
+  in env/.env (the root load_env loads it);
+  web.yml never carries keys; step sentences, captured vars, and cache files land in LLM prompts and
+  logs — no secrets in step sentences (documented in this cell's consumer usage doc).
+  The plugin is activated by the installation entry of the plugin cell when the web config document
+  is present; this cell registers nothing on its own. Web steps carry full URLs
+  (web.step("Open https://ya.ru")) — no base_url templating, no sandbox binding in v1.
+
+  Constraints:
+  - All pydantic models use kw_only=True; defaults mirror the prettyplay defaults so an omitted key
+    behaves as the library default.
+  - Use relative imports inside the cell.
+  - The only direct playwright import is playwright.sync_api.Error (a transitive dependency, not
+    declared separately — documented in `prettyplay`).
+  - allure-pytest is never a runtime dependency: the import sits under a guard (allure is None
+    constructs no hooks — web tests run without step decoration).
+
+---
+
+"BrowserSettings(name: str = 'chromium', headless: bool = True, screen: str = '', endpoint: str = '', accept_dialogs: bool = False, speed: int = 100, timeout: float = 30)":
+  location: config.py
+  annotations: |
+    Nested browser section of the web config — the settings that map onto the prettyplay
+    BrowserConfig.
+
+    `name`: browser or channel name — chromium, chrome, firefox, and the names the runtime accepts.
+    `headless`: run without a visible window.
+    `screen`: the screen mode (e.g. fullscreen); empty keeps the runtime default.
+    `endpoint`: the remote Playwright endpoint; empty runs locally.
+    `accept_dialogs`: auto-accept dialogs.
+    `speed`: the execution speed in percent.
+    `timeout`: the default page timeout in seconds.
+
+    Requirements:
+    - Defaults mirror the prettyplay BrowserConfig defaults exactly — an omitted subkey behaves as
+      the library default.
+
+    Constraints:
+    - Never carry credentials — a remote endpoint address only; access relies on ambient
+      configuration.
+
+    Use `conventions` for pydantic model rules.
+  properties:
+    "name -> str": |
+      The browser or channel name; the default chromium.
+    "headless -> bool": |
+      Whether the browser runs without a visible window; the default True.
+    "screen -> str": |
+      The screen mode; empty keeps the runtime default.
+    "endpoint -> str": |
+      The remote Playwright endpoint; empty runs locally.
+    "accept_dialogs -> bool": |
+      Whether dialogs are auto-accepted; the default False.
+    "speed -> int": |
+      The execution speed in percent; the default 100.
+    "timeout -> float": |
+      The default page timeout in seconds; the default 30.
+
+"WebConfig(provider: Literal['openai','anthropic'] = 'openai', base_url: str = '', model: str = '', generation_model: str = '', classification_model: str = '', generation_prompt: str = '', classification_prompt: str = '', strict: bool = False, interactive: bool = False, polling_timeout: float | None = None, polling_delay: float = 0.5, generation_attempts: int = 3, healing_attempts: int = 2, llm_request_attempts: int = 3, send_screenshots: bool = False, generation_approve: bool = True, probe_timeout: float = 0, cache_root: str = '', browser: BrowserSettings)":
+  location: config.py
+  annotations: |
+    Validated model of the web config document web.yml — the web-test settings that map onto an
+    explicit PrettyConfig.
+
+    `provider`: the LLM provider — constrained to openai/anthropic via Literal; pydantic rejects
+      other values at validation time.
+    `base_url`: the optional LLM API proxy endpoint; empty uses the provider default.
+    `model`: the shared model override; empty means no override.
+    `generation_model`: the model for step-code generation.
+    `classification_model`: the model for step classification.
+    `generation_prompt`: extra instructions appended to the generation prompt.
+    `classification_prompt`: extra instructions appended to the classification prompt.
+    `strict`: the replay-only default — zero LLM calls, a cache miss fails.
+    `interactive`: the interactive step healing default.
+    `polling_timeout`: the assertion polling timeout; None keeps the runtime default.
+    `polling_delay`: the delay between polling attempts in seconds.
+    `generation_attempts`: blind generation attempts before diagnosis.
+    `healing_attempts`: healing attempts for a failing step.
+    `llm_request_attempts`: retries of a failed LLM request.
+    `send_screenshots`: attach screenshots to LLM requests.
+    `generation_approve`: confirm generated code before caching.
+    `probe_timeout`: the locator probe timeout in seconds; 0 keeps the page default.
+    `cache_root`: the root directory of the step cache; empty selects the per-test default — the
+      directory of the requesting test's own module file.
+    `browser`: the nested browser settings (`BrowserSettings`); an omitted key defaults to an
+      empty `BrowserSettings` whose own defaults mirror the prettyplay browser defaults.
+
+    Requirements:
+    - Defaults mirror the prettyplay defaults exactly — an omitted key behaves as the library default.
+    - All fields carry empty or zero defaults; polling_timeout is the only field whose absence is
+      explicit (None).
+
+    Constraints:
+    - Never carry LLM API keys — keys live only in env/.env; a document carrying a key-shaped value
+      is a configuration error of the author, not of the model.
+
+    Use `conventions` for pydantic model rules.
+  properties:
+    "provider -> str": |
+      The LLM provider — openai or anthropic; the default openai.
+    "base_url -> str": |
+      The optional LLM API proxy endpoint; empty uses the provider default.
+    "model -> str": |
+      The shared model override; empty means no override.
+    "generation_model -> str": |
+      The model for step-code generation.
+    "classification_model -> str": |
+      The model for step classification.
+    "generation_prompt -> str": |
+      Extra instructions appended to the generation prompt.
+    "classification_prompt -> str": |
+      Extra instructions appended to the classification prompt.
+    "strict -> bool": |
+      The replay-only default — zero LLM calls, a cache miss fails; the default False.
+    "interactive -> bool": |
+      The interactive step healing default; the default False.
+    "polling_timeout -> float | None": |
+      The assertion polling timeout; None keeps the runtime default.
+    "polling_delay -> float": |
+      The delay between polling attempts in seconds; the default 0.5.
+    "generation_attempts -> int": |
+      Blind generation attempts before diagnosis; the default 3.
+    "healing_attempts -> int": |
+      Healing attempts for a failing step; the default 2.
+    "llm_request_attempts -> int": |
+      Retries of a failed LLM request; the default 3.
+    "send_screenshots -> bool": |
+      Whether screenshots are attached to LLM requests; the default False.
+    "generation_approve -> bool": |
+      Whether generated code is confirmed before caching; the default True.
+    "probe_timeout -> float": |
+      The locator probe timeout in seconds; 0 keeps the page default.
+    "cache_root -> str": |
+      The root directory of the step cache; empty selects the per-test default next to the test file.
+    "browser -> BrowserSettings": |
+      The nested browser settings.
+
+"WebConfigKeys()":
+  location: keys.py
+  annotations: |
+    Fixed value set of the web config keys — the canonical key set of web.yml, mirroring the
+    PrettyConfig field names 1:1, plus the config file name. Consumed data-driven by the init web
+    survey and payload builder, the commented-example documentation of the bootstrap, the WebConfig
+    validation alignment, and the presence gate of the plugin installation entry (the FILENAME member
+    names the document).
+
+    Requirements:
+    - Members map to the lowercase key strings of web.yml; the FILENAME member maps to the file name
+      web.yml.
+    - Scalar members are single values; BROWSER is the complex member carrying the nested browser
+      section (documented as commented examples, never surveyed as a scalar).
+
+    Constraints:
+    - Fixed value set (implement as enum.Enum). Do not add, remove, or rename members or change
+      their values — the init survey, the example documentation, the validation alignment, and the
+      installation gate depend on the exact key set.
+
+    Use `conventions` for the Enum declaration style and relative imports.
+  properties:
+    "FILENAME -> str": |
+      web.yml — the web config document file name (under the fixed platform tool-config path of
+      pybuggy).
+    "PROVIDER -> str": |
+      provider — the LLM provider key.
+    "BASE_URL -> str": |
+      base_url — the optional LLM API proxy endpoint key.
+    "MODEL -> str": |
+      model — the shared model override key.
+    "GENERATION_MODEL -> str": |
+      generation_model — the step-code generation model key.
+    "CLASSIFICATION_MODEL -> str": |
+      classification_model — the step classification model key.
+    "GENERATION_PROMPT -> str": |
+      generation_prompt — the extra generation instructions key.
+    "CLASSIFICATION_PROMPT -> str": |
+      classification_prompt — the extra classification instructions key.
+    "STRICT -> str": |
+      strict — the replay-only default key.
+    "INTERACTIVE -> str": |
+      interactive — the interactive healing default key.
+    "POLLING_TIMEOUT -> str": |
+      polling_timeout — the assertion polling timeout key.
+    "POLLING_DELAY -> str": |
+      polling_delay — the delay between polling attempts key.
+    "GENERATION_ATTEMPTS -> str": |
+      generation_attempts — the blind generation attempts key.
+    "HEALING_ATTEMPTS -> str": |
+      healing_attempts — the healing attempts key.
+    "LLM_REQUEST_ATTEMPTS -> str": |
+      llm_request_attempts — the retries of a failed LLM request key.
+    "SEND_SCREENSHOTS -> str": |
+      send_screenshots — the attach-screenshots-to-LLM-requests key.
+    "GENERATION_APPROVE -> str": |
+      generation_approve — the confirm-generated-code-before-caching key.
+    "PROBE_TIMEOUT -> str": |
+      probe_timeout — the locator probe timeout key.
+    "CACHE_ROOT -> str": |
+      cache_root — the step cache root key.
+    "BROWSER -> str": |
+      browser — the nested browser section key; complex member (commented example, not surveyed).
+
+"validate_web_config(data: dict[str, object]) -> config: WebConfig":
+  location: config.py
+  annotations: |
+    Validate the raw parse of the web config document into a `WebConfig`.
+
+    `data`: the raw mapping of web.yml (the plugin_config parse of the document).
+    `config`: the validated model.
+
+    Algorithm:
+    1. Reject a non-mapping root with a clean error naming the web config document.
+    2. Reject an empty mapping — the document must carry at least the surveyed minimum (the provider
+       and the browser name) — with an explicit error naming the document.
+    3. Validate the mapping into `WebConfig`; a validation error surfaces as a clean error naming
+       the document.
+
+    Requirements:
+    - A structural violation fails with a clean error naming web.yml — never a raw traceback.
+    - Pure — no filesystem access, no TTY; the caller owns the raw parse.
+
+    Constraints:
+    - Do not interpret keys outside the `WebConfig` field set — an unknown key surfaces as a
+      validation error (a mistyped key must fail, not silently disable a setting).
+
+    Use `conventions` for pydantic validation rules.
+
+"build_pretty_config(config: WebConfig, strict_flag: bool, interactive_flag: bool) -> pretty: PrettyConfig":
+  location: pretty.py
+  annotations: |
+    Map a `WebConfig` onto an explicit PrettyConfig — the single construction point of the
+    prettyplay settings layer.
+
+    `config`: the validated web config.
+    `strict_flag`: the effective strict override — True forces strict even when the document says
+      false.
+    `interactive_flag`: the effective interactive override — the same form.
+    `pretty`: the explicitly constructed prettyplay config.
+
+    Algorithm:
+    1. Map every field of `config` onto the same-named field of the prettyplay config, including
+       `BrowserSettings` onto the prettyplay browser config.
+    2. Compute the effective modes: strict = config.strict or strict_flag; interactive =
+       config.interactive or interactive_flag — a CLI flag forces the mode on, never off.
+    3. Construct the explicit object.
+
+    Requirements:
+    - Every field the passed model carries (non-empty) wins over the library's pyproject+env layer —
+      prettyplay 0.0.3 merges per field; an empty or None field keeps the library default (see
+      `prettyplay`).
+    - Pure — no I/O, no environment reads.
+
+    Constraints:
+    - Do not read env or pyproject here — the single source is the passed model and flags.
+
+    Use `prettyplay` for the PrettyConfig and browser config field contract.
+    Use `conventions` for type hints.
+
+"WebPlugin()":
+  location: plugin.py
+  annotations: |
+    Pluginator plugin of the web test kind: the web fixture, the strict/interactive options, Allure
+    step reporting, and the prettyplay event log formatter. The web config document web.yml is the
+    plugin's config: pluginator reads it into plugin_config, and configure validates it into the
+    activation — an invalid document fails the run at configphase, before any collection or browser.
+
+    Constructed only by the installation gate of the plugin cell (the document presence check); zero
+    constructor arguments; no work at construction — the activation and the formatter land in
+    configure.
+
+    Algorithm:
+    1. Declare the strict and interactive options — plugin config keys strict and interactive, CLI
+       flags --strict-mode and --interactive (store_true).
+    2. Nothing else at construction.
+
+    Use `pluginator` for the @define.plugin contract, define.option, fixtures as plugin-class methods,
+    and the configure() lifecycle.
+    Use `prettyplay` for the runtime contract consumed by the fixture.
+    Use `allure-pytest` for the guarded activation of the reporting hooks.
+    Use `conventions` for docstrings, type hints, and relative imports.
+  properties:
+    "strict -> bool": |
+      Resolved strict mode: the web config strict key → the CLI --strict-mode flag (a typed flag
+      forces true — the CLI authority applied in configure, the pattern of --base-url) → the default
+      False. Strict runs are replay-only: zero LLM calls, a cache miss fails the test.
+    "interactive -> bool": |
+      Resolved interactive healing mode: the web config interactive key → the CLI --interactive flag
+      (the same CLI-authority form) → the default False.
+    "activation -> WebConfig | None": |
+      The validated web config — the document the configure step validated; None before configure
+      ran. The fixture builds the runtime from it.
+  methods:
+    "configure()": |
+      Validate the document into the activation, apply the CLI authority to the options, scrub the
+      library's env layer, and install the prettyplay event log formatter.
+
+      Algorithm:
+      1. Apply CLI authority: when the user typed --strict-mode or --interactive, store True onto
+         the option — a typed flag overrides the config-file and env resolution (see `pluginator` for
+         the config-time CLI sources).
+      2. Read plugin_config under a parse guard: an unparsable document (the config reader's parse
+         error) surfaces as the clean error naming the web config document — the pattern of the
+         sandbox plugin; never a raw reader traceback.
+      3. Validate the read document via `validate_web_config` into the activation; an invalid
+         document fails with its clean error at configphase.
+      4. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
+         web.yml is the single configuration source; the library's env layer never overrides it.
+      5. Install the prettyplay event log formatter via `install_event_log_formatter`.
+
+      Requirements:
+      - Runs once at pytest configphase, before any collection and before any fixture invocation.
+      - An unparsable document fails at configphase with the clean error naming web.yml — never a
+        raw reader traceback.
+      - The env scrub is permanent for the run and race-free — configphase is single-threaded; the
+        variables exist only for the library's env layer.
+      - The formatter is installed unconditionally with the plugin active — it is not allure-gated.
+
+      Use `pluginator` for the configure lifecycle and the config-time CLI sources.
+      Use `prettyplay` for the env layer the scrub neutralizes.
+    "web(request: pytest.FixtureRequest) -> web: Iterator[PrettyPlay]": |
+      Function-scope generator fixture: build the per-test prettyplay runtime and close it after the
+      test.
+
+      `request`: the fixture request of the test being set up.
+      web: the opened prettyplay runtime the test consumes — step, expect, group, run_on_page (see
+      `prettyplay`).
+
+      Algorithm:
+      1. Compute the cache address: the root is the activation cache_root when set, otherwise the
+         absolute directory of the requesting test's own module file (from the item — never the
+         cwd); the per-test path is `web_cache_path` of request.node; the cache key is the item's name
+         (parametrize-aware).
+      2. Build the explicit prettyplay config via `build_pretty_config` from the activation and the
+         resolved strict and interactive options.
+      3. Construct the prettyplay runtime with the cache key, the path, and the config, with
+         cleanup disabled (the persistence mode of the committed-cache workflow: every cached
+         file of the test's key is kept — a run that fails mid-test must not destroy the cached
+         steps it never reached, so the next strict replay stays green; a stale step is removed
+         by deleting its file).
+      4. When allure is importable (see `allure-pytest`), attach `AllureStepHooks` to the runtime.
+      5. Open the runtime (the context manager), yield it, close it on finalization.
+
+      Requirements:
+      - A --strict-mode run makes zero LLM calls — a cache miss fails the test.
+      - The step cache lands next to the test file and is committable; the addressing never depends
+        on the cwd — tests running outside the project root resolve their paths from the item
+        itself.
+
+      Constraints:
+      - No base_url templating and no sandbox binding — web steps carry full URLs.
+      - Do not construct `AllureStepHooks` when the guarded import reports allure absent.
+
+      Use `pluginator` for the fixture-as-method convention.
+      Use `prettyplay` for the runtime construction and the cache addressing contract.
+      Use `conventions` for type hints.
+
+"web_cache_path(item: pytest.Item) -> path: str":
+  location: plugin.py
+  annotations: |
+    Compute the per-test step-cache path from the requesting test item.
+
+    `item`: the pytest item of the requesting test.
+    `path`: the posix-relative subdirectory inside the cache root — <module_stem>/<ClassName>/<test_name>
+      with a class, <module_stem>/<test_name> without.
+
+    Algorithm:
+    1. Take the module stem from the item's own module file path.
+    2. Take the original name — originalname when present, the node name otherwise: the path is
+       parametrize-agnostic while the cache key stays parametrize-aware.
+    3. Insert the class-name segment when the item carries a class.
+    4. Join the segments with forward slashes.
+
+    Requirements:
+    - Derived from the item's own file — never from the cwd.
+    - Pure — no filesystem access.
+
+    Use `prettyplay` for the cache addressing contract (the cache key and the path form the address).
+    Use `conventions` for type hints.
+
+"AllureStepHooks(play: PrettyPlay)":
+  location: allure_hooks.py
+  annotations: |
+    Allure reporting integration over the prettyplay hook contract — a StepHooks subclass active
+    only when allure-pytest is installed (guarded import; see `allure-pytest`).
+
+    `play`: the prettyplay runtime whose steps are reported — the failure screenshot source.
+
+    Algorithm:
+    1. Hold two exit stacks — steps and groups — so the enter/exit pairs stay balanced when a step
+       fails mid-group (see `allure-pytest` for the stack discipline).
+
+    Requirements:
+    - Constructed only when the guarded allure import succeeded — never on import failure.
+
+    Use `allure-pytest` for the mapping table and the stack discipline.
+    Use `prettyplay` for the StepHooks event signatures and the screenshot source.
+  methods:
+    "on_group_started(group_prompt: str)": |
+      Enter an allure step context titled "[group] " + group_prompt on the group stack.
+
+      `group_prompt`: the group sentence.
+    "on_group_finished(group_prompt: str)": |
+      Close the group stack — every entered group context exits.
+
+      `group_prompt`: the group sentence.
+    "on_step_started(step_text: str, step_type: str)": |
+      Enter an allure step wrapper titled "[<step_type>] <step_text>" on the step stack.
+
+      `step_text`: the step sentence.
+      `step_type`: the step type (action or assertion).
+    "on_step_failed(step_text: str, step_type: str, error: str)": |
+      Mark the current step failed and attach the failure screenshot: AssertionError for the
+      assertion type, a generic Exception otherwise; the screenshot bytes attach as screenshot.png,
+      and the capture is best-effort — a PlaywrightError of the capture and the library's no-page
+      error (a PrettyplayError) are both swallowed: no page, no screenshot (the failure itself is
+      already recorded; see `prettyplay` for the only playwright import).
+
+      `step_text`: the step sentence.
+      `step_type`: the step type.
+      `error`: the failure description.
+    "on_step_finished(step_text: str, step_type: str, outcome: str)": |
+      Close the step stack — the step context exits with the accumulated failure.
+
+      `step_text`: the step sentence.
+      `step_type`: the step type.
+      `outcome`: the step outcome.
+
+"EventLogFormatter(fmt: str, datefmt: str)":
+  location: logging_setup.py
+  annotations: |
+    Console formatter of the prettyplay log events — renders human-readable events without payload
+    duplication. A logging.Formatter subclass.
+
+    `fmt`: the logging format string.
+    `datefmt`: the date format string.
+
+    Requirements:
+    - The human-readable event set — step_results_declared, step_inputs, step_candidate_code,
+      step_cached_code, step_captured — renders as the plain message (the message already carries the
+      execution context); every other event keeps its context visible through the appended extras.
+    - Pure rendering — no I/O.
+
+    Use `conventions` for the logging rules.
+  methods:
+    "format(record: logging.LogRecord) -> message: str": |
+      Render the record; when the record's event is one of the human-readable events, return the
+      rendered message as is; otherwise append the sorted non-reserved record extras as
+      " | key=value" pairs.
+
+      `record`: the log record, including its structured context.
+      `message`: the formatted console text.
+
+"install_event_log_formatter()":
+  location: logging_setup.py
+  annotations: |
+    Install the prettyplay event log formatter on the console.
+
+    Algorithm:
+    1. Set the prettyplay logger to INFO.
+    2. Attach a stdout stream handler carrying `EventLogFormatter`.
+    3. Idempotent — a repeated installation adds no duplicate handler.
+
+    Requirements:
+    - Web-test runs render prettyplay log events in the console, human-readable, without payload
+      duplication.
+    - Installed by the configure step of `WebPlugin` — active whenever the plugin is, independent of
+      allure.
+
+    Use `conventions` for the logging rules.
+
+---
+
+Author: Goga
+CreatedAt: 28/10/26
+Description: |
+  Web test kind cell — the prettyplay capability: the WebPlugin (the web fixture, the
+  strict/interactive options, Allure step reporting, the prettyplay event log formatter) and the web
+  config surface (the WebConfig model validated from web.yml and mapped onto an explicit
+  PrettyConfig). Activated by the plugin cell installation gate on the presence of the web config
+  document.

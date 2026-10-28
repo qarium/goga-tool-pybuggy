@@ -45,7 +45,7 @@ runs](pipelines/api-automate.md#autonomous-runs) and [Patch — Autonomous
 runs](pipelines/api-patch.md#autonomous-runs)). Whatever you answer to
 the core tools question, pybuggy is always recorded in `.goga/config.yml`. The session
 writes `.goga/config.yml`, the Dockerfile, and the tool config
-`.goga/tools/pybuggy/config.yml`:
+`.goga/tools/pybuggy/api.yml`:
 
 ```yaml
 base_url: https://{{ env }}.svc.example/api
@@ -69,7 +69,7 @@ See [Configuration](configuration.md).
 |----------|------|
 | `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) | written (bare overwrites; template skips existing) |
 | `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | written (bare overwrites; template skips existing); flat copies from earlier distributions stay untouched |
-| commented example records for absent plugin members in `.goga/tools/pybuggy/config.yml` | emitted (idempotent, comment-only) |
+| commented example records for absent plugin members in `.goga/tools/pybuggy/api.yml` | emitted (idempotent, comment-only) |
 | `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
 | `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version is derived from the installed pybuggy version |

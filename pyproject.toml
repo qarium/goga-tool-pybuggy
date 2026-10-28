@@ -46,7 +46,7 @@ dependencies = [
     "kafka-python>=3.0",
     "redis>=7.0",
     "requests>=2.31",
-    "prettyplay>=0.0.3",
+    "prettyplay>=0.0.3,<0.1.0",
 ]
 
 [project.optional-dependencies]
@@ -57,6 +57,8 @@ test = [
     "pytest-cov>=5.0",
     "ruff>=0.15.0",
     "jinja2>=3.1",
+    # optional reporting integration of the web test kind (guarded import; not a runtime dependency)
+    "allure-pytest>=2.13",
 ]
 docs = [
     "mkdocs>=1.6.0",

@@ -88,8 +88,10 @@ Registered under `endpoint`: `pull`, `list`, `info`, `generate`, `diff`.
 
 ## Static config
 
-The config location is fixed by the platform path standard for tool configs (`.goga/tools/pybuggy/config.yml`);
-the config cell reads the file through the platform facade. There is no `--config` option — commands load the
+The api tool config location is fixed by the platform path standard for tool configs
+(`.goga/tools/pybuggy/api.yml`); the config cell reads the file through the platform facade. The web kind owns its
+own tool config document — `web.yml`, read by the web cell — so each test kind carries its own configuration.
+There is no `--config` option — commands load the
 config themselves via `load_config()` (no argument). The pass-object `ctx.obj` exists but carries only the env
 context (`EnvContext`), not the config.
 
