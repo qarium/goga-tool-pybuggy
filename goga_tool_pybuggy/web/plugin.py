@@ -72,7 +72,8 @@ class WebPlugin:
     ``plugin_config``, and ``configure()`` validates it into the activation — an invalid document
     fails the run at configphase, before any collection or browser. The strict and interactive
     options resolve from the document and the ``--strict-mode`` / ``--interactive`` flags; a typed
-    flag forces its mode on (the CLI authority applied in ``configure``).
+    flag forces its mode on (the CLI authority applied in ``configure``), and the resolved modes
+    always mirror the validated activation — never the raw parse.
 
     Attributes:
         plugin_config: Anchor declaration; ``BasePlugin`` supplies the parsed document dict.
@@ -108,15 +109,17 @@ class WebPlugin:
         parse guard; the library's env layer is scrubbed so ``web.yml`` is the single source; the
         console formatter lands unconditionally — it is not allure-gated.
 
+        The resolved strict and interactive options re-store from the validated document plus the
+        CLI flags — never from the raw parse the option descriptors would cast: a string-typed
+        ``"false"``/``"no"`` the model coerces to false must not surface as true through the
+        descriptor's bare ``bool()`` cast.
+
         Raises:
             ValueError: The document is unparsable or invalid; the message names the document
                 location (the pydantic detail chained).
         """
-        if self.pytest_config.getoption("strict_mode", default=False):
-            self.strict = True
-
-        if self.pytest_config.getoption("interactive", default=False):
-            self.interactive = True
+        strict_flag = bool(self.pytest_config.getoption("strict_mode", default=False))
+        interactive_flag = bool(self.pytest_config.getoption("interactive", default=False))
 
         try:
             document = self.plugin_config
@@ -124,6 +127,9 @@ class WebPlugin:
             raise ValueError(f"{CONFIG_FILE}: unparsable document: {exc}") from exc
 
         self.activation = validate_web_config(dict(document))
+
+        self.strict = self.activation.strict or strict_flag
+        self.interactive = self.activation.interactive or interactive_flag
 
         _scrub_prettyplay_env()
 

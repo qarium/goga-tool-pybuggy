@@ -356,6 +356,32 @@ class TestWebPluginConfigure:
         assert flagged.interactive is True
         assert unflagged.interactive is False
 
+    def test_configure_resolves_modes_from_the_validated_document(self, monkeypatch: pytest.MonkeyPatch):
+        """String-typed mode values resolve through the validated model — never the raw parse.
+
+        The option descriptors would cast ``"false"``/``"no"`` truthy with a bare ``bool()``; the
+        resolved options must mirror the validated activation instead, so a document the model
+        reads as false never flips a mode on (an accidentally interactive run could hang CI).
+        """
+        document = {
+            "provider": "openai",
+            "browser": {"name": "chromium"},
+            "strict": "false",
+            "interactive": "no",
+        }
+        unflagged = _configured_plugin(monkeypatch, document=document)
+        flagged = _configured_plugin(
+            monkeypatch, document=document, config=_FakePytestConfig(strict_mode=True, interactive=True)
+        )
+
+        assert unflagged.activation is not None
+        assert unflagged.activation.strict is False
+        assert unflagged.activation.interactive is False
+        assert unflagged.strict is False
+        assert unflagged.interactive is False
+        assert flagged.strict is True
+        assert flagged.interactive is True
+
     def test_configure_fails_configphase_on_invalid_document(self, monkeypatch: pytest.MonkeyPatch):
         """A structurally invalid document fails the run naming the document."""
         plugin = WebPlugin()
@@ -487,6 +513,27 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].config.cache_root == "/tmp/webcache"
+
+    def test_web_fixture_modes_mirror_the_validated_document(self, monkeypatch: pytest.MonkeyPatch):
+        """A string-typed ``strict: "false"`` document builds a non-strict runtime config.
+
+        The raw parse never reaches the prettyplay config — the modes flow through the validated
+        activation and the CLI flags only, so the descriptor's bare ``bool()`` cast cannot turn a
+        denied mode on.
+        """
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": {"name": "chromium"}, "strict": "false", "interactive": "no"},
+        )
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.strict is False
+        assert made[0].config.interactive is False
 
     def test_web_fixture_without_configure_raises_runtime_error(self, monkeypatch: pytest.MonkeyPatch):
         """Driving the fixture on an unconfigured plugin names the missing configure step."""
