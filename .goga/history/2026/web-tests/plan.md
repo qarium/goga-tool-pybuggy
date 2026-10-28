@@ -1018,22 +1018,22 @@ Docstring: one line naming the cell and the ten names. All six modules were impl
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (create `tests/web/test_integration.py`; expected to fail while the
+- [x] **Contract tests** (create `tests/web/test_integration.py`; expected to fail while the
   facade is the Task-1 marker): `test_facade_exports_exactly_ten_names` —
   `from goga_tool_pybuggy import web` then assert `sorted(web.__all__)` equals the sorted ten
   contract names exactly; every name importable from the facade
   (`from goga_tool_pybuggy.web import WebPlugin` as the anchor import)
-- [ ] **Code**: fill `goga_tool_pybuggy/web/__init__.py` — the `__all__` block above (exact
+- [x] **Code**: fill `goga_tool_pybuggy/web/__init__.py` — the `__all__` block above (exact
   order), relative imports of the six modules, the one-line-plus-nuance module docstring
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_integration.py -v`
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_integration.py -v`
   and the facade command `.venv/bin/python -c "from goga_tool_pybuggy.web import WebPlugin"` —
   both pass
-- [ ] **Logic tests**: none beyond the facade contract test (behavior lives in Tasks 2–7 tests);
+- [x] **Logic tests**: none beyond the facade contract test (behavior lives in Tasks 2–7 tests);
   run the whole web tree: `.venv/bin/python -m pytest tests/web/ -x`
-- [ ] **Debugging**: fix implementation (import wiring) until green — do NOT fix test code
-- [ ] **Contract re-verification**: `__all__` == the ten names in the design order; nothing else
+- [x] **Debugging**: fix implementation (import wiring) until green — do NOT fix test code
+- [x] **Contract re-verification**: `__all__` == the ten names in the design order; nothing else
   exported
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 9: `config.yml` → `api.yml` clean-break rename (TDD)
