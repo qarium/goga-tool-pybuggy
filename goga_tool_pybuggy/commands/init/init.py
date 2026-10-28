@@ -146,21 +146,6 @@ def _log_registration(
             logger.warning("annotation already registered, skipped", extra={"key": key})
 
 
-def _document_web_examples(web_config: Path) -> None:
-    """Document the absent web config keys as commented example records (bootstrap step 3b).
-
-    Extracted from :func:`run_bootstrap` to keep it under the cyclomatic-complexity cap.
-
-    Args:
-        web_config: Path to the written web config (``<cwd>/.goga/tools/pybuggy/web.yml``) — the
-            kind signal whose presence gated the call.
-    """
-    documented = document_web_config_examples(web_config)
-
-    if documented:
-        logger.info("web config examples documented", extra={"count": len(documented)})
-
-
 def _register_web_kind(config: Path, dockerfile: Path) -> None:
     """Register the web usage and pin the playwright install line (bootstrap steps 6b/6c).
 
@@ -354,7 +339,10 @@ def run_bootstrap(template_mode: bool) -> int:
         # The web-kind artifacts ride on the written web.yml — every web sub-step below re-checks
         # the same single gate.
         if web_written:
-            _document_web_examples(web_config)
+            documented = document_web_config_examples(web_config)
+
+            if documented:
+                logger.info("web config examples documented", extra={"count": len(documented)})
         else:
             logger.debug("web config absent, web artifacts skipped", extra={"path": str(web_config)})
 

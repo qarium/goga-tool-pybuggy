@@ -119,7 +119,8 @@ bootstrap is skipped, the code is propagated unchanged.
 
 **Stage 2 — the pybuggy bootstrap.** Delivers the files the session does not carry.
 The web steps are gated on the written `web.yml` (the kind signal) and no-op for an
-api-only project; the api steps no-op naturally when `api.yml` is absent (web-only):
+api-only project; the api example-documentation no-ops naturally when `api.yml` is absent
+(web-only — the api usage keys still register, exactly as the table's last row pins):
 
 | Artifact | Gate |
 |----------|------|

@@ -236,6 +236,26 @@ class TestAllureStepHooksLogic:
             ("[group] search flow", None, None),
         ]
 
+    def test_allure_nested_group_finish_closes_the_whole_stack(self, monkeypatch):
+        """A nested group's finish closes every entered group context — the close-all pin.
+
+        The contract pins ``on_group_finished`` closing the whole group stack (not one level):
+        the inner finish exits both entered groups LIFO, and the outer's own finish then closes
+        the already-fresh stack as a no-op.
+        """
+        exits: list[tuple[str, type | None, BaseException | None]] = []
+        monkeypatch.setattr(allure, "step", lambda title: _RecordingStepContext(title, exits))
+
+        hooks = AllureStepHooks(_ScreenshotPlay(b"PNG"))
+
+        hooks.on_group_started("outer flow")
+        hooks.on_group_started("inner flow")
+        hooks.on_group_finished("inner flow")
+        hooks.on_group_finished("outer flow")
+
+        assert [title for title, _exc_type, _exc_val in exits] == ["[group] inner flow", "[group] outer flow"]
+        assert _stack_depth(hooks._group_stack) == 0
+
     def test_allure_step_wrapper_exit_args_carry_the_exception_instance(self, monkeypatch):
         """The allure context exits with the mapped class AND its instance — never a bare class.
 

@@ -1,6 +1,7 @@
 """Tests for the `goga_tool_pybuggy.web.plugin` module (the web plugin and the cache path)."""
 
 import inspect
+import logging
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,6 +12,7 @@ import goga_tool_pybuggy.web.plugin as web_plugin_module
 import pytest
 from goga_tool_pybuggy.web.allure_hooks import AllureStepHooks
 from goga_tool_pybuggy.web.keys import CONFIG_FILE
+from goga_tool_pybuggy.web.logging_setup import EventLogFormatter
 from goga_tool_pybuggy.web.plugin import WebPlugin, web_cache_path
 from prettyplay import PrettyConfig
 from yaml import YAMLError
@@ -307,6 +309,22 @@ class TestWebPluginConfigure:
         assert "PRETTYPLAY_STRICT" not in os.environ
         assert "PRETTYPLAY_BROWSER_SPEED" not in os.environ
         assert os.environ["PYBUGGY_UNRELATED"] == "keep"
+
+    def test_configure_installs_the_event_log_formatter_unconditionally(self, monkeypatch: pytest.MonkeyPatch):
+        """``configure`` lands the console formatter on the ``prettyplay`` logger — not allure-gated.
+
+        The requirement pins the install as unconditional: with the guarded allure import
+        resolved to ``None`` the formatter still lands, at INFO, exactly once.
+        """
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        logger = logging.getLogger("prettyplay")
+        logger.handlers.clear()
+        logger.setLevel(logging.WARNING)
+
+        _configured_plugin(monkeypatch)
+
+        assert logger.level == logging.INFO
+        assert [type(handler.formatter) for handler in logger.handlers] == [EventLogFormatter]
 
     def test_configure_applies_cli_authority(self, monkeypatch: pytest.MonkeyPatch):
         """A typed ``--strict-mode`` flag beats an explicit ``strict: false`` in the document."""

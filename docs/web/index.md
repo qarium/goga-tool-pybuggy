@@ -31,7 +31,7 @@ surfaces when the test builds its runtime). The document carries the LLM provide
 models for the one-time generation; **LLM API keys live only in the environment or
 `.env`** — the document never contains keys.
 
-Two environment requirements apply to every web run:
+Three environment requirements apply to every web run:
 
 - Browser binaries: run `playwright install --with-deps <browser>` locally (the
   `pybuggy init` bootstrap appends the matching `RUN` line to the project Dockerfile for
@@ -39,6 +39,11 @@ Two environment requirements apply to every web run:
 - A `pyproject.toml` in the project or a directory above it — a prettyplay 0.0.x
   limitation: the runtime searches for the file on every construction, and its absence
   fails web tests at setup.
+- A resolvable api `base_url` — the delivered `conftest.py` calls one `plugin.install()`
+  that always enables the api plugin alongside the web plugin, and its `base_url` option
+  is required. A `both`-kind project carries it in `api.yml`; a **web-only** project
+  writes no `api.yml`, so export `BASE_URL` (or type `--base-url`) — the delivered
+  conftest loads `.env` first, so a `.env` holding `BASE_URL=...` satisfies it.
 
 `web.yml` is the web run's single configuration source: every `PRETTYPLAY_*` environment
 variable is removed at pytest configuration, so the library's env layer never applies. A

@@ -534,11 +534,6 @@ def amend_pybuggy_config(context: object) -> None:
     answers = context.answers
     kind = str(answers.get("kind") or "api")
 
-    api_answers: dict[str, object] = {}
-    specs: list[dict[str, object]] = []
-    autonomous: dict[str, bool] = {}
-    web_answers: dict[str, object] = {}
-
     if kind in ("api", "both"):
         api_answers = survey_api_options()
         specs = survey_specs()

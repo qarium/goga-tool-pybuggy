@@ -145,6 +145,32 @@ class TestInstallLogic:
         assert len(plugins) == 1
         assert isinstance(plugins[0], goga_tool_pybuggy.plugin.ApiPlugin)
 
+    def test_install_with_both_documents_carries_the_three_plugins_in_order(self, tmp_path, monkeypatch):
+        """A project with both documents (a both-kind session) carries all three plugins in order.
+
+        The two presence gates are independent: the web append neither disturbs the sandbox
+        append nor the leading ApiPlugin, and one installation call carries the trio.
+        """
+        write_document(tmp_path)
+        web_document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        web_document.write_text("provider: openai\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        captured: dict[str, object] = {}
+
+        def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
+            captured["plugins"] = list(plugins)
+
+        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+
+        goga_tool_pybuggy.plugin.install(context={})
+
+        assert [type(plugin) for plugin in captured["plugins"]] == [
+            goga_tool_pybuggy.plugin.ApiPlugin,
+            SandboxPlugin,
+            goga_tool_pybuggy.plugin.WebPlugin,
+        ]
+
     def test_install_gates_web_plugin_on_document_presence(self, tmp_path, monkeypatch):
         """The web document gates the web plugin by presence only — with it ``WebPlugin()``
         joins the installation with zero arguments; without it nothing web-related is

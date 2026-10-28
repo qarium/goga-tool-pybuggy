@@ -4,7 +4,7 @@
 
 `prettyplay` (v0.0.3) is an AI-powered UI testing tool: each step sentence ("Open https://ya.ru")
 is turned into Playwright code by an LLM **once**, cached next to the test, and replayed from the
-cache without any LLM involvement. Cell `goga_tool_pybuggy/plugin` (the WebPlugin) uses it to
+cache without any LLM involvement. Cell `goga_tool_pybuggy/web` (the WebPlugin) uses it to
 provide the `web` fixture for browser UI/E2E tests.
 
 Import in code:

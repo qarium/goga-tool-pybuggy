@@ -443,6 +443,30 @@ class TestDocumentConfigExamples:
         assert document_config_examples(scalar) == []
         assert scalar.read_text(encoding="utf-8") == "just a string\n"
 
+    def test_document_marker_matches_the_comment_line_only(self, tmp_path):
+        """A sibling's record line is not the key's own marker — ``timeout`` still gets documented.
+
+        ``timeout: (skipped optional scalar)`` is a substring of ``assert_timeout: (skipped
+        optional scalar)``; the detection must match the emitted comment line so a file carrying
+        the sibling's record (e.g. after a hand edit) does not silently skip the key's own.
+        """
+        config = tmp_path / "config.yml"
+        config.write_text(
+            "base_url: https://api.example\n"
+            "# assert_timeout: (skipped optional scalar)\n"
+            "specs:\n"
+            "  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
+            encoding="utf-8",
+        )
+
+        documented = document_config_examples(config)
+
+        assert "timeout: (skipped optional scalar)" in documented
+        text = config.read_text(encoding="utf-8")
+        assert "# timeout: (skipped optional scalar)" in text
+        # The present sibling record is detected by its own marker — never duplicated.
+        assert text.count("assert_timeout: (skipped optional scalar)") == 1
+
     def test_document_covers_every_plugin_member(self, tmp_path):
         """The walk is data-driven — every PluginConfigKeys member gets its record shape."""
         config = tmp_path / "config.yml"
