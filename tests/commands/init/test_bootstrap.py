@@ -525,6 +525,35 @@ class TestDocumentWebConfigExamples:
         assert document_web_config_examples(listed) == []
         assert listed.read_text(encoding="utf-8") == "- a\n- b\n"
 
+    def test_document_web_config_examples_marker_matches_the_comment_line_only(self, tmp_path):
+        """A sibling's record line is not the key's own marker — ``model`` still gets documented.
+
+        ``model: (skipped optional scalar)`` is a substring of ``generation_model: (skipped
+        optional scalar)``; the detection must match the emitted comment line so a file carrying
+        the sibling's record (e.g. after a hand edit) does not silently skip the key's own.
+        """
+        web = tmp_path / "web.yml"
+        web.write_text(
+            "provider: openai\n"
+            "# generation_model: (skipped optional scalar)\n"
+            "classification_model: c\n"
+            "browser:\n"
+            "  name: chromium\n"
+            "  headless: true\n"
+            "strict: false\n"
+            "interactive: false\n",
+            encoding="utf-8",
+        )
+
+        documented = document_web_config_examples(web)
+
+        assert "base_url: (skipped optional scalar)" in documented
+        assert "model: (skipped optional scalar)" in documented
+        text = web.read_text(encoding="utf-8")
+        assert "# model: (skipped optional scalar)" in text
+        # The present sibling record is detected by its own marker — never duplicated.
+        assert text.count("generation_model: (skipped optional scalar)") == 1
+
     def test_document_web_config_examples_drops_pending_without_browser(self, tmp_path):
         """Without the browser anchor the tail records are dropped silently; the run stays idempotent."""
         web = tmp_path / "web.yml"

@@ -49,6 +49,20 @@ The `browser` section:
 An omitted key behaves as the library default; unknown keys are a hard error (the
 document is validated strictly).
 
+## Resolution and validation layering
+
+The document is validated structurally at pytest configuration — an unknown key, a wrong
+type, or an unparsable file fails the run there. Value-level semantics (the browser-name
+matrix, positive attempt counts, the endpoint scheme) belong to the runtime: a violation
+surfaces when a test builds its runtime, as the library's own validation error.
+
+An empty or omitted key keeps the prettyplay default — and prettyplay resolves that
+default from its file layer, so a `[tool.prettyplay]` section in the project's
+`pyproject.toml` may supply values for keys `web.yml` leaves empty. Every `PRETTYPLAY_*`
+environment variable is removed at pytest configuration: the library's env layer never
+applies to a web run, and a `pyproject.toml` must exist in or above the run directory
+(prettyplay 0.0.x searches for it on every runtime construction).
+
 ## The surveyed minimum
 
 `goga tool pybuggy init` (test kind `web` or `both`) asks five questions — `provider`,

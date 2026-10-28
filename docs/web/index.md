@@ -24,14 +24,27 @@ from goga_tool_pybuggy import plugin
 plugin.install()
 ```
 
-With the document present the `web` fixture exists; an invalid document fails the run
-during pytest configuration, before any collection or browser start. The document carries
-the LLM provider and models for the one-time generation; **LLM API keys live only in the
-environment or `.env`** — the document never contains keys.
+With the document present the `web` fixture exists; a structurally invalid document fails
+the run during pytest configuration, before any collection or browser start (a value that
+violates the runtime's semantics — an unknown browser name, a non-positive attempt count —
+surfaces when the test builds its runtime). The document carries the LLM provider and
+models for the one-time generation; **LLM API keys live only in the environment or
+`.env`** — the document never contains keys.
 
-Browser binaries are an environment requirement: run `playwright install --with-deps
-<browser>` locally (the `pybuggy init` bootstrap appends the matching `RUN` line to the
-project Dockerfile for image runs).
+Two environment requirements apply to every web run:
+
+- Browser binaries: run `playwright install --with-deps <browser>` locally (the
+  `pybuggy init` bootstrap appends the matching `RUN` line to the project Dockerfile for
+  image runs).
+- A `pyproject.toml` in the project or a directory above it — a prettyplay 0.0.x
+  limitation: the runtime searches for the file on every construction, and its absence
+  fails web tests at setup.
+
+`web.yml` is the web run's single configuration source: every `PRETTYPLAY_*` environment
+variable is removed at pytest configuration, so the library's env layer never applies. A
+key left empty or omitted keeps the prettyplay default — which a
+`[tool.prettyplay]` section of the project's `pyproject.toml` may supply (see
+[Web — Configuration](configuration.md)).
 
 ## Writing a web test
 
@@ -47,6 +60,10 @@ def test_duckduckgo_search(web):
 - `web.step(sentence)` — an **action step**: generated once, then replayed from the cache.
 - `web.expect(sentence)` — an **assertion step**: polled until it holds or the polling
   budget ends.
+- `web.group(sentence)` — a coherent mini-scenario: the steps inside share one goal and
+  render as one Allure group.
+- `web.run_on_page(action)` — the escape hatch: run a callable receiving the raw
+  Playwright `Page` when a step sentence cannot express the interaction.
 - Steps carry full URLs — no `base_url` templating, no sandbox binding.
 - One action per sentence; name the target and the action in plain language.
 

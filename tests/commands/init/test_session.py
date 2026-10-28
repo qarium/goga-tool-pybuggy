@@ -507,6 +507,27 @@ class TestBuildWebConfigData:
         assert set(data) <= {member.value for member in WebConfigKeys}
         assert yaml.safe_load(yaml.safe_dump(data)) == data
 
+    def test_build_web_config_data_payload_validates_and_maps(self):
+        """The payload the session writes validates as a web config and maps onto prettyplay.
+
+        The seam pin: ``WebConfig`` forbids extras and types ``provider`` as a Literal, so any
+        drift between the payload builder and the plugin-side validation bricks every web run
+        at configphase while the payload-shape tests stay green.
+        """
+        from goga_tool_pybuggy.web import build_pretty_config, validate_web_config
+
+        config = validate_web_config(build_web_config_data(dict(_WEB_ANSWERS)))
+
+        assert config.provider == "openai"
+        assert config.browser.name == "chromium"
+        assert config.browser.headless is True
+
+        pretty = build_pretty_config(config, False, False)
+
+        assert pretty.generation_model == "g"
+        assert pretty.classification_model == "c"
+        assert pretty.browser.name == "chromium"
+
 
 class TestParseSpecs:
     """First-spec strictness and surveyed-extra leniency."""

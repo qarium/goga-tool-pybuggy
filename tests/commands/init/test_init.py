@@ -590,6 +590,31 @@ class TestRunBootstrap:
         assert len(errors) == 1
         assert errors[0].error == "disk on fire"
 
+    def test_run_bootstrap_corrupt_web_config_fails_at_documentation(self, tmp_path, monkeypatch, caplog):
+        """An unparsable ``web.yml`` fails the pass at step 3b — every later artifact is skipped."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        dockerfile = tmp_path / ".goga" / "Dockerfile"
+        dockerfile.write_text("FROM x\n", encoding="utf-8")
+        web_config = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        web_config.parent.mkdir(parents=True)
+        web_config.write_text("provider: openai\n  bad: [\n", encoding="utf-8")
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 1
+        errors = _error_records(caplog)
+        assert len(errors) == 1
+        assert errors[0].message == "onboarding bootstrap failed"
+        assert "web.yml" in errors[0].error
+        # Step 2 already delivered the usages; everything after 3b never ran.
+        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
+        assert not (tmp_path / ".goga" / "usages" / "conventions.md").exists()
+        assert not (tmp_path / "conftest.py").exists()
+        assert dockerfile.read_text(encoding="utf-8") == "FROM x\n"
+
     def test_run_bootstrap_template_mode_never_prompts(self, tmp_path, monkeypatch, caplog):
         """A template-mode rerun over a bootstrapped tree writes nothing and never confirms."""
         monkeypatch.chdir(tmp_path)

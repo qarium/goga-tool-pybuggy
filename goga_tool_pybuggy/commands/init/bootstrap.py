@@ -260,13 +260,16 @@ def document_web_config_examples(config_path: Path) -> list[str]:
             continue
 
         record = _web_example_record(member)
+        # The marker is the emitted comment line — carrying the ``# `` prefix keeps a sibling's
+        # record line (``model`` inside ``generation_model``'s) from matching.
+        marker = f"# {record.splitlines()[0]}"
 
         if member.value in data:
             if pending:
                 data.yaml_set_comment_before_after_key(member.value, before="\n".join(pending))
                 documented.extend(pending)
                 pending = []
-        elif record.split("\n", 1)[0] not in text:
+        elif marker not in text:
             pending.append(record)
 
     if documented:

@@ -215,6 +215,27 @@ class TestAllureStepHooksLogic:
         assert _stack_depth(hooks._group_stack) == 0
         assert hooks._step._failed_exception is None
 
+    def test_allure_group_titles_render_with_the_group_prefix(self, monkeypatch):
+        """A group cycle enters and exits one allure step titled ``[group] <prompt>``.
+
+        The step titles are pinned byte-exact elsewhere; this pins the group rendering — a
+        regression dropping the prefix or mis-titling the group as a step fails here.
+        """
+        exits: list[tuple[str, type | None, BaseException | None]] = []
+        monkeypatch.setattr(allure, "step", lambda title: _RecordingStepContext(title, exits))
+
+        hooks = AllureStepHooks(_ScreenshotPlay(b"PNG"))
+
+        hooks.on_group_started("search flow")
+        hooks.on_step_started("Find results", "assertion")
+        hooks.on_step_finished("Find results", "assertion", "passed")
+        hooks.on_group_finished("search flow")
+
+        assert [(title, exc_type, exc_val) for title, exc_type, exc_val in exits] == [
+            ("[assertion] Find results", None, None),
+            ("[group] search flow", None, None),
+        ]
+
     def test_allure_step_wrapper_exit_args_carry_the_exception_instance(self, monkeypatch):
         """The allure context exits with the mapped class AND its instance — never a bare class.
 
