@@ -47,9 +47,11 @@ _EXPECTED_CONFIRMS = [
 ]
 
 # Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter
-# (the FROM prompt keeps its newest-python-family default).
+# (the kind choice keeps its api default, the FROM prompt its newest-python-family default, the
+# amend-moment scalar and git prompts their empty skip defaults).
 _PROMPT_ANSWERS = {
     "Language": "python",
+    "Test kind (api — API tests over specs, web — browser UI tests, both)": "api",
     "Built image name": "pybuggy-smoke:latest",
     "Base URL (Jinja2 template, required)": "https://{{ HOST }}/api",
     "Spec name": ["shop", "billing"],
@@ -121,7 +123,7 @@ class TestSessionSmoke:
         captured = capsys.readouterr()
         assert code == 0
         assert [text for text, _answer in tty.confirms] == _EXPECTED_CONFIRMS
-        assert "created .goga/tools/pybuggy/config.yml (tool: pybuggy)" in captured.out
+        assert "created .goga/tools/pybuggy/api.yml (tool: pybuggy)" in captured.out
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
@@ -134,7 +136,7 @@ class TestSessionSmoke:
         assert "build" not in config  # the build.review.skip amendment never reaches the config (q2/A)
         assert "codemanifest" not in config  # both gates declined — the offline guarantee
 
-        tool_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        tool_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
         tool_config = yaml.safe_load(tool_config_path.read_text("utf-8"))
         assert tool_config == _EXPECTED_TOOL_CONFIG
         assert "#" not in tool_config_path.read_text(encoding="utf-8")  # plain engine serialization
@@ -167,10 +169,9 @@ class TestSessionSmoke:
 
         tool_config_text = tool_config_path.read_text(encoding="utf-8")
         assert yaml.safe_load(tool_config_text) == _EXPECTED_TOOL_CONFIG  # active keys untouched
-        assert "# headers: example (skipped complex member)" in tool_config_text
-        assert "# timeout: (skipped optional scalar)" in tool_config_text
-        assert "# loader: example (skipped complex member)" in tool_config_text
-        assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
+        # The bootstrap's example documentation still targets the old config.yml name until the
+        # bootstrap task rewires its step to api.yml — the session-written file stays plain.
+        assert "#" not in tool_config_text
 
         _assert_bootstrap_registration_split(tmp_path)
         assert (
@@ -205,7 +206,7 @@ class TestSessionSmoke:
         assert code == 0
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
-        tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").read_text("utf-8"))
+        tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml").read_text("utf-8"))
         assert tool_config["pipelines"] == {"api.automate": {"autonomous": True}, "api.patch": {"autonomous": True}}
 
 

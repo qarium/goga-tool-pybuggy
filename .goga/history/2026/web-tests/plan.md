@@ -1221,19 +1221,19 @@ Survey specs (design, verbatim):
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_session.py`, expected to fail):
+- [x] **Contract tests** (in `tests/commands/init/test_session.py`, expected to fail):
   `from goga_tool_pybuggy.commands.init import (amend_pybuggy_config, build_config_data,
   build_web_config_data, pybuggy_questions, survey_api_options, survey_specs,
   survey_web_config)` — all importable; `survey_extra_specs` no longer exported (checked fully in
   Task 13's facade test; here assert the module attribute is gone); `pybuggy_questions()` returns
   records; `build_config_data` accepts `(answers, specs, autonomous)`
-- [ ] **Code**: rewrite the touched routines in `goga_tool_pybuggy/commands/init/session.py` per
+- [x] **Code**: rewrite the touched routines in `goga_tool_pybuggy/commands/init/session.py` per
   the traces; delete `survey_extra_specs`; add the `from ...web import WebConfigKeys` import;
   keep every reused module constant; Google docstrings; `Raises:` for the propagating Abort
   behavior documented on `amend_pybuggy_config`
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_session.py
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_session.py
   -v` — the new contract tests pass
-- [ ] **Logic tests** (design scenarios, verbatim):
+- [x] **Logic tests** (design scenarios, verbatim):
   - `test_pybuggy_questions_declares_kind_base_image_image` — monkeypatched version helpers
     (existing `pinned_version_axis`-style fixtures); asserts exactly 3 records, ids
     `["kind", "base_image", "image"]`; `kind` is `kind="choice"`, `choices == ["api", "web",
@@ -1269,15 +1269,15 @@ Survey specs (design, verbatim):
     "location": "y"}]`, `autonomous={"api.automate": True}`; asserts `data["specs"]` holds both
     entries (first first), `data["timeout"] == 5.0`,
     `data["pipelines"] == {"api.automate": {"autonomous": True}}`
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/commands/init/ -x` — fix implementation
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/commands/init/ -x` — fix implementation
   code until all tests pass (do NOT fix test code); any existing test that still calls
   `survey_extra_specs` or expects the `("config.yml", …)` write_config tuple is updated to the
   new `survey_specs` flow and the `api.yml` name — `test_amend_pybuggy_config_buffers_surveyed_contribution`
   included (test migration, not weakening)
-- [ ] **Contract re-verification**: the exact prompt texts and the `kind` question record match
+- [x] **Contract re-verification**: the exact prompt texts and the `kind` question record match
   the design strings; `amend_pybuggy_config` never catches exceptions; `build_web_config_data`
   keys via `WebConfigKeys` only
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 12: `commands/init/bootstrap.py` — `document_web_config_examples` + `install_playwright` (TDD)

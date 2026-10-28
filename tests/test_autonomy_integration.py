@@ -19,11 +19,14 @@ from goga_tool_pybuggy.config import resolve_autonomy
 
 from .autonomous.conftest import _AmendmentView, amendment_identity
 
-# Minimal survey answers; the autonomy confirm rides on top as the enabling or disabling answer.
+# Minimal survey answers and surveyed specs; the autonomy confirm rides on top as the enabling
+# or disabling answer.
 _ANSWERS = {
     "base_url": "https://{{ HOST }}/api",
     "first_spec": {"name": "shop", "type": "swagger", "location": "specs/shop.yaml"},
 }
+
+_SPECS = [_ANSWERS["first_spec"]]
 
 # The tool's pipeline identity as the platform delivers it at the amendment checkpoint.
 _RUN_PIPELINE = PipelineIdentity(
@@ -123,13 +126,13 @@ class TestEmitConsumeBridge:
 
     def test_build_config_data_payload_enables_resolve_autonomy(self, tool_config) -> None:
         """The enabling payload enables the resolver on both surveyed axes; the disabling one writes no axis."""
-        enabling = build_config_data(dict(_ANSWERS), None, {"api.automate": True, "api.patch": True})
+        enabling = build_config_data(dict(_ANSWERS), list(_SPECS), {"api.automate": True, "api.patch": True})
         tool_config(yaml.safe_dump(enabling))
 
         assert resolve_autonomy("api.automate") is True
         assert resolve_autonomy("api.patch") is True
 
-        disabling = build_config_data(dict(_ANSWERS), None, None)
+        disabling = build_config_data(dict(_ANSWERS), list(_SPECS), None)
 
         assert "pipelines" not in disabling
 

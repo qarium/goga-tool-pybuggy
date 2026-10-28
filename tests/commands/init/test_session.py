@@ -1,28 +1,34 @@
 """Tests for the session module — pure builders, participation hooks, session seam.
 
-Covers the pure builders, the image/spec/autonomy surveys, the participation hooks, and the session seam.
+Covers the kind-gated question block, the api/web/spec surveys, the pure builders, the
+participation hooks, and the session seam.
 """
 
 import importlib.metadata
 import logging
 
+import click
 import goga_tool_pybuggy.commands.init.session as session_module
 import pytest
 import yaml
-from goga.onboarding import FileGenerator, Question, QuestionGroup, Questionnaire, ToolParticipation
+from goga.onboarding import FileGenerator, Question, Questionnaire, ToolParticipation
 from goga_tool_pybuggy.commands.init import (
     amend_pybuggy_config,
     build_config_amendments,
     build_config_data,
+    build_web_config_data,
     declare_pybuggy_session,
     parse_specs,
     pybuggy_questions,
     run_session,
+    survey_api_options,
     survey_autonomy,
-    survey_extra_specs,
+    survey_specs,
+    survey_web_config,
 )
 from goga_tool_pybuggy.config import SpecEntry
 from goga_tool_pybuggy.plugin import PluginConfigKeys
+from goga_tool_pybuggy.web import WebConfigKeys
 
 _FIRST_SPEC = {
     "name": "shop",
@@ -33,22 +39,6 @@ _FIRST_SPEC = {
     "git_ref": "",
 }
 
-_ANSWERS = {
-    "base_url": "https://{{ HOST }}/api",
-    "timeout": "30",
-    "retries": "3",
-    "assert_delay": "",
-    "first_spec": dict(_FIRST_SPEC),
-}
-
-# The block answer view carrying the image inputs — the source of the Dockerfile amendments.
-_IMAGE_ANSWERS = {
-    **_ANSWERS,
-    "base_image": "qarium/goga-python-3.13:2.0",
-    "image": "shop-api:latest",
-}
-
-# One surveyed extra-spec mapping — the record shape ``survey_extra_specs`` collects.
 _EXTRA_SPEC = {
     "name": "billing",
     "type": "openapi",
@@ -56,6 +46,30 @@ _EXTRA_SPEC = {
     "git_url": "https://git/b.git",
     "git_location": "specs/b.yaml",
     "git_ref": "",
+}
+
+# The survey_api_options output — the answered api scalar keys, Enter-skipped keys dropped.
+_API_ANSWERS = {
+    "base_url": "https://{{ HOST }}/api",
+    "timeout": "30",
+    "retries": "3",
+    "assert_delay": "",
+}
+
+# The survey_web_config output — the five-key web minimum the payload builder maps.
+_WEB_ANSWERS = {
+    "provider": "openai",
+    "generation_model": "g",
+    "classification_model": "c",
+    "browser_name": "chromium",
+    "headless": True,
+}
+
+# The block answer view carrying the image inputs — the source of the Dockerfile amendments.
+_IMAGE_ANSWERS = {
+    **_API_ANSWERS,
+    "base_image": "qarium/goga-python-3.13:2.0",
+    "image": "shop-api:latest",
 }
 
 _SCALAR_MEMBERS = [
@@ -120,15 +134,43 @@ class _ScriptedClick:
         return answer
 
 
+def _scalar_prompts(answers: dict[str, object]) -> list[tuple[str, object]]:
+    """Build the scripted scalar-prompt queue — the given answers, Enter for the rest.
+
+    Args:
+        answers: The answered scalar keys (the ``survey_api_options`` answers).
+
+    Returns:
+        The ``(prompt text, answer)`` pairs, one per scalar member in declaration order.
+    """
+    return [(session_module._SCALAR_PROMPTS[member], answers.get(member.value, "")) for member in _SCALAR_MEMBERS]
+
+
+def _patch_scripted_click(monkeypatch: pytest.MonkeyPatch, scripted: _ScriptedClick) -> None:
+    """Route ``click.prompt``/``click.confirm`` of the session module through the double.
+
+    Args:
+        monkeypatch: The test's monkeypatch.
+        scripted: The scripted double answering the asks.
+    """
+    monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
+    monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+
+
 class TestSessionBuildersContract:
-    """Facade exposure and signature surface of the four pure builders."""
+    """Facade exposure and signature surface of the five pure builders."""
 
     def test_facade_exports_pure_builders(self):
-        """All four pure builder routines are importable from the cell facade."""
+        """All five pure builder routines are importable from the cell facade."""
         assert callable(pybuggy_questions)
         assert callable(build_config_data)
         assert callable(build_config_amendments)
+        assert callable(build_web_config_data)
         assert callable(parse_specs)
+
+    def test_module_no_longer_carries_survey_extra_specs(self):
+        """The absorbed extra-specs survey is gone from the session module."""
+        assert not hasattr(session_module, "survey_extra_specs")
 
     @pytest.mark.parametrize(
         ("routine", "expected"),
@@ -138,12 +180,13 @@ class TestSessionBuildersContract:
                 build_config_data,
                 {
                     "answers": dict[str, object],
-                    "extra_specs": list[dict[str, object]] | None,
+                    "specs": list[dict[str, object]],
                     "autonomous": dict[str, bool] | None,
                     "return": dict[str, object],
                 },
             ),
             (build_config_amendments, {"answers": dict[str, object], "return": dict[str, object]}),
+            (build_web_config_data, {"web_answers": dict[str, object], "return": dict[str, object]}),
             (
                 parse_specs,
                 {
@@ -158,23 +201,18 @@ class TestSessionBuildersContract:
         """Every builder carries its contract signature with typed parameters and return."""
         assert routine.__annotations__ == expected
 
-    def test_pybuggy_questions_declares_no_autonomy_item(self):
-        """The block carries no autonomy record — the amend-moment survey owns the question."""
-        items = pybuggy_questions()
-
-        assert "autonomous" not in {item.id for item in items if isinstance(item, Question)}
-        assert all("unattended" not in (item.prompt or "") for item in items if isinstance(item, Question))
-
 
 class TestSessionParticipationContract:
-    """Facade exposure and signature surface of the hooks and the session seam."""
+    """Facade exposure and signature surface of the hooks, the surveys, and the session seam."""
 
     def test_facade_exports_participation_routines(self):
-        """The two hooks, the two amend-moment surveys, and the session seam are importable."""
+        """The two hooks, the four amend-moment surveys, and the session seam are importable."""
         assert callable(declare_pybuggy_session)
         assert callable(amend_pybuggy_config)
-        assert callable(survey_extra_specs)
+        assert callable(survey_api_options)
+        assert callable(survey_specs)
         assert callable(survey_autonomy)
+        assert callable(survey_web_config)
         assert callable(run_session)
 
     @pytest.mark.parametrize(
@@ -182,8 +220,10 @@ class TestSessionParticipationContract:
         [
             (declare_pybuggy_session, {"context": object, "return": None}),
             (amend_pybuggy_config, {"context": object, "return": None}),
-            (survey_extra_specs, {"return": list[dict[str, object]]}),
+            (survey_api_options, {"return": dict[str, object]}),
+            (survey_specs, {"return": list[dict[str, object]]}),
             (survey_autonomy, {"return": dict[str, bool]}),
+            (survey_web_config, {"return": dict[str, object]}),
             (run_session, {"return": int}),
         ],
     )
@@ -193,44 +233,42 @@ class TestSessionParticipationContract:
 
 
 class TestPybuggyQuestions:
-    """The declarative question block — ids, order, defaults, nesting."""
+    """The declarative question block — the kind choice and the two image inputs."""
 
-    def test_pybuggy_questions_returns_block_in_survey_order(self):
-        """The image inputs first, base_url, scalars in declaration order, the first-spec group last."""
+    def test_pybuggy_questions_declares_kind_base_image_image(self, monkeypatch):
+        """Exactly three records — the kind choice first, then the two image inputs."""
+        monkeypatch.setattr(session_module, "resolve_project_name", lambda: "shop")
+
         items = pybuggy_questions()
 
-        assert len(items) == 10
-        assert [item.id for item in items[:3]] == ["base_image", "image", "base_url"]
-        assert items[0].prompt.startswith("Base image (FROM)")
-        assert items[0].default is not None
-        assert ":" in items[0].default
-        assert items[1].prompt == "Built image name"
-        assert items[2].default is None
+        assert [item.id for item in items] == ["kind", "base_image", "image"]
 
-        scalar_items = [item for item in items if isinstance(item, Question)][3:]
-        assert [item.id for item in scalar_items] == [member.value for member in _SCALAR_MEMBERS]
-        assert all(item.default == "" for item in scalar_items)
+        kind = items[0]
+        assert kind.kind == "choice"
+        assert kind.choices == ["api", "web", "both"]
+        assert kind.default == "api"
+        assert kind.prompt == "Test kind (api — API tests over specs, web — browser UI tests, both)"
 
-        group = items[-1]
-        assert isinstance(group, QuestionGroup)
-        assert group.id == "first_spec"
-        assert group.prompt == "The first spec"
-        assert [child.id for child in group.children] == [
-            "name",
-            "type",
-            "location",
-            "git_url",
-            "git_location",
-            "git_ref",
-        ]
-        assert group.children[1].choices == ["swagger", "openapi"]
+        assert items[1].prompt.startswith("Base image (FROM)")
+        assert items[1].default is not None
+        assert items[2].prompt == "Built image name"
+        assert items[2].default == "shop:latest"
+
+        plugin_values = {member.value for member in PluginConfigKeys}
+        assert {item.id for item in items} & plugin_values == set()
+        assert all(isinstance(item, Question) for item in items)
+
+    def test_pybuggy_questions_image_required_when_name_underivable(self, monkeypatch):
+        """An underivable project name leaves the image input engine-required (default None)."""
+        monkeypatch.setattr(session_module, "resolve_project_name", lambda: None)
+
+        assert pybuggy_questions()[2].default is None
 
     def test_pybuggy_questions_base_image_hints_follow_runtime_tag(self):
         """The FROM prompt embeds the python-family hints completed with the running goga minor tag."""
         from goga.version import host_goga_version, minor_version
 
-        items = pybuggy_questions()
-        base_image = items[0]
+        base_image = pybuggy_questions()[1]
         tag = minor_version(host_goga_version())
 
         hints = [line.strip()[2:] for line in base_image.prompt.splitlines() if line.strip().startswith("- ")]
@@ -238,55 +276,91 @@ class TestPybuggyQuestions:
         assert hints[0].startswith("qarium/goga-python-3.10:")
         assert base_image.default == hints[-1]
 
-    def test_pybuggy_questions_declares_no_compact_extra_specs(self):
-        """The compact one-per-line extra_specs record is gone — the amend-moment survey owns it."""
-        items = pybuggy_questions()
 
-        assert "extra_specs" not in {item.id for item in items if isinstance(item, Question)}
-        assert all("one per line" not in (item.prompt or "") for item in items if isinstance(item, Question))
+class TestSurveyApiOptions:
+    """The api options survey — the required base URL, then the Enter-skippable scalars."""
 
-    def test_pybuggy_questions_covers_every_scalar_plugin_key(self):
-        """The scalar questions cover exactly the scalar plugin keys — headers/loader never surveyed."""
-        items = pybuggy_questions()
+    def test_survey_api_options_asks_base_url_then_scalars(self, monkeypatch):
+        """base_url is asked first; Enter-skipped scalar keys drop from the returned mapping."""
+        scripted = _ScriptedClick(
+            confirms=[],
+            prompts=[
+                ("Base URL (Jinja2 template, required)", "https://api.example"),
+                *_scalar_prompts({"timeout": "5"}),
+            ],
+        )
+        _patch_scripted_click(monkeypatch, scripted)
 
-        collected = {item.id for item in items}
-        for item in items:
-            if isinstance(item, QuestionGroup):
-                collected |= {child.id for child in item.children}
+        assert survey_api_options() == {"base_url": "https://api.example", "timeout": "5"}
+        assert scripted.prompt_calls[0][0] == "Base URL (Jinja2 template, required)"
 
-        plugin_values = {member.value for member in PluginConfigKeys}
-        assert {key for key in collected if key in plugin_values} == plugin_values - {"headers", "loader"}
-        assert "headers" not in collected
-        assert "loader" not in collected
+    def test_survey_api_options_reasks_empty_base_url(self, monkeypatch):
+        """An empty base URL entry re-asks with the (required) prompt suffix."""
+        scripted = _ScriptedClick(
+            confirms=[],
+            prompts=[
+                ("Base URL (Jinja2 template, required)", ""),
+                ("Base URL (Jinja2 template, required) (required)", "https://api.example"),
+                *_scalar_prompts({}),
+            ],
+        )
+        _patch_scripted_click(monkeypatch, scripted)
 
-    def test_pybuggy_questions_holds_one_nesting_level(self):
-        """Every group child is a simple Question — exactly one nesting level."""
-        items = pybuggy_questions()
+        assert survey_api_options() == {"base_url": "https://api.example"}
 
-        for item in items:
-            if isinstance(item, QuestionGroup):
-                assert item.children is not None
-                assert all(isinstance(child, Question) for child in item.children)
+    def test_survey_api_options_forwards_cancelled_prompt(self, monkeypatch):
+        """A cancelled prompt propagates — the survey never catches click.Abort."""
+
+        def cancelled(prompt: str, **_: object) -> str:
+            raise click.Abort
+
+        monkeypatch.setattr(session_module.click, "prompt", cancelled)
+
+        with pytest.raises(click.Abort):
+            survey_api_options()
 
 
-class TestSurveyExtraSpecs:
-    """The confirm-gated per-field additional-specs survey — the amend-moment follow-up."""
+class TestSurveySpecs:
+    """The specs survey — the first spec field by field, then the confirm-gated extras."""
 
-    def test_survey_extra_specs_declined_gate_collects_nothing(self, monkeypatch):
-        """A declined gate asks no field prompts and returns an empty list."""
-        scripted = _ScriptedClick(confirms=[False], prompts=[])
-        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
-        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+    def test_survey_specs_first_spec_then_confirm_gate(self, monkeypatch):
+        """The first spec is asked field by field; a declined confirm adds nothing."""
+        scripted = _ScriptedClick(
+            confirms=[False],
+            prompts=[
+                ("Spec name", "client"),
+                ("Spec type", "swagger"),
+                ("Spec location (path from project root)", ".specs/client.yaml"),
+                ("Git URL (empty — no git source)", ""),
+                ("Path inside the repository", ""),
+                ("Git ref (branch/tag; empty — default branch)", ""),
+            ],
+        )
+        _patch_scripted_click(monkeypatch, scripted)
 
-        assert survey_extra_specs() == []
+        assert survey_specs() == [
+            {
+                "name": "client",
+                "type": "swagger",
+                "location": ".specs/client.yaml",
+                "git_url": "",
+                "git_location": "",
+                "git_ref": "",
+            }
+        ]
         assert scripted.confirm_calls == ["Add another spec?"]
-        assert scripted.prompt_calls == []
 
-    def test_survey_extra_specs_asks_fields_in_first_spec_order(self, monkeypatch):
-        """An accepted spec is asked field by field — name, type, location, then the git fields."""
+    def test_survey_specs_loops_until_declined(self, monkeypatch):
+        """The gate repeats after every accepted spec — the first spec stays first."""
         scripted = _ScriptedClick(
             confirms=[True, False],
             prompts=[
+                ("Spec name", "shop"),
+                ("Spec type", "swagger"),
+                ("Spec location (path from project root)", "specs/shop.yaml"),
+                ("Git URL (empty — no git source)", ""),
+                ("Path inside the repository", ""),
+                ("Git ref (branch/tag; empty — default branch)", ""),
                 ("Spec name", "billing"),
                 ("Spec type", "openapi"),
                 ("Spec location (path from project root)", "specs/billing.yaml"),
@@ -295,16 +369,15 @@ class TestSurveyExtraSpecs:
                 ("Git ref (branch/tag; empty — default branch)", ""),
             ],
         )
-        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
-        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+        _patch_scripted_click(monkeypatch, scripted)
 
-        assert survey_extra_specs() == [dict(_EXTRA_SPEC)]
-        assert scripted.confirm_calls == ["Add another spec?", "Add another spec?"]
+        assert survey_specs() == [dict(_FIRST_SPEC), dict(_EXTRA_SPEC)]
+        assert scripted.confirm_calls == ["Add another spec?"] * 2
 
-    def test_survey_extra_specs_reasks_required_fields(self, monkeypatch):
+    def test_survey_specs_reasks_required_fields(self, monkeypatch):
         """Empty name and location entries re-ask with the (required) prompt suffix."""
         scripted = _ScriptedClick(
-            confirms=[True, False],
+            confirms=[False],
             prompts=[
                 ("Spec name", ""),
                 ("Spec name (required)", "billing"),
@@ -316,12 +389,9 @@ class TestSurveyExtraSpecs:
                 ("Git ref (branch/tag; empty — default branch)", ""),
             ],
         )
-        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
-        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+        _patch_scripted_click(monkeypatch, scripted)
 
-        surveyed = survey_extra_specs()
-
-        assert surveyed == [
+        assert survey_specs() == [
             {
                 "name": "billing",
                 "type": "swagger",
@@ -332,42 +402,14 @@ class TestSurveyExtraSpecs:
             }
         ]
 
-    def test_survey_extra_specs_loops_until_declined(self, monkeypatch):
-        """The gate repeats after every accepted spec — two extras from three confirms."""
-        scripted = _ScriptedClick(
-            confirms=[True, True, False],
-            prompts=[
-                ("Spec name", "one"),
-                ("Spec type", "swagger"),
-                ("Spec location (path from project root)", "one.yaml"),
-                ("Git URL (empty — no git source)", ""),
-                ("Path inside the repository", ""),
-                ("Git ref (branch/tag; empty — default branch)", ""),
-                ("Spec name", "two"),
-                ("Spec type", "openapi"),
-                ("Spec location (path from project root)", "two.yaml"),
-                ("Git URL (empty — no git source)", ""),
-                ("Path inside the repository", ""),
-                ("Git ref (branch/tag; empty — default branch)", ""),
-            ],
-        )
-        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
-        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
-
-        surveyed = survey_extra_specs()
-
-        assert [spec["name"] for spec in surveyed] == ["one", "two"]
-        assert scripted.confirm_calls == ["Add another spec?"] * 3
-
 
 class TestSurveyAutonomy:
-    """The autonomy confirms — the closing questions of the amendment moment."""
+    """The autonomy confirms — the closing questions of the api amendment branch."""
 
     def test_survey_autonomy_asks_both_axes_in_order_with_disabled_defaults(self, monkeypatch):
         """One confirm per pipeline — automate first, patch after it — each defaulting to disabled."""
         scripted = _ScriptedClick(confirms=[False, False], prompts=[])
-        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
-        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+        _patch_scripted_click(monkeypatch, scripted)
 
         assert survey_autonomy() == {"api.automate": False, "api.patch": False}
         assert scripted.confirm_calls == [
@@ -378,18 +420,92 @@ class TestSurveyAutonomy:
     def test_survey_autonomy_acceptance_enables_each_axis(self, monkeypatch):
         """Accepted confirms return True per axis — the enabling answers of the pipelines axis."""
         scripted = _ScriptedClick(confirms=[True, True], prompts=[])
-        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
-        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+        _patch_scripted_click(monkeypatch, scripted)
 
         assert survey_autonomy() == {"api.automate": True, "api.patch": True}
 
     def test_survey_autonomy_answers_are_independent_per_axis(self, monkeypatch):
         """A mixed run — automate accepted, patch declined — records each axis separately."""
         scripted = _ScriptedClick(confirms=[True, False], prompts=[])
-        monkeypatch.setattr(session_module.click, "confirm", scripted.confirm)
-        monkeypatch.setattr(session_module.click, "prompt", scripted.prompt)
+        _patch_scripted_click(monkeypatch, scripted)
 
         assert survey_autonomy() == {"api.automate": True, "api.patch": False}
+
+
+class TestSurveyWebConfig:
+    """The web minimum survey — the five asks of the web amendment branch."""
+
+    def test_survey_web_config_asks_minimum_in_order(self, monkeypatch):
+        """Provider, the two required models, the browser name, then the headless confirm."""
+        scripted = _ScriptedClick(
+            confirms=[True],
+            prompts=[
+                ("Provider", "openai"),
+                ("Generation model (step-code generation)", "g"),
+                ("Classification model (step classification)", "c"),
+                ("Browser name", "chromium"),
+            ],
+        )
+        _patch_scripted_click(monkeypatch, scripted)
+
+        assert survey_web_config() == dict(_WEB_ANSWERS)
+        assert [text for text, _default in scripted.prompt_calls] == [
+            "Provider",
+            "Generation model (step-code generation)",
+            "Classification model (step classification)",
+            "Browser name",
+        ]
+        assert scripted.confirm_calls == ["Run the browser headless?"]
+
+    def test_survey_web_config_reasks_empty_models(self, monkeypatch):
+        """Empty model entries re-ask with the (required) prompt suffix."""
+        scripted = _ScriptedClick(
+            confirms=[False],
+            prompts=[
+                ("Provider", "anthropic"),
+                ("Generation model (step-code generation)", ""),
+                ("Generation model (step-code generation) (required)", "g"),
+                ("Classification model (step classification)", ""),
+                ("Classification model (step classification) (required)", "c"),
+                ("Browser name", "firefox"),
+            ],
+        )
+        _patch_scripted_click(monkeypatch, scripted)
+
+        assert survey_web_config() == {
+            "provider": "anthropic",
+            "generation_model": "g",
+            "classification_model": "c",
+            "browser_name": "firefox",
+            "headless": False,
+        }
+
+
+class TestBuildWebConfigData:
+    """The plain serializable web-config payload."""
+
+    def test_build_web_config_data_payload_shape(self):
+        """The surveyed minimum plus the strict/interactive defaults, in WebConfigKeys order."""
+        data = build_web_config_data(dict(_WEB_ANSWERS))
+
+        assert data == {
+            "provider": "openai",
+            "generation_model": "g",
+            "classification_model": "c",
+            "browser": {"name": "chromium", "headless": True},
+            "strict": False,
+            "interactive": False,
+        }
+        assert list(data) == [
+            "provider",
+            "generation_model",
+            "classification_model",
+            "browser",
+            "strict",
+            "interactive",
+        ]
+        assert set(data) <= {member.value for member in WebConfigKeys}
+        assert yaml.safe_load(yaml.safe_dump(data)) == data
 
 
 class TestParseSpecs:
@@ -474,7 +590,7 @@ class TestBuildConfigData:
 
     def test_build_config_data_emits_plain_serializable_payload(self):
         """Unanswered scalars drop, numerics coerce, specs land as plain mappings last."""
-        data = build_config_data(dict(_ANSWERS), [dict(_EXTRA_SPEC)])
+        data = build_config_data(dict(_API_ANSWERS), [dict(_FIRST_SPEC), dict(_EXTRA_SPEC)])
 
         assert data["timeout"] == 30.0
         assert isinstance(data["timeout"], float)
@@ -490,20 +606,20 @@ class TestBuildConfigData:
         dumped = yaml.safe_dump(data)
         assert "!!python" not in dumped
 
-    def test_build_config_data_without_extras_keeps_first_spec_only(self):
-        """A None extras list (the declined gate) yields the first-spec-only payload."""
-        data = build_config_data(dict(_ANSWERS), None)
+    def test_build_config_data_first_spec_only(self):
+        """A single-mapping specs list (the declined gate) yields the first-spec-only payload."""
+        data = build_config_data(dict(_API_ANSWERS), [dict(_FIRST_SPEC)])
 
         assert list(data["specs"]) == ["shop"]
 
     def test_build_config_data_non_numeric_answer_raises(self):
         """A non-numeric numeric answer raises ValueError (soft-drop upstream)."""
         with pytest.raises(ValueError, match="could not convert"):
-            build_config_data({**_ANSWERS, "timeout": "abc"}, None)
+            build_config_data({**_API_ANSWERS, "timeout": "abc"}, [dict(_FIRST_SPEC)])
 
     def test_build_config_data_emits_pipelines_axes_on_enabling_answers(self):
         """Enabling answers add the axis entries after the scalar keys — the resolver's exact shape."""
-        data = build_config_data(dict(_ANSWERS), None, {"api.automate": True, "api.patch": True})
+        data = build_config_data(dict(_API_ANSWERS), [dict(_FIRST_SPEC)], {"api.automate": True, "api.patch": True})
 
         assert data["pipelines"] == {"api.automate": {"autonomous": True}, "api.patch": {"autonomous": True}}
         assert list(data) == ["base_url", "timeout", "retries", "pipelines", "specs"]
@@ -512,26 +628,41 @@ class TestBuildConfigData:
 
     def test_build_config_data_emits_only_the_enabled_axis(self):
         """A single enabling answer writes exactly that pipeline's entry — the axes are independent."""
-        data = build_config_data(dict(_ANSWERS), None, {"api.automate": False, "api.patch": True})
+        data = build_config_data(dict(_API_ANSWERS), [dict(_FIRST_SPEC)], {"api.automate": False, "api.patch": True})
 
         assert data["pipelines"] == {"api.patch": {"autonomous": True}}
 
     @pytest.mark.parametrize(
         ("autonomous", "answers"),
         [
-            (None, dict(_ANSWERS)),
-            ({"api.automate": False, "api.patch": False}, dict(_ANSWERS)),
-            (None, {**_ANSWERS, "autonomous": True}),
+            (None, dict(_API_ANSWERS)),
+            ({"api.automate": False, "api.patch": False}, dict(_API_ANSWERS)),
+            (None, {**_API_ANSWERS, "autonomous": True}),
         ],
         ids=["absent-answers", "declined-confirms", "stale-answer-key-ignored"],
     )
     def test_build_config_data_disabling_answers_and_stale_key_emit_no_axis(self, autonomous, answers):
         """No enabling answer emits no pipelines key; an answers-carried autonomous key is never read."""
-        data = build_config_data(answers, None, autonomous)
+        data = build_config_data(answers, [dict(_FIRST_SPEC)], autonomous)
 
         assert "pipelines" not in data
         assert "specs" in data
         assert list(data["specs"]) == ["shop"]
+
+    def test_build_config_data_takes_surveyed_specs_list(self):
+        """The specs parameter is the surveyed list — the first mapping is the first spec."""
+        data = build_config_data(
+            {"timeout": "5"},
+            [
+                {"name": "a", "type": "swagger", "location": "x"},
+                {"name": "b", "type": "openapi", "location": "y"},
+            ],
+            {"api.automate": True},
+        )
+
+        assert list(data["specs"]) == ["a", "b"]
+        assert data["timeout"] == 5.0
+        assert data["pipelines"] == {"api.automate": {"autonomous": True}}
 
 
 class TestBuildConfigAmendments:
@@ -612,57 +743,92 @@ class TestDeclarePybuggySession:
 
 
 class TestAmendPybuggyConfig:
-    """Participation moment two — the amendment hook against a recorder context."""
+    """Participation moment two — the kind-gated amendment hook against a recorder context."""
 
-    def test_amend_pybuggy_config_buffers_surveyed_contribution(self, contribution_recorder, monkeypatch):
-        """The surveyed extras and autonomy flow into the buffered amendments and the payload."""
-        monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [dict(_EXTRA_SPEC)])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: {"api.automate": True, "api.patch": True})
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
-        context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
+    @pytest.fixture
+    def sentinel_surveys(self, monkeypatch) -> list[str]:
+        """Patch the four amend-moment surveys to sentinel returns, recording the call order.
 
-        amend_pybuggy_config(context)
-
-        assert context.amendments == list(build_config_amendments(dict(_IMAGE_ANSWERS)).items())
-        surveyed_axes = {"api.automate": True, "api.patch": True}
-        assert context.files == [
-            ("config.yml", build_config_data(dict(_IMAGE_ANSWERS), [dict(_EXTRA_SPEC)], surveyed_axes))
-        ]
-        assert context.files[0][1]["specs"]["billing"]["location"] == "specs/billing.yaml"
-        assert context.files[0][1]["pipelines"] == {
-            "api.automate": {"autonomous": True},
-            "api.patch": {"autonomous": True},
-        }
-
-    def test_amend_pybuggy_config_declined_gate_keeps_first_spec(self, contribution_recorder, monkeypatch):
-        """A declined extra-specs gate buffers the first-spec-only payload with no axis."""
-        monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: {"api.automate": False, "api.patch": False})
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
-        context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
-
-        amend_pybuggy_config(context)
-
-        assert list(context.files[0][1]["specs"]) == ["shop"]
-        assert "pipelines" not in context.files[0][1]
-
-    def test_amend_pybuggy_config_surveys_specs_before_autonomy(self, contribution_recorder, monkeypatch):
-        """The extras survey completes before the autonomy confirms — the questions never interleave specs."""
+        Returns:
+            The shared call-order log of the patched surveys.
+        """
         calls: list[str] = []
-        monkeypatch.setattr(session_module, "survey_extra_specs", lambda: calls.append("specs") or [])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: calls.append("autonomy") or {})
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
-        context = contribution_recorder(invited=True, answers=dict(_IMAGE_ANSWERS))
+
+        def _record(name: str, value: object):
+            def _survey() -> object:
+                calls.append(name)
+                return value
+
+            return _survey
+
+        monkeypatch.setattr(session_module, "survey_api_options", _record("api_options", dict(_API_ANSWERS)))
+        monkeypatch.setattr(session_module, "survey_specs", _record("specs", [dict(_FIRST_SPEC), dict(_EXTRA_SPEC)]))
+        monkeypatch.setattr(session_module, "survey_autonomy", _record("autonomy", {"api.automate": True}))
+        monkeypatch.setattr(session_module, "survey_web_config", _record("web", dict(_WEB_ANSWERS)))
+        return calls
+
+    @pytest.mark.parametrize("kind", ["api", "web", "both"])
+    def test_amend_pybuggy_config_kind_branches(self, kind, contribution_recorder, sentinel_surveys):
+        """The kind answer gates the surveys and the buffered files; the api branch runs before web."""
+        answers = {"kind": kind, "base_image": "img", "image": "p:latest"}
+        context = contribution_recorder(invited=True, answers=dict(answers))
 
         amend_pybuggy_config(context)
 
-        assert calls == ["specs", "autonomy"]
+        assert context.amendments == list(build_config_amendments(dict(answers)).items())
+
+        if kind == "api":
+            assert sentinel_surveys == ["api_options", "specs", "autonomy"]
+            assert [file for file, _data in context.files] == ["api.yml"]
+        elif kind == "web":
+            assert sentinel_surveys == ["web"]
+            assert [file for file, _data in context.files] == ["web.yml"]
+        else:
+            assert sentinel_surveys == ["api_options", "specs", "autonomy", "web"]
+            assert [file for file, _data in context.files] == ["api.yml", "web.yml"]
+
+        if kind in ("api", "both"):
+            payload = context.files[0][1]
+            expected = build_config_data(
+                {**answers, **_API_ANSWERS}, [_FIRST_SPEC, _EXTRA_SPEC], {"api.automate": True}
+            )
+            assert payload == expected
+            assert payload["specs"]["billing"]["location"] == "specs/billing.yaml"
+            assert payload["pipelines"] == {"api.automate": {"autonomous": True}}
+
+        if kind in ("web", "both"):
+            assert context.files[-1] == ("web.yml", build_web_config_data(dict(_WEB_ANSWERS)))
+
+    def test_amend_pybuggy_config_kind_missing_defaults_to_api(self, contribution_recorder, sentinel_surveys):
+        """An answer view without a kind answer runs the api branch — the defensive default."""
+        context = contribution_recorder(invited=True, answers={"base_image": "img", "image": "p:latest"})
+
+        amend_pybuggy_config(context)
+
+        assert sentinel_surveys == ["api_options", "specs", "autonomy"]
+        assert [file for file, _data in context.files] == ["api.yml"]
+
+    def test_amend_cancelled_prompt_drops_contribution(self, contribution_recorder, monkeypatch):
+        """A cancelled survey prompt propagates click.Abort — never caught, the contribution drops."""
+
+        def cancelled() -> list[dict[str, object]]:
+            raise click.Abort
+
+        monkeypatch.setattr(session_module, "survey_api_options", lambda: dict(_API_ANSWERS))
+        monkeypatch.setattr(session_module, "survey_specs", cancelled)
+        context = contribution_recorder(invited=True, answers={"kind": "api"})
+
+        with pytest.raises(click.Abort):
+            amend_pybuggy_config(context)
+
+        assert context.files == []
 
     def test_amend_pybuggy_config_exception_drops_contribution_upstream(self, contribution_recorder, monkeypatch):
         """A bad numeric answer raises before any write is buffered — the write never happens."""
-        monkeypatch.setattr(session_module, "survey_extra_specs", lambda: [])
+        monkeypatch.setattr(session_module, "survey_api_options", lambda: {"timeout": "abc"})
+        monkeypatch.setattr(session_module, "survey_specs", lambda: [dict(_FIRST_SPEC)])
         monkeypatch.setattr(session_module, "survey_autonomy", lambda: {})
-        context = contribution_recorder(invited=True, answers={**_IMAGE_ANSWERS, "timeout": "abc"})
+        context = contribution_recorder(invited=True, answers={"kind": "api"})
 
         with pytest.raises(ValueError, match="could not convert"):
             amend_pybuggy_config(context)
@@ -712,16 +878,16 @@ class TestNoInvitation:
         """Both hooks return without touching the context (and without surveying) when not invited."""
         monkeypatch.setattr(
             session_module,
-            "survey_extra_specs",
+            "survey_api_options",
             lambda: (_ for _ in ()).throw(AssertionError("an uninvited tool must never survey")),
         )
         monkeypatch.setattr(
             session_module,
-            "survey_autonomy",
+            "survey_web_config",
             lambda: (_ for _ in ()).throw(AssertionError("an uninvited tool must never survey")),
         )
         declaration = declaration_recorder(invited=False)
-        contribution = contribution_recorder(invited=False, answers=dict(_ANSWERS))
+        contribution = contribution_recorder(invited=False, answers=dict(_API_ANSWERS))
 
         declare_pybuggy_session(declaration)
         amend_pybuggy_config(contribution)

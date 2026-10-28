@@ -8,11 +8,12 @@ import logging
 
 import click
 from goga.config import resolve_project_name
-from goga.onboarding import FileGenerator, InitLogic, Question, QuestionGroup, Questionnaire, ToolParticipation
+from goga.onboarding import FileGenerator, InitLogic, Question, Questionnaire, ToolParticipation
 from goga.version import host_goga_version, minor_version
 
 from ...config import GitEntry, SpecEntry
 from ...plugin import PluginConfigKeys
+from ...web import WebConfigKeys
 
 logger = logging.getLogger(__name__)
 
@@ -75,21 +76,29 @@ _DOCKERFILE_PATH = ".goga/Dockerfile"
 def pybuggy_questions() -> list[Question]:
     """Build the declarative pybuggy question block in survey order.
 
-    Exact ids and order — the answer keys consumed downstream; the extra specs and the
-    autonomy confirm go to the amend-moment surveys (:func:`survey_extra_specs`,
-    :func:`survey_autonomy`).
+    Exact ids and order — the answer keys consumed downstream: the kind answer gates every
+    amend-moment branch; the image inputs feed the Dockerfile amendments. The api and web
+    option sets are surveyed at the amendment moment (:func:`survey_api_options`,
+    :func:`survey_specs`, :func:`survey_autonomy`, :func:`survey_web_config`) — the
+    declarative engine records carry no conditional visibility.
 
     Returns:
-        The question records — the two image inputs, ``base_url``, the scalar members, and
-        the single ``first_spec`` ``QuestionGroup`` (exactly one nesting level, simple
-        children only).
+        The question records — the kind choice, then the two image inputs (exactly three;
+        no scalar keys, no spec group, no web records).
     """
     tag = minor_version(host_goga_version())
     hints = [f"{name}:{tag}" for name in _BASE_IMAGE_NAMES]
     base_image_prompt = "\n".join(["Base image (FROM)", "Available images:", *[f"  - {hint}" for hint in hints]])
     project_name = resolve_project_name()
 
-    items: list[Question] = [
+    return [
+        Question(
+            id="kind",
+            kind="choice",
+            prompt="Test kind (api — API tests over specs, web — browser UI tests, both)",
+            choices=["api", "web", "both"],
+            default="api",
+        ),
         Question(id="base_image", kind="input", prompt=base_image_prompt, default=hints[-1]),
         Question(
             id="image",
@@ -97,31 +106,7 @@ def pybuggy_questions() -> list[Question]:
             prompt="Built image name",
             default=f"{project_name}:latest" if project_name is not None else None,
         ),
-        Question(id="base_url", kind="input", prompt="Base URL (Jinja2 template, required)"),
     ]
-
-    for member in PluginConfigKeys:
-        if member in (PluginConfigKeys.BASE_URL, PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER):
-            continue
-
-        items.append(Question(id=member.value, kind="input", default="", prompt=_SCALAR_PROMPTS[member]))
-
-    items.append(
-        QuestionGroup(
-            id="first_spec",
-            prompt="The first spec",
-            children=[
-                Question(id="name", kind="input", prompt="Spec name"),
-                Question(id="type", kind="choice", prompt="Spec type", choices=list(_SPEC_TYPES)),
-                Question(id="location", kind="input", prompt="Spec location (path from project root)"),
-                Question(id="git_url", kind="input", default="", prompt="Git URL (empty — no git source)"),
-                Question(id="git_location", kind="input", default="", prompt="Path inside the repository"),
-                Question(id="git_ref", kind="input", default="", prompt="Git ref (branch/tag; empty — default branch)"),
-            ],
-        )
-    )
-
-    return items
 
 
 def _required(prompt: str) -> str:
@@ -143,34 +128,69 @@ def _required(prompt: str) -> str:
     return value
 
 
-def survey_extra_specs() -> list[dict[str, object]]:
-    """Interactively survey the additional specs — the confirm-gated per-field follow-up.
+def survey_api_options() -> dict[str, object]:
+    """Interactively survey the api plugin options — the api branch of the amendment moment.
 
-    The repeating confirm accepts any number of extras; empty git fields mean no source / default branch.
+    The base URL is required (an empty entry re-asks); every scalar member is an
+    Enter-to-skip optional, so unanswered keys drop from the returned mapping. The prompt
+    texts are preserved from the former declarative block so both flows read as one.
 
     Returns:
-        The surveyed specs — one mapping per accepted spec, keyed by the ``first_spec``
-        child ids (``name``/``type``/``location``/``git_url``/``git_location``/``git_ref``).
+        The answered api scalar keys — ``base_url`` plus every scalar member carrying an answer.
 
     Raises:
         click.Abort: Forwarded unchanged from a cancelled prompt; the mediator drops the
             contribution with a warning.
     """
-    surveyed: list[dict[str, object]] = []
+    answers: dict[str, object] = {"base_url": _required("Base URL (Jinja2 template, required)")}
+
+    for member in PluginConfigKeys:
+        if member in (PluginConfigKeys.BASE_URL, PluginConfigKeys.HEADERS, PluginConfigKeys.LOADER):
+            continue
+
+        value = click.prompt(_SCALAR_PROMPTS[member], default="", show_default=False)
+
+        if value:
+            answers[member.value] = value
+
+    return answers
+
+
+def _survey_one_spec() -> dict[str, object]:
+    """Ask one spec's fields in the fixed order — the shared body of the first and additional specs.
+
+    Returns:
+        The surveyed spec mapping keyed by the field names
+        (``name``/``type``/``location``/``git_url``/``git_location``/``git_ref``).
+    """
+    return {
+        "name": _required("Spec name"),
+        "type": click.prompt("Spec type", type=click.Choice(list(_SPEC_TYPES))),
+        "location": _required("Spec location (path from project root)"),
+        "git_url": click.prompt("Git URL (empty — no git source)", default="", show_default=False).strip(),
+        "git_location": click.prompt("Path inside the repository", default="", show_default=False).strip(),
+        "git_ref": click.prompt("Git ref (branch/tag; empty — default branch)", default="", show_default=False).strip(),
+    }
+
+
+def survey_specs() -> list[dict[str, object]]:
+    """Interactively survey the specs — the first spec and the confirm-gated additional specs.
+
+    The first spec is asked field by field, then the repeating confirm accepts any number of
+    extras in the same field order; empty git fields mean no source / default branch.
+
+    Returns:
+        The surveyed specs — one mapping per accepted spec, the first spec first, keyed by
+        the spec field names (``name``/``type``/``location``/``git_url``/``git_location``/``git_ref``).
+
+    Raises:
+        click.Abort: Forwarded unchanged from a cancelled prompt; the mediator drops the
+            contribution with a warning.
+    """
+    surveyed: list[dict[str, object]] = [_survey_one_spec()]
 
     while click.confirm("Add another spec?", default=False):
-        spec: dict[str, object] = {
-            "name": _required("Spec name"),
-            "type": click.prompt("Spec type", type=click.Choice(list(_SPEC_TYPES))),
-            "location": _required("Spec location (path from project root)"),
-            "git_url": click.prompt("Git URL (empty — no git source)", default="", show_default=False).strip(),
-            "git_location": click.prompt("Path inside the repository", default="", show_default=False).strip(),
-            "git_ref": click.prompt(
-                "Git ref (branch/tag; empty — default branch)", default="", show_default=False
-            ).strip(),
-        }
-
-        surveyed.append(spec)
+        surveyed.append(_survey_one_spec())
 
     return surveyed
 
@@ -196,9 +216,32 @@ def survey_autonomy() -> dict[str, bool]:
     }
 
 
+def survey_web_config() -> dict[str, object]:
+    """Interactively survey the web minimum — the web branch of the amendment moment.
+
+    The minimum only — the remaining ``WebConfigKeys`` arrive as commented examples in the
+    written ``web.yml`` (the bootstrap's example documentation).
+
+    Returns:
+        The five surveyed keys — ``provider``, ``generation_model``, ``classification_model``,
+        ``browser_name``, and ``headless`` — the exact shape :func:`build_web_config_data` maps.
+
+    Raises:
+        click.Abort: Forwarded unchanged from a cancelled prompt; the mediator drops the
+            contribution with a warning.
+    """
+    return {
+        "provider": click.prompt("Provider", type=click.Choice(["openai", "anthropic"]), default="openai"),
+        "generation_model": _required("Generation model (step-code generation)"),
+        "classification_model": _required("Classification model (step classification)"),
+        "browser_name": click.prompt("Browser name", default="chromium"),
+        "headless": click.confirm("Run the browser headless?", default=True),
+    }
+
+
 def build_config_data(
     answers: dict[str, object],
-    extra_specs: list[dict[str, object]] | None = None,
+    specs: list[dict[str, object]],
     autonomous: dict[str, bool] | None = None,
 ) -> dict[str, object]:
     """Build the plain serializable tool-config payload from the session answers.
@@ -206,20 +249,21 @@ def build_config_data(
     The payload is plain serializable data only — the engine ``yaml.dump``s it verbatim.
 
     Args:
-        answers: The pybuggy answer view (core sections plus the own block under local names).
-        extra_specs: The ``survey_extra_specs`` mappings; None when the gate was declined.
-        autonomous: The ``survey_autonomy`` answers keyed by axis; None (also the default)
-            or an all-disabled mapping writes no axis entries.
+        answers: The pybuggy answer view — the ``survey_api_options`` answers plus the block
+            answers under local names.
+        specs: The ``survey_specs`` output — the surveyed spec mappings, the first spec first.
+        autonomous: The ``survey_autonomy`` answers keyed by axis; absent, None, or an
+            all-disabled mapping writes no axis entries.
 
     Returns:
         The tool-config payload keyed in plugin key order, then ``pipelines`` holding one
         entry per enabled axis, with ``specs`` last.
 
     Raises:
-        ValueError: If a numeric member's answer cannot coerce to its target type (the
-            mediator soft-drops the contribution).
+        ValueError: If a numeric member's answer cannot coerce to its target type, or the
+            first surveyed spec is invalid (the mediator soft-drops the contribution).
     """
-    specs = parse_specs(answers.get("first_spec") or {}, extra_specs)
+    typed_specs = parse_specs(specs[0], specs[1:] or None)
     data: dict[str, object] = {}
 
     for member in PluginConfigKeys:
@@ -237,9 +281,35 @@ def build_config_data(
     if enabled_axes:
         data["pipelines"] = {axis: {"autonomous": True} for axis in enabled_axes}
 
-    data["specs"] = {name: entry.model_dump(exclude_none=True) for name, entry in specs.items()}
+    data["specs"] = {name: entry.model_dump(exclude_none=True) for name, entry in typed_specs.items()}
 
     return data
+
+
+def build_web_config_data(web_answers: dict[str, object]) -> dict[str, object]:
+    """Build the plain serializable web-config payload from the surveyed web answers.
+
+    The keys are spelled via ``WebConfigKeys`` members — data-driven, no duplicated literals;
+    the payload order is the insertion order the example documentation walks.
+
+    Args:
+        web_answers: The ``survey_web_config`` answers.
+
+    Returns:
+        The payload carrying the surveyed minimum (the provider, the two models, the browser
+        group) plus the explicit ``strict`` and ``interactive`` defaults.
+    """
+    return {
+        WebConfigKeys.PROVIDER.value: web_answers["provider"],
+        WebConfigKeys.GENERATION_MODEL.value: web_answers["generation_model"],
+        WebConfigKeys.CLASSIFICATION_MODEL.value: web_answers["classification_model"],
+        WebConfigKeys.BROWSER.value: {
+            "name": web_answers["browser_name"],
+            "headless": web_answers["headless"],
+        },
+        WebConfigKeys.STRICT.value: False,
+        WebConfigKeys.INTERACTIVE.value: False,
+    }
 
 
 def _pybuggy_version_axis() -> str:
@@ -442,11 +512,13 @@ def declare_pybuggy_session(context: object) -> None:
 
 
 def amend_pybuggy_config(context: object) -> None:
-    """Amend the session answers and buffer the tool config (participation moment two).
+    """Amend the session answers and buffer the tool configs (participation moment two).
 
-    No-op unless invited; the surveys run in order — the extra specs first, the autonomy
-    confirms after them, so the spec survey completes before the autonomy questions; any
-    exception makes the mediator drop the contribution (the session continues).
+    No-op unless invited; the kind answer gates the branches — the api branch surveys the
+    api options, the specs, and the autonomy confirms (in that order), the web branch
+    surveys the web minimum after it; the amendments buffer unconditionally (the image
+    inputs are kind-neutral); any exception makes the mediator drop the contribution (the
+    session continues).
 
     Args:
         context: The ``ToolContribution`` proxy delivered by name from the hooks platform.
@@ -454,15 +526,32 @@ def amend_pybuggy_config(context: object) -> None:
     Raises:
         ValueError: If a numeric answer cannot coerce — propagated so the mediator
             soft-drops the contribution.
+        click.Abort: Forwarded unchanged from a cancelled survey prompt — the same soft drop.
     """
     if not context.invited:
         return
 
     answers = context.answers
-    extra_specs = survey_extra_specs()
-    autonomous = survey_autonomy()
+    kind = str(answers.get("kind") or "api")
+
+    api_answers: dict[str, object] = {}
+    specs: list[dict[str, object]] = []
+    autonomous: dict[str, bool] = {}
+    web_answers: dict[str, object] = {}
+
+    if kind in ("api", "both"):
+        api_answers = survey_api_options()
+        specs = survey_specs()
+        autonomous = survey_autonomy()
+
+    if kind in ("web", "both"):
+        web_answers = survey_web_config()
 
     for id, value in build_config_amendments(answers).items():
         context.answer(id, value)
 
-    context.write_config("config.yml", build_config_data(answers, extra_specs, autonomous))
+    if kind in ("api", "both"):
+        context.write_config("api.yml", build_config_data({**answers, **api_answers}, specs, autonomous))
+
+    if kind in ("web", "both"):
+        context.write_config("web.yml", build_web_config_data(web_answers))
