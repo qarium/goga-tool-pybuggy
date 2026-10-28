@@ -726,16 +726,16 @@ plain message; unknown events still render with their extras (nothing is hidden)
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (create `tests/web/test_logging_setup.py`; expected to fail):
+- [x] **Contract tests** (create `tests/web/test_logging_setup.py`; expected to fail):
   `from goga_tool_pybuggy.web.logging_setup import EventLogFormatter, install_event_log_formatter`;
   `EventLogFormatter` is a `logging.Formatter` subclass constructible with `(fmt, datefmt)`;
   `install_event_log_formatter` is a module-level callable
-- [ ] **Code**: create `goga_tool_pybuggy/web/logging_setup.py` — module docstring, the four
+- [x] **Code**: create `goga_tool_pybuggy/web/logging_setup.py` — module docstring, the four
   module constants, the formatter per the trace, the idempotent installer per the trace, Google
   docstrings
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_logging_setup.py -v`
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_logging_setup.py -v`
   — pass
-- [ ] **Logic tests** (design scenarios, verbatim):
+- [x] **Logic tests** (design scenarios, verbatim):
   - `test_install_event_log_formatter_idempotent` — clear the `prettyplay` logger handlers first
     (test isolation); call `install_event_log_formatter()` twice; asserts exactly one handler
     afterwards, a `StreamHandler` on `sys.stdout` carrying an `EventLogFormatter`, logger level
@@ -751,11 +751,11 @@ plain message; unknown events still render with their extras (nothing is hidden)
   - `test_event_log_formatter_record_without_event` (edge) — input a record with no `event`
     attribute and extras; asserts extras appended (`getattr(record, "event", None)` — no
     `AttributeError`)
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
   all tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: the five human-readable event names exact; the installer
+- [x] **Contract re-verification**: the five human-readable event names exact; the installer
   touches only the `prettyplay` logger; idempotency guard present
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 6: `AllureStepHooks` in `web/allure_hooks.py` (TDD)
