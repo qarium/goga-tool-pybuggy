@@ -1484,26 +1484,26 @@ criterion.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Full suite in the venv: `.venv/bin/python -m pytest tests/ -x` — every test green
+- [x] Full suite in the venv: `.venv/bin/python -m pytest tests/ -x` — every test green
   (existing suites included — no regressions from the rename, the gate, or the question set)
-- [ ] Lint gate (M3.5): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
+- [x] Lint gate (M3.5): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
   `ruff format --check goga_tool_pybuggy/web/ tests/web/` plus every file touched by Tasks 9–13
-- [ ] Facade checks:
+- [x] Facade checks:
   `.venv/bin/python -c "from goga_tool_pybuggy.web import AllureStepHooks, BrowserSettings, EventLogFormatter, WebConfig, WebConfigKeys, WebPlugin, build_pretty_config, install_event_log_formatter, validate_web_config, web_cache_path; print('web facade ok')"`
   and `.venv/bin/python -c "from goga_tool_pybuggy.plugin import WebPlugin; print('plugin addressable ok')"`
   (addressability via the plain import — `WebPlugin` is not in the plugin `__all__`) and
   `.venv/bin/python -c "from goga_tool_pybuggy.commands.init import survey_web_config; print('init facade ok')"`
-- [ ] CODEMANIFEST integrity: `goga lint` — **25 cells, 0 errors**
-- [ ] Doc sweep (design criterion, verbatim):
+- [x] CODEMANIFEST integrity: `goga lint` — **25 cells, 0 errors**
+- [x] Doc sweep (design criterion, verbatim):
   `grep -rn "tools/pybuggy/config.yml" docs/ goga_tool_pybuggy/ .goga/usages/` — the only
   remaining hits are the three deliberate clean-break notes naming the old file
   (docs/cli/init.md, goga_tool_pybuggy/config/.usages/configuration.md,
   goga_tool_pybuggy/commands/init/.usages/init.md); and
   `grep -rn "tools/pybuggy/config.yml" goga_tool_pybuggy/ --include="*.py"` is empty; do not
   reword the clean-break notes — they intentionally reference the old name
-- [ ] Coverage sanity (conventions tool): `.venv/bin/python -m pytest tests/ --cov=goga_tool_pybuggy/web
+- [x] Coverage sanity (conventions tool): `.venv/bin/python -m pytest tests/ --cov=goga_tool_pybuggy/web
   --cov-report=term-missing` — review the web cell report; every contract entity shows coverage
-- [ ] Commit gate (M3.4): with all gates green, stage and commit the working tree (contracts +
+- [x] Commit gate (M3.4): with all gates green, stage and commit the working tree (contracts +
   implementation + tests + docs already staged by the materialization stage are included);
   never commit red tests or lint errors
 
@@ -1533,28 +1533,28 @@ All commands run inside the repo virtualenv (`.venv`, created in Task 1; activat
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location` (seven web modules; config
+- [x] Every contract entity is implemented in the correct `location` (seven web modules; config
       rename; plugin gate; six new + seven changed init routines)
-- [ ] Every web contract entity is accessible from the facade (10-name `__all__`); the init
+- [x] Every web contract entity is accessible from the facade (10-name `__all__`); the init
       facade exports exactly 25 names
-- [ ] Properties and methods match the declared API (field order, defaults, signatures)
-- [ ] Descriptions are reflected in behavior (error texts, OR-semantics, cache addressing,
+- [x] Properties and methods match the declared API (field order, defaults, signatures)
+- [x] Descriptions are reflected in behavior (error texts, OR-semantics, cache addressing,
       guards, idempotency, kind branching)
-- [ ] Contract dependencies are met (plugin→web, commands/init→web imports; web imports nothing
+- [x] Contract dependencies are met (plugin→web, commands/init→web imports; web imports nothing
       internal)
-- [ ] No re-export obligations exist (none declared) and none were invented
-- [ ] Every coding task followed the TDD workflow (contract tests → code → verification → logic
+- [x] No re-export obligations exist (none declared) and none were invented
+- [x] Every coding task followed the TDD workflow (contract tests → code → verification → logic
       tests → debugging → re-verification → lint)
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding task;
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding task;
       integration tests cover the cross-entity layering pin
-- [ ] Integration tests exist (Task 14) for the cross-entity scenario
-- [ ] No package boundary was expanded (no new cells; `WEB_CONFIG_FILE`/`CONFIG_FILE` are
+- [x] Integration tests exist (Task 14) for the cross-entity scenario
+- [x] No package boundary was expanded (no new cells; `WEB_CONFIG_FILE`/`CONFIG_FILE` are
       implementation-hint constants, not contract types)
-- [ ] `CODEMANIFEST` files were not modified (contract is read-only)
-- [ ] All validation commands pass (full suite, ruff check 0 errors, format-clean touched files,
+- [x] `CODEMANIFEST` files were not modified (contract is read-only)
+- [x] All validation commands pass (full suite, ruff check 0 errors, format-clean touched files,
       facade imports, `goga lint` 25/0, doc sweep empty over `*.py`)
-- [ ] Every Usages entry is mentioned in at least one task (`conventions`, `pluginator`,
+- [x] Every Usages entry is mentioned in at least one task (`conventions`, `pluginator`,
       `prettyplay`, `allure-pytest`, imported `pybuggy-web`)
-- [ ] Mandatory Rules M1–M4 held in every task: convention-aligned style, convention-based
+- [x] Mandatory Rules M1–M4 held in every task: convention-aligned style, convention-based
       tests, ruff lint/format gates at every stage and before every local commit, REPL cycle with
       code migration to source files
