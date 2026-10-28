@@ -9,5 +9,7 @@ CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/api.yml"
 
 SANDBOX_CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/sandbox.yml"
 
+WEB_CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/web.yml"
+
 ASSERT_TIMEOUT: Final[int | None] = None
 ASSERT_DELAY: Final[int | float | None] = None

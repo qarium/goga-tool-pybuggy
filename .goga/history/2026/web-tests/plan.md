@@ -1125,21 +1125,21 @@ which is all the gate and the tests need.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/plugin/test_install.py`, expected to fail before the gate):
+- [x] **Contract tests** (in `tests/plugin/test_install.py`, expected to fail before the gate):
   import `goga_tool_pybuggy.plugin.WebPlugin` is addressable (the plain import);
   `test_install_gates_web_plugin_on_document_presence` — setup `monkeypatch.chdir(tmp_path)`;
   namespace double; `mock.patch("goga_tool_pybuggy.plugin.WebPlugin")` — case A: write a minimal
   `web.yml` under `.goga/tools/pybuggy/`; case B: none; asserts A —
   `WebPlugin.assert_called_once_with()`, B — `WebPlugin.assert_not_called()`; both cases leave
   the api/sandbox gating intact (SandboxPlugin mock called only with its own document)
-- [ ] **Code**: `plugin/defaults.py` — add `WEB_CONFIG_FILE` (after `SANDBOX_CONFIG_FILE`,
+- [x] **Code**: `plugin/defaults.py` — add `WEB_CONFIG_FILE` (after `SANDBOX_CONFIG_FILE`,
   same literal style); `plugin/__init__.py` — `from ..web import WebPlugin` (absolute-in-package
   forbidden — relative only), the step-5 gate between the sandbox gate and
   `install_pytest_plugins` (INFO `web plugin enabled` / DEBUG `web plugin absent`, structured
   `extra={"document": …}` per the sandbox lines), the `install()` docstring gains the web
   sentence; `__all__` unchanged
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/plugin/ -v` — pass
-- [ ] **Logic tests** (design scenarios, verbatim):
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/plugin/ -v` — pass
+- [x] **Logic tests** (design scenarios, verbatim):
   - `test_install_web_gate_performs_no_validation` — setup an **invalid** `web.yml` (e.g.
     `provider: nope`); asserts the gate still constructs `WebPlugin` (the mock is called) —
     validation belongs to configure
@@ -1148,11 +1148,11 @@ which is all the gate and the tests need.
     `from goga_tool_pybuggy.plugin import defaults as plugin_defaults`) — the installation gate
     and the `@define.plugin` binding read different constants; this test is the only guard that
     they name the same document
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all
   tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: gate is presence-only (no validation call), zero-argument
+- [x] **Contract re-verification**: gate is presence-only (no validation call), zero-argument
   construction, contract step order (4 sandbox → 5 web → 6 install), `__all__` still four names
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 11: `commands/init/session.py` — kind-aware questions, surveys, payload builders (TDD)

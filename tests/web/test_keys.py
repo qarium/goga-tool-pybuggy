@@ -5,6 +5,7 @@ Covers the fixed 20-member key set in contract order and the standard web-config
 
 import typing as t
 
+from goga_tool_pybuggy.plugin import defaults as plugin_defaults
 from goga_tool_pybuggy.web.config import WebConfig
 from goga_tool_pybuggy.web.keys import CONFIG_FILE, WebConfigKeys
 
@@ -65,9 +66,11 @@ class TestWebConfigKeysLogic:
 
     def test_web_config_keys_filename_names_the_document(self):
         # FILENAME names the document file; CONFIG_FILE is built from it (the plugin binding and
-        # error-naming source).
+        # error-naming source). The plugin cell's gate constant names the same document — the
+        # installation gate and the @define.plugin binding read different constants.
         assert WebConfigKeys.FILENAME.value == "web.yml"
         assert CONFIG_FILE == ".goga/tools/pybuggy/web.yml"
+        assert plugin_defaults.WEB_CONFIG_FILE == CONFIG_FILE
 
     def test_web_config_keys_members_mirror_web_config_fields(self):
         # The 19 scalar/browser key members (everything but FILENAME) equal the WebConfig field

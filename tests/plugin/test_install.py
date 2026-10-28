@@ -66,6 +66,13 @@ class TestInstallContract:
         assert len(var_keyword) == 1
         assert var_keyword[0].name == "kwargs"
 
+    def test_web_plugin_addressable_through_the_plain_import(self):
+        """`WebPlugin` is addressable on the plugin module via the plain import — never re-exported."""
+        from goga_tool_pybuggy.web import WebPlugin
+
+        assert goga_tool_pybuggy.plugin.WebPlugin is WebPlugin
+        assert "WebPlugin" not in goga_tool_pybuggy.plugin.__all__
+
 
 class TestInstallLogic:
     """Behavioral logic tests for `install`."""
@@ -137,6 +144,57 @@ class TestInstallLogic:
 
         assert len(plugins) == 1
         assert isinstance(plugins[0], goga_tool_pybuggy.plugin.ApiPlugin)
+
+    def test_install_gates_web_plugin_on_document_presence(self, tmp_path, monkeypatch):
+        """The web document gates the web plugin by presence only — with it ``WebPlugin()``
+        joins the installation with zero arguments; without it nothing web-related is
+        registered, and the api/sandbox gating stays keyed on their own documents."""
+        namespace = types.ModuleType("ctx")
+        web_document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        web_document.parent.mkdir(parents=True)
+
+        # Case A: the web document present — the web plugin joins, the sandbox gate stays shut.
+        web_document.write_text("provider: openai\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        with (
+            mock.patch("goga_tool_pybuggy.plugin.WebPlugin") as web_plugin,
+            mock.patch("goga_tool_pybuggy.plugin.SandboxPlugin") as sandbox_plugin,
+        ):
+            goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+
+            web_plugin.assert_called_once_with()
+            sandbox_plugin.assert_not_called()  # no sandbox.yml — its own gate decides
+
+        assert callable(namespace.pytest_addoption)  # the api installation path stays intact
+        assert callable(namespace.pytest_configure)
+
+        # Case B: no web document — the web plugin is never constructed.
+        web_document.unlink()
+
+        with (
+            mock.patch("goga_tool_pybuggy.plugin.WebPlugin") as web_plugin,
+            mock.patch("goga_tool_pybuggy.plugin.SandboxPlugin") as sandbox_plugin,
+        ):
+            goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+
+            web_plugin.assert_not_called()
+            sandbox_plugin.assert_not_called()
+
+    def test_install_web_gate_performs_no_validation(self, tmp_path, monkeypatch):
+        """An invalid web document still passes the presence-only gate — structure and
+        semantics are validated by the web plugin itself at configphase, never here."""
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text("provider: nope\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        namespace = types.ModuleType("ctx")
+
+        with mock.patch("goga_tool_pybuggy.plugin.WebPlugin") as web_plugin:
+            goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+
+        web_plugin.assert_called_once_with()
 
     def test_invalid_document_fails_at_configure_not_at_install(self, tmp_path, monkeypatch):
         """An invalid document passes the presence gate and fails at the configure step —

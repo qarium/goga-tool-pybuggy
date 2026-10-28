@@ -10,6 +10,7 @@ from pathlib import Path
 from pluginator import call_context, install_pytest_plugins
 
 from ..sandbox.engines import normalize_container_host
+from ..web import WebPlugin
 from . import defaults
 from .loaders import PackageLoader
 from .plugin import ApiPlugin, PluginConfigKeys
@@ -32,6 +33,12 @@ def install(**kwargs: object) -> None:
     nothing sandbox-related is registered, and a test requesting the ``sandbox`` fixture gets
     pytest's standard "fixture 'sandbox' not found".
 
+    The web document ``.goga/tools/pybuggy/web.yml`` gates the ``WebPlugin`` by presence only
+    as well: with the document the web plugin joins the same installation call and owns the
+    ``web`` fixture — it reads and validates its config itself at configphase —; without the
+    document nothing web-related is registered, and a test requesting the ``web`` fixture gets
+    pytest's standard "fixture 'web' not found".
+
     Args:
         kwargs: Forwarded to ``ApiPlugin``; ``context`` and ``loaders`` are defaulted here when omitted.
     """
@@ -46,5 +53,11 @@ def install(**kwargs: object) -> None:
         logger.info("sandbox plugin enabled", extra={"document": defaults.SANDBOX_CONFIG_FILE})
     else:
         logger.debug("sandbox plugin absent", extra={"document": defaults.SANDBOX_CONFIG_FILE})
+
+    if Path(defaults.WEB_CONFIG_FILE).is_file():
+        plugins.append(WebPlugin())
+        logger.info("web plugin enabled", extra={"document": defaults.WEB_CONFIG_FILE})
+    else:
+        logger.debug("web plugin absent", extra={"document": defaults.WEB_CONFIG_FILE})
 
     install_pytest_plugins(*plugins, context=kwargs["context"])
