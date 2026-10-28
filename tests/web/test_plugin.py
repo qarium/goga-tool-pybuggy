@@ -323,6 +323,21 @@ class TestWebPluginConfigure:
         assert flagged.strict is True
         assert unflagged.strict is False
 
+    def test_configure_applies_cli_authority_interactive_flag(self, monkeypatch: pytest.MonkeyPatch):
+        """A typed ``--interactive`` flag beats an explicit ``interactive: false`` in the document."""
+        flagged = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": {"name": "chromium"}, "interactive": False},
+            config=_FakePytestConfig(interactive=True),
+        )
+        unflagged = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": {"name": "chromium"}, "interactive": False},
+        )
+
+        assert flagged.interactive is True
+        assert unflagged.interactive is False
+
     def test_configure_fails_configphase_on_invalid_document(self, monkeypatch: pytest.MonkeyPatch):
         """A structurally invalid document fails the run naming the document."""
         plugin = WebPlugin()
@@ -343,6 +358,59 @@ class TestWebPluginConfigure:
             plugin.configure()
 
         assert isinstance(excinfo.value.__cause__, YAMLError)
+        assert plugin.activation is None
+
+
+class TestWebPluginConfigureRealDocument:
+    """Configphase against the real on-disk document — the pluginator read seam."""
+
+    def test_configure_reads_the_real_document_from_the_standard_path(self, web_config):
+        """A valid document at the fixed path configures the plugin through the real reader."""
+        web_config(
+            "provider: anthropic\n"
+            "generation_model: g\n"
+            "classification_model: c\n"
+            "browser:\n"
+            "  name: firefox\n"
+            "  headless: false\n"
+        )
+
+        plugin = WebPlugin()
+        plugin.init_pytest_config(_FakePytestConfig())
+        plugin.configure()
+
+        assert plugin.activation is not None
+        assert plugin.activation.provider == "anthropic"
+        assert plugin.activation.browser.name == "firefox"
+        assert plugin.activation.browser.headless is False
+
+    def test_configure_fails_on_an_unparsable_real_document(self, web_config):
+        """A malformed document on disk fails configphase with the parse cause chained."""
+        web_config("provider: [unclosed\n")
+
+        plugin = WebPlugin()
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: unparsable document") as excinfo:
+            plugin.configure()
+
+        assert isinstance(excinfo.value.__cause__, YAMLError)
+        assert plugin.activation is None
+
+    def test_configure_reports_a_non_mapping_real_document_as_empty(self, web_config):
+        """A list document collapses to the reader's empty default — the empty-document rejection.
+
+        The pluginator reader replaces a non-mapping parse with its default (empty) config, so
+        the user-facing failure of such a file is the empty-document error, not the mapping one.
+        """
+        web_config("- just\n- a list\n")
+
+        plugin = WebPlugin()
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match="the document is empty"):
+            plugin.configure()
+
         assert plugin.activation is None
 
 
@@ -370,6 +438,21 @@ class TestWebPluginWebFixture:
 
         with pytest.raises(StopIteration):
             next(generator)
+
+        assert made[0].exited
+
+    def test_web_fixture_closes_runtime_when_test_fails(self, monkeypatch: pytest.MonkeyPatch):
+        """An exception raised in the test body still closes the runtime — no browser leak."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(monkeypatch)
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        with pytest.raises(AssertionError, match="test failed"):
+            generator.throw(AssertionError("test failed"))
 
         assert made[0].exited
 

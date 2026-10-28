@@ -1,12 +1,14 @@
 """Tests for the `goga_tool_pybuggy.web.allure_hooks` module (the Allure step reporting hooks)."""
 
+import importlib
 import inspect
+import sys
 from contextlib import ExitStack
 
 import allure
 import goga_tool_pybuggy.web.allure_hooks as allure_hooks_module
 import pytest
-from goga_tool_pybuggy.web.allure_hooks import AllureStepHooks
+from goga_tool_pybuggy.web.allure_hooks import AllureStepHooks, _AllureStepWrapper
 from playwright.sync_api import Error as PlaywrightError
 from prettyplay import StepHooks
 from prettyplay.failures import PrettyplayError
@@ -19,6 +21,21 @@ class TestAllureStepHooksContract:
         """The module carries the guarded ``allure`` import — the real package in this environment."""
         assert allure_hooks_module.allure is allure
         assert allure_hooks_module.allure is not None
+
+    def test_guarded_import_survives_a_missing_package(self):
+        """A reload without an importable allure leaves the attribute ``None`` — no hook crash."""
+        saved_allure = sys.modules["allure"]
+        sys.modules["allure"] = None  # an ImportError at the guarded import
+
+        try:
+            reloaded = importlib.reload(allure_hooks_module)
+
+            assert reloaded.allure is None
+        finally:
+            sys.modules["allure"] = saved_allure
+            importlib.reload(allure_hooks_module)
+
+        assert allure_hooks_module.allure is saved_allure
 
     def test_allure_step_hooks_is_step_hooks_subclass(self):
         """``AllureStepHooks`` subclasses the prettyplay ``StepHooks`` contract."""
@@ -85,6 +102,48 @@ def _stack_depth(stack: ExitStack) -> int:
         The number of contexts the stack still owes an exit.
     """
     return len(stack._exit_callbacks)
+
+
+class _RecordingStepContext:
+    """Allure step-context double recording the exit arguments it receives.
+
+    Attributes:
+        title: The step title the context was entered under.
+        exits: The shared list the context appends its ``(title, exc_type, exc_val)`` exit to.
+    """
+
+    def __init__(self, title: str, exits: list[tuple[str, type | None, BaseException | None]]) -> None:
+        """Hold the title and the shared exit recorder.
+
+        Args:
+            title: The step title.
+            exits: The shared list every context exit appends to.
+        """
+        self.title = title
+        self._exits = exits
+
+    def __enter__(self) -> "_RecordingStepContext":
+        """Enter the recording context.
+
+        Returns:
+            The double itself.
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: object,
+    ) -> None:
+        """Record the exit arguments handed over by the wrapper.
+
+        Args:
+            exc_type: The exception type the wrapper passed.
+            exc_value: The exception value the wrapper passed.
+            traceback: The traceback the wrapper passed.
+        """
+        self._exits.append((self.title, exc_type, exc_value))
 
 
 class TestAllureStepHooksLogic:
@@ -155,3 +214,46 @@ class TestAllureStepHooksLogic:
         assert _stack_depth(hooks._step_stack) == 0
         assert _stack_depth(hooks._group_stack) == 0
         assert hooks._step._failed_exception is None
+
+    def test_allure_step_wrapper_exit_args_carry_the_exception_instance(self, monkeypatch):
+        """The allure context exits with the mapped class AND its instance — never a bare class.
+
+        An assertion failure exits ``AssertionError``, an action failure the generic
+        ``Exception`` the docstrings promise, and a real exception leaving the block keeps its
+        own type and instance.
+        """
+        exits: list[tuple[str, type | None, BaseException | None]] = []
+        attaches: list[tuple[tuple, dict]] = []
+        monkeypatch.setattr(allure, "step", lambda title: _RecordingStepContext(title, exits))
+        monkeypatch.setattr(allure, "attach", lambda *args, **kwargs: attaches.append((args, kwargs)))
+
+        hooks = AllureStepHooks(_ScreenshotPlay(b"PNG"))
+
+        hooks.on_step_started("Find results", "assertion")
+        hooks.on_step_failed("Find results", "assertion", "not found")
+        hooks.on_step_finished("Find results", "assertion", "failed")
+
+        hooks.on_step_started("Click search", "action")
+        hooks.on_step_failed("Click search", "action", "not clickable")
+        hooks.on_step_finished("Click search", "action", "failed")
+
+        wrapper = _AllureStepWrapper("[action] boom")
+
+        def _leave_through_wrapper() -> None:
+            with wrapper:
+                wrapper.fail("exploded", cls=Exception)
+
+                raise RuntimeError("boom")
+
+        with pytest.raises(RuntimeError, match="boom"):
+            _leave_through_wrapper()
+
+        # Exception instances compare by identity — the exit args are pinned structurally.
+        assert [(title, exc_type, str(exc_val)) for title, exc_type, exc_val in exits] == [
+            ("[assertion] Find results", AssertionError, "not found"),
+            ("[action] Click search", Exception, "not clickable"),
+            ("[action] boom", RuntimeError, "boom"),
+        ]
+        assert all(isinstance(exc_val, BaseException) for _title, _exc_type, exc_val in exits)
+        assert all(type(exc_val) is exc_type for _title, exc_type, exc_val in exits)
+        assert len(attaches) == 2  # the two failed steps attached their screenshots

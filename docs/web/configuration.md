@@ -1,0 +1,77 @@
+# Web — Configuration
+
+The web test kind reads a single YAML file — `.goga/tools/pybuggy/web.yml` — from a
+**fixed path** relative to the current working directory. There is no `--web-config`
+option. The file is read by the web plugin at pytest configuration; an invalid document
+fails the run before any collection or browser start. `goga tool pybuggy init`
+(test kind `web` or `both`) writes the surveyed minimum as active keys and documents
+every remaining key inside the file as a commented example record.
+
+LLM API keys are **never** written to this file — they live only in the environment or
+`.env`.
+
+## Keys
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `provider` | `openai` \| `anthropic` | `openai` | the LLM provider of the one-time step generation |
+| `base_url` | `str` | `""` | the optional LLM API proxy endpoint; empty uses the provider default |
+| `model` | `str` | `""` | the shared model override; empty means no override |
+| `generation_model` | `str` | `""` | the model for step-code generation |
+| `classification_model` | `str` | `""` | the model for step classification |
+| `generation_prompt` | `str` | `""` | extra instructions appended to the generation prompt |
+| `classification_prompt` | `str` | `""` | extra instructions appended to the classification prompt |
+| `strict` | `bool` | `false` | the replay-only default — zero LLM calls, a cache miss fails; `--strict-mode` forces it on |
+| `interactive` | `bool` | `false` | the interactive step-healing default; `--interactive` forces it on |
+| `polling_timeout` | `float` | `None` | the assertion polling timeout; `None` keeps the runtime default |
+| `polling_delay` | `float` | `0.5` | the delay between polling attempts, seconds |
+| `generation_attempts` | `int` | `3` | blind generation attempts before diagnosis |
+| `healing_attempts` | `int` | `2` | healing attempts for a failing step |
+| `llm_request_attempts` | `int` | `3` | retries of a failed LLM request |
+| `send_screenshots` | `bool` | `false` | attach screenshots to LLM requests |
+| `generation_approve` | `bool` | `true` | confirm generated code before caching |
+| `probe_timeout` | `float` | `0` | the locator probe timeout, seconds; `0` keeps the page default |
+| `cache_root` | `str` | `""` | the root directory of the step cache; empty selects the per-test default (the test's own module directory) |
+| `browser` | mapping | see below | the nested browser settings |
+
+The `browser` section:
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `browser.name` | `str` | `chromium` | the browser or channel name (`chromium`, `firefox`, `webkit`, `chrome`, `msedge`) |
+| `browser.headless` | `bool` | `true` | run the browser without a visible window |
+| `browser.screen` | `str` | `""` | the screen mode; empty keeps the runtime default |
+| `browser.endpoint` | `str` | `""` | a remote Playwright endpoint; empty runs locally |
+| `browser.accept_dialogs` | `bool` | `false` | auto-accept dialogs |
+| `browser.speed` | `int` | `100` | the execution speed in percent |
+| `browser.timeout` | `float` | `30` | the default page timeout, seconds |
+
+An omitted key behaves as the library default; unknown keys are a hard error (the
+document is validated strictly).
+
+## The surveyed minimum
+
+`goga tool pybuggy init` (test kind `web` or `both`) asks five questions — `provider`,
+`generation_model` (required), `classification_model` (required), `browser.name`
+(default `chromium`), `browser.headless` (default yes) — and writes exactly those keys
+plus explicit `strict: false` / `interactive: false`:
+
+```yaml
+provider: openai
+generation_model: glm-5.3
+classification_model: glm-5.3
+browser:
+  name: chromium
+  headless: true
+strict: false
+interactive: false
+```
+
+The bootstrap then documents every absent key inside the file as a commented example
+record, pinned before the next active key — idempotent, never touching active entries.
+
+## Related
+
+- [Web — Overview](index.md) — activation, writing tests, run modes, the step cache.
+- [CLI — init](../cli/init.md) — the kind-aware onboarding session and the web bootstrap.
+- [Pytest Plugin](../plugin/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` flags.

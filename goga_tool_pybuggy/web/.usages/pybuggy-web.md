@@ -61,7 +61,7 @@ runs) needs no LLM:
 
 ```
 tests/test_search.py
-tests/test_search/test_search/test_duckduckgo_search/   # the per-test cache
+tests/test_search/test_duckduckgo_search/   # the per-test cache
 ```
 
 The address is class-aware: a test inside `class TestLogin` gets `test_login/TestLogin/<test_name>`.

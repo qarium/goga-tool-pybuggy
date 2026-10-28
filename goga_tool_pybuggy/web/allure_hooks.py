@@ -68,10 +68,12 @@ class _AllureStepWrapper:
         Returns:
             The suppression decision of the underlying allure step context.
         """
-        error_to_raise = exc_type or self._failed_exception
+        # The instance leads — a real block exception by its value, a recorded failure by its
+        # recorded exception — and the class follows the instance, never a hardcoded mismatch.
+        error_to_raise = exc_value or self._failed_exception
 
         if error_to_raise:
-            return self._step.__exit__(AssertionError, error_to_raise, traceback)
+            return self._step.__exit__(type(error_to_raise), error_to_raise, traceback)
 
         return self._step.__exit__(None, None, None)
 

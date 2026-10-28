@@ -7,7 +7,9 @@ the config itself. (The sandbox capability reads a separate, fixed-path document
 [the sandbox document](sandbox/configuration.md); it is not part of this file. The sandbox service entries carry
 their own vocabulary — `kind`, `image`, `probe`, kafka `topics`, the optional,
 postgresql-only `migrations` block, and the redis `password`/`db` pair — covered there,
-not here.)
+not here. The web test kind likewise reads its own fixed-path document —
+`.goga/tools/pybuggy/web.yml`, described in [the web document](web/configuration.md) —
+and it is not part of this file either.)
 
 The file carries four concerns: the **plugin options** (feed the `api` fixture), the
 **`specs`** section (what the CLI commands operate on), the optional **`loader`**

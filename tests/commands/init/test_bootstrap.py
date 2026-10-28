@@ -314,6 +314,18 @@ class TestInstallPlaywright:
 
         assert "web config unreadable" in caplog.text
 
+        # A readable document without a usable browser name — no browser key, then an empty name —
+        # is the same lenient no-op.
+        for document in ("provider: openai\n", "browser: {name: ''}\n"):
+            (tools / "web.yml").write_text(document, encoding="utf-8")
+            caplog.clear()
+
+            with caplog.at_level(logging.WARNING):
+                assert install_playwright(dockerfile) is None
+
+            assert "web config unreadable" in caplog.text
+            assert dockerfile.read_text(encoding="utf-8") == "FROM base\n"
+
         (tools / "web.yml").write_text("browser:\n  name: chromium\n", encoding="utf-8")
         dockerfile.write_text("FROM base", encoding="utf-8")
 

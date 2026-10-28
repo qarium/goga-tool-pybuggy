@@ -52,6 +52,10 @@ class TestEventLogFormatterLogic:
         """Two installations leave exactly one stdout handler carrying the event formatter."""
         logger = logging.getLogger("prettyplay")
 
+        # Snapshot and restore — the global logger state must not leak across tests.
+        handlers_before = logger.handlers[:]
+        level_before = logger.level
+
         logger.handlers.clear()
 
         try:
@@ -67,7 +71,37 @@ class TestEventLogFormatterLogic:
             assert isinstance(handler.formatter, EventLogFormatter)
             assert logger.level == logging.INFO
         finally:
-            logger.handlers.clear()
+            logger.handlers[:] = handlers_before
+            logger.setLevel(level_before)
+
+    def test_install_event_log_formatter_keeps_foreign_handlers(self):
+        """A pre-existing non-event handler survives; the installer adds its own beside it."""
+        logger = logging.getLogger("prettyplay")
+
+        handlers_before = logger.handlers[:]
+        level_before = logger.level
+        foreign = logging.StreamHandler()
+
+        logger.handlers[:] = [foreign]
+
+        try:
+            install_event_log_formatter()
+
+            assert foreign in logger.handlers
+            assert len(logger.handlers) == 2
+
+            event_handlers = [
+                handler for handler in logger.handlers if isinstance(handler.formatter, EventLogFormatter)
+            ]
+
+            assert len(event_handlers) == 1
+
+            install_event_log_formatter()  # idempotent even beside the foreign handler
+
+            assert len(logger.handlers) == 2
+        finally:
+            logger.handlers[:] = handlers_before
+            logger.setLevel(level_before)
 
     @pytest.mark.parametrize(
         "event",
@@ -113,3 +147,14 @@ class TestEventLogFormatterLogic:
         rendered = formatter.format(record)
 
         assert rendered.endswith(" | model='glm'")
+
+    def test_event_log_formatter_unknown_event_without_extras_renders_plain(self):
+        """A non-human-readable event carrying no extras renders the message with no tail."""
+        formatter = EventLogFormatter("%(asctime)s %(levelname)-7s %(message)s", "%H:%M:%S")
+
+        record = _record("plain event", "other_event")
+
+        rendered = formatter.format(record)
+
+        assert "plain event" in rendered
+        assert " | " not in rendered

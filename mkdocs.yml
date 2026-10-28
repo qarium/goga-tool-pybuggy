@@ -74,6 +74,9 @@ nav:
       - Overview: sandbox/index.md
       - Python API: sandbox/api.md
       - Configuration: sandbox/configuration.md
+  - Web:
+      - Overview: web/index.md
+      - Configuration: web/configuration.md
   - Matchers:
       - Overview & assert_that: matchers/index.md
       - Assertions: matchers/asserts.md

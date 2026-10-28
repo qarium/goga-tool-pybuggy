@@ -85,7 +85,7 @@ class _ScriptedClick:
     Sequence-strict: an unexpected or reordered ask fails the test at the exact prompt.
 
     Attributes:
-        confirm_calls: The confirm prompt texts, in ask order.
+        confirm_calls: The ``(prompt, default)`` confirm calls, in ask order.
         prompt_calls: The ``(text, default)`` prompt calls, in ask order.
     """
 
@@ -98,7 +98,7 @@ class _ScriptedClick:
         """
         self._confirms = list(confirms)
         self._prompts = list(prompts)
-        self.confirm_calls: list[str] = []
+        self.confirm_calls: list[tuple[str, bool]] = []
         self.prompt_calls: list[tuple[str, object | None]] = []
 
     def confirm(self, prompt: str, default: bool = False, **_: object) -> bool:
@@ -106,13 +106,13 @@ class _ScriptedClick:
 
         Args:
             prompt: The gate text the survey asks.
-            default: The offered default (recorded by the caller's kwargs, unused).
+            default: The offered default (recorded with the prompt — the pin of the gate default).
             **_: The remaining click kwargs (absorbed).
 
         Returns:
             The next scripted gate answer.
         """
-        self.confirm_calls.append(prompt)
+        self.confirm_calls.append((prompt, default))
         return self._confirms.pop(0)
 
     def prompt(self, prompt: str, default: object = None, **_: object) -> object:
@@ -348,7 +348,7 @@ class TestSurveySpecs:
                 "git_ref": "",
             }
         ]
-        assert scripted.confirm_calls == ["Add another spec?"]
+        assert scripted.confirm_calls == [("Add another spec?", False)]
 
     def test_survey_specs_loops_until_declined(self, monkeypatch):
         """The gate repeats after every accepted spec — the first spec stays first."""
@@ -372,7 +372,7 @@ class TestSurveySpecs:
         _patch_scripted_click(monkeypatch, scripted)
 
         assert survey_specs() == [dict(_FIRST_SPEC), dict(_EXTRA_SPEC)]
-        assert scripted.confirm_calls == ["Add another spec?"] * 2
+        assert scripted.confirm_calls == [("Add another spec?", False)] * 2
 
     def test_survey_specs_reasks_required_fields(self, monkeypatch):
         """Empty name and location entries re-ask with the (required) prompt suffix."""
@@ -413,8 +413,8 @@ class TestSurveyAutonomy:
 
         assert survey_autonomy() == {"api.automate": False, "api.patch": False}
         assert scripted.confirm_calls == [
-            "Run the api.automate pipeline unattended (autonomous mode)?",
-            "Run the api.patch pipeline unattended (autonomous mode)?",
+            ("Run the api.automate pipeline unattended (autonomous mode)?", False),
+            ("Run the api.patch pipeline unattended (autonomous mode)?", False),
         ]
 
     def test_survey_autonomy_acceptance_enables_each_axis(self, monkeypatch):
@@ -455,7 +455,7 @@ class TestSurveyWebConfig:
             "Classification model (step classification)",
             "Browser name",
         ]
-        assert scripted.confirm_calls == ["Run the browser headless?"]
+        assert scripted.confirm_calls == [("Run the browser headless?", True)]
 
     def test_survey_web_config_reasks_empty_models(self, monkeypatch):
         """Empty model entries re-ask with the (required) prompt suffix."""

@@ -5,7 +5,10 @@ it turns OpenAPI/Swagger specifications into ready-made pytest fixtures — HTTP
 endpoint fixtures, response schemas, per-endpoint `meta.json` input contracts (query
 parameters, request body, URL variables) — and wires everything into the consumer's test
 suite; **Sandbox** — session-scoped isolated service testing driven by a sandbox document
-at `.goga/tools/pybuggy/sandbox.yml` and the product `sandbox` pytest fixture. The
+at `.goga/tools/pybuggy/sandbox.yml` and the product `sandbox` pytest fixture; **Web** —
+browser UI tests written as plain step sentences, turned into Playwright code by an LLM
+once and replayed from a committed cache LLM-free, driven by a web document at
+`.goga/tools/pybuggy/web.yml` and the `web` pytest fixture. The
 package contains a pytest plugin and a CLI.
 
 ## What you get
@@ -36,6 +39,12 @@ package contains a pytest plugin and a CLI.
   across per-test resets; per-test resets and data presets are product-owned, keeping
   tests order-independent. Requires a docker-compatible container runtime (see
   [Sandbox](sandbox/index.md)).
+- **Web** — browser UI tests as step sentences: a web document at
+  `.goga/tools/pybuggy/web.yml` provides the `web` pytest fixture; each
+  `web.step("Open https://…")` sentence becomes Playwright code through an LLM once,
+  is cached next to the test, and replays LLM-free (`--strict-mode` for CI);
+  `web.expect(...)` polls assertions, `web.group(...)` frames mini-scenarios, and
+  Allure reports steps, groups, and failure screenshots (see [Web](web/index.md)).
 
 ## Quickstart
 
@@ -61,5 +70,7 @@ fine-grained control: [CLI Reference](cli/init.md).
 - [Configuration](configuration.md) — `.goga/tools/pybuggy/api.yml`.
 - [Sandbox](sandbox/index.md) — `.goga/tools/pybuggy/sandbox.yml` and the product `sandbox`
   fixture for session-scoped service testing.
+- [Web](web/index.md) — `.goga/tools/pybuggy/web.yml` and the `web` fixture for browser UI
+  tests as step sentences.
 - [Matchers](matchers/index.md) — assertions and the matcher catalog.
 - [Pytest Plugin](plugin/index.md) — enabling, fixtures, options.

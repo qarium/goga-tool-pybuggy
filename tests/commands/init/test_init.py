@@ -766,6 +766,45 @@ class TestRunBootstrap:
         assert not (tools / "api.yml").exists()
         assert _error_records(caplog) == []
 
+    def test_run_bootstrap_both_kind_delivers_api_and_web_artifacts_together(self, tmp_path, monkeypatch, caplog):
+        """A both-kind tree (api.yml and web.yml) interleaves the web step with the api steps."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        tools = tmp_path / ".goga" / "tools" / "pybuggy"
+        tools.mkdir(parents=True)
+        tool_config = tools / "api.yml"
+        tool_config.write_text(
+            "base_url: https://{{ HOST }}/api\nspecs:\n  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
+            encoding="utf-8",
+        )
+        web_config = tools / "web.yml"
+        web_config.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\n"
+            "browser:\n  name: firefox\n  headless: true\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 0
+
+        # Both documents gain their commented examples; the registrations carry both kinds.
+        assert "# headers: example (skipped complex member)" in tool_config.read_text(encoding="utf-8")
+        assert "# base_url: (skipped optional scalar)" in web_config.read_text(encoding="utf-8")
+
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        usages_record = config["codemanifest"]["usages"]
+        assert usages_record["pybuggy-web"] == ".goga/usages/cooks/pybuggy/pybuggy-web.md"
+        assert set(usages_record) == {"pybuggy-api", "pybuggy-asserts", "pybuggy-web", "conventions"}
+
+        dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
+        assert f"{_INSTALL_LINE}\n" in dockerfile
+        assert dockerfile.endswith("RUN playwright install --with-deps firefox\n")
+        assert _error_records(caplog) == []
+
     def test_run_bootstrap_api_only_skips_web_steps(self, tmp_path, monkeypatch, caplog):
         """An api-kind tree (api.yml, no web.yml) skips every web step — no registration, no line."""
         monkeypatch.chdir(tmp_path)

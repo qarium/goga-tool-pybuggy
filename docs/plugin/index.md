@@ -36,6 +36,14 @@ it, per-test resets and marked presets are product-owned, and a test binds its a
 the sandbox explicitly through `endpoint.bind(sandbox)` — every request then first
 applies the test's pending sandbox data (see [Sandbox](../sandbox/api.md)).
 
+The same `install()` call installs the **web plugin** as well: when
+`.goga/tools/pybuggy/web.yml` exists, the `web` fixture appears — the per-test browser
+runtime of the web test kind, where every step sentence becomes Playwright code once and
+replays from the committed cache (see [Web](../web/index.md)). The document is validated
+at pytest configuration — an invalid `web.yml` fails the run before any collection;
+without it nothing web-related is registered and a test requesting `web` fails with
+pytest's standard `fixture 'web' not found`.
+
 ## What enabling wires
 
 - **CLI options** — `--base-url` (resolves `base_url`, required; a typed flag overrides
@@ -46,6 +54,10 @@ applies the test's pending sandbox data (see [Sandbox](../sandbox/api.md)).
   (the assert-polling baseline). The remaining options (`headers`,
   `assert_field_class`, `assert_response_class`) have no CLI flag —
   config-file only. See [Configuration](../configuration.md).
+- **Web CLI options** — `--strict-mode` (replay-only: zero LLM calls, a cache miss
+  fails the test) and `--interactive` (interactive step healing), both `store_true`
+  flags of the web plugin; a typed flag forces its mode on — never off. See
+  [Web — run modes](../web/index.md#run-modes).
 - **`base_url` template** — a Jinja2 template rendered once at `pytest_configure`
   against `os.environ` + the CLI options you actually passed. Placeholders fed from the
   CLI require registering those options via `pytest_addoption` in `conftest.py`.
@@ -100,6 +112,10 @@ loader:
   the same `install()` call (the product `sandbox` fixture); the environment then needs a
   docker-compatible container runtime, but only when the run actually has sandbox tests —
   the containers start on the first one (see [Sandbox](../sandbox/index.md)).
+- A web document at `.goga/tools/pybuggy/web.yml` installs the web plugin on the same
+  `install()` call (the `web` fixture); the environment then needs the playwright
+  browser binaries — `playwright install --with-deps <browser>` — but only when the run
+  actually has web tests (see [Web](../web/index.md)).
 - The `api/` tree is discovered by default; a missing tree is tolerated
   (`required=False`).
 - The plugin reads `.goga/tools/pybuggy/api.yml` at import; a missing file is
