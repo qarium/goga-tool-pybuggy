@@ -1,0 +1,424 @@
+"""Tests for the `goga_tool_pybuggy.web.plugin` module (the web plugin and the cache path)."""
+
+import inspect
+import os
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import goga_tool_pybuggy.web.allure_hooks as allure_hooks_module
+import goga_tool_pybuggy.web.plugin as web_plugin_module
+import pytest
+from goga_tool_pybuggy.web.allure_hooks import AllureStepHooks
+from goga_tool_pybuggy.web.keys import CONFIG_FILE
+from goga_tool_pybuggy.web.plugin import WebPlugin, web_cache_path
+from prettyplay import PrettyConfig
+from yaml import YAMLError
+
+VALID_DOCUMENT = {
+    "provider": "openai",
+    "generation_model": "g",
+    "classification_model": "c",
+    "browser": {"name": "chrome"},
+}
+
+
+class _FakePytestConfig:
+    """Config double serving typed CLI flags and collecting ini registrations.
+
+    Attributes:
+        lines: The ``(name, line)`` pairs every ``addinivalue_line`` call registered.
+    """
+
+    def __init__(self, *, strict_mode: bool = False, interactive: bool = False) -> None:
+        self._options = {"strict_mode": strict_mode, "interactive": interactive}
+        self.lines: list[tuple[str, str]] = []
+
+    def getoption(self, name: str, default: Any = None) -> Any:
+        """Serve the typed flag by dest name, accepting the ``--flag`` form too.
+
+        Args:
+            name: The option dest (``strict_mode``) or flag (``--strict-mode``).
+            default: The value returned when the option is unknown.
+
+        Returns:
+            The configured flag value, or ``default`` for an unknown option.
+        """
+        if name.startswith("-"):
+            name = name.lstrip("-").replace("-", "_")
+
+        return self._options.get(name, default)
+
+    def addinivalue_line(self, name: str, line: str) -> None:
+        """Record one ini value registration.
+
+        Args:
+            name: The ini key being extended.
+            line: The registered line.
+        """
+        self.lines.append((name, line))
+
+
+class _RefusingPlugin(WebPlugin):
+    """Plugin double whose config reader refuses — the unparsable-document seam."""
+
+    @property
+    def plugin_config(self) -> dict:
+        """Raise the reader's parse error instead of serving a document.
+
+        Returns:
+            Never returns — the property raises.
+
+        Raises:
+            YAMLError: The simulated reader parse failure.
+        """
+        raise YAMLError("bad indentation")
+
+
+class _RecordingPrettyPlay:
+    """PrettyPlay double recording the construction and lifecycle the fixture drives.
+
+    Attributes:
+        cache_key: The cache key the constructor received.
+        cache_path: The cache path the constructor received.
+        cleanup: The cleanup switch the constructor received.
+        config: The prettyplay config the constructor received.
+        added_hooks: The hook objects ``add_hooks`` received, in call order.
+        entered: Whether the context manager was entered.
+        exited: Whether the context manager was exited.
+    """
+
+    def __init__(
+        self,
+        cache_key: str,
+        cache_path: str | None = None,
+        *,
+        cleanup: bool = True,
+        hooks: list[object] | None = None,
+        config: PrettyConfig | None = None,
+    ) -> None:
+        """Record the construction arguments of the runtime.
+
+        Args:
+            cache_key: The per-test cache key.
+            cache_path: The optional subdirectory inside the cache.
+            cleanup: The cache lifecycle switch.
+            hooks: The constructor-seeded integrator callbacks.
+            config: The programmatic settings layer.
+        """
+        self.cache_key = cache_key
+        self.cache_path = cache_path
+        self.cleanup = cleanup
+        self.config = config
+        self.added_hooks: list[object] = []
+        self.entered = False
+        self.exited = False
+
+    def add_hooks(self, hooks: object) -> None:
+        """Record one late hook attachment.
+
+        Args:
+            hooks: The integrator callbacks object the fixture attaches.
+        """
+        self.added_hooks.append(hooks)
+
+    def __enter__(self) -> "_RecordingPrettyPlay":
+        """Open the runtime double.
+
+        Returns:
+            The double itself — the yielded runtime.
+        """
+        self.entered = True
+
+        return self
+
+    def __exit__(self, exc_type: object, exc_value: object, traceback: object) -> None:
+        """Close the runtime double.
+
+        Args:
+            exc_type: The type of the exception leaving the block, if any.
+            exc_value: The exception leaving the block, if any.
+            traceback: The traceback of the exception leaving the block, if any.
+        """
+        self.exited = True
+
+
+def _configured_plugin(
+    monkeypatch: pytest.MonkeyPatch,
+    document: dict | None = None,
+    config: _FakePytestConfig | None = None,
+) -> WebPlugin:
+    """Build a plugin driven through ``configure`` with a document of the test's choosing.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture carrying the ``plugin_config`` override.
+        document: The parsed document ``plugin_config`` reports; ``None`` keeps a valid one.
+        config: The fake pytest config ``configure`` reads the typed flags from.
+
+    Returns:
+        The configured plugin — ``configure`` ran, ``activation`` is set.
+    """
+    plugin = WebPlugin()
+    monkeypatch.setattr(
+        type(plugin), "plugin_config", document if document is not None else VALID_DOCUMENT, raising=False
+    )
+    plugin.init_pytest_config(config if config is not None else _FakePytestConfig())
+    plugin.configure()
+
+    return plugin
+
+
+def _wire_recording_prettyplay(monkeypatch: pytest.MonkeyPatch) -> list[_RecordingPrettyPlay]:
+    """Patch the module's ``PrettyPlay`` seam to the recording double.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture replacing the seam.
+
+    Returns:
+        The list the seam appends every constructed double to — ``[0]`` after one build.
+    """
+    made: list[_RecordingPrettyPlay] = []
+
+    def factory(
+        cache_key: str,
+        cache_path: str | None = None,
+        *,
+        cleanup: bool = True,
+        hooks: list[object] | None = None,
+        config: PrettyConfig | None = None,
+    ) -> _RecordingPrettyPlay:
+        double = _RecordingPrettyPlay(cache_key, cache_path, cleanup=cleanup, hooks=hooks, config=config)
+        made.append(double)
+
+        return double
+
+    monkeypatch.setattr(web_plugin_module, "PrettyPlay", factory)
+
+    return made
+
+
+def _request_for(path: str, name: str, originalname: str | None = None) -> SimpleNamespace:
+    """Build a request double whose node carries the addressing attributes of a test item.
+
+    Args:
+        path: The module file path of the test item.
+        name: The node name of the test item (parametrize-aware).
+        originalname: The parametrize-agnostic name; ``None`` omits the attribute.
+
+    Returns:
+        The request double the fixture reads ``node`` from.
+    """
+    node: dict[str, Any] = {"path": Path(path), "name": name}
+
+    if originalname is not None:
+        node["originalname"] = originalname
+
+    return SimpleNamespace(node=SimpleNamespace(**node))
+
+
+class TestWebPluginContract:
+    """Declared API of the ``WebPlugin`` and ``web_cache_path`` entities."""
+
+    def test_web_plugin_constructs_with_zero_arguments(self):
+        """The plugin takes no constructor arguments — the activation arrives with ``configure``."""
+        parameters = list(inspect.signature(WebPlugin.__init__).parameters)
+
+        assert parameters == ["self"]
+        assert WebPlugin().activation is None
+
+    def test_web_plugin_meta_declares_the_name_and_the_document(self):
+        """The plugin name is ``pybuggy-web``; its config file is the web config document."""
+        plugin = WebPlugin()
+
+        assert plugin.meta.name == "pybuggy-web"
+        assert plugin.meta.config_file == CONFIG_FILE
+        assert plugin.meta.config_file == ".goga/tools/pybuggy/web.yml"
+
+    def test_web_plugin_declares_the_strict_and_interactive_options(self):
+        """Two options: the web config strict/interactive keys on ``store_true`` CLI flags."""
+        plugin = WebPlugin()
+
+        options = {option._name: option for option in plugin.plugin_options}
+
+        assert sorted(options) == ["interactive", "strict"]
+        assert options["strict"].command_line.opt == "--strict-mode"
+        assert options["strict"].command_line.kwargs["action"] == "store_true"
+        assert options["interactive"].command_line.opt == "--interactive"
+        assert options["interactive"].command_line.kwargs["action"] == "store_true"
+
+    def test_web_plugin_carries_the_web_fixture(self):
+        """A function-scope ``web`` fixture method exists on the plugin."""
+        assert WebPlugin.web.name == "web"
+        assert callable(WebPlugin.web.__wrapped__)
+
+    def test_web_cache_path_is_a_module_level_callable(self):
+        """``web_cache_path`` is a public routine of the plugin module."""
+        assert callable(web_cache_path)
+        assert web_cache_path.__module__ == "goga_tool_pybuggy.web.plugin"
+
+
+class TestWebCachePath:
+    """The pure cache-path computation: module stem, class segment, original name."""
+
+    def test_web_cache_path_shapes(self):
+        """Plain items render ``<stem>/<name>``; class items insert the class; parametrize is
+        agnostic."""
+
+        class TestLogin:
+            pass
+
+        plain = SimpleNamespace(
+            path=Path("/proj/tests/test_search.py"),
+            name="test_duckduckgo_search",
+            originalname="test_duckduckgo_search",
+        )
+        grouped = SimpleNamespace(
+            path=Path("/proj/tests/test_login.py"), name="test_foo", originalname="test_foo", cls=TestLogin
+        )
+        parametrized = SimpleNamespace(
+            path=Path("/proj/tests/test_mod.py"), name="test_foo[x-1]", originalname="test_foo"
+        )
+
+        assert web_cache_path(plain) == "test_search/test_duckduckgo_search"
+        assert web_cache_path(grouped) == "test_login/TestLogin/test_foo"
+        assert web_cache_path(parametrized) == "test_mod/test_foo"
+
+    def test_web_cache_path_originalname_missing_falls_back_to_name(self):
+        """An item without ``originalname`` addresses by its node name."""
+        item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_plain")
+
+        assert web_cache_path(item).endswith(item.name)
+        assert web_cache_path(item) == "test_mod/test_plain"
+
+
+class TestWebPluginConfigure:
+    """Configphase behavior: CLI authority, validation, and the env scrub."""
+
+    def test_configure_validates_document_and_scrubs_env(self, monkeypatch: pytest.MonkeyPatch):
+        """``configure`` validates the document into the activation and scrubs the env layer."""
+        monkeypatch.setenv("PRETTYPLAY_STRICT", "true")
+        monkeypatch.setenv("PRETTYPLAY_BROWSER_SPEED", "10")
+        monkeypatch.setenv("PYBUGGY_UNRELATED", "keep")
+
+        plugin = _configured_plugin(monkeypatch)
+
+        assert plugin.activation is not None
+        assert plugin.activation.provider == "openai"
+        assert "PRETTYPLAY_STRICT" not in os.environ
+        assert "PRETTYPLAY_BROWSER_SPEED" not in os.environ
+        assert os.environ["PYBUGGY_UNRELATED"] == "keep"
+
+    def test_configure_applies_cli_authority(self, monkeypatch: pytest.MonkeyPatch):
+        """A typed ``--strict-mode`` flag beats an explicit ``strict: false`` in the document."""
+        flagged = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": {"name": "chromium"}, "strict": False},
+            config=_FakePytestConfig(strict_mode=True),
+        )
+        unflagged = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": {"name": "chromium"}, "strict": False},
+        )
+
+        assert flagged.strict is True
+        assert unflagged.strict is False
+
+    def test_configure_fails_configphase_on_invalid_document(self, monkeypatch: pytest.MonkeyPatch):
+        """A structurally invalid document fails the run naming the document."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(type(plugin), "plugin_config", {"provider": "nope"}, raising=False)
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document"):
+            plugin.configure()
+
+        assert plugin.activation is None
+
+    def test_configure_fails_configphase_on_unparsable_document(self, monkeypatch: pytest.MonkeyPatch):
+        """A document the config reader cannot parse surfaces as the clean wrap, cause chained."""
+        plugin = _RefusingPlugin()
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: unparsable document.*bad indentation") as excinfo:
+            plugin.configure()
+
+        assert isinstance(excinfo.value.__cause__, YAMLError)
+        assert plugin.activation is None
+
+
+class TestWebPluginWebFixture:
+    """The function-scope ``web`` fixture: address, config, guarded hooks, lifecycle."""
+
+    def test_web_fixture_builds_address_and_cleanup(self, monkeypatch: pytest.MonkeyPatch):
+        """The runtime is addressed from the item, cleanup-disabled, allure-absent, closed."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(monkeypatch)
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        runtime = next(generator)
+
+        assert runtime is made[0]
+        assert made[0].cache_key == "test_a"
+        assert made[0].cache_path == "test_a/test_a"
+        assert made[0].cleanup is False
+        assert made[0].config.cache_root == str(Path("/proj/tests").resolve())
+        assert made[0].config.browser.name == "chrome"
+        assert made[0].added_hooks == []
+        assert made[0].entered
+
+        with pytest.raises(StopIteration):
+            next(generator)
+
+        assert made[0].exited
+
+    def test_web_fixture_honors_cache_root_key(self, monkeypatch: pytest.MonkeyPatch):
+        """A non-empty ``cache_root`` in the document passes through without the item override."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(
+            monkeypatch, document={"provider": "openai", "browser": {"name": "chromium"}, "cache_root": "/tmp/webcache"}
+        )
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.cache_root == "/tmp/webcache"
+
+    def test_web_fixture_without_configure_raises_runtime_error(self, monkeypatch: pytest.MonkeyPatch):
+        """Driving the fixture on an unconfigured plugin names the missing configure step."""
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        with pytest.raises(RuntimeError, match="not configured"):
+            next(WebPlugin.web.__wrapped__(WebPlugin(), request))
+
+        assert made == []
+
+    def test_web_fixture_attaches_allure_hooks_when_importable(self, monkeypatch: pytest.MonkeyPatch):
+        """An importable allure attaches the reporting hooks to the runtime exactly once."""
+        monkeypatch.setattr(allure_hooks_module, "allure", object())
+        plugin = _configured_plugin(monkeypatch)
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert len(made[0].added_hooks) == 1
+        assert isinstance(made[0].added_hooks[0], AllureStepHooks)
+
+    def test_web_fixture_resolves_outside_project_root(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """The cache root derives from the item's own file — never from the cwd."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        monkeypatch.chdir(tmp_path)
+        plugin = _configured_plugin(monkeypatch)
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/elsewhere/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.cache_root == str(Path("/elsewhere/tests").resolve())

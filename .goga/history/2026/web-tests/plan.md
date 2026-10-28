@@ -925,20 +925,20 @@ cache miss fails).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (create `tests/web/test_plugin.py`; expected to fail):
+- [x] **Contract tests** (create `tests/web/test_plugin.py`; expected to fail):
   `from goga_tool_pybuggy.web.plugin import WebPlugin, web_cache_path`; `WebPlugin()` constructs
   with zero arguments; the plugin is registered as `pybuggy-web` bound to `CONFIG_FILE` (assert
   via the pluginator metadata the same way the sandbox tests do); options `strict`/`interactive`
   exist; a `web` fixture method exists; `web_cache_path` is a module-level callable
-- [ ] **Code**: create `goga_tool_pybuggy/web/plugin.py` — the design block verbatim: the
+- [x] **Code**: create `goga_tool_pybuggy/web/plugin.py` — the design block verbatim: the
   decorator, the `plugin_config` anchor, the two options, `__init__` (`super().__init__()`;
   `self.activation: WebConfig | None = None`), `configure()` in the contract order, the `web`
   fixture generator per the trace, `_require_activation()`, the module helpers
   (`_scrub_prettyplay_env`, `web_cache_path`); `PrettyPlay` imported at module top (monkeypatched
   in tests); Google docstrings; logging per M1.5 (INFO `web plugin enabled` lives in the plugin
   cell; here INFO `prettyplay env layer scrubbed` with the sorted names, DEBUG when none)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_plugin.py -v` — pass
-- [ ] **Logic tests** (design scenarios, verbatim; doubles per the sandbox-plugin test pattern —
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_plugin.py -v` — pass
+- [x] **Logic tests** (design scenarios, verbatim; doubles per the sandbox-plugin test pattern —
   `_FakePytestConfig` needs `getoption(name, default=…)` + `addinivalue_line`, `SimpleNamespace`
   items, a recording `PrettyPlay` double, `monkeypatch.setattr(type(plugin), "plugin_config",
   document, raising=False)` + `plugin.init_pytest_config(fake)` + `plugin.configure()` for
@@ -990,13 +990,13 @@ cache miss fails).
     `path=Path("/elsewhere/tests/test_a.py")` while `monkeypatch.chdir(tmp_path)`; asserts the
     runtime double's `config.cache_root == str(Path("/elsewhere/tests").resolve())` — no
     `relative_to(cwd)` anywhere
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
   all tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: decorator name `pybuggy-web` + `config=CONFIG_FILE`; option
+- [x] **Contract re-verification**: decorator name `pybuggy-web` + `config=CONFIG_FILE`; option
   keys map to `WebConfigKeys.STRICT`/`INTERACTIVE` with `--strict-mode`/`--interactive`
   `store_true`; configure order = CLI authority → parse-guarded read → validate → scrub →
   formatter; fixture `cleanup=False`; allure guard both directions; no cwd-derived paths
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 8: web cell facade — `__init__.py` with the 10-name `__all__` (TDD)
