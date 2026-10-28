@@ -77,7 +77,7 @@ def test_base_url_option_registered(pytestconfig):
 
 
 def test_base_url_cli_overrides_config(api):
-    # config.yml sets base_url: https://x.example; the run passes
+    # api.yml sets base_url: https://x.example; the run passes
     # --base-url https://cli.example -> the typed CLI value wins.
     assert api.base_url == "https://cli.example"
 """
@@ -133,7 +133,7 @@ class TestPluginEndToEnd:
 
         config_dir = tmp_path / ".goga" / "tools" / "pybuggy"
         config_dir.mkdir(parents=True)
-        (config_dir / "config.yml").write_text("base_url: https://x.example\n")
+        (config_dir / "api.yml").write_text("base_url: https://x.example\n")
 
         (tmp_path / "test_generated_fixtures.py").write_text(_TEST_SOURCE)
 

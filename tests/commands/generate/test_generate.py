@@ -26,8 +26,8 @@ def _write_spec(spec_dir: Path, filename: str, body: str) -> None:
 
 
 def _write_config(tmp_path: Path, specs: dict) -> Path:
-    """Write a config.yml at the standard tool-config path; ``specs`` maps name -> location."""
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    """Write an api.yml at the standard tool-config path; ``specs`` maps name -> location."""
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     if not specs:
         config_path.write_text("specs: {}\n")

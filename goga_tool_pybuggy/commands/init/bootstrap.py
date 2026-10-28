@@ -131,7 +131,7 @@ def document_config_examples(config_path: Path) -> list[str]:
     Idempotent comment-only edit: records are pinned in plugin key order, and active keys are never modified.
 
     Args:
-        config_path: Path to the tool config file (``<cwd>/.goga/tools/pybuggy/config.yml``).
+        config_path: Path to the tool config file (``<cwd>/.goga/tools/pybuggy/api.yml``).
 
     Returns:
         The record texts added; empty when the file is absent, holds no mapping, or every

@@ -5,9 +5,9 @@ from pydantic import ValidationError
 from .config import Config
 from .pipeline_autonomy import PipelineAutonomy
 
-# Tool-config read arguments: fixed standard location ``.goga/tools/pybuggy/config.yml``.
+# Tool-config read arguments: fixed standard location ``.goga/tools/pybuggy/api.yml``.
 _TOOL = "pybuggy"
-_FILENAME = "config.yml"
+_FILENAME = "api.yml"
 
 
 def load_config() -> Config:
@@ -31,7 +31,7 @@ def load_config() -> Config:
     raw = load_tool_config(_TOOL, _FILENAME)
 
     if raw is None:
-        raise FileNotFoundError("tool config not found: .goga/tools/pybuggy/config.yml")
+        raise FileNotFoundError("tool config not found: .goga/tools/pybuggy/api.yml")
 
     return Config.model_validate(raw)
 

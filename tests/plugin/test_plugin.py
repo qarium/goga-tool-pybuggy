@@ -275,7 +275,7 @@ class TestApiPluginLogic:
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
-        (config / "config.yml").write_text(
+        (config / "api.yml").write_text(
             "base_url: https://cfg.example\n"
             "timeout: 9\n"
             "assert_timeout: 8\n"
@@ -432,7 +432,7 @@ class TestApiPluginConfigure:
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
-        (config / "config.yml").write_text("base_url: https://{{ env }}.cfg.example\n")
+        (config / "api.yml").write_text("base_url: https://{{ env }}.cfg.example\n")
 
         plugin = ApiPlugin(context={})
         _lifecycle(plugin, args=["--env", "dev"], options={"env": "dev"})
@@ -453,7 +453,7 @@ class TestBaseUrlCliPrecedence:
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
-        (config / "config.yml").write_text("base_url: https://cfg.example\n")
+        (config / "api.yml").write_text("base_url: https://cfg.example\n")
 
         plugin = ApiPlugin(context={})
         _lifecycle(
@@ -499,7 +499,7 @@ class TestBaseUrlCliPrecedence:
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
-        (config / "config.yml").write_text("base_url: https://cfg.example\n")
+        (config / "api.yml").write_text("base_url: https://cfg.example\n")
 
         plugin = ApiPlugin(context={})
         _lifecycle(plugin, args=["--env", "dev"], options={"env": "dev", "base_url": "https://cfg.example"})
@@ -583,7 +583,7 @@ class TestApiPluginJinjaBaseUrl:
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
-        (config / "config.yml").write_text(
+        (config / "api.yml").write_text(
             "base_url: >\n"
             "  http://{{ env }}.svc.example/api/v1\n"
             "  {% if some_version is match_re('^feature-.*$') %}"
@@ -609,7 +609,7 @@ class TestApiPluginJinjaBaseUrl:
 
         config = tmp_path / ".goga" / "tools" / "pybuggy"
         config.mkdir(parents=True)
-        (config / "config.yml").write_text(
+        (config / "api.yml").write_text(
             "base_url: >\n"
             "  http://{{ env }}.svc.example/api/v1\n"
             "  {% if some_version is match_re('^feature-.*$') %}"

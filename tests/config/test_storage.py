@@ -106,7 +106,22 @@ class TestLoadConfigBehavior:
         if content is not None:
             tool_config(content)
 
-        with pytest.raises(FileNotFoundError, match=r"\.goga/tools/pybuggy/config\.yml"):
+        with pytest.raises(FileNotFoundError, match=r"\.goga/tools/pybuggy/api\.yml"):
+            load_config()
+
+    def test_load_config_names_api_yml_and_never_reads_old_config(self, tmp_path, monkeypatch) -> None:
+        """A legacy ``config.yml`` is ignored entirely — the reader names ``api.yml`` only.
+
+        Clean break, no migration: an old document carrying valid specs content does not satisfy
+        the renamed read.
+        """
+        monkeypatch.chdir(tmp_path)
+
+        legacy = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        legacy.parent.mkdir(parents=True, exist_ok=True)
+        legacy.write_text(_SPECS_TREE, encoding="utf-8")
+
+        with pytest.raises(FileNotFoundError, match=r"\.goga/tools/pybuggy/api\.yml"):
             load_config()
 
     def test_load_config_propagates_invalid_yaml_raw(self, tool_config) -> None:

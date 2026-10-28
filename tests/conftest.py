@@ -34,12 +34,13 @@ def tool_config(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> Call
         monkeypatch: The pytest monkeypatch fixture performing the chdir.
 
     Returns:
-        A writer placing ``text`` at the standard tool-config path, returning the written path.
+        A writer placing ``text`` at the standard tool-config path (``api.yml``), returning the
+        written path.
     """
     monkeypatch.chdir(tmp_path)
 
     def _write(text: str) -> pathlib.Path:
-        path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return path

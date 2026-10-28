@@ -5,7 +5,7 @@ Implementation-hint constants (not contract types); ``None`` defaults make asser
 
 from typing import Final
 
-CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/config.yml"
+CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/api.yml"
 
 SANDBOX_CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/sandbox.yml"
 

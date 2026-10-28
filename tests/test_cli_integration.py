@@ -1,6 +1,6 @@
 """End-to-end integration tests for the pybuggy CLI.
 
-The config comes from ``.goga/tools/pybuggy/config.yml``; tests write that tree in an isolated filesystem.
+The config comes from ``.goga/tools/pybuggy/api.yml``; tests write that tree in an isolated filesystem.
 """
 
 import json
@@ -50,8 +50,8 @@ paths:
 
 
 def _write_config(specs_body: str) -> pathlib.Path:
-    """Write a config.yml at the standard relative tool-config path in the current cwd."""
-    config_file = pathlib.Path(".goga/tools/pybuggy/config.yml")
+    """Write an api.yml at the standard relative tool-config path in the current cwd."""
+    config_file = pathlib.Path(".goga/tools/pybuggy/api.yml")
     config_file.parent.mkdir(parents=True, exist_ok=True)
     config_file.write_text(f"specs:\n{specs_body}")
 

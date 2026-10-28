@@ -1061,20 +1061,20 @@ the dedicated never-read test rather than the shared fixture.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/config/test_storage.py`, expected to fail before the rename):
+- [x] **Contract tests** (in `tests/config/test_storage.py`, expected to fail before the rename):
   add `test_load_config_names_api_yml_and_never_reads_old_config` — setup: `tool_config` writer
   (after this task writes `api.yml`) absent; an **old** `config.yml` written with valid specs
   content under `.goga/tools/pybuggy/`; asserts
   `pytest.raises(FileNotFoundError, match=r"\.goga/tools/pybuggy/api\.yml")` — the old file is
   ignored entirely (clean break, no migration)
-- [ ] **Code**: change `goga_tool_pybuggy/config/storage.py` — `_FILENAME = "api.yml"`, the path
+- [x] **Code**: change `goga_tool_pybuggy/config/storage.py` — `_FILENAME = "api.yml"`, the path
   comment, the `FileNotFoundError` message text; change `goga_tool_pybuggy/config/config.py` —
   the `Config` docstring path; change `goga_tool_pybuggy/plugin/defaults.py` — `CONFIG_FILE`
   value `".goga/tools/pybuggy/api.yml"`; change `tests/conftest.py::tool_config` — the writer
   path to `api.yml` (fixture docstring updated to match); change
   `goga_tool_pybuggy/commands/init/bootstrap.py` — the `document_config_examples` docstring path
   names `api.yml` (design: annotation names `api.yml`; logic unchanged)
-- [ ] **Test migration** (rename-only, not weakening): migrate the existing tests that pin the
+- [x] **Test migration** (rename-only, not weakening): migrate the existing tests that pin the
   old tool-config name to `api.yml` — `tests/plugin/test_plugin.py` (6 writer sites),
   `tests/plugin/test_integration.py`, `tests/test_cli_integration.py` (`_write_config` helper +
   module docstring), `tests/test_cli_env.py`, `tests/commands/pull/test_pull.py`,
@@ -1082,21 +1082,21 @@ the dedicated never-read test rather than the shared fixture.
   `tests/commands/info/test_info.py`, `tests/commands/list/test_list.py`,
   `tests/commands/generate/test_generate.py` — every writer/reader of
   `.goga/tools/pybuggy/config.yml` switches to the `api.yml` name; no assertion semantics change
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/config/ tests/plugin/ -v` —
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/config/ tests/plugin/ -v` —
   the new test passes and the existing suites still pass
-- [ ] **Logic tests**: none new beyond the never-read test (rename-only change; existing suites
+- [x] **Logic tests**: none new beyond the never-read test (rename-only change; existing suites
   are the regression net after the old-name writer sites migrate to `api.yml` — rename-only test
   migration)
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all
   tests pass (do NOT fix test code; the old-name writer sites are rename-migrated test code, not
   implementation fixes — the do-not-fix rule does not apply to them)
-- [ ] **Contract re-verification**: no `.py` carrier of the old path remains in the touched
+- [x] **Contract re-verification**: no `.py` carrier of the old path remains in the touched
   files: `grep -rn "tools/pybuggy/config.yml" goga_tool_pybuggy/config/
   goga_tool_pybuggy/plugin/defaults.py goga_tool_pybuggy/commands/init/bootstrap.py
   tests/conftest.py` is empty (the repo-wide empty grep stays a Task 15 gate —
   `commands/init/init.py` switches its step-3 path in Task 13); signatures and algorithms
   untouched (diff review)
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 10: plugin cell — `WEB_CONFIG_FILE` + the step-5 web gate in `install()` (TDD)
