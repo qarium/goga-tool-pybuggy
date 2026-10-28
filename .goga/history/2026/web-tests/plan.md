@@ -459,23 +459,23 @@ writer fixture (the sibling of the shared `tool_config`, same shape, `web.yml`).
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create the repo virtualenv if missing: `python3 -m venv .venv` (`.venv` is gitignored); then
+- [x] Create the repo virtualenv if missing: `python3 -m venv .venv` (`.venv` is gitignored); then
   `.venv/bin/pip install -e '.[test]'` (brings `prettyplay>=0.0.3,<0.1.0` + transitive
   `playwright` package, `allure-pytest>=2.13`, `pluginator`, `pytest>=8`, `ruff>=0.15`,
   `goga` test dep)
-- [ ] Verify the dependency stack in the venv (REPL check — M4):
+- [x] Verify the dependency stack in the venv (REPL check — M4):
   `.venv/bin/python -c "from prettyplay import BrowserConfig, PrettyConfig, PrettyPlay, StepHooks; from prettyplay.failures import PrettyplayError; from playwright.sync_api import Error; import allure, pluginator; print('ok')"`
-- [ ] Run the existing suite to establish the green baseline: `.venv/bin/python -m pytest tests/ -x`
+- [x] Run the existing suite to establish the green baseline: `.venv/bin/python -m pytest tests/ -x`
   (all pass before any change)
-- [ ] Create `goga_tool_pybuggy/web/__init__.py` — module docstring only (one line naming the
+- [x] Create `goga_tool_pybuggy/web/__init__.py` — module docstring only (one line naming the
   web-test cell); no `__all__` yet (Task 8 fills the 10-name facade)
-- [ ] Create `tests/web/__init__.py` (empty package marker)
-- [ ] Create `tests/web/conftest.py` with the `web_config` writer fixture — the same shape as
+- [x] Create `tests/web/__init__.py` (empty package marker)
+- [x] Create `tests/web/conftest.py` with the `web_config` writer fixture — the same shape as
   `tests/conftest.py::tool_config` (chdir into `tmp_path`, write `text` under
   `.goga/tools/pybuggy/web.yml`, return the path), Google-docstringed
-- [ ] Verify: `.venv/bin/python -c "import goga_tool_pybuggy.web"` and
+- [x] Verify: `.venv/bin/python -c "import goga_tool_pybuggy.web"` and
   `.venv/bin/python -m pytest tests/web/ -v` (collects, nothing to run yet)
-- [ ] Lint (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] Lint (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on the created files
 
 ### Task 2: `WebConfigKeys` + `CONFIG_FILE` in `web/keys.py` (TDD)
