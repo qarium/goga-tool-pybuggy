@@ -510,26 +510,26 @@ their values.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (create `tests/web/test_keys.py`; expected to fail — no module yet):
+- [x] **Contract tests** (create `tests/web/test_keys.py`; expected to fail — no module yet):
   import `from goga_tool_pybuggy.web.keys import CONFIG_FILE, WebConfigKeys`;
   `len(WebConfigKeys) == 20`; the 20 members in contract order with exact values; every member is
   a `str` (`isinstance(WebConfigKeys.PROVIDER.value, str)`); `CONFIG_FILE ==
   ".goga/tools/pybuggy/web.yml"`
-- [ ] **Code**: create `goga_tool_pybuggy/web/keys.py` — module docstring (one line), the
+- [x] **Code**: create `goga_tool_pybuggy/web/keys.py` — module docstring (one line), the
   `WebConfigKeys` enum exactly as the design block above, `CONFIG_FILE: Final[str]` built from
   `WebConfigKeys.FILENAME.value`; Google docstring on the class (purpose + fixed-set constraint)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_keys.py -v` — all
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_keys.py -v` — all
   contract tests pass
-- [ ] **Logic tests** (extend `tests/web/test_keys.py`): `test_web_config_keys_filename_names_the_document`
+- [x] **Logic tests** (extend `tests/web/test_keys.py`): `test_web_config_keys_filename_names_the_document`
   — asserts `WebConfigKeys.FILENAME.value == "web.yml"` and `CONFIG_FILE ==
   ".goga/tools/pybuggy/web.yml"` (the cross-cell `plugin_defaults.WEB_CONFIG_FILE == CONFIG_FILE`
   assertion is added in Task 10, when that constant exists); REPL-verify the enum order with
   `.venv/bin/python -c "from goga_tool_pybuggy.web.keys import WebConfigKeys; print([m.value for m in WebConfigKeys])"`
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
   all tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: members/values/order match the CODEMANIFEST property list
+- [x] **Contract re-verification**: members/values/order match the CODEMANIFEST property list
   exactly (20 properties, same order); no extra members
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 3: `BrowserSettings`, `WebConfig`, `validate_web_config` in `web/config.py` (TDD)
