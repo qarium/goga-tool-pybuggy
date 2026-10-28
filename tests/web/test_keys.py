@@ -5,6 +5,7 @@ Covers the fixed 20-member key set in contract order and the standard web-config
 
 import typing as t
 
+from goga_tool_pybuggy.web.config import WebConfig
 from goga_tool_pybuggy.web.keys import CONFIG_FILE, WebConfigKeys
 
 # The contract member list: (name, value) pairs in contract order — the order the documenter walks.
@@ -67,3 +68,10 @@ class TestWebConfigKeysLogic:
         # error-naming source).
         assert WebConfigKeys.FILENAME.value == "web.yml"
         assert CONFIG_FILE == ".goga/tools/pybuggy/web.yml"
+
+    def test_web_config_keys_members_mirror_web_config_fields(self):
+        # The 19 scalar/browser key members (everything but FILENAME) equal the WebConfig field
+        # names in order — the validation alignment.
+        members = [member.value for member in WebConfigKeys if member is not WebConfigKeys.FILENAME]
+
+        assert members == list(WebConfig.model_fields)

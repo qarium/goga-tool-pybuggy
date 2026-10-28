@@ -586,18 +586,18 @@ only the surveyed minimum validates (browser defaults fill in); a hand-edited do
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (create `tests/web/test_config.py`; expected to fail):
+- [x] **Contract tests** (create `tests/web/test_config.py`; expected to fail):
   `from goga_tool_pybuggy.web.config import BrowserSettings, WebConfig, validate_web_config`;
   model shape — `BrowserSettings` has exactly the 7 fields, `WebConfig` exactly the 19 fields in
   contract order (`list(WebConfig.model_fields)`); both models are `kw_only` and reject unknown
   keys; `validate_web_config` is a module-level callable
-- [ ] **Code**: create `goga_tool_pybuggy/web/config.py` — module docstring, relative import of
+- [x] **Code**: create `goga_tool_pybuggy/web/config.py` — module docstring, relative import of
   `CONFIG_FILE` from `.keys`, the two models exactly as the design block, `validate_web_config`
   per the three-rejection algorithm, Google docstrings (`Raises: ValueError` on the validator;
   per-field `Args`-style description lines in the class docstrings kept to the contract nuance)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_config.py -v` — all
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_config.py -v` — all
   contract tests pass
-- [ ] **Logic tests** (extend `tests/web/test_config.py`; design scenarios, verbatim):
+- [x] **Logic tests** (extend `tests/web/test_config.py`; design scenarios, verbatim):
   - `test_browser_settings_defaults_mirror_prettyplay` — `BrowserSettings().model_dump()` vs
     `BrowserConfig().model_dump()` equal dicts (`{"name": "chromium", "headless": True,
     "screen": "", "endpoint": "", "accept_dialogs": False, "speed": 100, "timeout": 30.0}`)
@@ -621,11 +621,11 @@ only the surveyed minimum validates (browser defaults fill in); a hand-edited do
   - `test_web_config_keys_members_mirror_web_config_fields` (add to `tests/web/test_keys.py`) —
     `[m.value for m in WebConfigKeys if m is not WebConfigKeys.FILENAME]` equals
     `list(WebConfig.model_fields)` **in order** (19 values)
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
   all tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: field names/order/defaults match the CODEMANIFEST signatures
+- [x] **Contract re-verification**: field names/order/defaults match the CODEMANIFEST signatures
   1:1; `extra="forbid"` present; no value validators added; the three error texts exact
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 4: `build_pretty_config` in `web/pretty.py` (TDD)
