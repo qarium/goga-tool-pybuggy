@@ -11,6 +11,7 @@ from pathlib import Path
 import click
 import pytest
 import yaml
+from goga_tool_pybuggy.commands import init as init_facade
 from goga_tool_pybuggy.commands.init import init as init_module
 from goga_tool_pybuggy.commands.init import init_cmd, resolve_init_mode, run_bootstrap, run_init
 
@@ -27,9 +28,20 @@ _PACKAGED_USAGES = {
     "api": (_API_PACKAGE / ".usages" / "api.md").read_text(encoding="utf-8"),
     "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
 }
+_WEB_PACKAGE = importlib.resources.files("goga_tool_pybuggy.web")
+_PACKAGED_WEB_USAGE = (_WEB_PACKAGE / ".usages" / "pybuggy-web.md").read_text(encoding="utf-8")
 
 # The install line expected under the patched package version "2.0.3" (major.minor x-range pin derivation).
 _INSTALL_LINE = "RUN goga install pybuggy -v 2.0.x"
+
+# The approved web-usage annotation line (the design pins the text byte-exact).
+_WEB_ANNOTATION_LINE = (
+    "Use `pybuggy-web` for browser UI tests written as step sentences (the web fixture: step/expect, capture vars, "
+    "strict replay)."
+)
+
+# The playwright line the web-kind Dockerfile gains for the surveyed chromium browser.
+_PLAYWRIGHT_LINE = "RUN playwright install --with-deps chromium"
 
 
 class _FakeCtx:
@@ -175,6 +187,23 @@ class TestInitContract:
         assert callable(run_init)
         assert callable(resolve_init_mode)
         assert callable(run_bootstrap)
+
+    def test_init_facade_exports_twenty_five_names(self):
+        """The facade exports exactly 25 names — the six new routines in, ``survey_extra_specs`` out."""
+        new_names = {
+            "build_web_config_data",
+            "document_web_config_examples",
+            "install_playwright",
+            "survey_api_options",
+            "survey_specs",
+            "survey_web_config",
+        }
+
+        assert len(init_facade.__all__) == 25
+        assert len(set(init_facade.__all__)) == 25
+        assert "survey_extra_specs" not in init_facade.__all__
+        assert new_names <= set(init_facade.__all__)
+        assert all(hasattr(init_facade, name) for name in init_facade.__all__)
 
     def test_resolve_dockerfile_helper_present_in_module(self):
         """The private Dockerfile-resolution helper lives in the init module."""
@@ -452,7 +481,7 @@ class TestRunBootstrap:
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
-        tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
         tool_config.parent.mkdir(parents=True)
         tool_config.write_text(
             "base_url: https://{{ HOST }}/api\nspecs:\n  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
@@ -694,3 +723,71 @@ class TestRunBootstrap:
         errors = _error_records(caplog)
         assert len(errors) == 1
         assert errors[0].message == "onboarding bootstrap failed"
+
+    def test_run_bootstrap_web_kind_delivers_web_artifacts(self, tmp_path, monkeypatch, caplog):
+        """A web-kind tree (web.yml, no api.yml) gets the web artifacts; the api steps no-op naturally."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        tools = tmp_path / ".goga" / "tools" / "pybuggy"
+        tools.mkdir(parents=True)
+        web_config = tools / "web.yml"
+        web_config.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\n"
+            "browser:\n  name: chromium\n  headless: true\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 0
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert (usages / "pybuggy-web.md").read_text(encoding="utf-8") == _PACKAGED_WEB_USAGE
+        assert "web config examples documented" in caplog.text
+
+        # The web usage registers in its own kind-gated call; the api stems stay the always-on
+        # registration (step 7) — the exact expected set, nothing double-prefixed.
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        usages_record = config["codemanifest"]["usages"]
+        assert usages_record["pybuggy-web"] == ".goga/usages/cooks/pybuggy/pybuggy-web.md"
+        assert set(usages_record) == {"pybuggy-api", "pybuggy-asserts", "pybuggy-web", "conventions"}
+        assert _WEB_ANNOTATION_LINE in config["codemanifest"]["annotations"]
+
+        dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
+        assert dockerfile.endswith(f"{_PLAYWRIGHT_LINE}\n")
+
+        web_text = web_config.read_text(encoding="utf-8")
+        assert "# base_url: (skipped optional scalar)" in web_text
+        assert "# cache_root: (path example — the step cache root, e.g. tests/.web_cache)" in web_text
+
+        # The api-kind steps no-op'd naturally — the absent api.yml is never created or documented.
+        assert not (tools / "api.yml").exists()
+        assert _error_records(caplog) == []
+
+    def test_run_bootstrap_api_only_skips_web_steps(self, tmp_path, monkeypatch, caplog):
+        """An api-kind tree (api.yml, no web.yml) skips every web step — no registration, no line."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
+        (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
+        tool_config.parent.mkdir(parents=True)
+        tool_config.write_text(
+            "base_url: https://{{ HOST }}/api\nspecs:\n  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
+            encoding="utf-8",
+        )
+
+        with caplog.at_level(logging.INFO):
+            code = run_bootstrap(template_mode=False)
+
+        assert code == 0
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
+        assert "pybuggy-web" not in config["codemanifest"]["usages"]
+        assert "`pybuggy-web`" not in config["codemanifest"]["annotations"]
+        assert "playwright" not in (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
+        assert "# headers: example (skipped complex member)" in tool_config.read_text(encoding="utf-8")
+        # The web usage file still copies (download-only, the sandbox pattern) — registration is the gate.
+        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "pybuggy-web.md").exists()
+        assert _error_records(caplog) == []

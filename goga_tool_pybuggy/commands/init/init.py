@@ -15,7 +15,9 @@ from ruamel.yaml import YAMLError
 
 from .bootstrap import (
     document_config_examples,
+    document_web_config_examples,
     ensure_review_skip,
+    install_playwright,
     install_pybuggy,
     register_annotations,
     register_usages,
@@ -55,14 +57,14 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
 
 # The packaged usage roots the bootstrap distributes, each paired with its destination subdirectory
 # of .goga/usages/cooks/pybuggy: the api cell (its walk also collects the ``asserts`` sub-package
-# riding that root) distributes flat, the sandbox subtree under its own ``sandbox`` subdirectory.
-# The plugin and commands cells are not roots — their usages stay out of the consumer target.
-_USAGE_ROOTS = (("goga_tool_pybuggy.api", ""), ("goga_tool_pybuggy.sandbox", "sandbox"))
+# riding that root) and the web cell distribute flat, the sandbox subtree under its own ``sandbox``
+# subdirectory. The plugin and commands cells are not roots — their usages stay out of the target.
+_USAGE_ROOTS = (("goga_tool_pybuggy.api", ""), ("goga_tool_pybuggy.sandbox", "sandbox"), ("goga_tool_pybuggy.web", ""))
 
 # The roots whose discovered usages are also registered in the consumer config — the always-on test
-# surface every cell consumes. The sandbox subtree is download-only: its capability usages may or may
-# not apply to a given cell, and the codemanifest usages of .goga/config.yml bind every cell of the
-# project, so their files are copied without config registration.
+# surface every cell consumes. The sandbox subtree and the web cell are download-only here: the
+# sandbox capability usages may or may not apply to a given cell, and the web usage registers through
+# the kind-gated bootstrap step (the written ``web.yml``), never unconditionally.
 _REGISTERED_USAGE_ROOTS = ("goga_tool_pybuggy.api",)
 
 
@@ -71,10 +73,10 @@ def _discover_packaged_usages() -> tuple[list[tuple[str, str, str]], list[str]]:
 
     Returns:
         The ``(discovered, registered)`` pair — the ``(stem, text, subdir)`` triples of every
-        packaged usage file (six stems today: api, asserts, sandbox-session, sandbox-file,
-        data-operations, migration-set; the sandbox stems carry the ``sandbox`` destination
-        subdirectory, the api stems an empty one), and the stems of the registered roots in
-        discovery order (api and asserts today) for the config registration.
+        packaged usage file (seven stems today: api, asserts, sandbox-session, sandbox-file,
+        data-operations, migration-set, pybuggy-web; the sandbox stems carry the ``sandbox``
+        destination subdirectory, the api and web stems an empty one), and the stems of the
+        registered roots in discovery order (api and asserts today) for the config registration.
     """
     discovered: list[tuple[str, str, str]] = []
     registered: list[str] = []
@@ -91,10 +93,15 @@ def _discover_packaged_usages() -> tuple[list[tuple[str, str, str]], list[str]]:
 
 # Hand-authored annotation line per registered usage stem; unknown stems fall back to a bare backtick
 # reference — the DSL requires every connected usage to be referenced in an annotation. Only the
-# registered-root stems are ever looked up here — the download-only sandbox stems are never registered.
+# registered-root stems and the kind-gated web stem are ever looked up here — the download-only
+# sandbox stems are never registered.
 PYBUGGY_ANNOTATIONS: dict[str, str] = {
     "api": ("Use `pybuggy-api` for executing HTTP requests from test fixtures and checking responses."),
     "asserts": ("Use `pybuggy-asserts` for response-level and field-level assertions on HTTP responses."),
+    "pybuggy-web": (
+        "Use `pybuggy-web` for browser UI tests written as step sentences "
+        "(the web fixture: step/expect, capture vars, strict replay)."
+    ),
 }
 
 # Annotation line for the ``conventions`` usage key — the sole source registered under ``codemanifest.annotations``.
@@ -137,6 +144,40 @@ def _log_registration(
             logger.info("annotation registered", extra={"key": key})
         else:
             logger.warning("annotation already registered, skipped", extra={"key": key})
+
+
+def _document_web_examples(web_config: Path) -> None:
+    """Document the absent web config keys as commented example records (bootstrap step 3b).
+
+    Extracted from :func:`run_bootstrap` to keep it under the cyclomatic-complexity cap.
+
+    Args:
+        web_config: Path to the written web config (``<cwd>/.goga/tools/pybuggy/web.yml``) — the
+            kind signal whose presence gated the call.
+    """
+    documented = document_web_config_examples(web_config)
+
+    if documented:
+        logger.info("web config examples documented", extra={"count": len(documented)})
+
+
+def _register_web_kind(config: Path, dockerfile: Path) -> None:
+    """Register the web usage and pin the playwright install line (bootstrap steps 6b/6c).
+
+    The web usage registers in its own call — kind-gated by the written ``web.yml``, separate from
+    the always-on api registration of step 7.
+
+    Args:
+        config: Path to the consumer ``.goga/config.yml`` receiving the registration.
+        dockerfile: The resolved project Dockerfile receiving the playwright line.
+    """
+    usage_keys = {"pybuggy-web": ".goga/usages/cooks/pybuggy/pybuggy-web.md"}
+    annotation_lines = {"pybuggy-web": _annotation_for("pybuggy-web")}
+    added_usage_keys = register_usages(config, usage_keys)
+    changed_annotation_keys = register_annotations(config, annotation_lines)
+    _log_registration(usage_keys, added_usage_keys, annotation_lines, changed_annotation_keys)
+
+    install_playwright(dockerfile)
 
 
 def _gate_conftest(cwd: Path, template_mode: bool) -> None:
@@ -277,6 +318,8 @@ def run_bootstrap(template_mode: bool) -> int:
     """Run the 10-step post-session bootstrap with mode-dependent gates.
 
     Steps 2-8 are wrapped: an ``(OSError, YAMLError, ValueError)`` is ERROR-logged and mapped to exit code 1.
+    The web-kind sub-steps (3b, 6b, 6c) are gated on the written ``web.yml`` — the kind signal; the
+    kind answer itself never crosses the session boundary.
 
     Args:
         template_mode: Whether the bootstrap runs after template scaffolding (silent-skip gates
@@ -287,6 +330,8 @@ def run_bootstrap(template_mode: bool) -> int:
     """
     cwd = Path.cwd()
     config = cwd / ".goga" / "config.yml"
+    web_config = cwd / ".goga" / "tools" / "pybuggy" / "web.yml"
+    web_written = web_config.exists()
 
     try:
         discovered, registered = _discover_packaged_usages()
@@ -301,10 +346,17 @@ def run_bootstrap(template_mode: bool) -> int:
             dest.parent.mkdir(parents=True, exist_ok=True)
             dest.write_text(text, encoding="utf-8")
 
-        documented = document_config_examples(cwd / ".goga" / "tools" / "pybuggy" / "config.yml")
+        documented = document_config_examples(cwd / ".goga" / "tools" / "pybuggy" / "api.yml")
 
         if documented:
             logger.info("tool config examples documented", extra={"count": len(documented)})
+
+        # The web-kind artifacts ride on the written web.yml — every web sub-step below re-checks
+        # the same single gate.
+        if web_written:
+            _document_web_examples(web_config)
+        else:
+            logger.debug("web config absent, web artifacts skipped", extra={"path": str(web_config)})
 
         # The conventions slot is delivered skip-if-exists in BOTH modes — never overwritten, never prompted.
         slot = cwd / ".goga" / "usages" / "conventions.md"
@@ -319,6 +371,9 @@ def run_bootstrap(template_mode: bool) -> int:
 
         dockerfile = _resolve_dockerfile_path(config)
         install_pybuggy(dockerfile)
+
+        if web_written:
+            _register_web_kind(config, dockerfile)
 
         # Only the registered-root stems are registered — the sandbox capability usages are
         # download-only (their files were copied above), never bound to every cell via the config.

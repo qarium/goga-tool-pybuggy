@@ -1407,15 +1407,15 @@ answer never crosses the session boundary.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (in `tests/commands/init/test_init.py`, expected to fail):
+- [x] **Contract tests** (in `tests/commands/init/test_init.py`, expected to fail):
   `test_init_facade_exports_twenty_five_names` — `sorted(init_facade.__all__)` has exactly 25
   names; `survey_extra_specs` gone; the six new names present
-- [ ] **Code**: apply the `init.py` changes per the trace (`_USAGE_ROOTS` entry,
+- [x] **Code**: apply the `init.py` changes per the trace (`_USAGE_ROOTS` entry,
   `PYBUGGY_ANNOTATIONS` line, the `web_written` gate, steps 3b/6b/6c in contract order); update
   `commands/init/__init__.py` `__all__` and imports to the 25 names
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_init.py -v`
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/commands/init/test_init.py -v`
   — pass
-- [ ] **Logic tests** (design scenarios, verbatim):
+- [x] **Logic tests** (design scenarios, verbatim):
   - `test_run_bootstrap_web_kind_delivers_web_artifacts` — setup tmp cwd with
     `.goga/config.yml` (dockerfile field), `.goga/tools/pybuggy/web.yml` (surveyed minimum), a
     Dockerfile at the configured path; no `api.yml`; trace `run_bootstrap(template_mode=False)`;
@@ -1427,15 +1427,15 @@ answer never crosses the session boundary.
   - `test_run_bootstrap_api_only_skips_web_steps` — the mirror — `api.yml` present, no
     `web.yml`; asserts exit 0; no `pybuggy-web` registration; no playwright line; api examples
     documented
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/ -x` — fix implementation code until all
   tests pass (do NOT fix test code); `tests/commands/init/test_init.py` (the bootstrap
   tool-config writer site) and `tests/commands/init/test_init_integration.py` (the
   created-message assertion + the tool-config path) switch to `api.yml` after the step-3 path
   change (rename-only test migration, not weakening)
-- [ ] **Contract re-verification**: every added bootstrap step is file-presence-gated; the
+- [x] **Contract re-verification**: every added bootstrap step is file-presence-gated; the
   approved annotation line byte-exact; `_REGISTERED_USAGE_ROOTS` unchanged; facade exactly 25
   names
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 14: Integration tests — the prettyplay layering pin (`tests/web/test_integration.py`)

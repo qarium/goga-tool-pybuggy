@@ -169,9 +169,9 @@ class TestSessionSmoke:
 
         tool_config_text = tool_config_path.read_text(encoding="utf-8")
         assert yaml.safe_load(tool_config_text) == _EXPECTED_TOOL_CONFIG  # active keys untouched
-        # The bootstrap's example documentation still targets the old config.yml name until the
-        # bootstrap task rewires its step to api.yml — the session-written file stays plain.
-        assert "#" not in tool_config_text
+        # The bootstrap's example documentation targets api.yml — the session-written plain
+        # document gains the commented example records of the absent plugin members.
+        assert "# headers: example (skipped complex member)" in tool_config_text
 
         _assert_bootstrap_registration_split(tmp_path)
         assert (

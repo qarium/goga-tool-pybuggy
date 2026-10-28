@@ -42,10 +42,11 @@ _ANNOTATION_INPUT = {
     "conventions": "Use `conventions` for test code: pytest configuration, logging, and Allure reporting.",
 }
 
-# The packaged usage texts the bootstrap distributes — the api root (incl. ``asserts``) plus the
-# sandbox subtree; stems are unique across the two roots.
+# The packaged usage texts the bootstrap distributes — the api root (incl. ``asserts``), the
+# sandbox subtree, and the web root; stems are unique across the three roots.
 _API_PACKAGE = importlib.resources.files("goga_tool_pybuggy.api")
 _SANDBOX_PACKAGE = importlib.resources.files("goga_tool_pybuggy.sandbox")
+_WEB_PACKAGE = importlib.resources.files("goga_tool_pybuggy.web")
 _PACKAGED_USAGES = {
     "api": (_API_PACKAGE / ".usages" / "api.md").read_text(encoding="utf-8"),
     "asserts": (_API_PACKAGE / "asserts" / ".usages" / "asserts.md").read_text(encoding="utf-8"),
@@ -53,6 +54,7 @@ _PACKAGED_USAGES = {
     "sandbox-file": (_SANDBOX_PACKAGE / "config" / ".usages" / "sandbox-file.md").read_text(encoding="utf-8"),
     "data-operations": (_SANDBOX_PACKAGE / "data" / ".usages" / "data-operations.md").read_text(encoding="utf-8"),
     "migration-set": (_SANDBOX_PACKAGE / "migrations" / ".usages" / "migration-set.md").read_text(encoding="utf-8"),
+    "pybuggy-web": (_WEB_PACKAGE / ".usages" / "pybuggy-web.md").read_text(encoding="utf-8"),
 }
 
 # The four sandbox stems — download-only: copied as files, never registered in the consumer config.
@@ -654,10 +656,10 @@ class TestFixedAssetWriters:
 
 
 class TestRunBootstrapUsages:
-    """The ``run_bootstrap`` packaged-usage distribution — two roots, six stems, split destinations."""
+    """The ``run_bootstrap`` packaged-usage distribution — three roots, seven stems, split destinations."""
 
-    def test_bootstrap_contract_distributes_six_stems_registers_api_pair_only(self, tmp_path, monkeypatch):
-        """After a template-mode bootstrap the api pair lands flat, the sandbox quartet in its subdirectory."""
+    def test_bootstrap_contract_distributes_seven_stems_registers_api_pair_only(self, tmp_path, monkeypatch):
+        """After a template-mode bootstrap the api pair and the web usage land flat, the sandbox quartet not."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_bootstrap_target(tmp_path)
@@ -665,7 +667,7 @@ class TestRunBootstrapUsages:
         assert run_bootstrap(template_mode=True) == 0
 
         usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
-        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "sandbox"]
+        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "pybuggy-web.md", "sandbox"]
         assert sorted(path.name[:-3] for path in (usages / "sandbox").iterdir()) == sorted(_SANDBOX_STEMS)
 
         config = YAML().load(tmp_path / ".goga" / "config.yml")
@@ -673,12 +675,15 @@ class TestRunBootstrapUsages:
         for stem in _SANDBOX_STEMS:
             assert f"pybuggy-{stem}" not in config["codemanifest"]["usages"]
             assert f"`pybuggy-{stem}`" not in config["codemanifest"]["annotations"]
+        assert "pybuggy-web" not in config["codemanifest"]["usages"]
+        assert "`pybuggy-web`" not in config["codemanifest"]["annotations"]
 
     def test_bootstrap_copies_all_and_registers_only_api_usages(self, tmp_path, monkeypatch):
-        """All six usage files land byte-identical at their destinations; only the api pair registers.
+        """All seven usage files land byte-identical at their destinations; only the api pair registers.
 
-        The scope constraint holds: nothing beyond the two packaged roots is copied — the plugin
-        and commands usage files never reach the target.
+        The scope constraint holds: nothing beyond the three packaged roots is copied — the plugin
+        and commands usage files never reach the target. The web usage copies download-only here:
+        without a written ``web.yml`` its registration (a kind-gated step) never fires.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
@@ -687,9 +692,9 @@ class TestRunBootstrapUsages:
         assert run_bootstrap(template_mode=False) == 0
 
         usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
-        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "sandbox"]
+        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "pybuggy-web.md", "sandbox"]
 
-        for stem in ("api", "asserts"):
+        for stem in ("api", "asserts", "pybuggy-web"):
             assert (usages / f"{stem}.md").read_text(encoding="utf-8") == _PACKAGED_USAGES[stem]
 
         for stem in _SANDBOX_STEMS:
@@ -706,6 +711,10 @@ class TestRunBootstrapUsages:
         for stem in _SANDBOX_STEMS:
             assert f"pybuggy-{stem}" not in registered
             assert f"`pybuggy-{stem}`" not in annotations
+
+        # The web usage key is its own stem — no ``pybuggy-`` prefixing at the registration step.
+        assert "pybuggy-web" not in registered
+        assert "`pybuggy-web`" not in annotations
 
     def test_bootstrap_template_mode_skips_existing_targets(self, tmp_path, monkeypatch, caplog):
         """Template mode keeps an existing sandbox-usage sentinel across reruns; bare mode overwrites it."""
