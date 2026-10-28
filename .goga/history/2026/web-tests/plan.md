@@ -1454,7 +1454,7 @@ library's auto-search succeeds); lazy construction only — no browser, no LLM c
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Extend `tests/web/test_integration.py` (created in Task 8) with
+- [x] Extend `tests/web/test_integration.py` (created in Task 8) with
   `test_prettyplay_construction_honors_web_config` (design scenario, verbatim) — setup:
   `WebConfig` with distinctive values (`generation_attempts=7`, `provider="anthropic"`,
   `cache_root=str(tmp_path)`); `monkeypatch.setenv("PRETTYPLAY_STRICT", "true")` and
@@ -1466,11 +1466,11 @@ library's auto-search succeeds); lazy construction only — no browser, no LLM c
   `PRETTYPLAY_BASE_URL=https://env.example` set → the effective `base_url ==
   "https://env.example"` — the documented per-field fall-through, proving the scrub is what
   closes it
-- [ ] Test edge case: assert the runtime closes cleanly (`with runtime: …` exits without
+- [x] Test edge case: assert the runtime closes cleanly (`with runtime: …` exits without
   touching a browser)
-- [ ] Run validation: `.venv/bin/python -m pytest tests/web/ -v` then
+- [x] Run validation: `.venv/bin/python -m pytest tests/web/ -v` then
   `.venv/bin/python -m pytest tests/ -x` — all green
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/ tests/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 15: Final verification — full suite, lint gates, `goga lint`, doc sweep (verification)
