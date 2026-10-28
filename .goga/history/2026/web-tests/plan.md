@@ -797,17 +797,17 @@ Implements the Allure reporting integration over the prettyplay hook contract. C
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (create `tests/web/test_allure_hooks.py`; expected to fail):
+- [x] **Contract tests** (create `tests/web/test_allure_hooks.py`; expected to fail):
   `from goga_tool_pybuggy.web.allure_hooks import AllureStepHooks`; the module exposes an `allure`
   attribute (guarded import; `None` when absent — real allure present in the test env);
   `AllureStepHooks` is a `StepHooks` subclass; the five hook methods exist with the contract
   signatures
-- [ ] **Code**: create `goga_tool_pybuggy/web/allure_hooks.py` — module docstring, guarded
+- [x] **Code**: create `goga_tool_pybuggy/web/allure_hooks.py` — module docstring, guarded
   imports, the private `_AllureStepWrapper`, the two stacks, the five hook methods per the design,
   `# noqa: ARG002` where needed, Google docstrings
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_allure_hooks.py -v`
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_allure_hooks.py -v`
   — pass
-- [ ] **Logic tests** (design scenarios, verbatim):
+- [x] **Logic tests** (design scenarios, verbatim):
   - `test_allure_step_hooks_failed_step_attaches_screenshot` — real `allure` (test extra); `play`
     double with `get_screenshot() -> b"PNG"`; `monkeypatch.setattr(allure, "attach")` recording
     calls; `hooks = AllureStepHooks(play)`; trace `on_step_started("Find results", "assertion")`
@@ -823,12 +823,12 @@ Implements the Allure reporting integration over the prettyplay hook contract. C
   - `test_allure_step_hooks_stacks_balance_mid_group` — trace `on_group_started("g")` →
     `on_step_started` → `on_step_failed` → `on_step_finished` → `on_group_finished("g")`;
     asserts both stacks empty afterwards; a second group/step cycle after the failure works
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
   all tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: five method signatures match the CODEMANIFEST; the catch is
+- [x] **Contract re-verification**: five method signatures match the CODEMANIFEST; the catch is
   `(PlaywrightError, PrettyplayError)`; the only playwright import is
   `playwright.sync_api.Error`; no exception raised out of the hooks
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 7: `WebPlugin` + `web_cache_path` in `web/plugin.py` (TDD)
