@@ -16,12 +16,3 @@ stages:
       mode: r
   accept-result:
     manual: false
-
-extend:
-  build:
-    title: "Build implementation"
-    after:
-      - commit-changes
-    timeout: "8h"
-    script: python3 -P -m goga.build "$(python3 -m goga history path -f plan.md)"
-    after_script: rm -rf .ralphex
