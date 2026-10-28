@@ -666,15 +666,15 @@ imports `from prettyplay import BrowserConfig, PrettyConfig`.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **Contract tests** (create `tests/web/test_pretty.py`; expected to fail):
+- [x] **Contract tests** (create `tests/web/test_pretty.py`; expected to fail):
   `from goga_tool_pybuggy.web.pretty import build_pretty_config`; callable with
   `(WebConfig, bool, bool)` returning a `PrettyConfig` instance
-- [ ] **Code**: create `goga_tool_pybuggy/web/pretty.py` — module docstring, the traced algorithm
+- [x] **Code**: create `goga_tool_pybuggy/web/pretty.py` — module docstring, the traced algorithm
   (dump → pop browser → `BrowserConfig(**…)` → overwrite modes in the dict →
   `PrettyConfig(browser=browser, **fields)`), Google docstring (`Args`/`Returns`/`Raises`), pure
   (no env/pyproject reads anywhere in the module)
-- [ ] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_pretty.py -v` — pass
-- [ ] **Logic tests** (design scenarios, verbatim):
+- [x] **Interface verification**: `.venv/bin/python -m pytest tests/web/test_pretty.py -v` — pass
+- [x] **Logic tests** (design scenarios, verbatim):
   - `test_build_pretty_config_maps_every_field` — setup `WebConfig(provider="anthropic",
     base_url="https://api.example", generation_model="g", classification_model="c",
     generation_attempts=7, probe_timeout=3.0, cache_root="/tmp/x",
@@ -690,12 +690,12 @@ imports `from prettyplay import BrowserConfig, PrettyConfig`.
     False)` raises `pytest.raises(ValidationError)` with `browser.name` in the error text; in the
     same test, `validate_web_config({"provider": "openai", "browser": {"name": "safari"}})`
     succeeds — the layering: structure passes at configphase, semantics surface at the builder
-- [ ] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
+- [x] **Debugging**: `.venv/bin/python -m pytest tests/web/ -x` — fix implementation code until
   all tests pass (do NOT fix test code)
-- [ ] **Contract re-verification**: signature `(config, strict_flag, interactive_flag) -> PrettyConfig`;
+- [x] **Contract re-verification**: signature `(config, strict_flag, interactive_flag) -> PrettyConfig`;
   purity holds (no `os.environ`/`Path` reads); modes overwritten in the dict (no duplicate
   kwargs — the load-bearing all-kwargs construction preserved)
-- [ ] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
+- [x] **Lint** (M3.3): `.venv/bin/ruff check goga_tool_pybuggy/web/ tests/web/` — 0 errors;
   `ruff format --check` on touched files
 
 ### Task 5: `EventLogFormatter` + `install_event_log_formatter` in `web/logging_setup.py` (TDD)
