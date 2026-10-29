@@ -466,7 +466,7 @@ Annotations: |
     Use `pybuggy-web` from Imports for the consumer meaning of the surveyed fields.
     Use `conventions` for logging-free TTY practices and testing.
 
-"build_config_data(answers: dict[str, object], specs: list[dict[str, object]], autonomous: dict[str, bool]) -> data:dict[str, object]":
+"build_config_data(answers: dict[str, object], specs: list[dict[str, object]], autonomous: dict[str, bool] | None = None) -> data:dict[str, object]":
   location: session.py
   annotations: |
     Pure mapping of the tool answer view into the tool config file payload: the specs mapping, the answered scalar
@@ -474,8 +474,8 @@ Annotations: |
 
     `answers`: the `survey_api_options` answers plus the block answers under local names.
     `specs`: the `survey_specs` output — the surveyed spec mappings, the first spec first.
-    `autonomous`: the `survey_autonomy` answers keyed by axis; an all-disabled mapping writes no axis
-      entries.
+    `autonomous`: the `survey_autonomy` answers keyed by axis; absent, None, or an all-disabled
+      mapping writes no axis entries.
     `data`: the serializable payload of .goga/tools/pybuggy/api.yml.
 
     Algorithm:
