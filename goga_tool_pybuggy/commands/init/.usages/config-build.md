@@ -44,10 +44,15 @@ The api branch (kind `api` or `both`), asked by pybuggy at the amendment moment:
 
 The web branch (kind `web` or `both`), asked by pybuggy at the amendment moment:
 
-- `provider` — the LLM provider: a choice of `openai` or `anthropic` (default `openai`).
-- `generation_model` — **required**; re-asked when empty.
-- `classification_model` — **required**; re-asked when empty.
-- `browser_name` — the browser for web tests; default `chromium`.
+- `provider` — the LLM provider: a choice of `openai` or `anthropic` (default `openai`). The prompt states the
+  purpose: the provider's models write and classify the browser-test steps.
+- `generation_model` — **required**; re-asked when empty. The prompt states the job: this model writes the
+  browser-step code.
+- `classification_model` — **required**; re-asked when empty. The prompt states the job: this model classifies
+  captured steps.
+- `browser_name` — the browser for web tests: a choice of the five names the runtime accepts
+  (`chromium`, `firefox`, `webkit`, `chrome`, `msedge`); default `chromium`. An out-of-list name is rejected at
+  the prompt — it would only fail later at test startup.
 - `headless` — whether the browser runs without a visible window; confirm, default yes.
 
 A `both` session asks both branches in order — the api branch first, the web branch after it.

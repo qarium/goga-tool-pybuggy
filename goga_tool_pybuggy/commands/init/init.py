@@ -56,32 +56,41 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
 
 
 # The packaged usage roots the bootstrap distributes, each paired with its destination subdirectory
-# of .goga/usages/cooks/pybuggy: the api cell (its walk also collects the ``asserts`` sub-package
-# riding that root) and the web cell distribute flat, the sandbox subtree under its own ``sandbox``
-# subdirectory. The plugin and commands cells are not roots — their usages stay out of the target.
-_USAGE_ROOTS = (("goga_tool_pybuggy.api", ""), ("goga_tool_pybuggy.sandbox", "sandbox"), ("goga_tool_pybuggy.web", ""))
+# of .goga/usages/cooks/pybuggy and its kind signal — the packaged tool config whose written file
+# gates the root's delivery: the api cell (its walk also collects the ``asserts`` sub-package
+# riding that root) ships flat for the api kind, the web cell flat for the web kind, and the
+# sandbox subtree is kind-neutral (None — always delivered) under its own ``sandbox`` subdirectory.
+# The plugin and commands cells are not roots — their usages stay out of the target.
+_USAGE_ROOTS = (
+    ("goga_tool_pybuggy.api", "", "api"),
+    ("goga_tool_pybuggy.sandbox", "sandbox", None),
+    ("goga_tool_pybuggy.web", "", "web"),
+)
 
 # The roots whose discovered usages are also registered in the consumer config — the always-on test
-# surface every cell consumes. The sandbox subtree and the web cell are download-only here: the
-# sandbox capability usages may or may not apply to a given cell, and the web usage registers through
-# the kind-gated bootstrap step (the written ``web.yml``), never unconditionally.
+# surface every cell consumes. The sandbox subtree is download-only here: the sandbox capability
+# usages may or may not apply to a given cell. Both registered roots register through their
+# kind-gated bootstrap steps (the written ``api.yml`` / ``web.yml``), never unconditionally.
 _REGISTERED_USAGE_ROOTS = ("goga_tool_pybuggy.api",)
 
 
-def _discover_packaged_usages() -> tuple[list[tuple[str, str, str]], list[str]]:
-    """Discover ``.usages/*.md`` files under every packaged usage root, roots in order.
+def _discover_packaged_usages(usage_roots: tuple[tuple[str, str], ...]) -> tuple[list[tuple[str, str, str]], list[str]]:
+    """Discover ``.usages/*.md`` files under the given packaged usage roots, roots in order.
+
+    Args:
+        usage_roots: The active ``(package, subdir)`` pairs — the kind-gated roots whose signal
+            file was written plus the kind-neutral roots.
 
     Returns:
         The ``(discovered, registered)`` pair — the ``(stem, text, subdir)`` triples of every
-        packaged usage file (seven stems today: api, asserts, sandbox-session, sandbox-file,
-        data-operations, migration-set, pybuggy-web; the sandbox stems carry the ``sandbox``
+        packaged usage file of the active roots (the sandbox stems carry the ``sandbox``
         destination subdirectory, the api and web stems an empty one), and the stems of the
-        registered roots in discovery order (api and asserts today) for the config registration.
+        registered roots in discovery order for the config registration.
     """
     discovered: list[tuple[str, str, str]] = []
     registered: list[str] = []
 
-    for root, subdir in _USAGE_ROOTS:
+    for root, subdir in usage_roots:
         found = _discover_usages(importlib.resources.files(root))
         discovered.extend((stem, text, subdir) for stem, text in found)
 
@@ -299,12 +308,38 @@ def run_init(tpl: str | None, ref: str | None, upgrade: bool) -> int:
     return run_bootstrap(template_mode=(mode == _TEMPLATE))
 
 
+def _kind_gated_roots(api_written: bool, web_written: bool) -> tuple[tuple[str, str], ...]:
+    """Return the packaged usage roots active for the written kinds — the bootstrap step-2 gate.
+
+    Each kind root is active only when its kind config was written; the kind-neutral sandbox
+    subtree is always active. An absent kind is DEBUG-logged — it ships nothing.
+
+    Args:
+        api_written: Whether the session wrote the api tool config (``api.yml``).
+        web_written: Whether the session wrote the web tool config (``web.yml``).
+
+    Returns:
+        The active ``(package, subdir)`` pairs, in ``_USAGE_ROOTS`` order.
+    """
+    signals = {"api": api_written, "web": web_written}
+    roots = tuple((root, subdir) for root, subdir, signal in _USAGE_ROOTS if signal is None or signals[signal])
+
+    for kind, written in signals.items():
+        if not written:
+            path = f".goga/tools/pybuggy/{kind}.yml"
+            logger.debug(f"{kind} config absent, {kind} artifacts skipped", extra={"path": path})
+
+    return roots
+
+
 def run_bootstrap(template_mode: bool) -> int:
     """Run the 10-step post-session bootstrap with mode-dependent gates.
 
     Steps 2-8 are wrapped: an ``(OSError, YAMLError, ValueError)`` is ERROR-logged and mapped to exit code 1.
-    The web-kind sub-steps (3b, 6b, 6c) are gated on the written ``web.yml`` — the kind signal; the
-    kind answer itself never crosses the session boundary.
+    The kind-dependent sub-steps are gated on the written tool configs — the kind signals: the api
+    root's usage copy and the api registration (steps 2 and 7) apply only when ``api.yml`` was
+    written; the web examples, the pybuggy-web registration, and the playwright line (3b, 6b, 6c)
+    only when ``web.yml`` was written. The kind answer itself never crosses the session boundary.
 
     Args:
         template_mode: Whether the bootstrap runs after template scaffolding (silent-skip gates
@@ -315,11 +350,17 @@ def run_bootstrap(template_mode: bool) -> int:
     """
     cwd = Path.cwd()
     config = cwd / ".goga" / "config.yml"
-    web_config = cwd / ".goga" / "tools" / "pybuggy" / "web.yml"
+    tools_dir = cwd / ".goga" / "tools" / "pybuggy"
+    web_config = tools_dir / "web.yml"
+    api_written = (tools_dir / "api.yml").exists()
     web_written = web_config.exists()
 
+    # The kind signals — the tool config files the session wrote. Each packaged root ships and
+    # registers only for its kind; the sandbox subtree and the conventions slot are kind-neutral.
+    active_roots = _kind_gated_roots(api_written, web_written)
+
     try:
-        discovered, registered = _discover_packaged_usages()
+        discovered, registered = _discover_packaged_usages(active_roots)
 
         for stem, text, subdir in discovered:
             dest = cwd / ".goga" / "usages" / "cooks" / "pybuggy" / subdir / f"{stem}.md"
@@ -343,8 +384,6 @@ def run_bootstrap(template_mode: bool) -> int:
 
             if documented:
                 logger.info("web config examples documented", extra={"count": len(documented)})
-        else:
-            logger.debug("web config absent, web artifacts skipped", extra={"path": str(web_config)})
 
         # The conventions slot is delivered skip-if-exists in BOTH modes — never overwritten, never prompted.
         slot = cwd / ".goga" / "usages" / "conventions.md"
@@ -363,8 +402,9 @@ def run_bootstrap(template_mode: bool) -> int:
         if web_written:
             _register_web_kind(config, dockerfile)
 
-        # Only the registered-root stems are registered — the sandbox capability usages are
-        # download-only (their files were copied above), never bound to every cell via the config.
+        # Only the registered-root stems of the active roots are registered — a kind's usages never
+        # register without its written config; the sandbox capability usages are download-only
+        # (their files were copied above), never bound to every cell via the config.
         usage_keys = {f"pybuggy-{stem}": f".goga/usages/cooks/pybuggy/{stem}.md" for stem in registered}
         usage_keys["conventions"] = ".goga/usages/conventions.md"
         annotation_lines = {f"pybuggy-{stem}": _annotation_for(stem) for stem in registered}

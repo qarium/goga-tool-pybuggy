@@ -46,8 +46,9 @@ amendment hook right after the engine survey:
   autonomy last (a confirm-gated repeated group is beyond the declarative records, and the autonomy questions must
   not interleave the spec fields);
 - the **web branch** (kind `web` or `both`) — the web minimum: the LLM provider (`openai`/`anthropic`, default
-  `openai`), the generation and classification models (required), the browser name (default `chromium`), and
-  headless (default yes).
+  `openai`; the prompt states that the provider's models write and classify the browser-test steps), the
+  generation and classification models (required; each prompt states which job the model does), the browser name
+  (a choice of `chromium`/`firefox`/`webkit`/`chrome`/`msedge`, default `chromium`), and headless (default yes).
 
 The api and web question sets never cross; a `both` session asks both branches in order (api first, web after it).
 
@@ -97,15 +98,15 @@ After the session (bare and template modes only), the command delivers the files
 
 | Artifact | Gate |
 |---|---|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) and the web usage (`pybuggy-web.md`) | template: skip existing (INFO); bare: overwrite |
-| `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox capability usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | template: skip existing (INFO); bare: overwrite; pre-existing flat copies stay untouched |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) and the web usage (`pybuggy-web.md`) | kind-gated: the api pair copies only when `api.yml` was written, `pybuggy-web.md` only when `web.yml` was written (a `both` session ships both); template: skip existing (INFO); bare: overwrite |
+| `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox capability usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | always (kind-neutral); template: skip existing (INFO); bare: overwrite; pre-existing flat copies stay untouched |
 | commented example records for the absent members of `.goga/tools/pybuggy/api.yml` | added when the file exists (kind api or both), idempotent |
 | commented example records for the absent keys of `.goga/tools/pybuggy/web.yml` | added when the file exists (kind web or both), idempotent |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
 | the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `RUN goga install pybuggy -v <major.minor>.x` | written when the file exists — appended when absent, repinned in place when a previous release's line shape differs (e.g. the concrete `-v 2.0`); idempotent at the current pin |
 | the playwright browser-install RUN line in the project Dockerfile — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change; idempotent |
-| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`); the `pybuggy-web` usage key with its annotation line | always registered, idempotent — the `pybuggy-web` key only when `web.yml` was written; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
+| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`); the `pybuggy-web` usage key with its annotation line | idempotent — `conventions` always; the api pair only when `api.yml` was written; the `pybuggy-web` key only when `web.yml` was written; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
 A Dockerfile missing after the session fails the command with a non-zero exit — pybuggy requires one to carry its

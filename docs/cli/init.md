@@ -118,13 +118,16 @@ command — the
 bootstrap is skipped, the code is propagated unchanged.
 
 **Stage 2 — the pybuggy bootstrap.** Delivers the files the session does not carry.
-The web steps are gated on the written `web.yml` (the kind signal) and no-op for an
-api-only project; the api example-documentation no-ops naturally when `api.yml` is absent
-(web-only — the api usage keys still register, exactly as the table's last row pins):
+Every kind-dependent step is gated on the written tool configs (the kind signals): the
+api steps — the api usage copy and the api usage registration — apply only when `api.yml`
+was written and no-op for a web-only project; the web steps — the web examples, the
+`pybuggy-web` copy and registration, and the playwright line — apply only when `web.yml`
+was written and no-op for an api-only project. A kind's usages and registrations never
+cross into the other's project.
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) and the web usage (`pybuggy-web.md`) | template: skip existing (INFO); bare: overwrite |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) and the web usage (`pybuggy-web.md`) | kind-gated: the api pair only when `api.yml` was written, `pybuggy-web.md` only when `web.yml` was written; template: skip existing (INFO); bare: overwrite |
 | `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | template: skip existing (INFO); bare: overwrite; flat copies from earlier distributions stay untouched |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/api.yml` | emitted, idempotent, comment-only |
 | commented example records for absent web keys in `.goga/tools/pybuggy/web.yml` | emitted when the web config was written, idempotent, comment-only |
@@ -132,7 +135,7 @@ api-only project; the api example-documentation no-ops naturally when `api.yml` 
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
 | the pybuggy install `RUN` line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |
 | the playwright browser-install `RUN` line — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change, idempotent |
-| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`); the `pybuggy-web` usage key with its annotation line | always registered, idempotent — the `pybuggy-web` key only when `web.yml` was written; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
+| the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`); the `pybuggy-web` usage key with its annotation line | idempotent — `conventions` always; the api pair only when `api.yml` was written; the `pybuggy-web` key only when `web.yml` was written; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
 The install line is derived from the **installed pybuggy version** — e.g. an
@@ -209,11 +212,16 @@ The **web branch** (kind `web` or `both`) is asked by pybuggy at the amendment m
 as well — the web minimum:
 
 - `provider` — the LLM provider: a choice of `openai` | `anthropic`, default `openai`.
-- `generation_model` — **required** (empty input is re-asked); the model for
-  step-code generation.
-- `classification_model` — **required** (empty input is re-asked); the model for step
-  classification.
-- `browser_name` — the browser for web tests; default `chromium`.
+  The prompt states the purpose: the provider's models write and classify the
+  browser-test steps.
+- `generation_model` — **required** (empty input is re-asked); the model that writes
+  the browser-step code.
+- `classification_model` — **required** (empty input is re-asked); the model that
+  classifies captured steps.
+- `browser_name` — the browser for web tests: a choice of the five names the runtime
+  accepts (`chromium`, `firefox`, `webkit`, `chrome`, `msedge`), default `chromium` —
+  an out-of-list name is rejected at the prompt instead of failing later at test
+  startup.
 - `headless` — whether the browser runs without a visible window; a confirm, default
   yes.
 
@@ -286,7 +294,9 @@ record. The generated api file is valid for
   `web` cell root (`pybuggy-web` — flat under `.goga/usages/cooks/pybuggy/`), and the
   `sandbox` subtree roots (`sandbox-session`, `sandbox-file`, `data-operations`,
   `migration-set` — under `.goga/usages/cooks/pybuggy/sandbox/`); the `plugin` and `commands`
-  cells and internal development cells (`config`/`spec`/`output`/…) are not copied. Only the
-  api-root usages are registered in `codemanifest` (plus `pybuggy-web`, when the web
+  cells and internal development cells (`config`/`spec`/`output`/…) are not copied. The api
+  and web roots ship only for their kind (the written `api.yml` / `web.yml`); the sandbox
+  subtree is kind-neutral and always ships. Only the api-root usages are registered in
+  `codemanifest` (when the api config was written; plus `pybuggy-web`, when the web
   config was written); the sandbox capability usages stay
   download-only.

@@ -567,7 +567,9 @@ class TestRunBootstrap:
         errors = _error_records(caplog)
         assert len(errors) == 1
         assert "Dockerfile" in errors[0].message
-        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
+        # No tool config was written, so the kind-neutral sandbox delivery ran but no kind shipped.
+        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "sandbox" / "sandbox-session.md").exists()
+        assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
         assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == _EXPECTED_CONFTEST
         assert not (tmp_path / ".goga" / "Dockerfile").exists()
 
@@ -609,8 +611,10 @@ class TestRunBootstrap:
         assert len(errors) == 1
         assert errors[0].message == "onboarding bootstrap failed"
         assert "web.yml" in errors[0].error
-        # Step 2 already delivered the usages; everything after 3b never ran.
-        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
+        # Step 2 already delivered the usages of the written kinds (the corrupt web.yml counts as
+        # the web signal; the api root never shipped without api.yml); everything after 3b never ran.
+        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "pybuggy-web.md").exists()
+        assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
         assert not (tmp_path / ".goga" / "usages" / "conventions.md").exists()
         assert not (tmp_path / "conftest.py").exists()
         assert dockerfile.read_text(encoding="utf-8") == "FROM x\n"
@@ -638,6 +642,12 @@ class TestRunBootstrap:
         monkeypatch.chdir(tmp_path)
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+        api_config = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
+        api_config.parent.mkdir(parents=True)
+        api_config.write_text(
+            "base_url: https://{{ HOST }}/api\nspecs:\n  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
+            encoding="utf-8",
+        )
         api_copy = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md"
         api_copy.parent.mkdir(parents=True)
         api_copy.write_text("stale api usage\n", encoding="utf-8")
@@ -654,7 +664,7 @@ class TestRunBootstrap:
         assert conftest.read_text(encoding="utf-8") == _EXPECTED_CONFTEST
 
     def test_run_bootstrap_existing_config_session_end_still_enforces(self, tmp_path, monkeypatch):
-        """A template-brought config (session ended at once) still gets flag, keys, install line."""
+        """A template-brought config (session ended at once) still gets flag, conventions, install line."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\nbuild:\n  agent: swax\n")
@@ -667,7 +677,9 @@ class TestRunBootstrap:
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         assert config["build"]["review"]["skip"] is True
         assert config["build"]["agent"] == "swax"
-        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        # No tool config was written (the session ended at once) — no kind ships or registers,
+        # only the kind-neutral conventions slot.
+        assert config["codemanifest"]["usages"] == {"conventions": ".goga/usages/conventions.md"}
         assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
 
     def test_run_bootstrap_idempotent_rerun(self, tmp_path, monkeypatch, caplog):
@@ -686,8 +698,8 @@ class TestRunBootstrap:
         assert {path: path.read_bytes() for path in tmp_path.rglob("*") if path.is_file()} == snapshot
 
         warnings = [record.getMessage() for record in caplog.records if record.levelno == logging.WARNING]
-        assert warnings.count("usage already registered, skipped") == 3
-        assert warnings.count("annotation already registered, skipped") == 3
+        assert warnings.count("usage already registered, skipped") == 1
+        assert warnings.count("annotation already registered, skipped") == 1
 
     @pytest.mark.parametrize(
         "config_text",
@@ -711,7 +723,8 @@ class TestRunBootstrap:
         assert code == 0
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         assert config["build"]["review"]["skip"] is True
-        assert config["codemanifest"]["usages"]["pybuggy-api"] == ".goga/usages/cooks/pybuggy/api.md"
+        # No tool config was written — only the kind-neutral conventions key registers.
+        assert config["codemanifest"]["usages"] == {"conventions": ".goga/usages/conventions.md"}
         assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
 
     @pytest.mark.parametrize(
@@ -772,13 +785,15 @@ class TestRunBootstrap:
         assert (usages / "pybuggy-web.md").read_text(encoding="utf-8") == _PACKAGED_WEB_USAGE
         assert "web config examples documented" in caplog.text
 
-        # The web usage registers in its own kind-gated call; the api stems stay the always-on
-        # registration (step 7) — the exact expected set, nothing double-prefixed.
+        # The web usage registers in its own kind-gated call; without api.yml the api stems never
+        # ship or register — the exact expected set, nothing double-prefixed.
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         usages_record = config["codemanifest"]["usages"]
         assert usages_record["pybuggy-web"] == ".goga/usages/cooks/pybuggy/pybuggy-web.md"
-        assert set(usages_record) == {"pybuggy-api", "pybuggy-asserts", "pybuggy-web", "conventions"}
+        assert set(usages_record) == {"pybuggy-web", "conventions"}
         assert _WEB_ANNOTATION_LINE in config["codemanifest"]["annotations"]
+        assert not (usages / "api.md").exists()
+        assert not (usages / "asserts.md").exists()
 
         dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
         assert dockerfile.endswith(f"{_PLAYWRIGHT_LINE}\n")
@@ -852,6 +867,6 @@ class TestRunBootstrap:
         assert "`pybuggy-web`" not in config["codemanifest"]["annotations"]
         assert "playwright" not in (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
         assert "# headers: example (skipped complex member)" in tool_config.read_text(encoding="utf-8")
-        # The web usage file still copies (download-only, the sandbox pattern) — registration is the gate.
-        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "pybuggy-web.md").exists()
+        # The web usage never crosses into an api-only project — neither file nor registration.
+        assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "pybuggy-web.md").exists()
         assert _error_records(caplog) == []

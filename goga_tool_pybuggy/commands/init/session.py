@@ -51,6 +51,12 @@ _NUMERIC_MEMBERS: dict[PluginConfigKeys, type] = {
 # surveyed extras (a ``type`` outside this tuple is always rejected).
 _SPEC_TYPES = ("swagger", "openapi")
 
+# The browser names the web runtime accepts — a mirror of the prettyplay browser matrix, the
+# runtime's own authority (an out-of-matrix name fails at test startup with its "must be one of"
+# rejection). The survey offers exactly these as the choice set, so an invalid name never reaches
+# ``web.yml``.
+_BROWSER_NAMES: tuple[str, ...] = ("chromium", "firefox", "webkit", "chrome", "msedge")
+
 # The autonomous pipelines of the amend-moment survey — one confirm per axis, asked and
 # written in this order (automate first, patch after it).
 _AUTONOMY_AXES: tuple[str, ...] = ("api.automate", "api.patch")
@@ -220,7 +226,10 @@ def survey_web_config() -> dict[str, object]:
     """Interactively survey the web minimum — the web branch of the amendment moment.
 
     The minimum only — the remaining ``WebConfigKeys`` arrive as commented examples in the
-    written ``web.yml`` (the bootstrap's example documentation).
+    written ``web.yml`` (the bootstrap's example documentation). The LLM prompts state their
+    purpose — browser steps are written and classified by the provider's models — so a web-only
+    user can answer them; the models stay required. The browser name is a choice of the
+    runtime-accepted ``_BROWSER_NAMES``, so an invalid name never reaches ``web.yml``.
 
     Returns:
         The five surveyed keys — ``provider``, ``generation_model``, ``classification_model``,
@@ -231,10 +240,14 @@ def survey_web_config() -> dict[str, object]:
             contribution with a warning.
     """
     return {
-        "provider": click.prompt("Provider", type=click.Choice(["openai", "anthropic"]), default="openai"),
-        "generation_model": _required("Generation model (step-code generation)"),
-        "classification_model": _required("Classification model (step classification)"),
-        "browser_name": click.prompt("Browser name", default="chromium"),
+        "provider": click.prompt(
+            "LLM provider (writes and classifies the browser-test steps)",
+            type=click.Choice(["openai", "anthropic"]),
+            default="openai",
+        ),
+        "generation_model": _required("Generation model (the LLM writing the browser-step code, required)"),
+        "classification_model": _required("Classification model (the LLM classifying captured steps, required)"),
+        "browser_name": click.prompt("Browser name", type=click.Choice(list(_BROWSER_NAMES)), default="chromium"),
         "headless": click.confirm("Run the browser headless?", default=True),
     }
 

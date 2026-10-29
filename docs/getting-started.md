@@ -46,8 +46,10 @@ mode)?"**, each defaulting to No; a Yes writes that pipeline's entry in the
 `pipelines` section (see [Automate — Autonomous
 runs](pipelines/api-automate.md#autonomous-runs) and [Patch — Autonomous
 runs](pipelines/api-patch.md#autonomous-runs)). The **web branch** (kind `web` or
-`both`) asks the web minimum — the LLM `provider`, the two required model names, the
-browser name (default `chromium`), and the headless confirm (default yes). Whatever you
+`both`) asks the web minimum — the LLM `provider` (its models write and classify the
+browser-test steps), the two required model names, the browser name (a choice of the
+five names the runtime accepts — `chromium`, `firefox`, `webkit`, `chrome`, `msedge`;
+default `chromium`), and the headless confirm (default yes). Whatever you
 answer to the core tools question, pybuggy is always recorded in `.goga/config.yml`.
 The session writes `.goga/config.yml`, the Dockerfile, and the tool config of the
 chosen kind — `.goga/tools/pybuggy/api.yml` (kind api or both) and/or
@@ -73,7 +75,7 @@ See [Configuration](configuration.md).
 
 | Artifact | Gate |
 |----------|------|
-| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) and the web usage (`pybuggy-web.md`) | written (bare overwrites; template skips existing) |
+| `.goga/usages/cooks/pybuggy/<stem>.md` — the packaged api usages (`api.md`, `asserts.md`) and the web usage (`pybuggy-web.md`) | kind-gated (the api pair only for the api kind, `pybuggy-web.md` only for the web kind); written (bare overwrites; template skips existing) |
 | `.goga/usages/cooks/pybuggy/sandbox/<stem>.md` — the packaged sandbox usages (`sandbox-session.md`, `sandbox-file.md`, `data-operations.md`, `migration-set.md`) | written (bare overwrites; template skips existing); flat copies from earlier distributions stay untouched |
 | commented example records for absent plugin members in `.goga/tools/pybuggy/api.yml` | emitted (idempotent, comment-only) |
 | commented example records for absent web keys in `.goga/tools/pybuggy/web.yml` | emitted when the web config was written (idempotent, comment-only) |
@@ -81,7 +83,7 @@ See [Configuration](configuration.md).
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
 | `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version is derived from the installed pybuggy version |
 | the playwright browser-install `RUN` line — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change (idempotent) |
-| usage keys `pybuggy-api` / `pybuggy-asserts` / `conventions` + annotation lines in `codemanifest` | registered (idempotent; user-defined keys are never overwritten); the `pybuggy-web` usage key + annotation registers only when `web.yml` was written; the sandbox capability usage files are copied to `.goga/usages/cooks/pybuggy/sandbox/` without registration — they may or may not apply to a given cell, and the config usages bind every cell |
+| usage keys `pybuggy-api` / `pybuggy-asserts` + annotation lines in `codemanifest` | registered when `api.yml` was written (idempotent; user-defined keys are never overwritten); a web-only project registers neither — the `pybuggy-web` usage key + annotation registers only when `web.yml` was written; the sandbox capability usage files are copied to `.goga/usages/cooks/pybuggy/sandbox/` without registration — they may or may not apply to a given cell, and the config usages bind every cell |
 | root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
 The command requires a Dockerfile — and the session always creates one (the fixed

@@ -73,6 +73,35 @@ def _seed_bootstrap_target(root: Path) -> None:
     (root / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
 
+def _seed_api_config(root: Path) -> None:
+    """Seed the api kind signal — a written ``api.yml`` tool config.
+
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
+    """
+    api_config = root / ".goga" / "tools" / "pybuggy" / "api.yml"
+    api_config.parent.mkdir(parents=True, exist_ok=True)
+    api_config.write_text(
+        "base_url: https://{{ HOST }}/api\nspecs:\n  shop:\n    type: swagger\n    location: specs/shop.yaml\n",
+        encoding="utf-8",
+    )
+
+
+def _seed_web_config(root: Path) -> None:
+    """Seed the web kind signal — a written ``web.yml`` tool config.
+
+    Args:
+        root: The scratch project root (the test's ``tmp_path``).
+    """
+    web_config = root / ".goga" / "tools" / "pybuggy" / "web.yml"
+    web_config.parent.mkdir(parents=True, exist_ok=True)
+    web_config.write_text(
+        "provider: openai\ngeneration_model: g\nclassification_model: c\n"
+        "browser:\n  name: chromium\n  headless: true\nstrict: false\ninteractive: false\n",
+        encoding="utf-8",
+    )
+
+
 class TestBootstrapContract:
     """Facade exposure and signature surface of the nine bootstrap writers."""
 
@@ -721,10 +750,10 @@ class TestFixedAssetWriters:
 
 
 class TestRunBootstrapUsages:
-    """The ``run_bootstrap`` packaged-usage distribution — three roots, seven stems, split destinations."""
+    """The ``run_bootstrap`` packaged-usage distribution — kind-gated roots, split destinations."""
 
-    def test_bootstrap_contract_distributes_seven_stems_registers_api_pair_only(self, tmp_path, monkeypatch):
-        """After a template-mode bootstrap the api pair and the web usage land flat, the sandbox quartet not."""
+    def test_bootstrap_without_tool_configs_ships_sandbox_only_and_registers_conventions(self, tmp_path, monkeypatch):
+        """Without a written tool config no kind ships: only the sandbox quartet lands, only conventions register."""
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_bootstrap_target(tmp_path)
@@ -732,34 +761,34 @@ class TestRunBootstrapUsages:
         assert run_bootstrap(template_mode=True) == 0
 
         usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
-        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "pybuggy-web.md", "sandbox"]
+        assert sorted(path.name for path in usages.iterdir()) == ["sandbox"]
         assert sorted(path.name[:-3] for path in (usages / "sandbox").iterdir()) == sorted(_SANDBOX_STEMS)
 
         config = YAML().load(tmp_path / ".goga" / "config.yml")
-        assert set(config["codemanifest"]["usages"]) == {"pybuggy-api", "pybuggy-asserts", "conventions"}
-        for stem in _SANDBOX_STEMS:
-            assert f"pybuggy-{stem}" not in config["codemanifest"]["usages"]
-            assert f"`pybuggy-{stem}`" not in config["codemanifest"]["annotations"]
-        assert "pybuggy-web" not in config["codemanifest"]["usages"]
-        assert "`pybuggy-web`" not in config["codemanifest"]["annotations"]
+        assert set(config["codemanifest"]["usages"]) == {"conventions"}
+        for stem in (*_SANDBOX_STEMS, "api", "asserts", "web"):
+            key = "pybuggy-web" if stem == "web" else f"pybuggy-{stem}"
+            assert key not in config["codemanifest"]["usages"]
+            assert f"`{key}`" not in config["codemanifest"]["annotations"]
 
-    def test_bootstrap_copies_all_and_registers_only_api_usages(self, tmp_path, monkeypatch):
-        """All seven usage files land byte-identical at their destinations; only the api pair registers.
+    def test_bootstrap_api_kind_copies_api_and_sandbox_and_registers_api_pair(self, tmp_path, monkeypatch):
+        """An api-kind tree (api.yml, no web.yml) ships the api pair plus the sandbox quartet — never the web usage.
 
-        The scope constraint holds: nothing beyond the three packaged roots is copied — the plugin
-        and commands usage files never reach the target. The web usage copies download-only here:
-        without a written ``web.yml`` its registration (a kind-gated step) never fires.
+        Every delivered file lands byte-identical at its destination; only the api pair registers.
+        The scope constraint holds: nothing beyond the packaged roots is copied — the plugin and
+        commands usage files never reach the target.
         """
         monkeypatch.chdir(tmp_path)
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_bootstrap_target(tmp_path)
+        _seed_api_config(tmp_path)
 
         assert run_bootstrap(template_mode=False) == 0
 
         usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
-        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "pybuggy-web.md", "sandbox"]
+        assert sorted(path.name for path in usages.iterdir()) == ["api.md", "asserts.md", "sandbox"]
 
-        for stem in ("api", "asserts", "pybuggy-web"):
+        for stem in ("api", "asserts"):
             assert (usages / f"{stem}.md").read_text(encoding="utf-8") == _PACKAGED_USAGES[stem]
 
         for stem in _SANDBOX_STEMS:
@@ -777,9 +806,30 @@ class TestRunBootstrapUsages:
             assert f"pybuggy-{stem}" not in registered
             assert f"`pybuggy-{stem}`" not in annotations
 
-        # The web usage key is its own stem — no ``pybuggy-`` prefixing at the registration step.
+        # The web usage never crosses into an api-only project — neither file nor registration.
         assert "pybuggy-web" not in registered
         assert "`pybuggy-web`" not in annotations
+
+    def test_bootstrap_web_kind_copies_web_and_sandbox_and_registers_web_usage(self, tmp_path, monkeypatch):
+        """A web-kind tree (web.yml, no api.yml) ships the web usage plus the sandbox quartet — never the api files."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        _seed_bootstrap_target(tmp_path)
+        _seed_web_config(tmp_path)
+
+        assert run_bootstrap(template_mode=False) == 0
+
+        usages = tmp_path / ".goga" / "usages" / "cooks" / "pybuggy"
+        assert sorted(path.name for path in usages.iterdir()) == ["pybuggy-web.md", "sandbox"]
+        assert (usages / "pybuggy-web.md").read_text(encoding="utf-8") == _PACKAGED_USAGES["pybuggy-web"]
+
+        config = YAML().load(tmp_path / ".goga" / "config.yml")
+        registered = config["codemanifest"]["usages"]
+        # The api usage keys never cross into a web-only project; the web usage key is its own
+        # stem — no ``pybuggy-`` prefixing at the registration step.
+        assert set(registered) == {"pybuggy-web", "conventions"}
+        assert "`pybuggy-web`" in config["codemanifest"]["annotations"]
+        assert "`pybuggy-api`" not in config["codemanifest"]["annotations"]
 
     def test_bootstrap_template_mode_skips_existing_targets(self, tmp_path, monkeypatch, caplog):
         """Template mode keeps an existing sandbox-usage sentinel across reruns; bare mode overwrites it."""

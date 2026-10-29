@@ -51,11 +51,11 @@ Annotations: |
   are surveyed by the tool itself at the amendment moment — specs first, autonomy after them — a confirm-gated
   repeated group is beyond the declarative engine records. The tool config file and the config amendments are
   committed through the participation mechanism; an existing .goga/config.yml ends the session immediately and is
-  never rewritten. The bootstrap owns the pybuggy files the session does not carry: the packaged usages copy, the
-  tool-config example documentation, the `conventions` slot, the build.review.skip enforcement, the Dockerfile
-  install line, the usage and annotation registrations of the api-root usages only (the sandbox capability usages
-  are copied as files without registration — they may or may not apply to a given cell, while the codemanifest
-  usages of .goga/config.yml bind every cell), and the root conftest. Use relative imports inside the cell.
+  never rewritten. The bootstrap owns the pybuggy files the session does not carry: the kind-gated packaged usages
+  copy, the tool-config example documentation, the `conventions` slot, the build.review.skip enforcement, the
+  Dockerfile install line, the kind-gated usage and annotation registrations (the sandbox capability usages are
+  copied as files without registration — they may or may not apply to a given cell, while the codemanifest usages
+  of .goga/config.yml bind every cell), and the root conftest. Use relative imports inside the cell.
 
   The pybuggy question block is kind-aware: the first record asks the test kind (api / web / both) and
   gates every downstream block on it. The declarative block carries only the unconditional records —
@@ -64,10 +64,12 @@ Annotations: |
   surveys the api options, the specs (first and additional), and the autonomy confirms; the web branch
   surveys the web minimum (LLM provider, generation/classification model, browser, headless). Both
   tool config files — api.yml and web.yml — are buffered through the session contribution and written
-  by the engine. The bootstrap closes kind-dependently: the written file is the kind signal — the api
-  examples document into api.yml; the web examples, the pybuggy-web usage registration, and the
-  Dockerfile playwright line apply only when web.yml was written. The api and web question sets never
-  cross. The web config keys are `WebConfigKeys` from Imports — the single source for the survey, the
+  by the engine. The bootstrap closes kind-dependently on the written files — the kind signals: the
+  api root's usage copy and the api usage registration apply only when api.yml was written; the web
+  examples, the pybuggy-web usage copy and registration, and the Dockerfile playwright line only
+  when web.yml was written; the sandbox subtree usages and the conventions slot are kind-neutral and
+  always deliver. The api and web question sets, usages, and registrations never cross. The web
+  config keys are `WebConfigKeys` from Imports — the single source for the survey, the
   payload, and the commented examples.
 
 ---
@@ -161,12 +163,14 @@ Annotations: |
     `exit_code`: 0 on success; non-zero on a failed step.
 
     Algorithm:
-    1. Resolve the output root as the current working directory.
-    2. Discover every .usages/*.md under the packaged usage roots — the api cell, the cells of
-    the sandbox subtree, and the web cell that carry usage files; copy each under
-    .goga/usages/cooks/pybuggy/ at its root's destination — the api and web usages flat as
-    <stem>.md, the sandbox subtree usages in the sandbox/ subdirectory — template mode: an
-    existing target is skipped with an INFO log; bare mode: an existing target is overwritten.
+    1. Resolve the output root as the current working directory and the kind signals — the presence
+    of the written tool configs api.yml and web.yml.
+    2. Discover every .usages/*.md under the active packaged usage roots — a kind root (the api
+    cell, the web cell) is active only when its kind config was written, the sandbox subtree is
+    always active; copy each under .goga/usages/cooks/pybuggy/ at its root's destination — the api
+    and web usages flat as <stem>.md, the sandbox subtree usages in the sandbox/ subdirectory —
+    template mode: an existing target is skipped with an INFO log; bare mode: an existing target is
+    overwritten. An inactive kind is DEBUG-logged and ships nothing.
     3. Document the absent plugin members of .goga/tools/pybuggy/api.yml as commented example records via
        `document_config_examples` — idempotent; a no-op when the session wrote no tool config.
     3b. When the web config was written (the kind signal — the file the session wrote), document its
@@ -182,9 +186,10 @@ Annotations: |
         `register_usages` and `register_annotations` — idempotent.
     6c. When the web config was written, augment the Dockerfile via `install_playwright` (the browser
         comes from the written web config).
-    7. Register the api-root usage keys (pybuggy-api, pybuggy-asserts) plus `conventions` via
-       `register_usages` and their annotation lines via `register_annotations` — idempotent. The
-       sandbox-subtree usages are download-only: copied in step 2, never registered — they may or may not apply
+    7. Register the active api-root usage keys (pybuggy-api, pybuggy-asserts — only when the api
+       config was written) plus the kind-neutral `conventions` via `register_usages` and their
+       annotation lines via `register_annotations` — idempotent. The sandbox-subtree usages are
+       download-only: copied in step 2, never registered — they may or may not apply
        to a given cell, while the codemanifest usages of .goga/config.yml bind every cell.
     8. Deliver the root conftest: when conftest.py does not exist, call `write_pybuggy_conftest`; when it exists —
        template mode: log INFO and skip; bare mode: ask via click.confirm (default no) and overwrite only on yes.
@@ -192,15 +197,18 @@ Annotations: |
     10. Return 0.
 
     Requirements:
-    - After every successful run the consumer config carries build.review.skip: true; the api-root pybuggy usage
-      keys (pybuggy-api, pybuggy-asserts) and their annotation lines plus `conventions` are registered; every
-      packaged usage — including the sandbox capability usages — is copied; the tool config carries the commented
-      examples of its absent optional members (when the session wrote it); the `conventions` slot is occupied
-      when it was absent; the root conftest exists.
+    - After every successful run the consumer config carries build.review.skip: true and the
+      kind-neutral `conventions` key with its annotation line; the api-root pybuggy usage keys
+      (pybuggy-api, pybuggy-asserts) and their annotation lines register only when the api config
+      was written; every packaged usage of the kinds the session wrote — plus the kind-neutral
+      sandbox subtree — is copied, and a kind's usages never ship without its written config; the
+      tool config carries the commented examples of its absent optional members (when the session
+      wrote it); the `conventions` slot is occupied when it was absent; the root conftest exists.
     - When the web kind was chosen — the web config carries the commented examples of its absent
-      keys, the pybuggy-web usage key and its annotation line are registered, and the Dockerfile
-      carries the playwright install line. The api steps no-op naturally when api.yml is absent
-      (web-only) and the web steps no-op when web.yml is absent (api-only).
+      keys, the pybuggy-web usage file is copied, its usage key and annotation line are registered,
+      and the Dockerfile carries the playwright install line. The api steps no-op naturally when
+      api.yml is absent (web-only) and the web steps no-op when web.yml is absent (api-only) — no
+      kind's usages or registrations ever cross into the other's project.
     - The sandbox capability usage files land in the sandbox subdirectory of the cooks directory — their own
     distribution path, apart from the flat api usages — and are never registered in the consumer config:
     their capabilities are optional per cell, and the codemanifest usages of .goga/config.yml bind every
@@ -212,6 +220,8 @@ Annotations: |
     Constraints:
     - Do not copy usages beyond the packaged usage roots (the api cell, the sandbox subtree
     cells, and the web cell).
+    - Do not deliver or register a kind's usages when its config file is absent — the written
+    configs are the only kind signal; the kind answer never crosses the session boundary.
     - Do not prompt about the web delivery — the gates are file presence; the kind answer never
     crosses the session boundary.
     - Do not remove or relocate a pre-existing flat sandbox copy — no migration; the
@@ -446,15 +456,22 @@ Annotations: |
     `answers`: the surveyed web keys.
 
     Algorithm:
-    1. Ask provider as a choice of openai|anthropic (default openai).
-    2. Ask generation_model as a required input (re-asked when empty).
-    3. Ask classification_model as a required input (re-asked when empty).
-    4. Ask browser_name as an input (default chromium).
+    1. Ask provider as a choice of openai|anthropic (default openai) — the prompt states the
+       purpose: the provider's models write and classify the browser-test steps.
+    2. Ask generation_model as a required input (re-asked when empty) — the prompt states the
+       purpose: this model writes the browser-step code.
+    3. Ask classification_model as a required input (re-asked when empty) — the prompt states
+       the purpose: this model classifies captured steps.
+    4. Ask browser_name as a choice of the five runtime-accepted names — chromium|firefox|webkit|
+       chrome|msedge (default chromium); an out-of-matrix name is rejected at the prompt, never
+       written to web.yml.
     5. Ask headless as a confirm (default yes).
 
     Requirements:
     - The minimum only — the remaining `WebConfigKeys` arrive as commented examples in web.yml.
     - The answers shape feeds `build_web_config_data`.
+    - The browser choice mirrors the runtime's accepted browser matrix exactly — the single
+      constant a browser-name change ever touches.
 
     Constraints:
     - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole

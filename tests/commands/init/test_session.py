@@ -436,13 +436,13 @@ class TestSurveyWebConfig:
     """The web minimum survey — the five asks of the web amendment branch."""
 
     def test_survey_web_config_asks_minimum_in_order(self, monkeypatch):
-        """Provider, the two required models, the browser name, then the headless confirm."""
+        """The explained provider, the two required models, the browser name, then the headless confirm."""
         scripted = _ScriptedClick(
             confirms=[True],
             prompts=[
-                ("Provider", "openai"),
-                ("Generation model (step-code generation)", "g"),
-                ("Classification model (step classification)", "c"),
+                ("LLM provider (writes and classifies the browser-test steps)", "openai"),
+                ("Generation model (the LLM writing the browser-step code, required)", "g"),
+                ("Classification model (the LLM classifying captured steps, required)", "c"),
                 ("Browser name", "chromium"),
             ],
         )
@@ -450,9 +450,9 @@ class TestSurveyWebConfig:
 
         assert survey_web_config() == dict(_WEB_ANSWERS)
         assert [text for text, _default in scripted.prompt_calls] == [
-            "Provider",
-            "Generation model (step-code generation)",
-            "Classification model (step classification)",
+            "LLM provider (writes and classifies the browser-test steps)",
+            "Generation model (the LLM writing the browser-step code, required)",
+            "Classification model (the LLM classifying captured steps, required)",
             "Browser name",
         ]
         assert scripted.confirm_calls == [("Run the browser headless?", True)]
@@ -462,11 +462,11 @@ class TestSurveyWebConfig:
         scripted = _ScriptedClick(
             confirms=[False],
             prompts=[
-                ("Provider", "anthropic"),
-                ("Generation model (step-code generation)", ""),
-                ("Generation model (step-code generation) (required)", "g"),
-                ("Classification model (step classification)", ""),
-                ("Classification model (step classification) (required)", "c"),
+                ("LLM provider (writes and classifies the browser-test steps)", "anthropic"),
+                ("Generation model (the LLM writing the browser-step code, required)", ""),
+                ("Generation model (the LLM writing the browser-step code, required) (required)", "g"),
+                ("Classification model (the LLM classifying captured steps, required)", ""),
+                ("Classification model (the LLM classifying captured steps, required) (required)", "c"),
                 ("Browser name", "firefox"),
             ],
         )
@@ -479,6 +479,29 @@ class TestSurveyWebConfig:
             "browser_name": "firefox",
             "headless": False,
         }
+
+    def test_survey_web_config_browser_name_is_a_choice_of_the_runtime_matrix(self, monkeypatch):
+        """The browser ask offers exactly the five runtime-accepted names, defaulting to chromium."""
+        seen: list[tuple[str, object, object]] = []
+        required_answers = {
+            "Generation model (the LLM writing the browser-step code, required)": "g",
+            "Classification model (the LLM classifying captured steps, required)": "c",
+        }
+
+        def _prompt(text: str, default: object = None, **kwargs: object) -> object:
+            seen.append((text, default, kwargs.get("type")))
+            # The required asks carry an empty default — answer them, never loop.
+            return required_answers[text] if default in (None, "") else default
+
+        monkeypatch.setattr(session_module.click, "prompt", _prompt)
+        monkeypatch.setattr(session_module.click, "confirm", lambda *_args, **_kwargs: True)
+
+        assert survey_web_config()["browser_name"] == "chromium"
+
+        text, default, choice = seen[3]
+        assert (text, default) == ("Browser name", "chromium")
+        assert isinstance(choice, click.Choice)
+        assert list(choice.choices) == ["chromium", "firefox", "webkit", "chrome", "msedge"]
 
 
 class TestBuildWebConfigData:

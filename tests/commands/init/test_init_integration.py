@@ -102,6 +102,9 @@ def _assert_bootstrap_registration_split(root: Path) -> None:
     assert (sandbox / "sandbox-session.md").exists()
     assert (sandbox / "migration-set.md").exists()
 
+    # The web usage never crosses into an api-only project — no file, no registration.
+    assert not (sandbox.parent / "pybuggy-web.md").exists()
+
 
 class TestSessionSmoke:
     """The native-session path — real engine, real registry, real hooks, scripted TTY."""
@@ -240,8 +243,8 @@ class TestSessionSmokeWebKind:
                 "Language": "python",
                 "Test kind (api — API tests over specs, web — browser UI tests, both)": "web",
                 "Built image name": "pybuggy-web-smoke:latest",
-                "Generation model (step-code generation)": "glm-5.3",
-                "Classification model (step classification)": "glm-5.3",
+                "Generation model (the LLM writing the browser-step code, required)": "glm-5.3",
+                "Classification model (the LLM classifying captured steps, required)": "glm-5.3",
             },
         )
         monkeypatch.setattr(click, "confirm", tty.confirm)
@@ -283,9 +286,14 @@ class TestSessionSmokeWebKind:
         assert "# base_url:" in web_config_text  # the absent keys documented as commented examples
 
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text("utf-8"))
+        # The web-only registration set — the api keys never cross into a web-only project.
         assert config["codemanifest"]["usages"]["pybuggy-web"] == ".goga/usages/cooks/pybuggy/pybuggy-web.md"
+        assert set(config["codemanifest"]["usages"]) == {"pybuggy-web", "conventions"}
         assert "`pybuggy-web`" in config["codemanifest"]["annotations"]
+        assert "`pybuggy-api`" not in config["codemanifest"]["annotations"]
         assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "pybuggy-web.md").exists()
+        assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
+        assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "asserts.md").exists()
 
         dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text("utf-8")
         assert "RUN goga install pybuggy -v 2.0.x\n" in dockerfile
