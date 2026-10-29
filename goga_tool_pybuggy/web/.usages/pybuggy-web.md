@@ -9,7 +9,7 @@ involvement. Target audience: test authors writing web tests in a pybuggy-initia
 ## Enable
 
 The fixture requires the web config document `.goga/tools/pybuggy/web.yml` in the repository. With
-the document present, the standard `goga_tool_pybuggy.plugin.install()` call (the root conftest of a
+the document present, the standard `goga_tool_pybuggy.plugins.install()` call (the root conftest of a
 pybuggy project) registers the web plugin and the `web` fixture; without it nothing web-related is
 registered and a test requesting `web` fails with pytest's standard "fixture 'web' not found".
 `pybuggy init` (test kind: web or both) writes the document — the surveyed minimum (LLM provider,

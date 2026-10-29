@@ -32,7 +32,7 @@ The plugin's `install()` entry point defaults `loaders` to `[PackageLoader("api"
 an explicit `loaders` to override, or `loaders=[]` to disable discovery:
 
 ```python
-from goga_tool_pybuggy.plugin.loaders import PackageLoader
+from goga_tool_pybuggy.plugins.loaders import PackageLoader
 
 install(loaders=[PackageLoader("api")])  # override the default
 install(loaders=[])  # disable discovery

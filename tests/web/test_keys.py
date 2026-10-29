@@ -5,9 +5,9 @@ Covers the fixed 20-member key set in contract order and the standard web-config
 
 import typing as t
 
-from goga_tool_pybuggy.plugin import defaults as plugin_defaults
-from goga_tool_pybuggy.web.config import WebConfig
+from goga_tool_pybuggy.plugins import defaults as plugin_defaults
 from goga_tool_pybuggy.web.keys import CONFIG_FILE, WebConfigKeys
+from prettyplay import PrettyConfig
 
 # The contract member list: (name, value) pairs in contract order — the order the documenter walks.
 _CONTRACT_MEMBERS: t.Final[list[tuple[str, str]]] = [
@@ -65,16 +65,18 @@ class TestWebConfigKeysLogic:
     """Logic tests for the `WebConfigKeys` enum and the `CONFIG_FILE` constant."""
 
     def test_web_config_keys_filename_names_the_document(self):
-        # FILENAME names the document file; CONFIG_FILE is built from it (the plugin binding and
-        # error-naming source). The plugin cell's gate constant names the same document — the
-        # installation gate and the @define.plugin binding read different constants.
+        # FILENAME names the document file; CONFIG_FILE is built from it (the error-naming source
+        # of the web cell's validation). The plugins cell's constant binds the plugin and gates
+        # the installation — both name the same document.
         assert WebConfigKeys.FILENAME.value == "web.yml"
         assert CONFIG_FILE == ".goga/tools/pybuggy/web.yml"
         assert plugin_defaults.WEB_CONFIG_FILE == CONFIG_FILE
 
-    def test_web_config_keys_members_mirror_web_config_fields(self):
-        # The 19 scalar/browser key members (everything but FILENAME) equal the WebConfig field
-        # names in order — the validation alignment.
+    def test_web_config_keys_members_mirror_pretty_config_fields(self):
+        # The 19 scalar/browser key members (everything but FILENAME) equal the library PrettyConfig
+        # field names as a set — the membership alignment and the drift guard: a renamed prettyplay
+        # field fails here instead of silently diverging from web.yml. The member order stays the
+        # web.yml document contract order (the documenter walks it), not the library field order.
         members = [member.value for member in WebConfigKeys if member is not WebConfigKeys.FILENAME]
 
-        assert members == list(WebConfig.model_fields)
+        assert set(members) == set(PrettyConfig.model_fields)

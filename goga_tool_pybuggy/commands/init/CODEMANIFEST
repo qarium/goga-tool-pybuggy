@@ -8,7 +8,7 @@ Imports:
     From: goga_tool_pybuggy/config
   - Types:
       - PluginConfigKeys
-    From: goga_tool_pybuggy/plugin
+    From: goga_tool_pybuggy/plugins
   - Types:
       - WebConfigKeys
     Usages:

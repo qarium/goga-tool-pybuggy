@@ -25,7 +25,7 @@ Imports:
     From: goga_tool_pybuggy/commands/init
   - Types: [install]
     Usages: [enable, configuration]
-    From: goga_tool_pybuggy/plugin
+    From: goga_tool_pybuggy/plugins
   - Types: [services]
     Usages: [data-operations]
     From: goga_tool_pybuggy/sandbox/data

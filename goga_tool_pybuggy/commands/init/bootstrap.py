@@ -13,7 +13,7 @@ from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString
 
-from ...plugin import PluginConfigKeys
+from ...plugins import PluginConfigKeys
 from ...web import WebConfigKeys
 
 logger = logging.getLogger(__name__)
@@ -79,9 +79,9 @@ def _ensure_scalar(parent: CommentedMap, key: str) -> str:
 
 
 # Fixed root conftest.py template — hardcoded verbatim, no parameterization.
-# load_dotenv() precedes plugin.install() and keeps override=False (exported variables win).
+# load_dotenv() precedes plugins.install() and keeps override=False (exported variables win).
 _CONFTEST_TEMPLATE = (
-    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
+    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugins\n\nplugins.install()\n"
 )
 
 # Commented example records for plugin members the session never captures (1.x texts).

@@ -1,17 +1,17 @@
-"""Prettyplay settings construction: ``WebConfig`` mapped onto an explicit ``PrettyConfig``.
+"""Prettyplay settings construction: the validated config materialized with the resolved modes.
 
-The all-fields construction is load-bearing — passing every field as a constructor argument puts
-each into ``model_fields_set``, which makes an explicit value win over the library's env and
-pyproject layer. The module is pure: the single source is the passed model and the flags.
+The all-fields construction is load-bearing — prettyplay 0.0.3 merges the programmatic layer into
+its pyproject+env file layer per field (``model_fields_set``), so passing every field explicitly
+makes the web config the single source: an omitted key's default beats the library layers, and the
+``PRETTYPLAY_*`` scrub of the plugin closes the env channel of the empty fields. The module is
+pure: the single source is the passed model and the flags.
 """
 
 from prettyplay import BrowserConfig, PrettyConfig
 
-from .config import WebConfig
 
-
-def build_pretty_config(config: WebConfig, strict_flag: bool, interactive_flag: bool) -> PrettyConfig:
-    """Map a validated web config onto an explicit prettyplay config.
+def build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_flag: bool) -> PrettyConfig:
+    """Materialize the validated web config with the resolved strict and interactive modes.
 
     Args:
         config: The validated web config — the activation of the web plugin.
@@ -22,11 +22,6 @@ def build_pretty_config(config: WebConfig, strict_flag: bool, interactive_flag: 
     Returns:
         The explicitly constructed prettyplay config — every field participates in the library's
         per-field merge.
-
-    Raises:
-        ValidationError: When a value violates the prettyplay semantics (the browser matrix, the
-            endpoint scheme, the speed range) — prettyplay's actionable per-setting text reaches
-            the caller unchanged.
     """
     fields = config.model_dump()
 

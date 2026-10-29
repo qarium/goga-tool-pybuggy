@@ -1,4 +1,4 @@
-"""Tests for the `goga_tool_pybuggy.plugin.loaders` discovery cell.
+"""Tests for the `goga_tool_pybuggy.plugins.loaders` discovery cell.
 
 Loaders mutate a caller-supplied accumulator (`load(modules) -> None`) rather than returning a list.
 """
@@ -7,9 +7,9 @@ import inspect
 import sys
 
 import pytest
-from goga_tool_pybuggy.plugin.loaders import ModuleLoader, PackageLoader
-from goga_tool_pybuggy.plugin.loaders import loaders as loaders_module
-from goga_tool_pybuggy.plugin.loaders.loaders import _module_is_pytest_plugin
+from goga_tool_pybuggy.plugins.loaders import ModuleLoader, PackageLoader
+from goga_tool_pybuggy.plugins.loaders import loaders as loaders_module
+from goga_tool_pybuggy.plugins.loaders.loaders import _module_is_pytest_plugin
 
 FIXTURE_MODULE_SOURCE = """
 import pytest
@@ -68,7 +68,7 @@ class TestModuleIsPytestPluginContract:
 
     def test_routine_not_in_facade_all(self):
         """The private routine is not re-exported through the loaders facade `__all__`."""
-        from goga_tool_pybuggy.plugin.loaders import __all__ as loaders_all
+        from goga_tool_pybuggy.plugins.loaders import __all__ as loaders_all
 
         assert "_module_is_pytest_plugin" not in loaders_all
 
@@ -190,14 +190,14 @@ class TestLoadersContract:
 
     def test_loaders_importable_from_facade(self):
         """Both loaders are importable from the `plugin.loaders` facade."""
-        from goga_tool_pybuggy.plugin.loaders import ModuleLoader, PackageLoader
+        from goga_tool_pybuggy.plugins.loaders import ModuleLoader, PackageLoader
 
         assert PackageLoader is not None
         assert ModuleLoader is not None
 
     def test_loaders_importable_from_location(self):
         """Both loaders are importable from their defining module location."""
-        from goga_tool_pybuggy.plugin.loaders.loaders import ModuleLoader, PackageLoader
+        from goga_tool_pybuggy.plugins.loaders.loaders import ModuleLoader, PackageLoader
 
         assert PackageLoader is not None
         assert ModuleLoader is not None
@@ -205,7 +205,7 @@ class TestLoadersContract:
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_loader_is_class_with_api(self, loader_name):
         """Each loader is a class exposing `from_config`/`load` methods and `name`/`required` fields."""
-        from goga_tool_pybuggy.plugin.loaders import loaders
+        from goga_tool_pybuggy.plugins.loaders import loaders
 
         loader_cls = getattr(loaders, loader_name)
 
@@ -222,7 +222,7 @@ class TestLoadersContract:
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_loader_required_defaults_true(self, loader_name):
         """The `required` field defaults to True on each loader."""
-        from goga_tool_pybuggy.plugin.loaders import loaders
+        from goga_tool_pybuggy.plugins.loaders import loaders
 
         loader_cls = getattr(loaders, loader_name)
 
@@ -233,7 +233,7 @@ class TestLoadersContract:
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_loader_from_config_signature(self, loader_name):
         """The `from_config` classmethod takes a single `config` parameter."""
-        from goga_tool_pybuggy.plugin.loaders import loaders
+        from goga_tool_pybuggy.plugins.loaders import loaders
 
         loader_cls = getattr(loaders, loader_name)
 
@@ -244,7 +244,7 @@ class TestLoadersContract:
     @pytest.mark.parametrize("loader_name", ["PackageLoader", "ModuleLoader"])
     def test_loader_load_takes_modules_accumulator(self, loader_name):
         # `load` mutates a caller-supplied accumulator: `load(self, modules)`.
-        from goga_tool_pybuggy.plugin.loaders import loaders
+        from goga_tool_pybuggy.plugins.loaders import loaders
 
         loader_cls = getattr(loaders, loader_name)
 

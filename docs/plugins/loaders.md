@@ -5,7 +5,7 @@ pytest-plugin modules inside a package tree or a single module file, and assembl
 recursive `pytest_plugins` list from the [configuration](../configuration.md).
 
 ```python
-from goga_tool_pybuggy.plugin.loaders import BaseLoader, PackageLoader, ModuleLoader
+from goga_tool_pybuggy.plugins.loaders import BaseLoader, PackageLoader, ModuleLoader
 ```
 
 ## The loaders

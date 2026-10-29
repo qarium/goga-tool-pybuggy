@@ -15,7 +15,7 @@ from typing import Any
 
 import pytest
 import requests
-from goga_tool_pybuggy.plugin import SandboxPlugin
+from goga_tool_pybuggy.plugins import SandboxPlugin
 from goga_tool_pybuggy.sandbox import sandbox as sandbox_module
 from goga_tool_pybuggy.sandbox.engines import DataOperation, EngineError, InstanceAddress
 from kafka import KafkaConsumer

@@ -60,7 +60,7 @@ def _discover_usages(root: Any) -> list[tuple[str, str]]:
 # gates the root's delivery: the api cell (its walk also collects the ``asserts`` sub-package
 # riding that root) ships flat for the api kind, the web cell flat for the web kind, and the
 # sandbox subtree is kind-neutral (None — always delivered) under its own ``sandbox`` subdirectory.
-# The plugin and commands cells are not roots — their usages stay out of the target.
+# The plugins and commands cells are not roots — their usages stay out of the target.
 _USAGE_ROOTS = (
     ("goga_tool_pybuggy.api", "", "api"),
     ("goga_tool_pybuggy.sandbox", "sandbox", None),

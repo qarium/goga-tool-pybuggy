@@ -1,4 +1,4 @@
-"""Tests for `install` in the `goga_tool_pybuggy.plugin` cell.
+"""Tests for `install` in the `goga_tool_pybuggy.plugins` cell.
 
 Covers the contract surface and the import-time wiring (hook injection + synchronous ``pytest_plugins`` population)
 plus the presence gate of the sandbox plugin.
@@ -11,9 +11,9 @@ import sys
 import types
 from unittest import mock
 
-import goga_tool_pybuggy.plugin
+import goga_tool_pybuggy.plugins
 import pytest
-from goga_tool_pybuggy.plugin import SandboxPlugin
+from goga_tool_pybuggy.plugins import SandboxPlugin
 
 
 @pytest.fixture(autouse=True)
@@ -49,29 +49,29 @@ class TestInstallContract:
     """Contract tests for `install`."""
 
     def test_install_importable_from_facade(self):
-        """The `install` hook is importable from the plugin cell facade."""
-        from goga_tool_pybuggy.plugin import install as install_direct
+        """The `install` hook is importable from the plugins cell facade."""
+        from goga_tool_pybuggy.plugins import install as install_direct
 
-        assert install_direct is goga_tool_pybuggy.plugin.install
+        assert install_direct is goga_tool_pybuggy.plugins.install
 
     def test_install_is_callable(self):
         """The `install` hook is callable."""
-        assert callable(goga_tool_pybuggy.plugin.install)
+        assert callable(goga_tool_pybuggy.plugins.install)
 
     def test_install_signature_accepts_kwargs(self):
         """The `install` signature accepts arbitrary keyword arguments via `**kwargs`."""
-        signature = inspect.signature(goga_tool_pybuggy.plugin.install)
+        signature = inspect.signature(goga_tool_pybuggy.plugins.install)
 
         var_keyword = [param for param in signature.parameters.values() if param.kind == inspect.Parameter.VAR_KEYWORD]
         assert len(var_keyword) == 1
         assert var_keyword[0].name == "kwargs"
 
-    def test_web_plugin_addressable_through_the_plain_import(self):
-        """`WebPlugin` is addressable on the plugin module via the plain import — never re-exported."""
-        from goga_tool_pybuggy.web import WebPlugin
+    def test_web_plugin_reexported_by_the_facade(self):
+        """`WebPlugin` is re-exported by the plugins facade alongside the other plugin classes."""
+        from goga_tool_pybuggy.plugins.web_plugin import WebPlugin
 
-        assert goga_tool_pybuggy.plugin.WebPlugin is WebPlugin
-        assert "WebPlugin" not in goga_tool_pybuggy.plugin.__all__
+        assert goga_tool_pybuggy.plugins.WebPlugin is WebPlugin
+        assert "WebPlugin" in goga_tool_pybuggy.plugins.__all__
 
 
 class TestInstallLogic:
@@ -82,7 +82,7 @@ class TestInstallLogic:
         monkeypatch.chdir(tmp_path)
 
         namespace = types.ModuleType("ctx")
-        goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+        goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
 
         assert callable(namespace.pytest_addoption)
         assert callable(namespace.pytest_configure)
@@ -93,10 +93,10 @@ class TestInstallLogic:
         monkeypatch.chdir(tmp_path)
 
         # Re-import the module against this cwd, then run a real install into a fresh namespace.
-        importlib.reload(goga_tool_pybuggy.plugin)
+        importlib.reload(goga_tool_pybuggy.plugins)
 
         namespace = types.ModuleType("ctx")
-        goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+        goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
 
         assert callable(namespace.pytest_addoption)
         assert callable(namespace.pytest_configure)
@@ -114,14 +114,14 @@ class TestInstallLogic:
         def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
             captured["plugins"] = list(plugins)
 
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", fake_install)
 
-        goga_tool_pybuggy.plugin.install(context=context)
+        goga_tool_pybuggy.plugins.install(context=context)
 
         plugins = captured["plugins"]
 
         assert len(plugins) == 2
-        assert isinstance(plugins[0], goga_tool_pybuggy.plugin.ApiPlugin)
+        assert isinstance(plugins[0], goga_tool_pybuggy.plugins.ApiPlugin)
         assert isinstance(plugins[1], SandboxPlugin)
         assert plugins[1].activation is None  # configure builds it, not install
         assert not hasattr(plugins[0], "sandbox_activation")
@@ -136,14 +136,14 @@ class TestInstallLogic:
         def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
             captured["plugins"] = list(plugins)
 
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", fake_install)
 
-        goga_tool_pybuggy.plugin.install(context=context)
+        goga_tool_pybuggy.plugins.install(context=context)
 
         plugins = captured["plugins"]
 
         assert len(plugins) == 1
-        assert isinstance(plugins[0], goga_tool_pybuggy.plugin.ApiPlugin)
+        assert isinstance(plugins[0], goga_tool_pybuggy.plugins.ApiPlugin)
 
     def test_install_with_both_documents_carries_the_three_plugins_in_order(self, tmp_path, monkeypatch):
         """A project with both documents (a both-kind session) carries all three plugins in order.
@@ -161,14 +161,14 @@ class TestInstallLogic:
         def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
             captured["plugins"] = list(plugins)
 
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", fake_install)
 
-        goga_tool_pybuggy.plugin.install(context={})
+        goga_tool_pybuggy.plugins.install(context={})
 
         assert [type(plugin) for plugin in captured["plugins"]] == [
-            goga_tool_pybuggy.plugin.ApiPlugin,
+            goga_tool_pybuggy.plugins.ApiPlugin,
             SandboxPlugin,
-            goga_tool_pybuggy.plugin.WebPlugin,
+            goga_tool_pybuggy.plugins.WebPlugin,
         ]
 
     def test_install_gates_web_plugin_on_document_presence(self, tmp_path, monkeypatch):
@@ -184,10 +184,10 @@ class TestInstallLogic:
         monkeypatch.chdir(tmp_path)
 
         with (
-            mock.patch("goga_tool_pybuggy.plugin.WebPlugin") as web_plugin,
-            mock.patch("goga_tool_pybuggy.plugin.SandboxPlugin") as sandbox_plugin,
+            mock.patch("goga_tool_pybuggy.plugins.WebPlugin") as web_plugin,
+            mock.patch("goga_tool_pybuggy.plugins.SandboxPlugin") as sandbox_plugin,
         ):
-            goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+            goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
 
             web_plugin.assert_called_once_with()
             sandbox_plugin.assert_not_called()  # no sandbox.yml — its own gate decides
@@ -199,10 +199,10 @@ class TestInstallLogic:
         web_document.unlink()
 
         with (
-            mock.patch("goga_tool_pybuggy.plugin.WebPlugin") as web_plugin,
-            mock.patch("goga_tool_pybuggy.plugin.SandboxPlugin") as sandbox_plugin,
+            mock.patch("goga_tool_pybuggy.plugins.WebPlugin") as web_plugin,
+            mock.patch("goga_tool_pybuggy.plugins.SandboxPlugin") as sandbox_plugin,
         ):
-            goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+            goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
 
             web_plugin.assert_not_called()
             sandbox_plugin.assert_not_called()
@@ -217,8 +217,8 @@ class TestInstallLogic:
 
         namespace = types.ModuleType("ctx")
 
-        with mock.patch("goga_tool_pybuggy.plugin.WebPlugin") as web_plugin:
-            goga_tool_pybuggy.plugin.install(context=namespace.__dict__)
+        with mock.patch("goga_tool_pybuggy.plugins.WebPlugin") as web_plugin:
+            goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
 
         web_plugin.assert_called_once_with()
 
@@ -238,9 +238,9 @@ class TestInstallLogic:
         def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
             captured["plugins"] = list(plugins)
 
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", fake_install)
 
-        goga_tool_pybuggy.plugin.install(context={})
+        goga_tool_pybuggy.plugins.install(context={})
 
         sandbox_plugin = captured["plugins"][1]
 
@@ -271,9 +271,9 @@ class TestInstallLogic:
         def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
             pass
 
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", fake_install)
 
-        goga_tool_pybuggy.plugin.install(context={})
+        goga_tool_pybuggy.plugins.install(context={})
 
         assert "TESTCONTAINERS_HOST_OVERRIDE" in os.environ
         assert config.tc_host_override is not None
@@ -287,13 +287,13 @@ class TestInstallLogic:
         def unexpected() -> None:
             raise AssertionError("normalization must not run without the sandbox document")
 
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "normalize_container_host", unexpected)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "normalize_container_host", unexpected)
 
         def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
             pass
 
-        monkeypatch.setattr(goga_tool_pybuggy.plugin, "install_pytest_plugins", fake_install)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", fake_install)
 
-        goga_tool_pybuggy.plugin.install(context={})
+        goga_tool_pybuggy.plugins.install(context={})
 
         assert "TESTCONTAINERS_HOST_OVERRIDE" not in os.environ

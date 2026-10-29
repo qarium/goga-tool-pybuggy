@@ -7,7 +7,7 @@ the generated endpoint fixtures under `api/`. Target audience: test-suite and in
 
 ## Enable the plugin
 
-Call `goga_tool_pybuggy.plugin.install()` from the root `conftest.py`:
+Call `goga_tool_pybuggy.plugins.install()` from the root `conftest.py`:
 
 ```python
 # conftest.py
@@ -15,9 +15,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from goga_tool_pybuggy import plugin
+from goga_tool_pybuggy import plugins
 
-plugin.install()
+plugins.install()
 ```
 
 `load_dotenv()` runs before `install()` so plugin options (resolved from `os.environ`) see the `.env` values; the
@@ -28,7 +28,7 @@ argumentless call keeps `override=False` (CI/operator-exported variables win).
 `pytest_plugins` with the discovered generated fixtures. Pass an explicit `install(loaders=[...])` to override
 discovery, or `install(loaders=[])` to disable it.
 
-> There is **no import-time auto-wiring**: `pytest_plugins = ["goga_tool_pybuggy.plugin"]` alone does NOT enable the plugin —
+> There is **no import-time auto-wiring**: `pytest_plugins = ["goga_tool_pybuggy.plugins"]` alone does NOT enable the plugin —
 > the explicit `install()` call is required.
 
 ## What enabling wires
@@ -75,9 +75,9 @@ Pass an explicit `loaders` to `install()` to change the discovered trees, or add
 do it declaratively:
 
 ```python
-goga_tool_pybuggy.plugin.install(loaders=[PackageLoader("api"), PackageLoader("service")])
+goga_tool_pybuggy.plugins.install(loaders=[PackageLoader("api"), PackageLoader("service")])
 # or disable discovery entirely:
-goga_tool_pybuggy.plugin.install(loaders=[])
+goga_tool_pybuggy.plugins.install(loaders=[])
 ```
 
 ```yaml
@@ -101,7 +101,7 @@ loader:
 
 ## Sandbox activation
 
-The same `plugin.install()` call also installs the pybuggy sandbox plugin: when the test
+The same `plugins.install()` call also installs the pybuggy sandbox plugin: when the test
 repository holds the sandbox document at `.goga/tools/pybuggy/sandbox.yml` (under the pybuggy
 tools home), the plugin provides the product `sandbox` fixture — the sandbox starts lazily, on
 the first test that requests the fixture (mock dependency services and the instance under test,
@@ -119,7 +119,7 @@ api to the sandbox — a bound test uses the sandbox address.
 
 ## Web activation
 
-The same `plugin.install()` call also installs the pybuggy web plugin: when the test repository
+The same `plugins.install()` call also installs the pybuggy web plugin: when the test repository
 holds the web config document at `.goga/tools/pybuggy/web.yml`, the plugin provides the `web`
 fixture — a per-test browser runtime for step-sentence tests (each step sentence becomes Playwright
 code once, cached next to the test file and replayed without any LLM involvement). The web plugin

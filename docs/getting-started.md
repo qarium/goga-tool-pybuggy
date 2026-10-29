@@ -84,7 +84,7 @@ See [Configuration](configuration.md).
 | `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version is derived from the installed pybuggy version |
 | the playwright browser-install `RUN` line — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change (idempotent) |
 | usage keys `pybuggy-api` / `pybuggy-asserts` + annotation lines in `codemanifest` | registered when `api.yml` was written (idempotent; user-defined keys are never overwritten); a web-only project registers neither — the `pybuggy-web` usage key + annotation registers only when `web.yml` was written; the sandbox capability usage files are copied to `.goga/usages/cooks/pybuggy/sandbox/` without registration — they may or may not apply to a given cell, and the config usages bind every cell |
-| root `conftest.py` (`load_dotenv()` → `plugin.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
+| root `conftest.py` (`load_dotenv()` → `plugins.install()`) | generated when absent; bare mode asks before overwriting (default: no) |
 
 The command requires a Dockerfile — and the session always creates one (the fixed
 `.goga/Dockerfile` path plus the answered base image), so the mandatory-Dockerfile

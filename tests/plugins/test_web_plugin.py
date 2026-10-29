@@ -1,4 +1,4 @@
-"""Tests for the `goga_tool_pybuggy.web.plugin` module (the web plugin and the cache path)."""
+"""Tests for the `goga_tool_pybuggy.plugins.web_plugin` module (the web plugin and the cache path)."""
 
 import inspect
 import logging
@@ -7,13 +7,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import goga_tool_pybuggy.plugins.web_plugin as web_plugin_module
 import goga_tool_pybuggy.web.allure_hooks as allure_hooks_module
-import goga_tool_pybuggy.web.plugin as web_plugin_module
 import pytest
+from goga_tool_pybuggy.plugins import defaults
+from goga_tool_pybuggy.plugins.web_plugin import WebPlugin, web_cache_path
 from goga_tool_pybuggy.web.allure_hooks import AllureStepHooks
-from goga_tool_pybuggy.web.keys import CONFIG_FILE
 from goga_tool_pybuggy.web.logging_setup import EventLogFormatter
-from goga_tool_pybuggy.web.plugin import WebPlugin, web_cache_path
 from prettyplay import PrettyConfig
 from yaml import YAMLError
 
@@ -233,7 +233,7 @@ class TestWebPluginContract:
         plugin = WebPlugin()
 
         assert plugin.meta.name == "pybuggy-web"
-        assert plugin.meta.config_file == CONFIG_FILE
+        assert plugin.meta.config_file == defaults.WEB_CONFIG_FILE
         assert plugin.meta.config_file == ".goga/tools/pybuggy/web.yml"
 
     def test_web_plugin_declares_the_strict_and_interactive_options(self):
@@ -256,7 +256,7 @@ class TestWebPluginContract:
     def test_web_cache_path_is_a_module_level_callable(self):
         """``web_cache_path`` is a public routine of the plugin module."""
         assert callable(web_cache_path)
-        assert web_cache_path.__module__ == "goga_tool_pybuggy.web.plugin"
+        assert web_cache_path.__module__ == "goga_tool_pybuggy.plugins.web_plugin"
 
 
 class TestWebCachePath:

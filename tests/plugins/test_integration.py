@@ -1,4 +1,4 @@
-"""Integration tests for the `goga_tool_pybuggy.plugin` cell (end-to-end).
+"""Integration tests for the `goga_tool_pybuggy.plugins` cell (end-to-end).
 
 Covers the wiring chain and a real pytest subprocess run (source root via ``PYTHONPATH``; conftest shims ``resq``).
 """
@@ -11,7 +11,7 @@ import types
 
 import goga_tool_pybuggy
 import pytest
-from goga_tool_pybuggy.plugin import install
+from goga_tool_pybuggy.plugins import install
 
 # Source root that makes `goga_tool_pybuggy` importable in the subprocess.
 _PROJECT_ROOT = str(pathlib.Path(goga_tool_pybuggy.__file__).resolve().parent.parent)
@@ -56,9 +56,9 @@ if not hasattr(resq, "Session"):
 
     resq.Session = _Session
 
-import goga_tool_pybuggy.plugin
+import goga_tool_pybuggy.plugins
 
-goga_tool_pybuggy.plugin.install()
+goga_tool_pybuggy.plugins.install()
 """
 
 # Consumer test: resolves the discovered fixture and checks `--base-url` registration/override.
@@ -80,6 +80,41 @@ def test_base_url_cli_overrides_config(api):
     # api.yml sets base_url: https://x.example; the run passes
     # --base-url https://cli.example -> the typed CLI value wins.
     assert api.base_url == "https://cli.example"
+"""
+
+# The consumer conftest of the web kind exactly as the bootstrap delivers it (the fixed template).
+_BOOTSTRAP_CONFTEST_SOURCE = """\
+from dotenv import load_dotenv
+
+load_dotenv()
+
+from goga_tool_pybuggy import plugins
+
+plugins.install()
+"""
+
+# The surveyed-minimum web document a kind=web session writes.
+_WEB_CONFIG_SOURCE = """\
+provider: openai
+generation_model: g
+classification_model: c
+browser:
+  name: chromium
+  headless: true
+strict: false
+interactive: false
+"""
+
+# Consumer test of the web kind: the web fixture resolves and both CLI options registered.
+_WEB_TEST_SOURCE = """\
+def test_web_fixture_resolves(web):
+    assert web is not None
+
+
+def test_web_options_registered(pytestconfig):
+    # getoption raises ValueError for an unknown option — both flags were registered.
+    pytestconfig.getoption("--strict-mode")
+    pytestconfig.getoption("--interactive")
 """
 
 
@@ -165,3 +200,44 @@ class TestPluginEndToEnd:
         assert "test_get_orders_fixture_resolves" in output
         assert "test_base_url_option_registered" in output
         assert "test_base_url_cli_overrides_config" in output
+
+
+class TestWebPluginEndToEnd:
+    """End-to-end: a real pytest subprocess enabling the web plugin through ``plugins.install()``.
+
+    Pins the seam no in-process double reaches: the installation gate appending the real
+    ``WebPlugin``, pluginator binding it to ``web.yml``, ``configure`` running at configphase, and
+    the ``web`` fixture resolving by its consumer-facing name.
+    """
+
+    def test_web_kind_end_to_end_pytest_resolves_web_fixture(self, tmp_path):
+        """A ``web.yml`` project with the bootstrap conftest runs pytest and resolves the fixture."""
+        # prettyplay 0.0.x always auto-searches a pyproject.toml upward from the cwd — without one
+        # the runtime construction raises FileNotFoundError at fixture setup.
+        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+
+        config_dir = tmp_path / ".goga" / "tools" / "pybuggy"
+        config_dir.mkdir(parents=True)
+        (config_dir / "web.yml").write_text(_WEB_CONFIG_SOURCE, encoding="utf-8")
+        (tmp_path / "conftest.py").write_text(_BOOTSTRAP_CONFTEST_SOURCE, encoding="utf-8")
+        (tmp_path / "test_search.py").write_text(_WEB_TEST_SOURCE, encoding="utf-8")
+
+        # The same install call constructs the ApiPlugin unconditionally (the plugin contract
+        # pins it), so the subprocess satisfies its required base_url through the documented
+        # env source — the web-only kind's own resolution is tracked as a contract gap.
+        env = {**os.environ, "PYTHONPATH": _PROJECT_ROOT, "BASE_URL": "https://api.example"}
+
+        result = subprocess.run(
+            [sys.executable, "-m", "pytest", str(tmp_path), "-v", "-p", "no:cacheprovider"],
+            cwd=str(tmp_path),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, output
+        assert "test_web_fixture_resolves" in output
+        assert "test_web_options_registered" in output

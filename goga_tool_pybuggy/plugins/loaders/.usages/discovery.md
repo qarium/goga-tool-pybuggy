@@ -13,7 +13,7 @@ constructor fields and the abstract `BaseLoader` contract (`from_config` factory
 accumulator list passed to it and returns nothing.
 
 ```python
-from goga_tool_pybuggy.plugin.loaders import PackageLoader, ModuleLoader
+from goga_tool_pybuggy.plugins.loaders import PackageLoader, ModuleLoader
 ```
 
 ## Build a loader from a config item

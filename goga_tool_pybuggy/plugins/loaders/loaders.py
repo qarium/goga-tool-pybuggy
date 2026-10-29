@@ -1,4 +1,4 @@
-"""Generic pytest-plugin discovery for the `goga_tool_pybuggy.plugin` cell.
+"""Generic pytest-plugin discovery for the `goga_tool_pybuggy.plugins` cell.
 
 Discovers pytest-plugin modules by trial import and by walking the filesystem.
 """

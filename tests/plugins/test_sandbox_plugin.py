@@ -4,8 +4,8 @@ import inspect
 from typing import Any
 
 import pytest
-from goga_tool_pybuggy.plugin import SandboxPlugin
-from goga_tool_pybuggy.plugin import sandbox_plugin as sandbox_plugin_module
+from goga_tool_pybuggy.plugins import SandboxPlugin
+from goga_tool_pybuggy.plugins import sandbox_plugin as sandbox_plugin_module
 from goga_tool_pybuggy.sandbox.config import SandboxConfig
 from yaml import YAMLError
 
@@ -175,11 +175,11 @@ class TestSandboxPluginContract:
     """Declared API of the ``SandboxPlugin`` entity."""
 
     def test_sandbox_plugin_is_importable_from_plugin_facade(self):
-        """``SandboxPlugin`` is re-exported by the ``goga_tool_pybuggy.plugin`` facade."""
-        from goga_tool_pybuggy import plugin
+        """``SandboxPlugin`` is re-exported by the ``goga_tool_pybuggy.plugins`` facade."""
+        from goga_tool_pybuggy import plugins
 
-        assert inspect.isclass(plugin.SandboxPlugin)
-        assert "SandboxPlugin" in plugin.__all__
+        assert inspect.isclass(plugins.SandboxPlugin)
+        assert "SandboxPlugin" in plugins.__all__
 
     def test_sandbox_plugin_constructor_takes_no_arguments(self):
         """The constructor takes nothing — the activation arrives with ``configure``."""

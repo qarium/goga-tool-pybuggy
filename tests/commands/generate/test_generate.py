@@ -6,7 +6,7 @@ from pathlib import Path
 import click
 import pytest
 from goga_tool_pybuggy.commands.generate import generate_cmd, render_api_module, run_generate
-from goga_tool_pybuggy.plugin.loaders.loaders import _module_is_pytest_plugin
+from goga_tool_pybuggy.plugins.loaders.loaders import _module_is_pytest_plugin
 from goga_tool_pybuggy.spec import Endpoint
 
 # Shared OpenAPI fragments ---------------------------------------------------

@@ -1,7 +1,7 @@
-"""`goga_tool_pybuggy.plugin` cell facade.
+"""`goga_tool_pybuggy.plugins` cell facade.
 
-Exposes ``ApiPlugin``, ``PluginConfigKeys``, ``SandboxPlugin`` and ``install``;
-the plugin is enabled by calling ``install()``.
+Exposes ``ApiPlugin``, ``PluginConfigKeys``, ``SandboxPlugin``, ``WebPlugin`` and ``install``;
+the plugins are enabled by calling ``install()``.
 """
 
 import logging
@@ -10,13 +10,13 @@ from pathlib import Path
 from pluginator import call_context, install_pytest_plugins
 
 from ..sandbox.engines import normalize_container_host
-from ..web import WebPlugin
 from . import defaults
+from .api_plugin import ApiPlugin, PluginConfigKeys
 from .loaders import PackageLoader
-from .plugin import ApiPlugin, PluginConfigKeys
 from .sandbox_plugin import SandboxPlugin
+from .web_plugin import WebPlugin
 
-__all__ = ["ApiPlugin", "PluginConfigKeys", "SandboxPlugin", "install"]
+__all__ = ["ApiPlugin", "PluginConfigKeys", "SandboxPlugin", "WebPlugin", "install"]
 
 logger = logging.getLogger(__name__)
 

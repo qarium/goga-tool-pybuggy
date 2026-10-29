@@ -2,7 +2,7 @@
 
 from .cli import main
 from .env import EnvContext, load_env
-from .plugin import install
+from .plugins import install
 from .reg_hooks import register_hooks
 from .sandbox.data import services
 from .tools import retries

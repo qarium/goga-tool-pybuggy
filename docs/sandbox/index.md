@@ -17,14 +17,14 @@ per-test reset, and the runtime environments.
 ## Activation
 
 The sandbox activates by file presence: `.goga/tools/pybuggy/sandbox.yml`, resolved from
-the current working directory only — no upward search. The same `plugin.install()` call
+the current working directory only — no upward search. The same `plugins.install()` call
 that enables pybuggy also enables the sandbox plugin:
 
 ```python
 # conftest.py
-from goga_tool_pybuggy import plugin
+from goga_tool_pybuggy import plugins
 
-plugin.install()
+plugins.install()
 ```
 
 With the document present the built-in `sandbox` fixture exists. The sandbox starts
@@ -98,7 +98,7 @@ limitation).
 
 ### Running on the host
 
-A plain host run needs nothing from the test author: at `plugin.install()` (with the
+A plain host run needs nothing from the test author: at `plugins.install()` (with the
 document present) pybuggy normalizes the container-host address itself, keeping one
 shared address space whether pytest runs on the host or in a container:
 

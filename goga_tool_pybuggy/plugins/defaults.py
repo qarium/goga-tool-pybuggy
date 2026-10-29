@@ -1,11 +1,11 @@
-"""Plugin-cell defaults.
+"""Plugins-cell defaults.
 
 Implementation-hint constants (not contract types); ``None`` defaults make assert polling opt-in via config/CLI.
 """
 
 from typing import Final
 
-CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/api.yml"
+API_CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/api.yml"
 
 SANDBOX_CONFIG_FILE: Final[str] = ".goga/tools/pybuggy/sandbox.yml"
 

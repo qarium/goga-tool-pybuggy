@@ -5,7 +5,7 @@ and automatic loading of the generated endpoint fixtures under `api/`.
 
 ## Enable the plugin
 
-Call `goga_tool_pybuggy.plugin.install()` from the root `conftest.py`:
+Call `goga_tool_pybuggy.plugins.install()` from the root `conftest.py`:
 
 ```python
 # conftest.py
@@ -13,16 +13,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from goga_tool_pybuggy import plugin
+from goga_tool_pybuggy import plugins
 
-plugin.install()
+plugins.install()
 ```
 
 `load_dotenv()` runs before `install()` so plugin options (resolved from `os.environ`)
 see the `.env` values; the argumentless call keeps `override=False` (CI/operator-exported
 variables win).
 
-> There is **no import-time auto-wiring**: `pytest_plugins = ["goga_tool_pybuggy.plugin"]`
+> There is **no import-time auto-wiring**: `pytest_plugins = ["goga_tool_pybuggy.plugins"]`
 > alone does NOT enable the plugin — the explicit `install()` call is required.
 
 `goga tool pybuggy init` generates this `conftest.py` for you when it is absent — an
@@ -92,8 +92,8 @@ Pass an explicit `loaders` to `install()`, or add a `loader` section to the conf
 it declaratively (details: [Loaders](loaders.md)):
 
 ```python
-goga_tool_pybuggy.plugin.install(loaders=[PackageLoader("api"), PackageLoader("service")])
-goga_tool_pybuggy.plugin.install(loaders=[])  # disable discovery entirely
+goga_tool_pybuggy.plugins.install(loaders=[PackageLoader("api"), PackageLoader("service")])
+goga_tool_pybuggy.plugins.install(loaders=[])  # disable discovery entirely
 ```
 
 ```yaml

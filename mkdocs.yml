@@ -82,5 +82,5 @@ nav:
       - Assertions: matchers/asserts.md
       - Matcher Catalog: matchers/matchers.md
   - Pytest Plugin:
-      - Enable & Fixtures: plugin/index.md
-      - Loaders: plugin/loaders.md
+      - Enable & Fixtures: plugins/index.md
+      - Loaders: plugins/loaders.md

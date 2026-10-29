@@ -11,7 +11,7 @@ Imports:
     Usages:
       - registration
       - discovery
-    From: goga_tool_pybuggy/plugin/loaders
+    From: goga_tool_pybuggy/plugins/loaders
   - Types:
       - Sandbox
     Usages:
@@ -25,8 +25,12 @@ Imports:
       - validate_sandbox_config
     From: goga_tool_pybuggy/sandbox/config
   - Types:
-      - WebPlugin
       - WebConfigKeys
+      - validate_web_config
+      - build_pretty_config
+      - install_event_log_formatter
+      - AllureStepHooks
+      - allure_hooks
     Usages:
       - pybuggy-web
     From: goga_tool_pybuggy/web
@@ -36,23 +40,29 @@ Usages:
   pluginator: .goga/usages/cooks/pluginator.md
   jinja2: .goga/usages/cooks/jinja2.md
   testcontainers: .goga/usages/cooks/testcontainers.md
+  prettyplay: .goga/usages/cooks/prettyplay.md
+  allure-pytest: .goga/usages/cooks/allure-pytest.md
 
 Annotations: |
   Use `conventions` for code writing rules, relative imports, docstrings, and testing.
   Use `pluginator` for the plugin framework contract — @define.plugin, define.option, the option resolution chain, fixtures as plugin-class methods, install_pytest_plugins, call_context, and the configure() lifecycle hook.
   Use `jinja2` for the Jinja2 base_url engine: the Environment/StrictUndefined configuration, the custom match_re test, and the required-dependency contract.
   Use `api_usage` for consuming the `Api` facade and generated fixtures from tests.
+  Use `prettyplay` for the web runtime contract the web fixture constructs — the PrettyConfig field table,
+  PrettyPlay construction (cache_key/cache_path/config), and the StepHooks event set.
+  Use `allure-pytest` for the guarded allure import and the StepHooks-to-Allure mapping with failure
+  screenshots.
 
-  pybuggy pytest-plugin cell. Provides the api fixture (function-scope) that constructs `Api` from plugin options, and wires the plugin into pytest through `install`. A consumer enables it by calling goga_tool_pybuggy.plugin.install() from conftest.py — there is no import-time auto-wiring, so pytest_plugins = ['goga_tool_pybuggy.plugin'] alone does NOT enable the plugin. The generated endpoint fixtures resolve api into a working `Api`.
+  pybuggy pytest-plugins cell. Provides the api fixture (function-scope) that constructs `Api` from plugin options, the sandbox and web plugins, and wires the plugins into pytest through `install`. A consumer enables them by calling goga_tool_pybuggy.plugins.install() from conftest.py — there is no import-time auto-wiring, so pytest_plugins = ['goga_tool_pybuggy.plugins'] alone does NOT enable the plugins. The generated endpoint fixtures resolve api into a working `Api`.
 
   base_url is a Jinja2 template string rendered once in the pluginator configure lifecycle hook (pytest configphase, before any test or fixture runs) against the rendering context = the full environment plus the CLI options the user actually passed (auto-captured from the CLI; see `pluginator`). The api fixture consumes the rendered value; there is no rendering inside the fixture. Rendering uses a single engine, Jinja2 (a required dependency), with StrictUndefined and a custom match_re test, so an unknown variable raises (URLs must not be silently truncated). The rendered value is stored back onto the base_url option for the api fixture to read. A plain URL without Jinja placeholders renders to itself, and every whitespace run in the rendered value is removed so a multi-line template (YAML folded (>) / literal (|) scalars, or a template with an empty Jinja block) yields one clean URL.
 
   The CLI flag for base_url is --base-url, and a typed --base-url is authoritative: configure applies its value with top precedence over the plugin config and the BASE_URL env before rendering (the pluginator chain alone resolves the config before the CLI; see `pluginator`). The CLI value is itself a Jinja2 template rendered against the same context.
 
-  The plugin facade (__all__) re-exports PluginConfigKeys as an importable contract type for data-driven consumption by consumers.
+  The plugins facade (__all__) re-exports PluginConfigKeys as an importable contract type for data-driven consumption by consumers, and re-exports all three plugin classes (ApiPlugin, SandboxPlugin, WebPlugin).
 
   Constraints:
-  - `install` is NOT called at import time; a consumer must call goga_tool_pybuggy.plugin.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
+  - `install` is NOT called at import time; a consumer must call goga_tool_pybuggy.plugins.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
   - `ApiPlugin` overrides BasePlugin.__init__ to accept context (and optional loaders) and to register discovered plugins synchronously.
   - `install` defaults loaders to [PackageLoader('api', required=False)] when omitted, so the generated api/ fixture tree is discovered out of the box; override with install(loaders=[...]), the loader config section (PluginConfigKeys.LOADER), or disable with install(loaders=[]).
   - Minimal fixture profile: base_url, headers, timeout, plus the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) — no auth, no cookies.
@@ -74,7 +84,7 @@ Annotations: |
   Use `sandbox-session` for the consumer fixture patterns of the sandbox.
 
   The cell carries the fixture-driven web activation: the installation entry gates on the presence of
-  the web config document (named by `WebConfigKeys` from Imports) — with the document the `WebPlugin`
+  the web config document (the plugins-cell default `defaults.WEB_CONFIG_FILE`) — with the document the `WebPlugin`
   joins the same installation call and owns the web test kind: the web fixture (a per-test
   prettyplay runtime with the step cache next to the test file), the --strict-mode and --interactive
   options, Allure step reporting, and the prettyplay event log formatter. The web plugin reads and
@@ -86,9 +96,9 @@ Annotations: |
 ---
 
 "ApiPlugin(*, context: dict, loaders: list[BaseLoader] | None = None, default_retries: int | None = None, default_assert_timeout: int | None = None, default_assert_delay: int | float | None = None)":
-  location: plugin.py
+  location: api_plugin.py
   annotations: |
-    Plugin class providing configurable options and the api fixture. Decorated with @define.plugin bound to the pybuggy api config file.
+    Plugin class providing configurable options and the api fixture. Decorated with @define.plugin under the name `pybuggy-api` (the pytest option-group and pluginmanager registration name), bound to the pybuggy api config file.
 
     `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is populated on construction.
     `loaders`: explicit loaders in addition to those in the loader config section; defaults to none.
@@ -195,8 +205,8 @@ Annotations: |
     and validates its config itself in its configure step; without the document nothing
     sandbox-related is registered (the address normalization included), and a test requesting
     the sandbox fixture gets pytest's standard "fixture 'sandbox' not found".
-    5. Gate the `WebPlugin` on the presence of the web config document (the file check of the fixed
-       platform tool-config path named by the FILENAME member of `WebConfigKeys` from Imports): with the document,
+    5. Gate the `WebPlugin` on the presence of the web config document (the file check of the
+       plugins-cell default path `defaults.WEB_CONFIG_FILE`): with the document,
        append a `WebPlugin` instance to the same positional plugin list — the plugin reads and
        validates its config itself in its configure step; without the document nothing web-related
        is registered, and a test requesting the web fixture gets pytest's standard "fixture
@@ -265,6 +275,128 @@ Annotations: |
 
       `request`: the fixture request of the test being set up.
 
+"WebPlugin()":
+  location: web_plugin.py
+  annotations: |
+    Pluginator plugin of the web test kind: the web fixture, the strict/interactive options, Allure
+    step reporting, and the prettyplay event log formatter. The web config document web.yml is the
+    plugin's config: pluginator reads it into plugin_config, and configure validates it into the
+    activation — an invalid document fails the run at configphase, before any collection or browser.
+
+    Constructed only by the installation gate of this cell's installation entry (`install` — the
+    document presence check); zero constructor arguments; no work at construction — the activation
+    and the formatter land in configure.
+
+    Algorithm:
+    1. Declare the strict and interactive options — plugin config keys strict and interactive, CLI
+       flags --strict-mode and --interactive (store_true).
+    2. Nothing else at construction.
+
+    Use `pluginator` for the @define.plugin contract, define.option, fixtures as plugin-class methods,
+    and the configure() lifecycle.
+    Use `prettyplay` for the runtime contract consumed by the fixture.
+    Use `allure-pytest` for the guarded activation of the reporting hooks.
+    Use `conventions` for docstrings, type hints, and relative imports.
+  properties:
+    "strict -> bool": |
+      Resolved strict mode: the web config strict key → the CLI --strict-mode flag (a typed flag
+      forces true — the CLI authority applied in configure, the pattern of --base-url) → the default
+      False. Strict runs are replay-only: zero LLM calls, a cache miss fails the test.
+    "interactive -> bool": |
+      Resolved interactive healing mode: the web config interactive key → the CLI --interactive flag
+      (the same CLI-authority form) → the default False.
+    "activation -> PrettyConfig | None": |
+      The validated web config — the library prettyplay model (see `prettyplay`), the document the
+      configure step validated; None before configure ran. The fixture builds the runtime from it.
+  methods:
+    "configure()": |
+      Validate the document into the activation, apply the CLI authority to the options, scrub the
+      library's env layer, and install the prettyplay event log formatter.
+
+      Algorithm:
+      1. Apply CLI authority: when the user typed --strict-mode or --interactive, store True onto
+         the option — a typed flag overrides the config-file and env resolution (see `pluginator` for
+         the config-time CLI sources).
+      2. Read plugin_config under a parse guard: an unparsable document (the config reader's parse
+         error) surfaces as the clean error naming the web config document — the pattern of the
+         sandbox plugin; never a raw reader traceback.
+      3. Validate the read document via `validate_web_config` into the activation — the library
+         model with the library validators, so a structural or a semantic violation (an off-matrix
+         browser name) fails with its clean error at configphase.
+      4. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
+         web.yml is the single configuration source; the library's env layer never overrides it.
+      5. Install the prettyplay event log formatter via `install_event_log_formatter`.
+
+      Requirements:
+      - Runs once at pytest configphase, before any collection and before any fixture invocation.
+      - An unparsable document fails at configphase with the clean error naming web.yml — never a
+        raw reader traceback.
+      - The env scrub is permanent for the run and race-free — configphase is single-threaded; the
+        variables exist only for the library's env layer.
+      - The formatter is installed unconditionally with the plugin active — it is not allure-gated.
+
+      Use `pluginator` for the configure lifecycle and the config-time CLI sources.
+      Use `prettyplay` for the env layer the scrub neutralizes.
+    "web(request: pytest.FixtureRequest) -> web: Iterator[PrettyPlay]": |
+      Function-scope generator fixture: build the per-test prettyplay runtime and close it after the
+      test.
+
+      `request`: the fixture request of the test being set up.
+      web: the opened prettyplay runtime the test consumes — step, expect, group, run_on_page (see
+      `prettyplay`).
+
+      Algorithm:
+      1. Compute the cache address: the root is the activation cache_root when set, otherwise the
+         absolute directory of the requesting test's own module file (from the item — never the
+         cwd); the per-test path is `web_cache_path` of request.node; the cache key is the item's name
+         (parametrize-aware).
+      2. Build the explicit prettyplay config via `build_pretty_config` from the activation and the
+         resolved strict and interactive options.
+      3. Construct the prettyplay runtime with the cache key, the path, and the config, with
+         cleanup disabled (the persistence mode of the committed-cache workflow: every cached
+         file of the test's key is kept — a run that fails mid-test must not destroy the cached
+         steps it never reached, so the next strict replay stays green; a stale step is removed
+         by deleting its file).
+      4. When allure is importable (see `allure-pytest`), attach `AllureStepHooks` to the runtime.
+      5. Open the runtime (the context manager), yield it, close it on finalization.
+
+      Requirements:
+      - A --strict-mode run makes zero LLM calls — a cache miss fails the test.
+      - The step cache lands next to the test file and is committable; the addressing never depends
+        on the cwd — tests running outside the project root resolve their paths from the item
+        itself.
+
+      Constraints:
+      - No base_url templating and no sandbox binding — web steps carry full URLs.
+      - Do not construct `AllureStepHooks` when the guarded import reports allure absent.
+
+      Use `pluginator` for the fixture-as-method convention.
+      Use `prettyplay` for the runtime construction and the cache addressing contract.
+      Use `conventions` for type hints.
+
+"web_cache_path(item: pytest.Item) -> path: str":
+  location: web_plugin.py
+  annotations: |
+    Compute the per-test step-cache path from the requesting test item.
+
+    `item`: the pytest item of the requesting test.
+    `path`: the posix-relative subdirectory inside the cache root — <module_stem>/<ClassName>/<test_name>
+      with a class, <module_stem>/<test_name> without.
+
+    Algorithm:
+    1. Take the module stem from the item's own module file path.
+    2. Take the original name — originalname when present, the node name otherwise: the path is
+       parametrize-agnostic while the cache key stays parametrize-aware.
+    3. Insert the class-name segment when the item carries a class.
+    4. Join the segments with forward slashes.
+
+    Requirements:
+    - Derived from the item's own file — never from the cwd.
+    - Pure — no filesystem access.
+
+    Use `prettyplay` for the cache addressing contract (the cache key and the path form the address).
+    Use `conventions` for type hints.
+
 "render_base_url(template: str, context: dict[str, object]) -> rendered:str":
   location: render.py
   annotations: |
@@ -286,7 +418,7 @@ Annotations: |
     Use `jinja2` for the Environment configuration, StrictUndefined, and the match_re test.
 
 "PluginConfigKeys()":
-  location: plugin.py
+  location: api_plugin.py
   annotations: |
     Fixed value set of the pybuggy plugin config keys — the canonical key set consumed by ApiPlugin via pluginator
     (option resolution chain) and written into .goga/tools/pybuggy/api.yml. Each member is a str whose value is
@@ -342,4 +474,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 16/07/26
 Description: |
-  pybuggy pytest-plugin cell: the ApiPlugin plugin class with configurable options and the api fixture, and the install() entry point that wires the plugin into pytest. Built on pluginator. Exposes PluginConfigKeys as a contract type (the config-key enum) for data-driven consumption by other cells. The installation entry gates the product sandbox plugin on the sandbox document and the web plugin on the web document (goga_tool_pybuggy/web).
+  pybuggy pytest-plugins cell: the ApiPlugin (registered as pybuggy-api) with configurable options and the api fixture, the SandboxPlugin (pybuggy-sandbox), and the WebPlugin (pybuggy-web, relocated from the web cell) — with the install() entry point that wires the plugins into pytest, presence-gated on their documents. Built on pluginator. Exposes PluginConfigKeys as a contract type (the config-key enum) for data-driven consumption by other cells.

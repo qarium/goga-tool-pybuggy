@@ -73,4 +73,4 @@ fine-grained control: [CLI Reference](cli/init.md).
 - [Web](web/index.md) — `.goga/tools/pybuggy/web.yml` and the `web` fixture for browser UI
   tests as step sentences.
 - [Matchers](matchers/index.md) — assertions and the matcher catalog.
-- [Pytest Plugin](plugin/index.md) — enabling, fixtures, options.
+- [Pytest Plugin](plugins/index.md) — enabling, fixtures, options.

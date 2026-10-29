@@ -1,4 +1,4 @@
-"""`goga_tool_pybuggy.plugin.loaders` cell facade.
+"""`goga_tool_pybuggy.plugins.loaders` cell facade.
 
 Exposes ``BaseLoader``, ``PackageLoader`` and ``ModuleLoader``; ``pytest_plugins`` assembly is the parent cell's job.
 """

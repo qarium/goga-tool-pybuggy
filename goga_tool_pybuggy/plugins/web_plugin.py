@@ -6,15 +6,16 @@ import typing as t
 
 import pytest
 from pluginator import CommandLine, define
-from prettyplay import PrettyPlay
+from prettyplay import PrettyConfig, PrettyPlay
 from yaml import YAMLError
 
-from . import allure_hooks
-from .allure_hooks import AllureStepHooks
-from .config import WebConfig, validate_web_config
-from .keys import CONFIG_FILE, WebConfigKeys
-from .logging_setup import install_event_log_formatter
-from .pretty import build_pretty_config
+from ..web import allure_hooks
+from ..web.allure_hooks import AllureStepHooks
+from ..web.config import validate_web_config
+from ..web.keys import WebConfigKeys
+from ..web.logging_setup import install_event_log_formatter
+from ..web.pretty import build_pretty_config
+from . import defaults
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,7 @@ def web_cache_path(item: pytest.Item) -> str:
     return "/".join(segments)
 
 
-@define.plugin("pybuggy-web", config=CONFIG_FILE)
+@define.plugin("pybuggy-web", config=defaults.WEB_CONFIG_FILE)
 class WebPlugin:
     """Pluginator plugin exposing the ``web`` fixture of the web test kind.
 
@@ -79,7 +80,8 @@ class WebPlugin:
         plugin_config: Anchor declaration; ``BasePlugin`` supplies the parsed document dict.
         strict: Resolved strict mode — replay-only, zero LLM calls; a cache miss fails.
         interactive: Resolved interactive step healing mode.
-        activation: The validated web config; set by ``configure``, ``None`` before it.
+        activation: The validated web config — the library ``PrettyConfig``; set by ``configure``,
+            ``None`` before it.
     """
 
     plugin_config: dict
@@ -99,7 +101,7 @@ class WebPlugin:
         """Initialize the plugin; the activation arrives with ``configure``."""
         super().__init__()
 
-        self.activation: WebConfig | None = None
+        self.activation: PrettyConfig | None = None
 
     def configure(self) -> None:
         """Validate the document into the activation and ready the runtime environment.
@@ -124,7 +126,7 @@ class WebPlugin:
         try:
             document = self.plugin_config
         except YAMLError as exc:
-            raise ValueError(f"{CONFIG_FILE}: unparsable document: {exc}") from exc
+            raise ValueError(f"{defaults.WEB_CONFIG_FILE}: unparsable document: {exc}") from exc
 
         self.activation = validate_web_config(dict(document))
 
@@ -171,7 +173,7 @@ class WebPlugin:
         with runtime as play:
             yield play
 
-    def _require_activation(self) -> WebConfig:
+    def _require_activation(self) -> PrettyConfig:
         """The validated activation the web fixture builds the runtime from.
 
         Returns:

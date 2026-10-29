@@ -14,14 +14,14 @@ the fixed-path settings file written by `goga tool pybuggy init` (test kind `web
 ## Activation
 
 The web plugin activates by file presence: `.goga/tools/pybuggy/web.yml`, resolved from
-the current working directory. The same `plugin.install()` call that enables pybuggy
+the current working directory. The same `plugins.install()` call that enables pybuggy
 also enables the web plugin:
 
 ```python
 # conftest.py
-from goga_tool_pybuggy import plugin
+from goga_tool_pybuggy import plugins
 
-plugin.install()
+plugins.install()
 ```
 
 With the document present the `web` fixture exists; a structurally invalid document fails
@@ -39,7 +39,7 @@ Three environment requirements apply to every web run:
 - A `pyproject.toml` in the project or a directory above it — a prettyplay 0.0.x
   limitation: the runtime searches for the file on every construction, and its absence
   fails web tests at setup.
-- A resolvable api `base_url` — the delivered `conftest.py` calls one `plugin.install()`
+- A resolvable api `base_url` — the delivered `conftest.py` calls one `plugins.install()`
   that always enables the api plugin alongside the web plugin, and its `base_url` option
   is required. A `both`-kind project carries it in `api.yml`; a **web-only** project
   writes no `api.yml`, so export `BASE_URL` (or type `--base-url`) — the delivered

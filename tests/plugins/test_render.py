@@ -1,11 +1,11 @@
-"""Tests for the `goga_tool_pybuggy.plugin.render` cell (`render_base_url`).
+"""Tests for the `goga_tool_pybuggy.plugins.render` cell (`render_base_url`).
 
 Covers Jinja2 substitution, `StrictUndefined`, `match_re`, plain-URL compat, and whitespace normalization.
 """
 
 import jinja2
 import pytest
-from goga_tool_pybuggy.plugin.render import _match_re, render_base_url
+from goga_tool_pybuggy.plugins.render import _match_re, render_base_url
 
 
 class TestRenderBaseUrlContract:
@@ -13,7 +13,7 @@ class TestRenderBaseUrlContract:
 
     def test_render_base_url_importable_from_location(self):
         """The `render_base_url` routine is importable from the `plugin.render` module location."""
-        import goga_tool_pybuggy.plugin.render as render_module
+        import goga_tool_pybuggy.plugins.render as render_module
 
         assert render_module.render_base_url is render_base_url
 

@@ -88,4 +88,4 @@ record, pinned before the next active key — idempotent, never touching active 
 
 - [Web — Overview](index.md) — activation, writing tests, run modes, the step cache.
 - [CLI — init](../cli/init.md) — the kind-aware onboarding session and the web bootstrap.
-- [Pytest Plugin](../plugin/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` flags.
+- [Pytest Plugin](../plugins/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` flags.

@@ -2,7 +2,7 @@
 
 ## Domain
 
-`pluginator` is a framework for declaring pytest plugins: options (env / config / CLI / default), fixtures as plugin-class methods, actions (`actions`), and a single-step installation into pytest via hook injection. Cell `goga_tool_pybuggy/plugin` uses it to provide the `api` fixture and to register the generated fixtures.
+`pluginator` is a framework for declaring pytest plugins: options (env / config / CLI / default), fixtures as plugin-class methods, actions (`actions`), and a single-step installation into pytest via hook injection. Cell `goga_tool_pybuggy.pluginss` uses it to provide the `api` fixture and to register the generated fixtures.
 
 Import in code:
 ```python
@@ -17,7 +17,7 @@ from pluginator import install_pytest_plugins, call_context
 `define.plugin` is a class decorator. It sets the plugin name, the yaml config path, the default config, and the lists of dependencies and actions. The decorator mixes `BasePlugin` into the class bases and places `__meta__: PluginMeta` on the class. The plugin reads its config lazily via `plugin_config` (see below).
 
 ```python
-@define.plugin("pybuggy", config=".goga/tools/pybuggy/api.yml")
+@define.plugin("pybuggy-api", config=".goga/tools/pybuggy/api.yml")
 class PyBuggyPlugin:
     plugin_config: dict  # the parsed yaml lands in this attribute (see BasePlugin.plugin_config)
 
@@ -145,12 +145,12 @@ The consumer attaches the plugin with one line in `conftest.py`:
 
 ```python
 # conftest.py
-pytest_plugins = ["goga_tool_pybuggy.plugin"]
+pytest_plugins = ["goga_tool_pybuggy.pluginss"]
 ```
 
-— the plugin module (`<package>/__init__.py`) calls the `install()` wrapper **at the top level**. On import of `goga_tool_pybuggy.plugin`, `call_context()` resolves to that same module's globals; the hooks (`pytest_addoption`/`pytest_configure`/`pytest_collection_finish`) are injected into the `goga_tool_pybuggy.plugin` namespace, and pytest finds them.
+— the plugin module (`<package>/__init__.py`) calls the `install()` wrapper **at the top level**. On import of `goga_tool_pybuggy.plugins`, `call_context()` resolves to that same module's globals; the hooks (`pytest_addoption`/`pytest_configure`/`pytest_collection_finish`) are injected into the `goga_tool_pybuggy.plugins` namespace, and pytest finds them.
 
-The same trick registers the **generated fixtures**: the loader — running inside `install()` — places the list of discovered modules into `context["pytest_plugins"]` (i.e. `goga_tool_pybuggy.plugin.pytest_plugins`), and pytest loads them recursively. Therefore the loader must run synchronously at import time.
+The same trick registers the **generated fixtures**: the loader — running inside `install()` — places the list of discovered modules into `context["pytest_plugins"]` (i.e. `goga_tool_pybuggy.plugins.pytest_plugins`), and pytest loads them recursively. Therefore the loader must run synchronously at import time.
 
 Important: importing the plugin module outside a pytest project must not crash — the loader works around the missing `api/` package with `required=False`.
 
@@ -168,12 +168,12 @@ CommandLine("--base-url", action="store", help="Base URL of the service under te
 
 ## Actions — an extension point (optional)
 
-`Action(name, module, *, enable=True, default_config=None)` is a lazily-imported action. `module` is a dotted path to a module that provides a `main(context, config)` function (and optionally `setup(config)`). The plugin invokes the action via `plugin.action(name, context, lazy=True/False)`; with `lazy=True` the call returns a closure that finalizes the context at call time. Cell `goga_tool_pybuggy/plugin` does not use actions — documented for completeness of the framework picture.
+`Action(name, module, *, enable=True, default_config=None)` is a lazily-imported action. `module` is a dotted path to a module that provides a `main(context, config)` function (and optionally `setup(config)`). The plugin invokes the action via `plugin.action(name, context, lazy=True/False)`; with `lazy=True` the call returns a closure that finalizes the context at call time. Cell `goga_tool_pybuggy.pluginss` does not use actions — documented for completeness of the framework picture.
 
 ---
 
 ## What pybuggy does NOT use
 
-- `deps`/`check_deps` — inter-plugin dependency checks (pybuggy ships one plugin; the plugin has no dependencies).
+- `deps`/`check_deps` — inter-plugin dependency checks (pybuggy ships three plugins; none declares dependencies).
 - `actions` — deferred actions (not needed: `Api` issues a single request, without polling/collector).
 - `hook` on `define.option` — option-value post-processing (the options are simple; the type coerces them).

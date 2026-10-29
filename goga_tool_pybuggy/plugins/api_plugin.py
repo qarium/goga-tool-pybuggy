@@ -70,7 +70,7 @@ def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
     }
 
 
-@define.plugin("pybuggy", config=defaults.CONFIG_FILE)
+@define.plugin("pybuggy-api", config=defaults.API_CONFIG_FILE)
 class ApiPlugin:
     """Pluginator plugin exposing the Api options and the ``api`` fixture.
 

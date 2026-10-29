@@ -24,11 +24,11 @@ from goga_tool_pybuggy.commands.init import (
     write_pybuggy_conftest,
     write_test_convention,
 )
-from goga_tool_pybuggy.plugin import PluginConfigKeys
+from goga_tool_pybuggy.plugins import PluginConfigKeys
 from ruamel.yaml import YAML
 
 _EXPECTED_CONFTEST = (
-    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugin\n\nplugin.install()\n"
+    "from dotenv import load_dotenv\n\nload_dotenv()\n\nfrom goga_tool_pybuggy import plugins\n\nplugins.install()\n"
 )
 
 # The exact first lines the documentation step re-delivers for absent complex members.

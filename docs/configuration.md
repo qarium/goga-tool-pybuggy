@@ -152,7 +152,7 @@ loader:
     - my_plugin.conftest
 ```
 
-Details: [Plugin — loaders](plugin/loaders.md).
+Details: [Plugin — loaders](plugins/loaders.md).
 
 ## Loading
 

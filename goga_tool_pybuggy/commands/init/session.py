@@ -12,7 +12,7 @@ from goga.onboarding import FileGenerator, InitLogic, Question, Questionnaire, T
 from goga.version import host_goga_version, minor_version
 
 from ...config import GitEntry, SpecEntry
-from ...plugin import PluginConfigKeys
+from ...plugins import PluginConfigKeys
 from ...web import WebConfigKeys
 
 logger = logging.getLogger(__name__)
