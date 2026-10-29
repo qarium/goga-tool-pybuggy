@@ -6,7 +6,7 @@ Encode data dependencies and required-data constraints so they hold by construct
 
 ## Acyclic cell graph with reference-driven placement
 
-The dependency graph over cells and units is kept acyclic: integration flows only from consumer to provider and is never reversed. A type that must reference a type belonging to a consuming cell is relocated into that cell rather than permitting an upward import that would create a cycle or an unresolvable reference. New functionality lands by extending existing responsibility zones, not by creating new cells: a new capability kind is added as a slice through the existing responsibility zones rather than as a new parallel structure, keeping the dependency graph stable and the cross-boundary surface delta minimal. A genuinely new subsystem spanning several distinct concerns gets its own leaf unit with a single coherent responsibility that imports nothing from the rest of the project, and neighboring units extend by importing from the leaf instead of absorbing heterogeneous modules. Third-party clients and container modules are wired only inside the layer that operates them; consumer layers see only views and facades and gain no new external usages. Convention artifacts that are data by nature — pipeline definitions, skill documents, docs pages, tests — remain package data outside the cell graph, because a cell for data contradicts the package structure.
+The dependency graph over cells and units is kept acyclic: integration flows only from consumer to provider and is never reversed. A type that must reference a type belonging to a consuming cell is relocated into that cell rather than permitting an upward import that would create a cycle or an unresolvable reference. New functionality lands by extending existing responsibility zones, not by creating new cells: a new capability kind is added as a slice through the existing responsibility zones rather than as a new parallel structure, keeping the dependency graph stable and the cross-boundary surface delta minimal. A genuinely orthogonal capability, by contrast, is packaged as its own dedicated cell that owns its configuration model, its integration plugin, and its consumer usage documentation together, while existing cells absorb only a minimal integration point plus an import of the new cell, so every cell stays single-responsibility. A genuinely new subsystem spanning several distinct concerns gets its own leaf unit with a single coherent responsibility that imports nothing from the rest of the project, and neighboring units extend by importing from the leaf instead of absorbing heterogeneous modules. Third-party clients and container modules are wired only inside the layer that operates them; consumer layers see only views and facades and gain no new external usages. Convention artifacts that are data by nature — pipeline definitions, skill documents, docs pages, tests — remain package data outside the cell graph, because a cell for data contradicts the package structure.
 
 ## Single canonical declaration form
 
@@ -14,7 +14,19 @@ Each authorable concept keeps exactly one declaration form, the full structured 
 
 ## Deterministic registration and composition ordering
 
-Orderings that arise from many contributors are fixed and declared, not emergent. Registrations follow the normative table exactly and completely: independent chains anchor at built-in entries and stack in forward order; where the table prescribes a reversed order for one line, that order is preserved; every anchor names an entry registered earlier in the run or a built-in; registered names carry no tool prefix, leaving qualification to the platform; an unresolvable anchor logs a warning and never aborts; and a new registration takes its normative position within the established sequence rather than being appended or reordering existing entries. Sections contributed by multiple kinds are likewise applied in a fixed, declared order, with a new kind's section appended after the existing ones so ordering stays defined as the document grows.
+Orderings that arise from many contributors are fixed and declared, not emergent, and registration authority stays singular: plugin registration lives in exactly one cell's install entry point, and a newly added cell never exports its own installer, so a second registration authority never competes with the established one. Registrations follow the normative table exactly and completely: independent chains anchor at built-in entries and stack in forward order; where the table prescribes a reversed order for one line, that order is preserved; every anchor names an entry registered earlier in the run or a built-in; registered names carry no tool prefix, leaving qualification to the platform; an unresolvable anchor logs a warning and never aborts; and a new registration takes its normative position within the established sequence rather than being appended or reordering existing entries. Sections contributed by multiple kinds are likewise applied in a fixed, declared order, with a new kind's section appended after the existing ones so ordering stays defined as the document grows.
+
+## Unconditional-declarative survey split
+
+Declarative question records contain only questions asked unconditionally; every question whose relevance depends on an earlier answer moves to amendment-moment, tool-side surveys, so no consumer is ever asked questions that do not apply to their chosen path.
+
+## Settled decisions, grounded options
+
+Behavioral choices already fixed in an authoritative decision record are resolved against that record instead of being re-opened as questions; only residual low-level detailing points are carried forward. When a task defers a rule to the design stage and a concrete in-repo example already exists, that example is read first and the rule is derived from it rather than from invented option sets; an explicit user pointer to a concrete artifact overrides protocol restrictions on reading source for that question, with only risk-driven adjustments recorded. For decisions that are genuinely open, ground every option in how the host platform natively solves the analogous problem and in the project's current behavior, map each option onto those idioms with its concrete consequences, and attach a recommendation. Never present options as abstract pros and cons alone.
+
+## Behavior-preserving evolution
+
+When extending or generalizing capability that already ships and is pinned by an existing suite, shipped behavior stays effect-identical: existing assertions are kept unchanged, the green suite serves as the regression guard for the change, and only call sites adapt to the new shape. Related settings are grouped into one optional nested block described by a single shared configuration type rather than scattered flat fields, with field validity scoped by entry kind — a setting meaningful only on the primary entry is accepted there and rejected at load time everywhere else. New settings ride on the configuration models they parameterize instead of widening existing procedure signatures, so call sites are untouched, and defaults are chosen to reproduce prior behavior exactly, making adoption opt-in and non-breaking.
 
 ## Deterministic replay and scoped reset
 
@@ -27,18 +39,6 @@ Any bounded wait fails with a typed, actionable error when its deadline expires;
 ## Single-homed documentation
 
 Consumer guidance lives at consumer-facing surfaces, exactly once. Documentation for an already-generic mechanism does not grow per instance: when the configuration resolver is generic over arbitrary instance names in its axis, adding an instance requires no new usage examples and the practice document stays untouched. Pre-existing practice documents are linked as-is, and internal layers get no usage files that would duplicate that content.
-
-## Aligned dependency floors
-
-When one library is required through two different routes, its version floors are pinned to a single consistent resolution so the two requirements cannot drift and resolve differently.
-
-## Settled decisions, grounded options
-
-Behavioral choices already fixed in an authoritative decision record are resolved against that record instead of being re-opened as questions; only residual low-level detailing points are carried forward. For decisions that are genuinely open, ground every option in how the host platform natively solves the analogous problem and in the project's current behavior, map each option onto those idioms with its concrete consequences, and attach a recommendation. Never present options as abstract pros and cons alone.
-
-## Behavior-preserving evolution
-
-When extending or generalizing capability that already ships and is pinned by an existing suite, shipped behavior stays effect-identical: existing assertions are kept unchanged, the green suite serves as the regression guard for the change, and only call sites adapt to the new shape. Related settings are grouped into one optional nested block described by a single shared configuration type rather than scattered flat fields, with field validity scoped by entry kind — a setting meaningful only on the primary entry is accepted there and rejected at load time everywhere else. New settings ride on the configuration models they parameterize instead of widening existing procedure signatures, so call sites are untouched, and defaults are chosen to reproduce prior behavior exactly, making adoption opt-in and non-breaking.
 
 ## Data-driven variation records
 
