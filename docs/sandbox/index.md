@@ -18,7 +18,7 @@ per-test reset, and the runtime environments.
 
 The sandbox activates by file presence: `.goga/tools/pybuggy/sandbox.yml`, resolved from
 the current working directory only — no upward search. The same `plugins.install()` call
-that enables pybuggy also enables the sandbox plugin:
+that wires the pybuggy plugins also enables the sandbox plugin:
 
 ```python
 # conftest.py
@@ -92,9 +92,10 @@ limitation).
   the default KV v2 `secret/` mount).
 - After the session — including failed or interrupted runs — nothing remains; a rerun
   starts fresh.
-- `base_url` remains a required plugin option even with the sandbox document present
-  (the render contract is unchanged); tests that bind to the sandbox override it at bind
-  time, the rest use the rendered value.
+- `base_url` remains a required option of the api plugin even with the sandbox document
+  present (the render contract is unchanged), whenever the api plugin is active (the api
+  document exists); tests that bind to the sandbox override it at bind time, the rest
+  use the rendered value.
 
 ### Running on the host
 

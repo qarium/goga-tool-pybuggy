@@ -22,11 +22,17 @@ logger = logging.getLogger(__name__)
 
 
 def install(**kwargs: object) -> None:
-    """Wire the ``ApiPlugin`` into pytest and, when its document is present, the ``SandboxPlugin``.
+    """Wire the plugins into pytest, each gated on its own activation document.
+
+    The api plugin activates when the api document ``.goga/tools/pybuggy/api.yml`` exists;
+    without the document nothing api-related is registered — the required ``base_url`` never
+    fails a web-only or sandbox-only run — and a test requesting the ``api`` fixture gets
+    pytest's standard "fixture 'api' not found" (``BASE_URL`` stays a value source, not an
+    activation source).
 
     ``loaders`` defaults to ``[PackageLoader("api", required=False)]``; ``install(loaders=[])``
     disables discovery. The sandbox document ``.goga/tools/pybuggy/sandbox.yml`` gates the
-    second plugin by presence only: with the document the ``SandboxPlugin`` joins the same
+    sandbox plugin by presence only: with the document the ``SandboxPlugin`` joins the same
     installation call and owns the product ``sandbox`` fixtures — it reads and validates its
     config itself at configphase — and the container-host address is normalized first, so a
     plain host run resolves the same address space as a container run; without the document
@@ -45,7 +51,13 @@ def install(**kwargs: object) -> None:
     kwargs.setdefault("context", call_context())
     kwargs.setdefault("loaders", [PackageLoader("api", required=False)])
 
-    plugins = [ApiPlugin(**kwargs)]
+    plugins = []
+
+    if Path(defaults.API_CONFIG_FILE).is_file():
+        plugins.append(ApiPlugin(**kwargs))
+        logger.info("api plugin enabled", extra={"document": defaults.API_CONFIG_FILE})
+    else:
+        logger.debug("api plugin absent", extra={"document": defaults.API_CONFIG_FILE})
 
     if Path(defaults.SANDBOX_CONFIG_FILE).is_file():
         normalize_container_host()

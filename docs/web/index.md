@@ -14,8 +14,8 @@ the fixed-path settings file written by `goga tool pybuggy init` (test kind `web
 ## Activation
 
 The web plugin activates by file presence: `.goga/tools/pybuggy/web.yml`, resolved from
-the current working directory. The same `plugins.install()` call that enables pybuggy
-also enables the web plugin:
+the current working directory. The same `plugins.install()` call that wires the pybuggy
+plugins also enables the web plugin:
 
 ```python
 # conftest.py
@@ -31,7 +31,7 @@ surfaces when the test builds its runtime). The document carries the LLM provide
 models for the one-time generation; **LLM API keys live only in the environment or
 `.env`** — the document never contains keys.
 
-Three environment requirements apply to every web run:
+Two environment requirements apply to every web run:
 
 - Browser binaries: run `playwright install --with-deps <browser>` locally (the
   `pybuggy init` bootstrap appends the matching `RUN` line to the project Dockerfile for
@@ -39,11 +39,10 @@ Three environment requirements apply to every web run:
 - A `pyproject.toml` in the project or a directory above it — a prettyplay 0.0.x
   limitation: the runtime searches for the file on every construction, and its absence
   fails web tests at setup.
-- A resolvable api `base_url` — the delivered `conftest.py` calls one `plugins.install()`
-  that always enables the api plugin alongside the web plugin, and its `base_url` option
-  is required. A `both`-kind project carries it in `api.yml`; a **web-only** project
-  writes no `api.yml`, so export `BASE_URL` (or type `--base-url`) — the delivered
-  conftest loads `.env` first, so a `.env` holding `BASE_URL=...` satisfies it.
+
+Nothing api-related is required: the api plugin activates only when `api.yml` exists,
+and a **web-only** project writes no `api.yml` — its runs need no api `base_url` at all.
+(A `both`-kind project activates the api plugin through its `api.yml`.)
 
 `web.yml` is the web run's single configuration source: every `PRETTYPLAY_*` environment
 variable is removed at pytest configuration, so the library's env layer never applies. A

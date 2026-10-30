@@ -98,7 +98,8 @@ Behavior:
 - Internal pytest/plugin options (150+ in `config.option`) do NOT enter the template — the
   filter keeps only the `--key` tokens the user actually typed.
 - Rendering is eager: a missing required `base_url` surfaces at `configure()`
-  (`pytest_configure`), not on fixture invocation.
+  (`pytest_configure`), not on fixture invocation — and only when the api plugin is active
+  at all (the api document exists; see [Enable](enable.md)).
 - Conditional URL assembly works via the registered `match_re` test (regex match anchored at
   the start) — see [Conditional URL assembly](#conditional-url-assembly--match_re) below.
 
@@ -141,7 +142,7 @@ its option keys and the `loader` section from the same file without conflicting 
 
 ## Preconditions and side effects
 
-- `base_url` is required — the suite fails to provide a working `Api` when it is unset across all sources. It is a Jinja2 template rendered once, eagerly, in `configure()` (configphase); a missing value surfaces there, not on fixture invocation.
+- `base_url` is required — the suite fails to provide a working `Api` when it is unset across all sources. It is a Jinja2 template rendered once, eagerly, in `configure()` (configphase); a missing value surfaces there, not on fixture invocation. The requirement applies only when the api plugin is active (the api document exists) — a project without the document registers no api plugin and needs no `base_url`.
 - Most options are read lazily on fixture invocation, so env/CLI changes take effect per test run without code changes. `base_url` is the exception: it is rendered once in `configure()` against `os.environ` + the CLI options the user passed.
 - `retries` is orthogonal to the `api` fixture: when set to a positive int, the plugin stamps every collected test without an existing flaky marker with `pytest.mark.flaky(max_runs=retries)` during collection. The actual reruns require the `flaky` package to be installed in the consumer suite; without it the marker is inert. A programmatic default can be supplied via `install(default_retries=N)`.
 - `assert_timeout`/`assert_delay` enable assert polling: when `assert_timeout` is set, each matchcrest assertion retries (re-fetching the response via `resq.http.Response.reload()`) until it passes or the timeout elapses, sleeping `assert_delay` between attempts. They are the baseline; each `Expect`/`AssertField` check method also accepts per-call `timeout`/`delay` kwargs that override them for one assertion. `None` (default) runs each assertion once. Programmatic defaults: `install(default_assert_timeout=N, default_assert_delay=D)`.

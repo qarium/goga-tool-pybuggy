@@ -105,8 +105,12 @@ strict: false
 interactive: false
 """
 
-# Consumer test of the web kind: the web fixture resolves and both CLI options registered.
+# Consumer test of the web kind: the web fixture resolves, both CLI options registered,
+# and no api surface exists (the api plugin gated off registers nothing).
 _WEB_TEST_SOURCE = """\
+import pytest
+
+
 def test_web_fixture_resolves(web):
     assert web is not None
 
@@ -115,6 +119,12 @@ def test_web_options_registered(pytestconfig):
     # getoption raises ValueError for an unknown option — both flags were registered.
     pytestconfig.getoption("--strict-mode")
     pytestconfig.getoption("--interactive")
+
+
+def test_web_only_run_registers_no_api_options(pytestconfig):
+    # No api.yml and no BASE_URL — the api plugin never installs, so its option never registers.
+    with pytest.raises(ValueError):
+        pytestconfig.getoption("--base-url")
 """
 
 
@@ -142,10 +152,16 @@ class TestPluginIntegration:
     """Cross-cell integration: the import-time wiring chain."""
 
     def test_install_wires_hooks_into_namespace(self, tmp_path, monkeypatch):
-        # The api/ tree lets _load_plugins discover a real generated-fixture module.
+        # The api/ tree lets _load_plugins discover a real generated-fixture module;
+        # the api document opens the installation gate.
         monkeypatch.syspath_prepend(tmp_path)
         monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("BASE_URL", raising=False)
         _make_api_tree(tmp_path).write_text(_PLUGIN_MODULE_SOURCE)
+
+        config_dir = tmp_path / ".goga" / "tools" / "pybuggy"
+        config_dir.mkdir(parents=True)
+        (config_dir / "api.yml").write_text("base_url: https://x.example\n")
 
         namespace = types.ModuleType("ctx")
         install(context=namespace.__dict__)
@@ -222,10 +238,10 @@ class TestWebPluginEndToEnd:
         (tmp_path / "conftest.py").write_text(_BOOTSTRAP_CONFTEST_SOURCE, encoding="utf-8")
         (tmp_path / "test_search.py").write_text(_WEB_TEST_SOURCE, encoding="utf-8")
 
-        # The same install call constructs the ApiPlugin unconditionally (the plugin contract
-        # pins it), so the subprocess satisfies its required base_url through the documented
-        # env source — the web-only kind's own resolution is tracked as a contract gap.
-        env = {**os.environ, "PYTHONPATH": _PROJECT_ROOT, "BASE_URL": "https://api.example"}
+        # The web-only kind activates nothing api-related: no api.yml and no BASE_URL, so the
+        # api gate stays shut and the run needs no api base_url — the closed contract gap.
+        env = {key: value for key, value in os.environ.items() if key != "BASE_URL"}
+        env["PYTHONPATH"] = _PROJECT_ROOT
 
         result = subprocess.run(
             [sys.executable, "-m", "pytest", str(tmp_path), "-v", "-p", "no:cacheprovider"],

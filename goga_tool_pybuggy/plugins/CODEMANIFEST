@@ -196,7 +196,14 @@ Annotations: |
     Algorithm:
     1. Default context to call_context(), which resolves to the caller module's globals through the one-level wrapper — so calling `install` from conftest.py targets the conftest namespace (where pytest picks up the hooks and pytest_plugins).
     2. Default loaders to [PackageLoader('api', required=False)] when omitted (auto-discovery of the api/ tree); an explicit loaders overrides it, loaders=[] disables it.
-    3. Construct an `ApiPlugin` instance — context and loaders are forwarded; ApiPlugin.__init__ registers discovered plugins synchronously, populating the pytest_plugins list.
+    3. Gate the `ApiPlugin` on the presence of the api document (the file check of the
+       plugins-cell default path): with the document, construct an `ApiPlugin` instance
+       (context and loaders are forwarded; ApiPlugin.__init__ registers discovered plugins
+       synchronously, populating the pytest_plugins list); without the document nothing
+       api-related is registered — the required base_url never fails a web-only or
+       sandbox-only run — and a test requesting the api fixture gets pytest's standard
+       "fixture 'api' not found". `BASE_URL` is a value source of the base_url option, never
+       an activation source of the plugin.
     4. Gate the `SandboxPlugin` on the presence of the sandbox document (the file check of the
     plugin-cell default path): with the document, normalize the container-host address first
     (`normalize_container_host` — defaults the TESTCONTAINERS_HOST_OVERRIDE env so a plain
@@ -221,8 +228,9 @@ Annotations: |
     - The address normalization runs only with the document present, defaults the env (never
       overrides an explicit value), and its failure is a no-op — a failed detection keeps the
       mapped-localhost behavior.
-    - The same installation call enables the ApiPlugin and — when the documents are present — the
-    `SandboxPlugin` and the `WebPlugin`; no new enablement surface exists.
+    - The same installation call enables every plugin whose activation document is present — the
+    `ApiPlugin` (the api document), the `SandboxPlugin` (the sandbox document), and the
+    `WebPlugin` (the web document); no new enablement surface exists.
     - The web gate performs no validation — the document is only checked for presence; validation
     belongs to the web plugin's configure step (an invalid document fails at configphase).
 

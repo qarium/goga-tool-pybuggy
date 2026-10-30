@@ -229,6 +229,11 @@ def test_installed_plugin_runs_a_real_pytest_session(tmp_path: pathlib.Path):
     document.parent.mkdir(parents=True)
     document.write_text(DOCUMENT, encoding="utf-8")
 
+    # The api activation document — keyless: its presence opens the api gate, the value
+    # arrives from the BASE_URL env of the subprocess.
+    api_document = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
+    api_document.write_text("# activation document; base_url arrives from BASE_URL\n", encoding="utf-8")
+
     (tmp_path / "conftest.py").write_text(CONFTEST, encoding="utf-8")
     (tmp_path / "test_sample.py").write_text(TESTS, encoding="utf-8")
 

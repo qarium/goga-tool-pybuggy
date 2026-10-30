@@ -1,7 +1,7 @@
 """Tests for `install` in the `goga_tool_pybuggy.plugins` cell.
 
 Covers the contract surface and the import-time wiring (hook injection + synchronous ``pytest_plugins`` population)
-plus the presence gate of the sandbox plugin.
+plus the activation gates of the api, sandbox, and web plugins.
 """
 
 import importlib
@@ -13,6 +13,7 @@ from unittest import mock
 
 import goga_tool_pybuggy.plugins
 import pytest
+from pluginator import install_pytest_plugins
 from goga_tool_pybuggy.plugins import SandboxPlugin
 
 
@@ -43,6 +44,17 @@ def write_document(root) -> None:
         "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nservices:\n  db: { kind: postgresql }\n",
         encoding="utf-8",
     )
+
+
+def write_api_document(root) -> None:
+    """Place a minimal api document under the pybuggy tools home of ``root``.
+
+    Args:
+        root: The consumer repository root receiving ``.goga/tools/pybuggy/api.yml``.
+    """
+    document = root / ".goga" / "tools" / "pybuggy" / "api.yml"
+    document.parent.mkdir(parents=True, exist_ok=True)
+    document.write_text("base_url: https://api.example\n", encoding="utf-8")
 
 
 class TestInstallContract:
@@ -78,7 +90,8 @@ class TestInstallLogic:
     """Behavioral logic tests for `install`."""
 
     def test_install_wires_hooks_into_namespace(self, tmp_path, monkeypatch):
-        # No `api/` tree so the default loader package is a no-op.
+        # No `api/` tree so the default loader package is a no-op; the api document opens the gate.
+        write_api_document(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         namespace = types.ModuleType("ctx")
@@ -90,6 +103,7 @@ class TestInstallLogic:
 
     def test_install_outside_api_tree_does_not_raise(self, tmp_path, monkeypatch):
         # Without an `api/` tree the default package loader is optional — `install()` must not raise.
+        write_api_document(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         # Re-import the module against this cwd, then run a real install into a fresh namespace.
@@ -106,6 +120,7 @@ class TestInstallLogic:
         """With the document, one installation call carries both plugins — the sandbox plugin
         unconfigured (its activation is built at configphase, not here)."""
         write_document(tmp_path)
+        write_api_document(tmp_path)
         monkeypatch.chdir(tmp_path)
 
         context: dict[str, object] = {}
@@ -126,9 +141,10 @@ class TestInstallLogic:
         assert plugins[1].activation is None  # configure builds it, not install
         assert not hasattr(plugins[0], "sandbox_activation")
 
-    def test_install_without_document_installs_the_api_plugin_alone(self, tmp_path, monkeypatch):
-        """Without the tools-home document no sandbox plugin joins the installation."""
-        monkeypatch.chdir(tmp_path)  # no .goga/tools/pybuggy/sandbox.yml in the empty cwd
+    def test_install_with_only_the_api_document_installs_the_api_plugin_alone(self, tmp_path, monkeypatch):
+        """The api document alone opens the api gate and no other plugin joins the installation."""
+        write_api_document(tmp_path)
+        monkeypatch.chdir(tmp_path)
 
         context: dict[str, object] = {}
         captured: dict[str, object] = {}
@@ -145,13 +161,57 @@ class TestInstallLogic:
         assert len(plugins) == 1
         assert isinstance(plugins[0], goga_tool_pybuggy.plugins.ApiPlugin)
 
-    def test_install_with_both_documents_carries_the_three_plugins_in_order(self, tmp_path, monkeypatch):
-        """A project with both documents (a both-kind session) carries all three plugins in order.
+    def test_install_gates_the_api_plugin_on_the_document_only(self, tmp_path, monkeypatch):
+        """The api document alone gates the api plugin — ``BASE_URL`` is a value source, never
+        an activation source — and without the document the hooks still land in the namespace
+        (a web-only or sandbox-only project registers nothing api-related)."""
+        monkeypatch.chdir(tmp_path)
 
-        The two presence gates are independent: the web append neither disturbs the sandbox
+        captured: dict[str, object] = {}
+
+        def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
+            captured["plugins"] = list(plugins)
+
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", fake_install)
+
+        # Case A: the api document opens the gate (a set BASE_URL is neither required nor an opener).
+        write_api_document(tmp_path)
+        monkeypatch.setenv("BASE_URL", "https://env.example")
+
+        goga_tool_pybuggy.plugins.install(context={})
+
+        assert len(captured["plugins"]) == 1
+        assert isinstance(captured["plugins"][0], goga_tool_pybuggy.plugins.ApiPlugin)
+
+        # Case B: the env var alone does not open the gate (the document removed).
+        (tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml").unlink()
+
+        goga_tool_pybuggy.plugins.install(context={})
+
+        assert captured["plugins"] == []
+
+        # Case C: no document and no env — the hooks still injected, nothing api-related set.
+        monkeypatch.delenv("BASE_URL", raising=False)
+        monkeypatch.setattr(goga_tool_pybuggy.plugins, "install_pytest_plugins", install_pytest_plugins)
+        namespace = types.ModuleType("ctx")
+
+        with mock.patch("goga_tool_pybuggy.plugins.ApiPlugin") as api_plugin:
+            goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
+
+            api_plugin.assert_not_called()
+
+        assert callable(namespace.pytest_addoption)
+        assert callable(namespace.pytest_configure)
+        assert "pytest_plugins" not in namespace.__dict__
+
+    def test_install_with_both_documents_carries_the_three_plugins_in_order(self, tmp_path, monkeypatch):
+        """A project with all documents (a both-kind session) carries all three plugins in order.
+
+        The three gates are independent: the web append neither disturbs the sandbox
         append nor the leading ApiPlugin, and one installation call carries the trio.
         """
         write_document(tmp_path)
+        write_api_document(tmp_path)
         web_document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
         web_document.write_text("provider: openai\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
@@ -179,11 +239,12 @@ class TestInstallLogic:
         web_document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
         web_document.parent.mkdir(parents=True)
 
-        # Case A: the web document present — the web plugin joins, the sandbox gate stays shut.
+        # Case A: the web document present — the web plugin joins, the other gates stay shut.
         web_document.write_text("provider: openai\n", encoding="utf-8")
         monkeypatch.chdir(tmp_path)
 
         with (
+            mock.patch("goga_tool_pybuggy.plugins.ApiPlugin"),
             mock.patch("goga_tool_pybuggy.plugins.WebPlugin") as web_plugin,
             mock.patch("goga_tool_pybuggy.plugins.SandboxPlugin") as sandbox_plugin,
         ):
@@ -192,13 +253,14 @@ class TestInstallLogic:
             web_plugin.assert_called_once_with()
             sandbox_plugin.assert_not_called()  # no sandbox.yml — its own gate decides
 
-        assert callable(namespace.pytest_addoption)  # the api installation path stays intact
+        assert callable(namespace.pytest_addoption)  # the hooks land whatever the gates decide
         assert callable(namespace.pytest_configure)
 
         # Case B: no web document — the web plugin is never constructed.
         web_document.unlink()
 
         with (
+            mock.patch("goga_tool_pybuggy.plugins.ApiPlugin"),
             mock.patch("goga_tool_pybuggy.plugins.WebPlugin") as web_plugin,
             mock.patch("goga_tool_pybuggy.plugins.SandboxPlugin") as sandbox_plugin,
         ):
@@ -242,7 +304,7 @@ class TestInstallLogic:
 
         goga_tool_pybuggy.plugins.install(context={})
 
-        sandbox_plugin = captured["plugins"][1]
+        sandbox_plugin = captured["plugins"][0]
 
         assert isinstance(sandbox_plugin, SandboxPlugin)
         assert sandbox_plugin.activation is None
@@ -266,6 +328,7 @@ class TestInstallLogic:
 
         write_document(tmp_path)
         monkeypatch.chdir(tmp_path)
+
         monkeypatch.delenv("TESTCONTAINERS_HOST_OVERRIDE", raising=False)
 
         def fake_install(*plugins: object, context: dict[str, object] | None = None) -> None:
@@ -282,6 +345,7 @@ class TestInstallLogic:
         """Without the document the container-host normalization never runs — no sandbox,
         no environment changes."""
         monkeypatch.chdir(tmp_path)  # empty cwd — no sandbox document
+
         monkeypatch.delenv("TESTCONTAINERS_HOST_OVERRIDE", raising=False)
 
         def unexpected() -> None:

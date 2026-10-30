@@ -44,6 +44,11 @@ wins over the config file and `BASE_URL`. The flag governs the tests that do not
 their api to the sandbox; a test that binds (`endpoint.bind(sandbox)`) takes the sandbox
 address and ignores it.
 
+The api plugin activates only when this file exists — a project without it (a web-only
+or sandbox-only project) registers no api plugin and needs no `base_url` at all. When
+the plugin is active and `base_url` resolves from no source, the run fails at
+`pytest_configure` (the required-option error).
+
 ### `base_url` as a Jinja2 template
 
 `base_url` is rendered **once**, eagerly, at `pytest_configure` against

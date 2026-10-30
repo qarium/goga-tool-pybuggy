@@ -1,7 +1,8 @@
 # Pytest Plugin — Enable & Fixtures
 
-Enabling the pybuggy plugin gives a test suite the `api` fixture, the plugin CLI options,
-and automatic loading of the generated endpoint fixtures under `api/`.
+Enabling the pybuggy plugins gives a test suite the fixtures of every activated test kind:
+the `api` fixture of the api plugin, the `sandbox` fixture, the `web` fixture — each gated
+on its own activation sources, one `install()` call for all.
 
 ## Enable the plugin
 
@@ -28,6 +29,14 @@ variables win).
 `goga tool pybuggy init` generates this `conftest.py` for you when it is absent — an
 existing file is kept (bare mode: unless you confirm the overwrite) — see
 [CLI — init](../cli/init.md).
+
+The `install()` call installs the **api plugin** when the api document exists:
+`.goga/tools/pybuggy/api.yml`. With the document, the `api` fixture, the plugin CLI
+options, and the generated-fixture discovery are registered; without it, nothing
+api-related is registered — a web-only or sandbox-only project runs with no `base_url`
+at all, and a test requesting the `api` fixture gets pytest's standard
+`fixture 'api' not found` (`BASE_URL` stays a value source for the option, never an
+activation source for the plugin).
 
 The same `install()` call installs the **sandbox plugin**: when
 `.goga/tools/pybuggy/sandbox.yml` exists under the pybuggy tools home, the product
@@ -108,6 +117,10 @@ loader:
 
 ## Preconditions and side effects
 
+- The api plugin activates when `.goga/tools/pybuggy/api.yml` exists; its required
+  `base_url` then resolves from the document key, the `BASE_URL` env, or a typed
+  `--base-url` — a missing resolution across all three fails the run at pytest
+  configuration (the required-option error of the plugin framework).
 - A sandbox document at `.goga/tools/pybuggy/sandbox.yml` installs the sandbox plugin on
   the same `install()` call (the product `sandbox` fixture); the environment then needs a
   docker-compatible container runtime, but only when the run actually has sandbox tests —
@@ -116,10 +129,8 @@ loader:
   `install()` call (the `web` fixture); the environment then needs the playwright
   browser binaries — `playwright install --with-deps <browser>` — but only when the run
   actually has web tests (see [Web](../web/index.md)).
-- The `api/` tree is discovered by default; a missing tree is tolerated
-  (`required=False`).
-- The plugin reads `.goga/tools/pybuggy/api.yml` at import; a missing file is
-  tolerated (defaults apply).
+- The `api/` tree is discovered by default when the api plugin is active; a missing
+  tree is tolerated (`required=False`).
 - Loader paths walk the filesystem relative to the **current working directory** (while
   candidate imports go through `sys.path`). Run `pytest` from the project root — the
   directory that both contains `api/` and is on `sys.path`. Running from another

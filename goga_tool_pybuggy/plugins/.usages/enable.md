@@ -2,8 +2,9 @@
 
 ## Domain
 
-Enabling the pybuggy plugin so a test suite gets the `api` fixture, the plugin CLI options, and automatic loading of
-the generated endpoint fixtures under `api/`. Target audience: test-suite and infrastructure authors.
+Enabling the pybuggy plugins so a test suite gets the fixtures of every activated test kind — the `api` fixture of the
+api plugin, the `sandbox` fixture, the `web` fixture — each gated on its own activation sources by one `install()` call.
+Target audience: test-suite and infrastructure authors.
 
 ## Enable the plugin
 
@@ -30,6 +31,14 @@ discovery, or `install(loaders=[])` to disable it.
 
 > There is **no import-time auto-wiring**: `pytest_plugins = ["goga_tool_pybuggy.plugins"]` alone does NOT enable the plugin —
 > the explicit `install()` call is required.
+
+## Api activation
+
+The api plugin activates when the api document `.goga/tools/pybuggy/api.yml` exists. With the document, the
+`install()` call registers the `api` fixture, the plugin CLI options, and the generated-fixture discovery; without
+the document, nothing api-related is registered — a web-only or sandbox-only project runs with no `base_url` at all,
+and a test requesting the `api` fixture gets pytest's standard `fixture 'api' not found` (`BASE_URL` stays a value
+source for the option, never an activation source for the plugin).
 
 ## What enabling wires
 
@@ -92,8 +101,10 @@ loader:
 
 ## Preconditions and side effects
 
-- The `api/` tree is discovered by default; a missing tree is tolerated (`required=False`).
-- The plugin reads `.goga/tools/pybuggy/api.yml` at import; a missing file is tolerated (defaults apply).
+- The api plugin activates when `.goga/tools/pybuggy/api.yml` exists; the `api/` tree is then discovered by
+  default, and a missing tree is tolerated (`required=False`).
+- When the api plugin is active and its required `base_url` resolves from no source (no document key, no `BASE_URL`,
+  no typed `--base-url`), the run fails at pytest configuration on the required-option error.
 - Loader paths walk the filesystem relative to the **current working directory** (while the plugin probe imports
   candidates through `sys.path`). Run `pytest` from the project root — the directory that both contains `api/` and
   is on `sys.path`. Running from another directory makes discovery silently return `[]`, so generated fixtures are
