@@ -56,12 +56,12 @@ type, or an unparsable file fails the run there. Value-level semantics (the brow
 matrix, positive attempt counts, the endpoint scheme) belong to the runtime: a violation
 surfaces when a test builds its runtime, as the library's own validation error.
 
-An empty or omitted key keeps the prettyplay default — and prettyplay resolves that
-default from its file layer, so a `[tool.prettyplay]` section in the project's
-`pyproject.toml` may supply values for keys `web.yml` leaves empty. Every `PRETTYPLAY_*`
-environment variable is removed at pytest configuration: the library's env layer never
-applies to a web run, and a `pyproject.toml` must exist in or above the run directory
-(prettyplay 0.0.x searches for it on every runtime construction).
+An empty or omitted key keeps the prettyplay model default: the `web` fixture passes the
+config built from `web.yml` explicitly, and prettyplay adopts an explicit config verbatim —
+the library's pyproject and env layers never load for it and never back-fill an empty key.
+Every `PRETTYPLAY_*` environment variable is removed at pytest configuration on top of
+that, so the library's env layer never applies to a web run, and no `pyproject.toml` is
+required in or above the run directory.
 
 ## The surveyed minimum
 
@@ -88,4 +88,4 @@ record, pinned before the next active key — idempotent, never touching active 
 
 - [Web — Overview](index.md) — activation, writing tests, run modes, the step cache.
 - [CLI — init](../cli/init.md) — the kind-aware onboarding session and the web bootstrap.
-- [Pytest Plugin](../plugins/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` flags.
+- [Pytest Plugins](../plugins/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` flags.

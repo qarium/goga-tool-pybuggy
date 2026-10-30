@@ -1,10 +1,10 @@
 """Prettyplay settings construction: the validated config materialized with the resolved modes.
 
-The all-fields construction is load-bearing — prettyplay 0.0.3 merges the programmatic layer into
-its pyproject+env file layer per field (``model_fields_set``), so passing every field explicitly
-makes the web config the single source: an omitted key's default beats the library layers, and the
-``PRETTYPLAY_*`` scrub of the plugin closes the env channel of the empty fields. The module is
-pure: the single source is the passed model and the flags.
+The all-fields construction is load-bearing — the runtime adopts an explicit config verbatim
+(prettyplay 0.0.4): pyproject and the ``PRETTYPLAY_*`` env never load for it and never back-fill
+an empty field, so this config is the complete effective settings and the web config the single
+source. The ``PRETTYPLAY_*`` scrub of the plugin keeps the process env clean on top of it. The
+module is pure: the single source is the passed model and the flags.
 """
 
 from prettyplay import BrowserConfig, PrettyConfig
@@ -20,8 +20,8 @@ def build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_fla
         interactive_flag: The effective interactive override — the same form.
 
     Returns:
-        The explicitly constructed prettyplay config — every field participates in the library's
-        per-field merge.
+        The explicitly constructed prettyplay config — the complete effective settings, adopted
+        verbatim by the runtime.
     """
     fields = config.model_dump()
 

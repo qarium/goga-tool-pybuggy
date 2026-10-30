@@ -2,9 +2,9 @@
 
 Covers the facade contract: the exact six contract names in the design order and the
 importability of every name from the package. The layering pin holds the real prettyplay
-construction against a validated-config-built runtime config — explicit fields win over the env
-layer, empty fields fall through to it, and the runtime constructs and closes lazily (no browser,
-no LLM calls). The plugin end-to-end run lives in the plugins cell tests.
+construction against a validated-config-built runtime config — an explicit config is adopted
+verbatim (the library's env layer never loads for it), and the runtime constructs and closes
+lazily (no browser, no LLM calls). The plugin end-to-end run lives in the plugins cell tests.
 """
 
 import pathlib
@@ -38,13 +38,14 @@ class TestWebFacadeContract:
 
 
 class TestPrettyplayLayeringPin:
-    """Integration tests pinning the per-field merge between the web config and the real runtime."""
+    """Integration tests pinning the verbatim adoption of the explicit web config by the runtime."""
 
     def test_prettyplay_construction_honors_web_config(self, tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch):
-        """Explicit config fields win over the env layer; an empty field falls through to it.
+        """An explicit config is adopted verbatim — the `PRETTYPLAY_*` env layer never loads for it.
 
-        The pin documents why `WebPlugin.configure` scrubs `PRETTYPLAY_*`: without the scrub the
-        fall-through below is a live channel from the environment into the effective settings.
+        The pin documents the prettyplay 0.0.4 split: the explicit config is the complete
+        effective settings (an empty field keeps the model default, never the env or pyproject
+        value), and only a config-less construction reads the file layer.
         """
         monkeypatch.setenv("PRETTYPLAY_STRICT", "true")
         monkeypatch.setenv("PRETTYPLAY_GENERATION_ATTEMPTS", "9")
@@ -67,7 +68,11 @@ class TestPrettyplayLayeringPin:
             empty_field = PrettyPlay("k2", "sub", cleanup=False, config=empty_pretty)
 
             try:
-                assert empty_field._runtime.config.base_url == "https://env.example"
+                # Verbatim adoption: the env var never reaches an explicitly configured runtime —
+                # the empty field keeps the model default, and only an empty cache_root resolves
+                # to the <cwd>/.prettyplay/cache default.
+                assert empty_field._runtime.config.base_url == ""
+                assert empty_field._runtime.config.cache_root == str(pathlib.Path.cwd() / ".prettyplay" / "cache")
             finally:
                 empty_field.close()
         finally:

@@ -13,14 +13,14 @@ Annotations: |
   Web-library cell — the prettyplay test kind's configuration and settings surface: web.yml validated
   directly into the library PrettyConfig (no mirror model — the cell declares no config models of
   its own), the Allure step reporting hooks, and the console event formatter.
-  web.yml is the single configuration source for web tests: every field the document carries
-  (non-empty) wins over the library's pyproject+env layer — prettyplay 0.0.3 merges per field, so an
-  empty or None field keeps the library default. The env layer never reaches the runtime: configure
-  scrubs the PRETTYPLAY_* variables of the process once at configphase. The library's pyproject
-  auto-search runs at every runtime construction all the same — a repository without a pyproject.toml
-  upward from the cwd fails web tests at fixture setup with the library's FileNotFoundError (a
-  prettyplay 0.0.x limitation, an upstream-fix candidate; the <0.1.0 pin covers it), and a
-  [tool.prettyplay] pyproject section may fill the keys web.yml leaves empty. The library's semantic
+  web.yml is the single configuration source for web tests: the web fixture passes the explicitly
+  built config to the runtime, and prettyplay adopts an explicit config verbatim — the library's
+  pyproject+env file layer never loads for it and never back-fills anything, so an empty or omitted
+  key keeps the library model default. The env layer never reaches the runtime either way: configure
+  scrubs the PRETTYPLAY_* variables of the process once at configphase (a process-level guard on
+  top of the verbatim adoption). The library's pyproject auto-search runs only on the config-less
+  file-layer construction the web fixture never takes — a repository without a pyproject.toml
+  upward from the cwd no longer fails web tests at fixture setup. The library's semantic
   validators (the browser matrix, the ws/wss endpoint, the speed range) run at activation — a
   semantic violation fails the run at configphase, before any collection or browser. LLM API keys
   live only in env/.env (the root load_env loads it);
@@ -155,9 +155,10 @@ Annotations: |
        constructor argument.
 
     Requirements:
-    - The all-fields construction is load-bearing: every field lands in the pydantic model_fields_set,
-      so every non-empty value wins over the library's pyproject+env layer — prettyplay 0.0.3 merges
-      per field; an empty or None field keeps the library default (see `prettyplay`).
+    - The all-fields construction is load-bearing: every field lands in the constructed model, and
+      the runtime adopts the result verbatim (the library's adopt step) — the pyproject+env file
+      layer never loads for it; an empty or None field keeps the library model default
+      (see `prettyplay`).
     - Pure — no I/O, no environment reads.
 
     Constraints:

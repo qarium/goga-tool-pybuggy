@@ -55,8 +55,8 @@ class TestBuildPrettyConfigLogic:
         assert result.generation_approve is True
 
     def test_build_pretty_config_materializes_every_field_explicitly(self):
-        """The load-bearing materialization: every field lands in `model_fields_set` — the per-field
-        merge of prettyplay 0.0.3 consumes it, making the web config the single source."""
+        """The load-bearing materialization: every field lands in the constructed model — the
+        runtime adopts it verbatim, making the web config the single source."""
         config = validate_web_config({"provider": "openai", "browser": {"name": "firefox"}})
 
         result = build_pretty_config(config, False, False)

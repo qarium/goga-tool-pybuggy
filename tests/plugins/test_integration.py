@@ -228,9 +228,9 @@ class TestWebPluginEndToEnd:
 
     def test_web_kind_end_to_end_pytest_resolves_web_fixture(self, tmp_path):
         """A ``web.yml`` project with the bootstrap conftest runs pytest and resolves the fixture."""
-        # prettyplay 0.0.x always auto-searches a pyproject.toml upward from the cwd — without one
-        # the runtime construction raises FileNotFoundError at fixture setup.
-        (tmp_path / "pyproject.toml").write_text("", encoding="utf-8")
+        # Deliberately no pyproject.toml: the web fixture passes the explicit config, which
+        # prettyplay adopts verbatim — the pyproject auto-search (and its FileNotFoundError)
+        # never runs for it.
 
         config_dir = tmp_path / ".goga" / "tools" / "pybuggy"
         config_dir.mkdir(parents=True)

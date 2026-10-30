@@ -1,10 +1,10 @@
-# Pytest Plugin — Enable & Fixtures
+# Pytest Plugins — Enable & Fixtures
 
 Enabling the pybuggy plugins gives a test suite the fixtures of every activated test kind:
 the `api` fixture of the api plugin, the `sandbox` fixture, the `web` fixture — each gated
 on its own activation sources, one `install()` call for all.
 
-## Enable the plugin
+## Enable the plugins
 
 Call `goga_tool_pybuggy.plugins.install()` from the root `conftest.py`:
 

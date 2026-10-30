@@ -2,7 +2,7 @@
 
 ## Domain
 
-`prettyplay` (v0.0.3) is an AI-powered UI testing tool: each step sentence ("Open https://ya.ru")
+`prettyplay` (v0.0.4) is an AI-powered UI testing tool: each step sentence ("Open https://ya.ru")
 is turned into Playwright code by an LLM **once**, cached next to the test, and replayed from the
 cache without any LLM involvement. Cells `goga_tool_pybuggy/web` (the configuration model) and
 `goga_tool_pybuggy/plugins` (the WebPlugin) use it to provide the `web` fixture for browser
@@ -22,20 +22,24 @@ are an environment requirement — `playwright install --with-deps <browser>` lo
 
 ## PrettyConfig — the explicit settings layer
 
-All fields are keyword-only model fields; loading is layered pyproject `[tool.prettyplay]` →
-`PRETTYPLAY_*` env → explicit programmatic values (`PrettyPlay.__init__` always calls
-`load_config(None, config)`). **The merge is per field** (verified against the 0.0.3 source): a
-field the explicit config carries — passed at construction, non-`None`, non-empty string — wins;
-an empty-string/`None` field falls through to the file layer (env or pyproject). Two consequences
-pybuggy accounts for:
+All fields are keyword-only model fields. `PrettyPlay.__init__` picks the settings layer by its
+`config` argument (the 0.0.4 split):
 
-- `load_config(None, …)` **always** runs the pyproject auto-search upward from the cwd and raises
-  `FileNotFoundError` when no `pyproject.toml` exists — even with an explicit config passed. A
-  repository without one fails web tests at fixture setup (a 0.0.x limitation; the `<0.1.0` pin
-  bounds it).
-- The WebPlugin scrubs every `PRETTYPLAY_*` variable once at configphase, so the env layer never
-  overrides `web.yml`; a `[tool.prettyplay]` pyproject section may still fill the keys `web.yml`
-  leaves empty.
+- `config=None` — the file layer, merged pyproject `[tool.prettyplay]` → `PRETTYPLAY_*` env,
+  per field. This path **always** runs the pyproject auto-search upward from the cwd and raises
+  `FileNotFoundError` when no `pyproject.toml` exists.
+- `config=<PrettyConfig>` — the explicit layer, adopted **verbatim**: the passed model is the
+  complete effective settings; pyproject and the `PRETTYPLAY_*` env never load for it and never
+  back-fill anything. Only an empty `cache_root` resolves to the absolute
+  `<cwd>/.prettyplay/cache` default.
+
+Two consequences pybuggy accounts for:
+
+- The WebPlugin's `web` fixture always passes the explicit config built from `web.yml`, so a
+  repository without a `pyproject.toml` runs web tests fine — the auto-search `FileNotFoundError`
+  applies only to the `config=None` construction the fixture never takes.
+- The WebPlugin scrubs every `PRETTYPLAY_*` variable once at configphase anyway — a process-level
+  guard that keeps the library's env layer away from any config-less construction in the same run.
 
 | Field | Type | Default | Meaning |
 |---|---|---|---|

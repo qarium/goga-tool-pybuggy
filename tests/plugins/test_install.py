@@ -13,8 +13,8 @@ from unittest import mock
 
 import goga_tool_pybuggy.plugins
 import pytest
-from pluginator import install_pytest_plugins
 from goga_tool_pybuggy.plugins import SandboxPlugin
+from pluginator import install_pytest_plugins
 
 
 @pytest.fixture(autouse=True)

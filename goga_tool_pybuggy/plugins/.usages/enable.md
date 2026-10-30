@@ -1,4 +1,4 @@
-# Enable — wiring the pybuggy plugin into a pytest suite
+# Enable — wiring the pybuggy plugins into a pytest suite
 
 ## Domain
 
@@ -6,7 +6,7 @@ Enabling the pybuggy plugins so a test suite gets the fixtures of every activate
 api plugin, the `sandbox` fixture, the `web` fixture — each gated on its own activation sources by one `install()` call.
 Target audience: test-suite and infrastructure authors.
 
-## Enable the plugin
+## Enable the plugins
 
 Call `goga_tool_pybuggy.plugins.install()` from the root `conftest.py`:
 

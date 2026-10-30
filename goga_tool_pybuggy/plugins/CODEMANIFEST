@@ -202,8 +202,8 @@ Annotations: |
        synchronously, populating the pytest_plugins list); without the document nothing
        api-related is registered — the required base_url never fails a web-only or
        sandbox-only run — and a test requesting the api fixture gets pytest's standard
-       "fixture 'api' not found". `BASE_URL` is a value source of the base_url option, never
-       an activation source of the plugin.
+       "fixture 'api' not found". BASE_URL (the env var) is a value source of the base_url
+       option, never an activation source of the plugin.
     4. Gate the `SandboxPlugin` on the presence of the sandbox document (the file check of the
     plugin-cell default path): with the document, normalize the container-host address first
     (`normalize_container_host` — defaults the TESTCONTAINERS_HOST_OVERRIDE env so a plain

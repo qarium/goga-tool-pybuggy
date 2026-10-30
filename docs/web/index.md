@@ -31,24 +31,21 @@ surfaces when the test builds its runtime). The document carries the LLM provide
 models for the one-time generation; **LLM API keys live only in the environment or
 `.env`** — the document never contains keys.
 
-Two environment requirements apply to every web run:
+One environment requirement applies to every web run:
 
 - Browser binaries: run `playwright install --with-deps <browser>` locally (the
   `pybuggy init` bootstrap appends the matching `RUN` line to the project Dockerfile for
   image runs).
-- A `pyproject.toml` in the project or a directory above it — a prettyplay 0.0.x
-  limitation: the runtime searches for the file on every construction, and its absence
-  fails web tests at setup.
 
 Nothing api-related is required: the api plugin activates only when `api.yml` exists,
 and a **web-only** project writes no `api.yml` — its runs need no api `base_url` at all.
 (A `both`-kind project activates the api plugin through its `api.yml`.)
 
-`web.yml` is the web run's single configuration source: every `PRETTYPLAY_*` environment
-variable is removed at pytest configuration, so the library's env layer never applies. A
-key left empty or omitted keeps the prettyplay default — which a
-`[tool.prettyplay]` section of the project's `pyproject.toml` may supply (see
-[Web — Configuration](configuration.md)).
+`web.yml` is the web run's single configuration source: the runtime adopts the config built
+from it verbatim, and every `PRETTYPLAY_*` environment variable is removed at pytest
+configuration — so neither the library's env layer nor its pyproject section ever applies,
+and no `pyproject.toml` is required. A key left empty or omitted keeps the prettyplay
+default (see [Web — Configuration](configuration.md)).
 
 ## Writing a web test
 
