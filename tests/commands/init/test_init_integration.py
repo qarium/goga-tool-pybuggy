@@ -17,6 +17,10 @@ from goga_tool_pybuggy.commands.init import init_cmd, run_bootstrap, run_session
 _SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
 _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 
+# The install block the bootstrap writes into the project Dockerfile — the root-user project-copy
+# install step; the bulk ``goga install`` reads the project's ``tools:`` pin, so no version lives here.
+_INSTALL_BLOCK = "USER root\nCOPY . /tmp/project\nRUN cd /tmp/project && goga install && rm -rf /tmp/project\nUSER goga"
+
 # Every core gate is declined; no Dockerfile gate exists (the section is skipped, the block asks
 # the image inputs), and the pybuggy tools record is amended regardless of the declined gate.
 _CONFIRM_ANSWERS = {
@@ -180,11 +184,7 @@ class TestSessionSmoke:
         assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
 
         _assert_bootstrap_registration_split(tmp_path)
-        assert (
-            (tmp_path / ".goga" / "Dockerfile")
-            .read_text(encoding="utf-8")
-            .endswith("RUN goga install pybuggy -v 2.0.x\n")
-        )
+        assert (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8").endswith(_INSTALL_BLOCK + "\n")
         assert (tmp_path / "conftest.py").exists()
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
@@ -296,8 +296,11 @@ class TestSessionSmokeWebKind:
         assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "asserts.md").exists()
 
         dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text("utf-8")
-        assert "RUN goga install pybuggy -v 2.0.x\n" in dockerfile
-        assert dockerfile.endswith("RUN playwright install --with-deps chromium\n")
+        # The playwright line rides inside the root section — the block is present structurally
+        # (its RUN step), not as one contiguous substring.
+        assert "USER root\nCOPY . /tmp/project\n" in dockerfile
+        assert "RUN cd /tmp/project && goga install && rm -rf /tmp/project\n" in dockerfile
+        assert dockerfile.endswith("RUN playwright install --with-deps chromium\nUSER goga\n")
 
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 

@@ -42,6 +42,10 @@ _ANNOTATION_INPUT = {
     "conventions": "Use `conventions` for test code: pytest configuration, logging, and Allure reporting.",
 }
 
+# The install block the bootstrap writes into the consumer Dockerfile — the root-user project-copy
+# install step; the bulk ``goga install`` reads the project's ``tools:`` pin, so no version lives here.
+_INSTALL_BLOCK = "USER root\nCOPY . /tmp/project\nRUN cd /tmp/project && goga install && rm -rf /tmp/project\nUSER goga"
+
 # The packaged usage texts the bootstrap distributes — the api root (incl. ``asserts``), the
 # sandbox subtree, and the web root; stems are unique across the three roots.
 _API_PACKAGE = importlib.resources.files("goga_tool_pybuggy.api")
@@ -218,54 +222,49 @@ class TestNeverOverwriteGuards:
 
 
 class TestInstallPybuggy:
-    """Dynamic major.minor x-range install line derivation and idempotency."""
+    """The root-user project-copy install block — write, stale-line replacement, idempotency."""
 
-    def test_install_pybuggy_derives_x_range_line_and_is_idempotent(self, tmp_path, monkeypatch, caplog):
-        """The line derives from the installed version, appends once, then no-ops."""
+    def test_install_pybuggy_writes_the_root_install_block_and_is_idempotent(self, tmp_path, caplog):
+        """The block appends once, then no-ops at the current block."""
         dockerfile = tmp_path / "Dockerfile"
-        dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        dockerfile.write_text("FROM qarium/goga-python-3.14:2.0\n", encoding="utf-8")
 
         with caplog.at_level(logging.INFO):
-            line = install_pybuggy(dockerfile)
+            block = install_pybuggy(dockerfile)
 
-        assert line == "RUN goga install pybuggy -v 2.0.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
-        assert "pybuggy install line added to Dockerfile" in caplog.text
+        assert block == _INSTALL_BLOCK
+        assert dockerfile.read_text(encoding="utf-8") == f"FROM qarium/goga-python-3.14:2.0\n{_INSTALL_BLOCK}\n"
+        assert "pybuggy install block added to Dockerfile" in caplog.text
 
         assert install_pybuggy(dockerfile) is None
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert dockerfile.read_text(encoding="utf-8") == f"FROM qarium/goga-python-3.14:2.0\n{_INSTALL_BLOCK}\n"
 
-        dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "1.1.1.dev4+gabc")
-
-        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 1.1.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 1.1.x\n"
-
-    def test_install_pybuggy_ensures_newline_separator(self, tmp_path, monkeypatch):
-        """A Dockerfile without a trailing newline still gets the install line on a fresh line."""
+    def test_install_pybuggy_ensures_newline_separator(self, tmp_path):
+        """A Dockerfile without a trailing newline still gets the block on fresh lines."""
         dockerfile = tmp_path / "Dockerfile"
-        dockerfile.write_text("FROM python:3.12", encoding="utf-8")
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        dockerfile.write_text("FROM qarium/goga-python-3.14:2.0", encoding="utf-8")
 
-        assert install_pybuggy(dockerfile) == "RUN goga install pybuggy -v 2.0.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert install_pybuggy(dockerfile) == _INSTALL_BLOCK
+        assert dockerfile.read_text(encoding="utf-8") == f"FROM qarium/goga-python-3.14:2.0\n{_INSTALL_BLOCK}\n"
 
-    def test_install_pybuggy_repins_a_stale_install_line_instead_of_appending(self, tmp_path, monkeypatch, caplog):
-        """An install line pinned by an older release (the concrete spec) is repinned, never joined."""
+    @pytest.mark.parametrize(
+        "stale", ["RUN goga install pybuggy -v 2.0", "RUN goga install pybuggy -v 2.0.x"], ids=["concrete", "x-range"]
+    )
+    def test_install_pybuggy_replaces_a_stale_install_line_instead_of_appending(self, stale, tmp_path, caplog):
+        """A single install line of any previous release shape is replaced by the block, never joined."""
         dockerfile = tmp_path / "Dockerfile"
-        dockerfile.write_text("FROM python:3.12\nRUN goga install pybuggy -v 2.0\n", encoding="utf-8")
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+        dockerfile.write_text(f"FROM qarium/goga-python-3.14:2.0\n{stale}\n", encoding="utf-8")
 
         with caplog.at_level(logging.INFO):
-            line = install_pybuggy(dockerfile)
+            block = install_pybuggy(dockerfile)
 
-        assert line == "RUN goga install pybuggy -v 2.0.x"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
-        assert "pybuggy install line repinned in Dockerfile" in caplog.text
+        assert block == _INSTALL_BLOCK
+        assert dockerfile.read_text(encoding="utf-8") == f"FROM qarium/goga-python-3.14:2.0\n{_INSTALL_BLOCK}\n"
+        assert "pybuggy install block replaced in Dockerfile" in caplog.text
+        assert dockerfile.read_text(encoding="utf-8").count("goga install") == 1
 
         assert install_pybuggy(dockerfile) is None
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\nRUN goga install pybuggy -v 2.0.x\n"
+        assert dockerfile.read_text(encoding="utf-8") == f"FROM qarium/goga-python-3.14:2.0\n{_INSTALL_BLOCK}\n"
 
     def test_install_pybuggy_noop_without_file(self, tmp_path):
         """An absent Dockerfile is a no-op — the file is never created."""
@@ -274,39 +273,47 @@ class TestInstallPybuggy:
         assert install_pybuggy(absent) is None
         assert not absent.exists()
 
-    def test_install_pybuggy_missing_metadata_raises_clean_value_error(self, tmp_path, monkeypatch):
-        """A metadata-less run raises ValueError (the bootstrap's wrapped tier), not a traceback."""
+    def test_install_pybuggy_derives_nothing_from_the_installed_version(self, tmp_path, monkeypatch):
+        """The block carries no version pin — a metadata-less run writes it all the same."""
 
         def _missing(name: str) -> str:
             raise importlib.metadata.PackageNotFoundError(name)
 
         dockerfile = tmp_path / "Dockerfile"
-        dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
+        dockerfile.write_text("FROM qarium/goga-python-3.14:2.0\n", encoding="utf-8")
         monkeypatch.setattr(importlib.metadata, "version", _missing)
 
-        with pytest.raises(ValueError, match="distribution metadata not found"):
-            install_pybuggy(dockerfile)
-
-        assert dockerfile.read_text(encoding="utf-8") == "FROM python:3.12\n"
+        assert install_pybuggy(dockerfile) == _INSTALL_BLOCK
+        assert "-v " not in dockerfile.read_text(encoding="utf-8")
 
 
 class TestInstallPlaywright:
-    """The browser install line — surveyed browser, prefix repin, lenient config reads."""
+    """The browser install line — root-section anchor, relocation, lenient config reads."""
 
-    def test_install_playwright_appends_and_repins(self, tmp_path, monkeypatch):
-        """The line appends once from the surveyed browser, then repins in place when the browser changes."""
+    def test_install_playwright_inserts_inside_the_root_section(self, tmp_path, monkeypatch):
+        """The line lands between the install RUN and the block-closing USER goga, exactly once."""
         monkeypatch.chdir(tmp_path)
         tools = tmp_path / ".goga" / "tools" / "pybuggy"
         tools.mkdir(parents=True)
         (tools / "web.yml").write_text("browser: {name: chromium}\n", encoding="utf-8")
         dockerfile = tmp_path / "Dockerfile"
-        dockerfile.write_text("FROM base\n", encoding="utf-8")
+        dockerfile.write_text(f"FROM base\n{_INSTALL_BLOCK}\n", encoding="utf-8")
+        expected = (
+            "FROM base\nUSER root\nCOPY . /tmp/project\n"
+            "RUN cd /tmp/project && goga install && rm -rf /tmp/project\n"
+            "RUN playwright install --with-deps chromium\nUSER goga\n"
+        )
 
         assert install_playwright(dockerfile) == "RUN playwright install --with-deps chromium"
-        assert dockerfile.read_text(encoding="utf-8") == "FROM base\nRUN playwright install --with-deps chromium\n"
+        assert dockerfile.read_text(encoding="utf-8") == expected
 
         snapshot = dockerfile.read_bytes()
         assert install_playwright(dockerfile) is None
+        assert dockerfile.read_bytes() == snapshot
+
+        # The inserted line does not defeat install_pybuggy's idempotency — the block-present
+        # check keys on the install RUN line, whatever sits inside the block.
+        assert install_pybuggy(dockerfile) is None
         assert dockerfile.read_bytes() == snapshot
 
         (tools / "web.yml").write_text("browser: {name: firefox}\n", encoding="utf-8")
@@ -314,7 +321,26 @@ class TestInstallPlaywright:
         assert install_playwright(dockerfile) == "RUN playwright install --with-deps firefox"
         content = dockerfile.read_text(encoding="utf-8")
         assert content.count("RUN playwright install") == 1
-        assert content == "FROM base\nRUN playwright install --with-deps firefox\n"
+        assert content == expected.replace("chromium", "firefox")
+
+    def test_install_playwright_relocates_a_stranded_line(self, tmp_path, monkeypatch):
+        """A playwright line left outside the root section (the pre-fix layout) moves inside it."""
+        monkeypatch.chdir(tmp_path)
+        tools = tmp_path / ".goga" / "tools" / "pybuggy"
+        tools.mkdir(parents=True)
+        (tools / "web.yml").write_text("browser: {name: chromium}\n", encoding="utf-8")
+        dockerfile = tmp_path / "Dockerfile"
+        stranded = f"FROM base\n{_INSTALL_BLOCK}\nRUN playwright install --with-deps chromium\n"
+        dockerfile.write_text(stranded, encoding="utf-8")
+
+        assert install_playwright(dockerfile) == "RUN playwright install --with-deps chromium"
+        assert dockerfile.read_text(encoding="utf-8") == (
+            "FROM base\nUSER root\nCOPY . /tmp/project\n"
+            "RUN cd /tmp/project && goga install && rm -rf /tmp/project\n"
+            "RUN playwright install --with-deps chromium\nUSER goga\n"
+        )
+
+        assert install_playwright(dockerfile) is None
 
     def test_install_playwright_noop_paths(self, tmp_path, monkeypatch, caplog):
         """Absent Dockerfile, absent/unreadable web config, and a newline-less Dockerfile all behave."""
@@ -357,6 +383,12 @@ class TestInstallPlaywright:
 
         (tools / "web.yml").write_text("browser:\n  name: chromium\n", encoding="utf-8")
         dockerfile.write_text("FROM base", encoding="utf-8")
+
+        assert install_playwright(dockerfile) == "RUN playwright install --with-deps chromium"
+        assert dockerfile.read_text(encoding="utf-8") == "FROM base\nRUN playwright install --with-deps chromium\n"
+
+        # The defensive end-of-file append also honors an existing trailing newline.
+        dockerfile.write_text("FROM base\n", encoding="utf-8")
 
         assert install_playwright(dockerfile) == "RUN playwright install --with-deps chromium"
         assert dockerfile.read_text(encoding="utf-8") == "FROM base\nRUN playwright install --with-deps chromium\n"

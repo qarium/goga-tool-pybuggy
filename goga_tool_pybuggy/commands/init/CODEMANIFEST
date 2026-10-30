@@ -53,7 +53,7 @@ Annotations: |
   committed through the participation mechanism; an existing .goga/config.yml ends the session immediately and is
   never rewritten. The bootstrap owns the pybuggy files the session does not carry: the kind-gated packaged usages
   copy, the tool-config example documentation, the `conventions` slot, the build.review.skip enforcement, the
-  Dockerfile install line, the kind-gated usage and annotation registrations (the sandbox capability usages are
+  Dockerfile install block, the kind-gated usage and annotation registrations (the sandbox capability usages are
   copied as files without registration — they may or may not apply to a given cell, while the codemanifest usages
   of .goga/config.yml bind every cell), and the root conftest. Use relative imports inside the cell.
 
@@ -181,11 +181,12 @@ Annotations: |
     5. Enforce build.review.skip: true via `ensure_review_skip` — idempotent; runs on every pass, including when the
        session ended immediately on an existing config.
     6. Resolve the Dockerfile path from the consumer config dockerfile field (fallback .goga/Dockerfile), then
-       augment it via `install_pybuggy` — idempotent; a no-op when the file is absent.
+       augment it via `install_pybuggy` — the root-user install block; idempotent; a no-op when the file is
+       absent.
     6b. When the web config was written, register the pybuggy-web usage key and its annotation line via
         `register_usages` and `register_annotations` — idempotent.
     6c. When the web config was written, augment the Dockerfile via `install_playwright` (the browser
-        comes from the written web config).
+        comes from the written web config; the line lands inside the install block's root section).
     7. Register the active api-root usage keys (pybuggy-api, pybuggy-asserts — only when the api
        config was written) plus the kind-neutral `conventions` via `register_usages` and their
        annotation lines via `register_annotations` — idempotent. The sandbox-subtree usages are
@@ -206,7 +207,8 @@ Annotations: |
       wrote it); the `conventions` slot is occupied when it was absent; the root conftest exists.
     - When the web kind was chosen — the web config carries the commented examples of its absent
       keys, the pybuggy-web usage file is copied, its usage key and annotation line are registered,
-      and the Dockerfile carries the playwright install line. The api steps no-op naturally when
+      and the Dockerfile carries the playwright install line inside the install block's root section. The api
+      steps no-op naturally when
       api.yml is absent (web-only) and the web steps no-op when web.yml is absent (api-only) — no
       kind's usages or registrations ever cross into the other's project.
     - The sandbox capability usage files land in the sandbox subdirectory of the cooks directory — their own
@@ -717,45 +719,47 @@ Annotations: |
 
     Use `ruamel-yaml` for the round-trip load/modify/dump. Use `conventions` for logging and testing.
 
-"install_pybuggy(dockerfile_path: Path) -> line:str | None":
+"install_pybuggy(dockerfile_path: Path) -> block:str | None":
   location: bootstrap.py
   annotations: |
-    Write the pybuggy-install RUN line to the consumer Dockerfile, pinning the version to the installed package's
-    major.minor x-range — the floating patch form (e.g. -v 2.0.x; a concrete -v 2.0 would pin ==2.0 forever) — so
-    the consumer's test image carries pybuggy.
+    Write the pybuggy-install block to the consumer Dockerfile — the root-user project-copy install step: USER root,
+    COPY the project into the image, run the bulk goga install from the copied project (which reads the tools
+    record of its .goga/config.yml — the session amendment pins pybuggy there), clean the copy up, return to the
+    goga user — so the consumer's test image carries pybuggy installed with the permissions it needs.
 
     `dockerfile_path`: path to the consumer Dockerfile.
-    `line`: the written install line; None when nothing was written.
+    `block`: the written install block; None when nothing was written.
 
     Algorithm:
     1. No-op (return None) when the Dockerfile does not exist — never create the file here.
-    2. Derive the install line from the installed package version; an unreadable distribution metadata (a
-       metadata-less source-tree run) raises ValueError — the caller's wrapped tier maps it to a clean ERROR and a
-       non-zero exit, never a raw traceback.
-    3. When an install line is already present: return None when it equals the current pin; otherwise repin it in
-       place — the match keys on the command prefix, not the exact line text, so a previous release's pin shape
-       (e.g. the concrete -v 2.0) is replaced, never joined by a second line. Write the file back; log INFO; return the line.
-    4. Otherwise ensure the content ends with a newline, append the line, write the file back; log INFO; return
-       the line.
+    2. No-op (return None) when the install block's RUN step is already present — the block keys on its
+       install RUN line, so a playwright line riding inside the block does not defeat idempotency.
+    3. When a single-line install step of a previous release is present (the RUN goga install pybuggy prefix,
+       any pin shape): replace it in place with the block — never join a second install step. Write the file
+       back; log INFO; return the block.
+    4. Otherwise ensure the content ends with a newline, append the block, write the file back; log INFO;
+       return the block.
 
     Requirements:
-    - The line installs pybuggy through the goga installer, pinned to the running package version's major.minor
-      x-range — a floating patch pin, never the concrete line.
-    - The existing Dockerfile content is preserved; the install line is the only line ever written — appended
-      when absent, repinned in place when a previous release's line shape differs.
-    - Idempotent at the current pin within a single Dockerfile.
+    - The block installs pybuggy as the root user over a copied project through the bulk goga installer —
+      the version comes from the project's own tools record, never from a Dockerfile pin.
+    - The existing Dockerfile content is preserved; the install block is the only thing this step ever
+      writes — appended when absent, replacing a previous release's single-line install in place.
+    - Idempotent at the current block within a single Dockerfile.
 
     Constraints:
     - Do not create the Dockerfile when absent — only augment an existing one.
-    - Do not hardcode the version — it is derived from the installed package.
+    - Do not derive or pin a version — the project config tools record is the single version source.
 
     Use `conventions` for logging and testing.
 
 "install_playwright(dockerfile_path: Path) -> line:str | None":
   location: bootstrap.py
   annotations: |
-    Write the playwright browser-install RUN line to the consumer Dockerfile — the web-kind
-    environment step (browser binaries are an environment requirement).
+    Write the playwright browser-install RUN line inside the Dockerfile root section — the web-kind
+    environment step (browser binaries are an environment requirement). The line anchors immediately
+    before the install block's closing USER goga: --with-deps installs OS packages, so the line must
+    run as root.
 
     `dockerfile_path`: path to the consumer Dockerfile.
     `line`: the written install line; None when nothing was written.
@@ -764,17 +768,22 @@ Annotations: |
     1. No-op (return None) when the Dockerfile does not exist — never create the file here.
     2. Read the browser name leniently from the written web.yml (the browser.name key); an absent or
        unreadable document or key is a no-op with a WARNING.
-    3. When a playwright install line is already present: return None when it equals the current
-       form; otherwise repin it in place — the match keys on the command prefix, not the exact line
-       text.
-    4. Otherwise ensure the content ends with a newline, append RUN playwright install
-       --with-deps <browser>, write the file back; log INFO; return the line.
+    3. When a playwright install line is already present (the RUN playwright install prefix): return None
+       when it equals the current form and already sits at its target position — inside the root section,
+       or anywhere when no install block exists; otherwise remove it — a line left outside the root
+       section by a previous layout is relocated, a different browser is repinned — never joined by a
+       second line.
+    4. Insert the line immediately before the install block's closing USER goga; with no install block
+       (the defensive path) ensure the content ends with a newline and append at the end of the file.
+       Write the file back; log INFO; return the line.
 
     Requirements:
-    - The line installs the browsers of the surveyed browser name with their dependencies.
+    - The line installs the browsers of the surveyed browser name with their dependencies, executed as
+      the root user inside the install block's root section.
     - The existing Dockerfile content is preserved — the install line is the only line this step
-      ever writes; appended when absent, repinned in place when a previous form differs.
-    - Idempotent at the current browser within a single Dockerfile.
+      ever writes; inserted at the root-section anchor when absent, relocated or repinned in place
+      when a previous form or position differs.
+    - Idempotent at the current browser and position within a single Dockerfile.
 
     Constraints:
     - Do not create the Dockerfile when absent — only augment an existing one.

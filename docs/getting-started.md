@@ -81,7 +81,7 @@ See [Configuration](configuration.md).
 | commented example records for absent web keys in `.goga/tools/pybuggy/web.yml` | emitted when the web config was written (idempotent, comment-only) |
 | `.goga/usages/conventions.md` — the pybuggy test convention | created when absent; an existing file is left untouched |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced (idempotent) |
-| `RUN goga install pybuggy -v <N.M>.x` in the project Dockerfile | appended when the file exists (idempotent); the version is derived from the installed pybuggy version |
+| the pybuggy install block in the project Dockerfile (`USER root` / `COPY . /tmp/project` / `RUN cd /tmp/project && goga install && rm -rf /tmp/project` / `USER goga`) | written when the file exists (idempotent); the bulk `goga install` reads the project's own `tools:` pin — no version in the block |
 | the playwright browser-install `RUN` line — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change (idempotent) |
 | usage keys `pybuggy-api` / `pybuggy-asserts` + annotation lines in `codemanifest` | registered when `api.yml` was written (idempotent; user-defined keys are never overwritten); a web-only project registers neither — the `pybuggy-web` usage key + annotation registers only when `web.yml` was written; the sandbox capability usage files are copied to `.goga/usages/cooks/pybuggy/sandbox/` without registration — they may or may not apply to a given cell, and the config usages bind every cell |
 | root `conftest.py` (`load_dotenv()` → `plugins.install()`) | generated when absent; bare mode asks before overwriting (default: no) |

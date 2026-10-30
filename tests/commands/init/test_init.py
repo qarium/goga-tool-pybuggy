@@ -31,8 +31,9 @@ _PACKAGED_USAGES = {
 _WEB_PACKAGE = importlib.resources.files("goga_tool_pybuggy.web")
 _PACKAGED_WEB_USAGE = (_WEB_PACKAGE / ".usages" / "pybuggy-web.md").read_text(encoding="utf-8")
 
-# The install line expected under the patched package version "2.0.3" (major.minor x-range pin derivation).
-_INSTALL_LINE = "RUN goga install pybuggy -v 2.0.x"
+# The install block the bootstrap writes into the project Dockerfile — the root-user project-copy
+# install step; the bulk ``goga install`` reads the project's ``tools:`` pin, so no version lives here.
+_INSTALL_BLOCK = "USER root\nCOPY . /tmp/project\nRUN cd /tmp/project && goga install && rm -rf /tmp/project\nUSER goga"
 
 # The approved web-usage annotation line (the design pins the text byte-exact).
 _WEB_ANNOTATION_LINE = (
@@ -478,7 +479,6 @@ class TestRunBootstrap:
     def test_run_bootstrap_full_pass_on_fresh_session_artifacts(self, tmp_path, monkeypatch, caplog):
         """A fresh session tree gets every artifact delivered with no ERROR logged."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
         tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
@@ -532,20 +532,19 @@ class TestRunBootstrap:
 
         assert (tmp_path / "conftest.py").read_text(encoding="utf-8") == _EXPECTED_CONFTEST
         dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
-        assert dockerfile.endswith(f"{_INSTALL_LINE}\n")
+        assert dockerfile.endswith(f"{_INSTALL_BLOCK}\n")
         assert _error_records(caplog) == []
 
     def test_run_bootstrap_resolves_dockerfile_from_config_field(self, tmp_path, monkeypatch):
-        """The install line lands in the config-declared root Dockerfile, never in the fallback."""
+        """The install block lands in the config-declared root Dockerfile, never in the fallback."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: Dockerfile\n")
         (tmp_path / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
         code = run_bootstrap(template_mode=True)
 
         assert code == 0
-        assert (tmp_path / "Dockerfile").read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert (tmp_path / "Dockerfile").read_text(encoding="utf-8").endswith(f"{_INSTALL_BLOCK}\n")
         assert not (tmp_path / ".goga" / "Dockerfile").exists()
 
     @pytest.mark.parametrize(
@@ -595,7 +594,6 @@ class TestRunBootstrap:
     def test_run_bootstrap_corrupt_web_config_fails_at_documentation(self, tmp_path, monkeypatch, caplog):
         """An unparsable ``web.yml`` fails the pass at step 3b — every later artifact is skipped."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         dockerfile = tmp_path / ".goga" / "Dockerfile"
         dockerfile.write_text("FROM x\n", encoding="utf-8")
@@ -622,7 +620,6 @@ class TestRunBootstrap:
     def test_run_bootstrap_template_mode_never_prompts(self, tmp_path, monkeypatch, caplog):
         """A template-mode rerun over a bootstrapped tree writes nothing and never confirms."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
 
@@ -664,9 +661,8 @@ class TestRunBootstrap:
         assert conftest.read_text(encoding="utf-8") == _EXPECTED_CONFTEST
 
     def test_run_bootstrap_existing_config_session_end_still_enforces(self, tmp_path, monkeypatch):
-        """A template-brought config (session ended at once) still gets flag, conventions, install line."""
+        """A template-brought config (session ended at once) still gets flag, conventions, install block."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\nbuild:\n  agent: swax\n")
         dockerfile = tmp_path / ".goga" / "Dockerfile"
         dockerfile.write_text("FROM python:3.12\n", encoding="utf-8")
@@ -680,7 +676,7 @@ class TestRunBootstrap:
         # No tool config was written (the session ended at once) — no kind ships or registers,
         # only the kind-neutral conventions slot.
         assert config["codemanifest"]["usages"] == {"conventions": ".goga/usages/conventions.md"}
-        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_BLOCK}\n")
 
     def test_run_bootstrap_idempotent_rerun(self, tmp_path, monkeypatch, caplog):
         """A second bare run with a declined conftest overwrite leaves the tree byte-identical."""
@@ -711,7 +707,6 @@ class TestRunBootstrap:
     def test_run_bootstrap_empty_and_broken_config_variants(self, tmp_path, monkeypatch, config_text):
         """An absent or empty config still enforces, registers, and falls back for the Dockerfile."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         (tmp_path / ".goga").mkdir()
         if config_text is not None:
             (tmp_path / ".goga" / "config.yml").write_text(config_text, encoding="utf-8")
@@ -725,7 +720,7 @@ class TestRunBootstrap:
         assert config["build"]["review"]["skip"] is True
         # No tool config was written — only the kind-neutral conventions key registers.
         assert config["codemanifest"]["usages"] == {"conventions": ".goga/usages/conventions.md"}
-        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_BLOCK}\n")
 
     @pytest.mark.parametrize(
         "config_text",
@@ -737,7 +732,6 @@ class TestRunBootstrap:
     def test_run_bootstrap_non_string_dockerfile_field_falls_back(self, tmp_path, monkeypatch, caplog, config_text):
         """A non-string dockerfile field never escapes the tier — the fallback path gets the line."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, config_text)
         dockerfile = tmp_path / ".goga" / "Dockerfile"
         dockerfile.write_text("FROM x\n", encoding="utf-8")
@@ -746,7 +740,7 @@ class TestRunBootstrap:
             code = run_bootstrap(template_mode=True)
 
         assert code == 0
-        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_LINE}\n")
+        assert dockerfile.read_text(encoding="utf-8").endswith(f"{_INSTALL_BLOCK}\n")
         assert _error_records(caplog) == []
 
     def test_run_bootstrap_corrupt_config_fails_through_the_wrapped_tier(self, tmp_path, monkeypatch, caplog):
@@ -765,7 +759,6 @@ class TestRunBootstrap:
     def test_run_bootstrap_web_kind_delivers_web_artifacts(self, tmp_path, monkeypatch, caplog):
         """A web-kind tree (web.yml, no api.yml) gets the web artifacts; the api steps no-op naturally."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
         tools = tmp_path / ".goga" / "tools" / "pybuggy"
@@ -796,7 +789,7 @@ class TestRunBootstrap:
         assert not (usages / "asserts.md").exists()
 
         dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
-        assert dockerfile.endswith(f"{_PLAYWRIGHT_LINE}\n")
+        assert dockerfile.endswith(f"{_PLAYWRIGHT_LINE}\nUSER goga\n")
 
         web_text = web_config.read_text(encoding="utf-8")
         assert "# base_url: (skipped optional scalar)" in web_text
@@ -809,7 +802,6 @@ class TestRunBootstrap:
     def test_run_bootstrap_both_kind_delivers_api_and_web_artifacts_together(self, tmp_path, monkeypatch, caplog):
         """A both-kind tree (api.yml and web.yml) interleaves the web step with the api steps."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
         tools = tmp_path / ".goga" / "tools" / "pybuggy"
@@ -841,14 +833,16 @@ class TestRunBootstrap:
         assert set(usages_record) == {"pybuggy-api", "pybuggy-asserts", "pybuggy-web", "conventions"}
 
         dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8")
-        assert f"{_INSTALL_LINE}\n" in dockerfile
-        assert dockerfile.endswith("RUN playwright install --with-deps firefox\n")
+        # The playwright line rides inside the root section — the block is present structurally
+        # (its RUN step), not as one contiguous substring.
+        assert "USER root\nCOPY . /tmp/project\n" in dockerfile
+        assert "RUN cd /tmp/project && goga install && rm -rf /tmp/project\n" in dockerfile
+        assert dockerfile.endswith("RUN playwright install --with-deps firefox\nUSER goga\n")
         assert _error_records(caplog) == []
 
     def test_run_bootstrap_api_only_skips_web_steps(self, tmp_path, monkeypatch, caplog):
         """An api-kind tree (api.yml, no web.yml) skips every web step — no registration, no line."""
         monkeypatch.chdir(tmp_path)
-        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
         _seed_config(tmp_path, "language: python\ndockerfile: .goga/Dockerfile\n")
         (tmp_path / ".goga" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
         tool_config = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"

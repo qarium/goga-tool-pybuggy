@@ -76,9 +76,9 @@ Two core sections are skipped by pybuggy:
 
 The `tools` core question stays: whatever the user answers (or declines), pybuggy
 amends the recorded tools with its own entry — `pybuggy: <installed-major.minor>.x`, a
-quoted string (e.g. `"2.0.x"`), the same x-range the Dockerfile install line
-pins — so pybuggy is always recorded in `.goga/config.yml`; tools the user added
-are kept.
+quoted string (e.g. `"2.0.x"`) — the x-range the image-build bulk `goga install` reads
+from the copied project, while the Dockerfile install block carries no version — so
+pybuggy is always recorded in `.goga/config.yml`; tools the user added are kept.
 
 Session semantics that shape the modes:
 
@@ -133,20 +133,22 @@ cross into the other's project.
 | commented example records for absent web keys in `.goga/tools/pybuggy/web.yml` | emitted when the web config was written, idempotent, comment-only |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
-| the pybuggy install `RUN` line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) | appended when the file exists, idempotent |
-| the playwright browser-install `RUN` line — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change, idempotent |
+| the pybuggy install block in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `USER root` / `COPY . /tmp/project` / `RUN cd /tmp/project && goga install && rm -rf /tmp/project` / `USER goga` | written when the file exists — appended when absent, replacing a previous release's single-line install in place; idempotent |
+| the playwright browser-install `RUN` line — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — inserted inside the install block's root section (before its `USER goga`), repinned in place on a browser change, relocated when a previous layout left it outside; idempotent |
 | the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`); the `pybuggy-web` usage key with its annotation line | idempotent — `conventions` always; the api pair only when `api.yml` was written; the `pybuggy-web` key only when `web.yml` was written; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
-The install line is derived from the **installed pybuggy version** — e.g. an
-installed `2.0.3` yields `RUN goga install pybuggy -v 2.0.x` (the minor x-range
-form — a floating patch pin within the installed major.minor line; a concrete
-`-v 2.0` would pin `==2.0` forever); there is no hardcoded version pin. The Dockerfile
-path is resolved from the consumer config `dockerfile` field so the line lands in the
-project's actual Dockerfile (a custom session answer wins).
+The install block runs as the root user over a copied project: `USER root`,
+`COPY . /tmp/project`, `RUN cd /tmp/project && goga install && rm -rf /tmp/project`,
+then back to `USER goga`. The bulk `goga install` reads the `tools:` record of the
+copied project's `.goga/config.yml` (the session amendment pins `pybuggy: "<N.M>.x"`
+there), so the block carries no version of its own — the project config is the single
+version source. The Dockerfile path is resolved from the consumer config `dockerfile`
+field so the block lands in the project's actual Dockerfile (a custom session answer
+wins).
 
 **The mandatory Dockerfile.** A Dockerfile missing after the session fails the
-command with a non-zero exit — pybuggy requires one to carry its install line. The
+command with a non-zero exit — pybuggy requires one to carry its install block. The
 session always creates the Dockerfile (the amendments deliver the fixed path and the
 answered FROM), so the missing-file branch is an unreachable safety net of the
 invariant, not a declinable outcome of the survey. If you deleted the file after the
@@ -278,13 +280,13 @@ record. The generated api file is valid for
 
 - Requires the installed `goga` package ≥ 2.0.1 (a pybuggy dependency) — for the
   onboarding session and the scaffold engine.
-- Writes to `<cwd>/.goga/` (config, the Dockerfile install line, usages, the tool
+- Writes to `<cwd>/.goga/` (config, the Dockerfile install block, usages, the tool
   config) and `<cwd>/conftest.py`; the scaffold engine renders template files into
   `<cwd>` and may persist `.goga/scaffold.yml` (template-owned; it must not be
   git-ignored in a scaffolded project, or `--upgrade` stops working).
 - Reads assets from the **installed** package (`importlib.resources`), not from the
-  checkout directory; the install line is derived from the installed package version
-  (`importlib.metadata`).
+  checkout directory; the recorded tools pin is derived from the installed package
+  version (`importlib.metadata`) at session time.
 - The session never offers the goga base-convention download (the base-convention core
   section is skipped; the `conventions` slot is the bootstrap's delivery, read from the
   installed package) — the session itself stays offline; template/upgrade modes reach

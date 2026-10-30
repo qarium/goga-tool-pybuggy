@@ -328,9 +328,10 @@ def build_web_config_data(web_answers: dict[str, object]) -> dict[str, object]:
 def _pybuggy_version_axis() -> str:
     """Derive the recorded pybuggy version form — the installed package's major.minor x-range.
 
-    Mirrors the Dockerfile install pin of ``install_pybuggy`` (the same x-range line, e.g. ``2.0.x`` —
-    a floating patch pin, never the concrete line, which the installer would pin to ``==N.M`` forever;
-    the engine's YAML serialization keeps the value a quoted string, never a float); a metadata-less
+    The recorded x-range (e.g. ``2.0.x`` — a floating patch pin, never the concrete line, which the
+    installer would pin to ``==N.M`` forever; the engine's YAML serialization keeps the value a quoted
+    string, never a float) is the version source the image-build bulk ``goga install`` reads from the
+    copied project — the Dockerfile install block carries no version of its own. A metadata-less
     source-tree run records ``latest`` — the amend-moment contribution is soft and must never die on
     unreadable metadata.
     """

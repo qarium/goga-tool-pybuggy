@@ -3,7 +3,6 @@
 Six pure writers orchestrated by :func:`goga_tool_pybuggy.commands.init.run_bootstrap`.
 """
 
-import importlib.metadata
 import importlib.resources
 import logging
 import re
@@ -18,10 +17,17 @@ from ...web import WebConfigKeys
 
 logger = logging.getLogger(__name__)
 
-# Any pybuggy install line a previous release of this writer may have pinned (the spec
+# The root-user install block written into the consumer Dockerfile. The bulk ``goga install`` reads the
+# ``tools:`` record of the copied project's .goga/config.yml (the session's amendment pins pybuggy there),
+# so no version lives in the block — the project config is the single version source.
+_INSTALL_RUN_LINE = "RUN cd /tmp/project && goga install && rm -rf /tmp/project"
+_INSTALL_BLOCK = f"USER root\nCOPY . /tmp/project\n{_INSTALL_RUN_LINE}\nUSER goga"
+
+# Any single-line pybuggy install step a previous release of this writer may have pinned (the spec
 # shape changed with the x-range pin — e.g. the concrete ``-v 2.0`` before it). Matching the
 # command prefix, not the exact current line text, keeps re-running the bootstrap
-# idempotent across releases: the found line is repinned, never joined by a second one.
+# idempotent across releases: the found line is replaced by the install block, never joined by a
+# second install step.
 _INSTALL_LINE = re.compile(r"^[ \t]*RUN goga install pybuggy\b[^\n]*$", re.MULTILINE)
 
 # Any playwright install line a previous run may have pinned to a different browser. Matching the
@@ -323,60 +329,51 @@ def ensure_review_skip(config_path: Path) -> bool:
 
 
 def install_pybuggy(dockerfile_path: Path) -> str | None:
-    """Write the pybuggy-install ``RUN`` line, pinned to the installed major.minor x-range.
+    """Write the pybuggy-install block — the root-user project-copy install step of the Dockerfile.
 
-    The version comes from the installed ``goga-tool-pybuggy`` distribution; the pin is the
-    floating x-range form (e.g. ``-v 2.0.x`` — a concrete ``-v 2.0`` would pin ``==2.0``
-    forever, freezing the consumer at the line's zeroth patch); only the install line is
-    ever written. An install line pinned by an older release of this writer (a different
-    spec shape, e.g. the concrete ``-v 2.0``) is repinned in place — never joined by a
-    second, conflicting line — so re-running the bootstrap stays idempotent across releases.
+    The block copies the project into the image and runs the bulk ``goga install`` from it, which
+    reads the ``tools:`` record of the copied ``.goga/config.yml`` (the session's amendment pins
+    pybuggy there) — the block carries no version, the project config is the single version source.
+    An install line written by an older release of this writer (the single ``RUN goga install
+    pybuggy -v …`` shape) is replaced in place by the block — never joined by a second install
+    step — so re-running the bootstrap stays idempotent across releases.
 
     Args:
         dockerfile_path: Path to the project Dockerfile (resolved from the consumer
             config ``dockerfile`` field by the bootstrap).
 
     Returns:
-        The written ``RUN`` line text, or ``None`` when nothing was written (file
-        absent or line already present at the current pin).
+        The written install block text, or ``None`` when nothing was written (file absent or
+        block already present).
 
     Raises:
-        ValueError: When the running interpreter lacks the ``goga-tool-pybuggy``
-            distribution metadata — the install version cannot be derived.
+        OSError: Forwarded unchanged on a Dockerfile read/write failure.
     """
     if not dockerfile_path.exists():
         return None
 
-    try:
-        version = importlib.metadata.version("goga-tool-pybuggy")
-    except importlib.metadata.PackageNotFoundError as exc:
-        raise ValueError(
-            "goga-tool-pybuggy distribution metadata not found — the install version cannot be derived; "
-            "run an installed package (goga install pybuggy), not a metadata-less source tree"
-        ) from exc
-
-    pin = ".".join(version.split(".")[:2]) + ".x"
-    line = f"RUN goga install pybuggy -v {pin}"
-
     content = dockerfile_path.read_text(encoding="utf-8")
+
+    if _INSTALL_RUN_LINE in content:
+        return None
+
     existing = _INSTALL_LINE.search(content)
 
     if existing is not None:
-        if existing.group(0).strip() == line:
-            return None
+        dockerfile_path.write_text(
+            content[: existing.start()] + _INSTALL_BLOCK + content[existing.end() :], encoding="utf-8"
+        )
+        logger.info("pybuggy install block replaced in Dockerfile", extra={"path": str(dockerfile_path)})
 
-        dockerfile_path.write_text(content[: existing.start()] + line + content[existing.end() :], encoding="utf-8")
-        logger.info("pybuggy install line repinned in Dockerfile", extra={"line": line, "path": str(dockerfile_path)})
-
-        return line
+        return _INSTALL_BLOCK
 
     if content and not content.endswith("\n"):
         content += "\n"
 
-    dockerfile_path.write_text(content + line + "\n", encoding="utf-8")
-    logger.info("pybuggy install line added to Dockerfile", extra={"line": line, "path": str(dockerfile_path)})
+    dockerfile_path.write_text(content + _INSTALL_BLOCK + "\n", encoding="utf-8")
+    logger.info("pybuggy install block added to Dockerfile", extra={"path": str(dockerfile_path)})
 
-    return line
+    return _INSTALL_BLOCK
 
 
 def _read_surveyed_browser_name() -> str | None:
@@ -405,21 +402,43 @@ def _read_surveyed_browser_name() -> str | None:
     return name
 
 
+def _root_section_anchor(lines: list[str]) -> int | None:
+    """Return the index of the install block's closing ``USER goga`` line.
+
+    Args:
+        lines: The Dockerfile lines (the ``str.split("\\n")`` view of the file).
+
+    Returns:
+        The index of the ``USER goga`` line that follows the install block's ``RUN`` line, or
+        ``None`` when the file carries no install block.
+    """
+    run_idx = next((i for i, text in enumerate(lines) if _INSTALL_RUN_LINE in text), None)
+
+    if run_idx is None:
+        return None
+
+    return next((i for i in range(run_idx + 1, len(lines)) if lines[i].strip() == "USER goga"), None)
+
+
 def install_playwright(dockerfile_path: Path) -> str | None:
-    """Write the playwright browser-install ``RUN`` line to the consumer Dockerfile.
+    """Write the playwright browser-install ``RUN`` line inside the Dockerfile root section.
 
     The browser comes from the written ``web.yml`` (the surveyed ``browser.name``); an absent or
-    unreadable document is a lenient no-op with a WARNING. A playwright line pinned to a different
-    browser is repinned in place — never joined by a second, conflicting line — so re-running the
-    bootstrap stays idempotent across browser changes.
+    unreadable document is a lenient no-op with a WARNING. The line anchors immediately before the
+    install block's closing ``USER goga`` — ``--with-deps`` installs OS packages, so it must run as
+    root. A playwright line pinned to a different browser is repinned, and a line left outside the
+    root section by a previous layout is relocated there — never joined by a second, conflicting
+    line — so re-running the bootstrap stays idempotent across browser changes and repairs the
+    pre-fix layout in place. Without an install block (the defensive path) the line appends at the
+    end of the file.
 
     Args:
         dockerfile_path: Path to the project Dockerfile (resolved from the consumer config
             ``dockerfile`` field by the bootstrap).
 
     Returns:
-        The written ``RUN`` line text, or ``None`` when nothing was written (file absent,
-        web config unreadable, or line already present at the current browser).
+        The written ``RUN`` line text, or ``None`` when nothing was written (file absent, web
+        config unreadable, or line already present at the current browser inside the root section).
 
     Raises:
         OSError: Forwarded unchanged on a Dockerfile read/write failure.
@@ -438,24 +457,29 @@ def install_playwright(dockerfile_path: Path) -> str | None:
 
     line = f"RUN playwright install --with-deps {browser}"
 
-    content = dockerfile_path.read_text(encoding="utf-8")
-    existing = _PLAYWRIGHT_LINE.search(content)
+    lines = dockerfile_path.read_text(encoding="utf-8").split("\n")
+    existing_idx = next((i for i, text in enumerate(lines) if _PLAYWRIGHT_LINE.match(text)), None)
 
-    if existing is not None:
-        if existing.group(0).strip() == line:
+    if existing_idx is not None:
+        anchor = _root_section_anchor(lines)
+
+        if lines[existing_idx].strip() == line and (anchor is None or anchor == existing_idx + 1):
             return None
 
-        dockerfile_path.write_text(content[: existing.start()] + line + content[existing.end() :], encoding="utf-8")
-        logger.info(
-            "playwright install line repinned to Dockerfile", extra={"line": line, "path": str(dockerfile_path)}
-        )
+        del lines[existing_idx]
 
-        return line
+    anchor = _root_section_anchor(lines)
 
-    if content and not content.endswith("\n"):
-        content += "\n"
+    if anchor is None:
+        # No install block — the defensive path keeps the legacy end-of-file append.
+        if lines and lines[-1] == "":
+            lines.insert(len(lines) - 1, line)
+        else:
+            lines.extend((line, ""))
+    else:
+        lines.insert(anchor, line)
 
-    dockerfile_path.write_text(content + line + "\n", encoding="utf-8")
+    dockerfile_path.write_text("\n".join(lines), encoding="utf-8")
     logger.info("playwright install line added to Dockerfile", extra={"line": line, "path": str(dockerfile_path)})
 
     return line

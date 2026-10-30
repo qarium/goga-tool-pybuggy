@@ -104,13 +104,13 @@ After the session (bare and template modes only), the command delivers the files
 | commented example records for the absent keys of `.goga/tools/pybuggy/web.yml` | added when the file exists (kind web or both), idempotent |
 | `.goga/usages/conventions.md` — the `conventions` slot | skip-if-exists in both modes |
 | `build.review.skip: true` in `.goga/config.yml` | always enforced, idempotent |
-| the pybuggy install RUN line in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `RUN goga install pybuggy -v <major.minor>.x` | written when the file exists — appended when absent, repinned in place when a previous release's line shape differs (e.g. the concrete `-v 2.0`); idempotent at the current pin |
-| the playwright browser-install RUN line in the project Dockerfile — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — appended when absent, repinned in place on a browser change; idempotent |
+| the pybuggy install block in the project Dockerfile (the config `dockerfile` field, default `.goga/Dockerfile`) — `USER root` / `COPY . /tmp/project` / `RUN cd /tmp/project && goga install && rm -rf /tmp/project` / `USER goga` | written when the file exists — appended when absent, replacing a previous release's single-line install in place; idempotent at the current block; the bulk `goga install` reads the project's own `tools:` pin, so the block carries no version |
+| the playwright browser-install RUN line in the project Dockerfile — `RUN playwright install --with-deps <browser>`, the browser read from the written `web.yml` | when the web config was written — inserted inside the install block's root section (before its `USER goga`), repinned in place on a browser change, relocated when a previous layout left it outside the root section; idempotent |
 | the api usage keys (`pybuggy-api`, `pybuggy-asserts`) and `conventions` with their annotation lines in `.goga/config.yml` (`codemanifest`); the `pybuggy-web` usage key with its annotation line | idempotent — `conventions` always; the api pair only when `api.yml` was written; the `pybuggy-web` key only when `web.yml` was written; the sandbox capability usages are copied as files only — never registered (they may or may not apply to a given cell, and the config usages bind every cell) |
 | `conftest.py` at the project root | template: skip existing (INFO); bare: ask, default no |
 
 A Dockerfile missing after the session fails the command with a non-zero exit — pybuggy requires one to carry its
-install line. The session always creates the Dockerfile (the amendments deliver the fixed path and the answered
+install block. The session always creates the Dockerfile (the amendments deliver the fixed path and the answered
 FROM), so the missing-file branch is the unreachable safety net of the mandatory-Dockerfile invariant, not a
 declinable outcome of the survey.
 
