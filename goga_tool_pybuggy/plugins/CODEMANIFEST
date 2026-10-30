@@ -30,7 +30,6 @@ Imports:
       - build_pretty_config
       - install_event_log_formatter
       - AllureStepHooks
-      - allure_hooks
     Usages:
       - pybuggy-web
     From: goga_tool_pybuggy/web
@@ -84,7 +83,8 @@ Annotations: |
   Use `sandbox-session` for the consumer fixture patterns of the sandbox.
 
   The cell carries the fixture-driven web activation: the installation entry gates on the presence of
-  the web config document (the plugins-cell default `defaults.WEB_CONFIG_FILE`) — with the document the `WebPlugin`
+  the web config document (the plugins-cell default path — the platform tool-config path named by the
+  FILENAME member of `WebConfigKeys` from Imports) — with the document the `WebPlugin`
   joins the same installation call and owns the web test kind: the web fixture (a per-test
   prettyplay runtime with the step cache next to the test file), the --strict-mode and --interactive
   options, Allure step reporting, and the prettyplay event log formatter. The web plugin reads and
@@ -98,7 +98,7 @@ Annotations: |
 "ApiPlugin(*, context: dict, loaders: list[BaseLoader] | None = None, default_retries: int | None = None, default_assert_timeout: int | None = None, default_assert_delay: int | float | None = None)":
   location: api_plugin.py
   annotations: |
-    Plugin class providing configurable options and the api fixture. Decorated with @define.plugin under the name `pybuggy-api` (the pytest option-group and pluginmanager registration name), bound to the pybuggy api config file.
+    Plugin class providing configurable options and the api fixture. Decorated with @define.plugin under the name pybuggy-api (the pytest option-group and pluginmanager registration name), bound to the pybuggy api config file.
 
     `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is populated on construction.
     `loaders`: explicit loaders in addition to those in the loader config section; defaults to none.
@@ -206,7 +206,8 @@ Annotations: |
     sandbox-related is registered (the address normalization included), and a test requesting
     the sandbox fixture gets pytest's standard "fixture 'sandbox' not found".
     5. Gate the `WebPlugin` on the presence of the web config document (the file check of the
-       plugins-cell default path `defaults.WEB_CONFIG_FILE`): with the document,
+       plugins-cell default path — the platform tool-config path named by the FILENAME member of
+       `WebConfigKeys` from Imports): with the document,
        append a `WebPlugin` instance to the same positional plugin list — the plugin reads and
        validates its config itself in its configure step; without the document nothing web-related
        is registered, and a test requesting the web fixture gets pytest's standard "fixture
@@ -288,8 +289,8 @@ Annotations: |
     and the formatter land in configure.
 
     Algorithm:
-    1. Declare the strict and interactive options — plugin config keys strict and interactive, CLI
-       flags --strict-mode and --interactive (store_true).
+    1. Declare the strict and interactive options — the plugin config keys strict and interactive of
+       `WebConfigKeys`, CLI flags --strict-mode and --interactive (store_true).
     2. Nothing else at construction.
 
     Use `pluginator` for the @define.plugin contract, define.option, fixtures as plugin-class methods,

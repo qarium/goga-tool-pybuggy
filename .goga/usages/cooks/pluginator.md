@@ -2,7 +2,7 @@
 
 ## Domain
 
-`pluginator` is a framework for declaring pytest plugins: options (env / config / CLI / default), fixtures as plugin-class methods, actions (`actions`), and a single-step installation into pytest via hook injection. Cell `goga_tool_pybuggy.pluginss` uses it to provide the `api` fixture and to register the generated fixtures.
+`pluginator` is a framework for declaring pytest plugins: options (env / config / CLI / default), fixtures as plugin-class methods, actions (`actions`), and a single-step installation into pytest via hook injection. Cell `goga_tool_pybuggy.plugins` uses it to provide the `api` fixture and to register the generated fixtures.
 
 Import in code:
 ```python
@@ -145,7 +145,7 @@ The consumer attaches the plugin with one line in `conftest.py`:
 
 ```python
 # conftest.py
-pytest_plugins = ["goga_tool_pybuggy.pluginss"]
+pytest_plugins = ["goga_tool_pybuggy.plugins"]
 ```
 
 — the plugin module (`<package>/__init__.py`) calls the `install()` wrapper **at the top level**. On import of `goga_tool_pybuggy.plugins`, `call_context()` resolves to that same module's globals; the hooks (`pytest_addoption`/`pytest_configure`/`pytest_collection_finish`) are injected into the `goga_tool_pybuggy.plugins` namespace, and pytest finds them.
@@ -168,7 +168,7 @@ CommandLine("--base-url", action="store", help="Base URL of the service under te
 
 ## Actions — an extension point (optional)
 
-`Action(name, module, *, enable=True, default_config=None)` is a lazily-imported action. `module` is a dotted path to a module that provides a `main(context, config)` function (and optionally `setup(config)`). The plugin invokes the action via `plugin.action(name, context, lazy=True/False)`; with `lazy=True` the call returns a closure that finalizes the context at call time. Cell `goga_tool_pybuggy.pluginss` does not use actions — documented for completeness of the framework picture.
+`Action(name, module, *, enable=True, default_config=None)` is a lazily-imported action. `module` is a dotted path to a module that provides a `main(context, config)` function (and optionally `setup(config)`). The plugin invokes the action via `plugin.action(name, context, lazy=True/False)`; with `lazy=True` the call returns a closure that finalizes the context at call time. Cell `goga_tool_pybuggy.plugins` does not use actions — documented for completeness of the framework picture.
 
 ---
 

@@ -155,9 +155,9 @@ Annotations: |
        constructor argument.
 
     Requirements:
-    - The all-fields construction is load-bearing: every field lands in `model_fields_set`, so every
-      non-empty value wins over the library's pyproject+env layer — prettyplay 0.0.3 merges per
-      field; an empty or None field keeps the library default (see `prettyplay`).
+    - The all-fields construction is load-bearing: every field lands in the pydantic model_fields_set,
+      so every non-empty value wins over the library's pyproject+env layer — prettyplay 0.0.3 merges
+      per field; an empty or None field keeps the library default (see `prettyplay`).
     - Pure — no I/O, no environment reads.
 
     Constraints:
