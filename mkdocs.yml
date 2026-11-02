@@ -59,6 +59,7 @@ nav:
   - Pipelines:
       - Overview: pipelines/index.md
       - api.automate: pipelines/api-automate.md
+      - web.automate: pipelines/web-automate.md
       - api.fix: pipelines/api-fix.md
       - api.patch: pipelines/api-patch.md
       - Workflows: pipelines/workflows.md

@@ -71,6 +71,40 @@ The final loop of the flow: runs the generated tests and triages the failures. I
 |-----------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------|------------------------------------------|
 | `goga-tool-pybuggy-api-automate-accept` | Acceptance: cross-checks test case → Routine → `test_*.py`, runs pytest, triages failures with the user; service bugs go to the topic's `bugs.md` | `testcases.md` + tests | [ACCEPT_REPORT] + `bugs.md` |
 
+### Web automate flow (pipeline `PybuggyWebAutomate`)
+
+The browser-UI counterpart of the automate flow, built on the `web` fixture (step sentences turned into
+Playwright code by the LLM once, cached next to the test and committed). Same context principles: each
+stage is a clean context, stages exchange artifacts of the topic's history directory only; the traceability
+backbone is `REQ-<N>` → `TC-<N>` → Routine → `test_*.py`, extended with `PAGE-<N>` page identifiers.
+Web specifics: steps carry **full URLs** (no base_url templating); the **first** run of each test — the
+`ralphex-build` stage, via the executable Task checkboxes of the plan — generates the Playwright steps via
+the LLM and writes the step cache (`tests/web/<cell>/test_<name>/`); repeated runs and acceptance replay
+from the cache with `--strict-mode` (zero LLM calls). Page exploration at the requirements stage goes
+through `playwright-cli`. Requires the web runtime document `.goga/tools/pybuggy/web.yml`
+(`goga tool pybuggy init`, kind web/both).
+
+| Skill                                          | Purpose                                                                                                                              | Input                                  | Output artifact                              |
+|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|----------------------------------------------|
+| `goga-tool-pybuggy-web-automate-requirements`  | Interviews the user, explores the live pages via playwright-cli (per-page dossiers), reconciles discrepancies, collects requirements  | topic description (pages to test)       | `requirements.md`                            |
+| `goga-tool-pybuggy-web-automate-testcases`     | Mega-stage: builds the test cases (TC-<N>, REQ→TC matrix), distributes them into cells, assembles CODEMANIFESTs, and materializes them into `tests/web/<cell>/` | `requirements.md`          | `testcases.md` + `arch.md` + `tests/web/<cell>/CODEMANIFEST` |
+| `goga-tool-pybuggy-web-automate-design`        | Dispatch wrapper around `goga-design` in web testing mode (the `web` fixture, step sentences, full URLs)                              | `tests/web/*/CODEMANIFEST`              | `design.md`                                  |
+| `goga-tool-pybuggy-web-automate-plan`          | Dispatch wrapper around `goga-plan`: guarantees an executable test-run checkbox in every generating Task **without** `--strict-mode` — that run is when the LLM generates the step code and writes the cache | `design.md`              | `plan.md`                                    |
+| `goga-tool-pybuggy-web-automate-accept`        | Acceptance: cross-checks TC → Routine → `test_*.py` (step sentences, caches), runs pytest in strict mode, triages failures; service bugs go to the topic's `bugs.md` | `testcases.md` + built tests | [ACCEPT_REPORT] + `bugs.md` |
+
+Full flow: **requirements → testcases (cases → cells → materialization) → design → plan → ralphex build
+(`goga build` — the generating first run) → accept**.
+
+Web reference skills:
+
+- **`goga-tool-pybuggy-web-usage`** — the web runtime reference (`pybuggy-web.md`: the `web` fixture,
+  `web.step`/`web.expect`/`web.group`, step cache, run modes).
+- **`goga-tool-pybuggy-web-cookbook`** — principles for applying the `goga-cell` DSL to **web** test
+  cells (step-sentence annotations, full URLs, no secrets, base Usages `conventions` + `pybuggy-web`).
+
+Web review skills (`requirements-review` / `testcases-review` / `design-review` / `plan-review`) are
+stub placeholders for now — the pipeline runs them as pass-through until their bodies are authored.
+
 ### Fix flow (pipelines)
 
 The loop for resolving failing tests after `goga build`/acceptance. The pipelines form a chain: each reads the
@@ -140,6 +174,11 @@ They verify the test artifacts of all phases: requirements → testcases → cel
    - "build a test plan / ralphex plan / make the build run tests" → `goga-tool-pybuggy-api-automate-plan`;
    - "verify a test artifact / review requirements|testcases|cells|design|plan" → `goga-tool-pybuggy-api-automate-review`;
    - "accept tests / run tests / triage failures / record a bug" → `goga-tool-pybuggy-api-automate-accept`;
+   - "collect UI-test requirements / what to test on page X" → `goga-tool-pybuggy-web-automate-requirements`;
+   - "write UI test cases / design web test cells / materialize web CODEMANIFESTs" → `goga-tool-pybuggy-web-automate-testcases`;
+   - "design web test code / plan web test generation" → `goga-tool-pybuggy-web-automate-design`;
+   - "build a web test plan / make the build run the UI tests" → `goga-tool-pybuggy-web-automate-plan`;
+   - "accept web tests / run the UI suite in strict mode" → `goga-tool-pybuggy-web-automate-accept`;
    - "tests are failing / collect failures / capture the run log" → `goga-tool-pybuggy-api-fix-collect`;
    - "analyze failures / classify the causes" → `goga-tool-pybuggy-api-fix-analyze`;
    - "build the fix plan" → `goga-tool-pybuggy-api-fix-plan`;
@@ -150,7 +189,9 @@ They verify the test artifacts of all phases: requirements → testcases → cel
    - "apply the confirmed manifest deltas of a patch" → `goga-tool-pybuggy-api-patch-apply`;
    - "accept a patch run / verify a patch cycle" → `goga-tool-pybuggy-api-patch-accept`;
    - "how to call the API / how to verify a response" → `goga-tool-pybuggy-api-usage`;
-   - "DSL rules for test cells" → `goga-tool-pybuggy-api-cookbook`.
+   - "DSL rules for test cells" → `goga-tool-pybuggy-api-cookbook`;
+   - "how to write a web test / how the web fixture works" → `goga-tool-pybuggy-web-usage`;
+   - "DSL rules for web test cells / step sentences in annotations" → `goga-tool-pybuggy-web-cookbook`.
 3. To launch a pipeline, use the **Skill tool** with the pipeline's main skill. Do not launch sub-skills
    bypassing the main skill.
 4. If the task falls outside the pybuggy skills — say so; do not invent skills that do not exist.

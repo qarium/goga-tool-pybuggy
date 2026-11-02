@@ -1,0 +1,71 @@
+name: PybuggyWebAutomate
+description: "Pybuggy web-test automate lifecycle"
+---
+
+- name: create-requirements
+  title: "Create requirements"
+  communication: true
+  prompt: |
+    Constraints:
+      - Don't open pages or explore the site until the user names what to test
+  skills:
+    - goga-tool-pybuggy-web-automate-requirements
+
+- name: requirements-review
+  title: "Review requirements"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-requirements-review
+
+- name: create-testcases
+  title: "Design and create testcases"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-testcases
+
+- name: testcases-review
+  title: "Review testcases"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-testcases-review
+
+- name: code-design
+  title: "Design test code"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-design
+
+- name: design-review
+  title: "Review test design"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-design-review
+
+- name: coding-plan
+  title: "Create coding plan"
+  communication: true
+  prompt: |
+    Extract rules from the convention and add them to the plan as mandatory rules.
+  skills:
+    - goga-tool-pybuggy-web-automate-plan
+
+- name: plan-review
+  title: "Review coding plan"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-plan-review
+
+- name: commit-changes
+  title: "Commit changes"
+  communication: true
+  prompt: |
+    Commit all added and modified files.
+
+- name: accept-result
+  title: "Accept test results"
+  communication: true
+  trigger: manual
+  prompt: |
+    Commit changes after fixes
+  skills:
+    - goga-tool-pybuggy-web-automate-accept
