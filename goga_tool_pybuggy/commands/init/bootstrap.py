@@ -12,8 +12,7 @@ from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString
 
-from ...plugins import PluginConfigKeys
-from ...web import WebConfigKeys
+from ...plugins import PluginConfigKeys, WebConfigKeys
 
 logger = logging.getLogger(__name__)
 

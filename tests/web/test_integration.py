@@ -1,6 +1,6 @@
 """Tests for the `goga_tool_pybuggy.web` facade and the cross-entity prettyplay layering pin.
 
-Covers the facade contract: the exact six contract names in the design order and the
+Covers the facade contract: the exact four contract names in the design order and the
 importability of every name from the package. The layering pin holds the real prettyplay
 construction against a validated-config-built runtime config — an explicit config is adopted
 verbatim (the library's env layer never loads for it), and the runtime constructs and closes
@@ -19,18 +19,16 @@ from prettyplay import PrettyConfig, PrettyPlay
 _CONTRACT_NAMES: t.Final[list[str]] = [
     "AllureStepHooks",
     "EventLogFormatter",
-    "WebConfigKeys",
     "build_pretty_config",
     "install_event_log_formatter",
-    "validate_web_config",
 ]
 
 
 class TestWebFacadeContract:
     """Contract tests for the `goga_tool_pybuggy.web` package facade."""
 
-    def test_facade_exports_exactly_six_names(self):
-        """`__all__` is exactly the six contract names and every name is importable from the facade."""
+    def test_facade_exports_exactly_four_names(self):
+        """`__all__` is exactly the four contract names and every name is importable from the facade."""
         assert sorted(web_module.__all__) == sorted(_CONTRACT_NAMES)
 
         for name in _CONTRACT_NAMES:

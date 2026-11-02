@@ -65,7 +65,10 @@ pytest's standard `fixture 'web' not found`.
   config-file only. See [Configuration](../configuration.md).
 - **Web CLI options** — `--strict-mode` (replay-only: zero LLM calls, a cache miss
   fails the test) and `--interactive` (interactive step healing), both `store_true`
-  flags of the web plugin; a typed flag forces its mode on — never off. See
+  flags of the web plugin; a typed flag forces its mode on — never off; and
+  `--browser-endpoint <url>` (a value option overriding `browser.endpoint` of `web.yml` for the
+  run — a typed empty string forces the local launch; an invalid value fails at pytest
+  configuration). See
   [Web — run modes](../web/index.md#run-modes).
 - **`base_url` template** — a Jinja2 template rendered once at `pytest_configure`
   against `os.environ` + the CLI options you actually passed. Placeholders fed from the

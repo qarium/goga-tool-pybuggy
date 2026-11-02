@@ -8,12 +8,10 @@ Imports:
     From: goga_tool_pybuggy/config
   - Types:
       - PluginConfigKeys
-    From: goga_tool_pybuggy/plugins
-  - Types:
       - WebConfigKeys
     Usages:
       - pybuggy-web
-    From: goga_tool_pybuggy/web
+    From: goga_tool_pybuggy/plugins
 
 Usages:
   conventions: .goga/usages/conventions.md

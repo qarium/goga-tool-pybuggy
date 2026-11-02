@@ -137,6 +137,8 @@ code once, cached next to the test file and replayed without any LLM involvement
 validates the document at configphase; an invalid document fails the run before any collection.
 Without the document nothing changes — no fixture exists, and a test requesting it fails with
 pytest's standard "fixture 'web' not found". Run web suites with `--strict-mode` in CI (replay-only,
-zero LLM calls); `--interactive` enables interactive step healing locally. Writing web tests means
+zero LLM calls); `--interactive` enables interactive step healing locally; `--browser-endpoint <url>`
+runs the suite against a remote Playwright endpoint for that run, overriding `browser.endpoint` of
+the web config (an invalid value fails the run at pytest configuration). Writing web tests means
 authoring step sentences consumed by the `web` fixture (one action per sentence, full URLs); the
 step cache lands next to the test file and is committed to the repository.

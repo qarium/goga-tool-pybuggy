@@ -27,8 +27,7 @@ from goga_tool_pybuggy.commands.init import (
     survey_web_config,
 )
 from goga_tool_pybuggy.config import SpecEntry
-from goga_tool_pybuggy.plugins import PluginConfigKeys
-from goga_tool_pybuggy.web import WebConfigKeys
+from goga_tool_pybuggy.plugins import PluginConfigKeys, WebConfigKeys
 
 _FIRST_SPEC = {
     "name": "shop",
@@ -537,9 +536,10 @@ class TestBuildWebConfigData:
         ``provider`` as a Literal, so any drift between the payload builder and the plugin-side
         validation bricks every web run at configphase while the payload-shape tests stay green.
         """
-        from goga_tool_pybuggy.web import build_pretty_config, validate_web_config
+        from goga_tool_pybuggy.web import build_pretty_config
+        from prettyplay import PrettyConfig
 
-        config = validate_web_config(build_web_config_data(dict(_WEB_ANSWERS)))
+        config = PrettyConfig.model_validate(build_web_config_data(dict(_WEB_ANSWERS)))
 
         assert config.provider == "openai"
         assert config.browser.name == "chromium"

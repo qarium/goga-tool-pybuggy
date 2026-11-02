@@ -41,8 +41,9 @@ Nothing api-related is required: the api plugin activates only when `api.yml` ex
 and a **web-only** project writes no `api.yml` — its runs need no api `base_url` at all.
 (A `both`-kind project activates the api plugin through its `api.yml`.)
 
-`web.yml` is the web run's single configuration source: the runtime adopts the config built
-from it verbatim, and every `PRETTYPLAY_*` environment variable is removed at pytest
+`web.yml` is the web run's single configuration source (the single CLI exception: the typed
+`--browser-endpoint` flag overrides `browser.endpoint` for the run): the runtime adopts the config
+built from it verbatim, and every `PRETTYPLAY_*` environment variable is removed at pytest
 configuration — so neither the library's env layer nor its pyproject section ever applies,
 and no `pyproject.toml` is required. A key left empty or omitted keeps the prettyplay
 default (see [Web — Configuration](configuration.md)).
@@ -101,8 +102,9 @@ def test_checkout(web):
 | `pytest tests/` | normal | a cache miss triggers one LLM generation round, then the step is cached |
 | `pytest tests/ --strict-mode` | strict | replay-only: zero LLM calls; a cache miss fails the test |
 | `pytest tests/ --interactive` | interactive | interactive step healing on failures |
+| `pytest tests/ --browser-endpoint ws://host:port` | endpoint | runs against a remote Playwright endpoint (`ws://`/`wss://`) or a CDP browser (`http://`/`https://`) for this run — it overrides `browser.endpoint` of the web document; a typed empty string forces the local launch |
 
-Both flags **force** their mode on — they never switch off a mode enabled in the web
+Both mode flags **force** their mode on — they never switch off a mode enabled in the web
 document. CI should always run web suites with `--strict-mode`.
 
 ## Step cache

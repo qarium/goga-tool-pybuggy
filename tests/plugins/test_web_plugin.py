@@ -1,4 +1,4 @@
-"""Tests for the `goga_tool_pybuggy.plugins.web_plugin` module (the web plugin and the cache path)."""
+"""Tests for the `goga_tool_pybuggy.plugins.web_plugin` module — the web plugin and the config gate."""
 
 import inspect
 import logging
@@ -15,6 +15,7 @@ from goga_tool_pybuggy.plugins.web_plugin import WebPlugin, web_cache_path
 from goga_tool_pybuggy.web.allure_hooks import AllureStepHooks
 from goga_tool_pybuggy.web.logging_setup import EventLogFormatter
 from prettyplay import PrettyConfig
+from pydantic import ValidationError
 from yaml import YAMLError
 
 VALID_DOCUMENT = {
@@ -32,8 +33,18 @@ class _FakePytestConfig:
         lines: The ``(name, line)`` pairs every ``addinivalue_line`` call registered.
     """
 
-    def __init__(self, *, strict_mode: bool = False, interactive: bool = False) -> None:
-        self._options = {"strict_mode": strict_mode, "interactive": interactive}
+    def __init__(
+        self,
+        *,
+        strict_mode: bool = False,
+        interactive: bool = False,
+        browser_endpoint: str | None = None,
+    ) -> None:
+        self._options = {
+            "strict_mode": strict_mode,
+            "interactive": interactive,
+            "browser_endpoint": browser_endpoint,
+        }
         self.lines: list[tuple[str, str]] = []
 
     def getoption(self, name: str, default: Any = None) -> Any:
@@ -236,17 +247,21 @@ class TestWebPluginContract:
         assert plugin.meta.config_file == defaults.WEB_CONFIG_FILE
         assert plugin.meta.config_file == ".goga/tools/pybuggy/web.yml"
 
-    def test_web_plugin_declares_the_strict_and_interactive_options(self):
-        """Two options: the web config strict/interactive keys on ``store_true`` CLI flags."""
+    def test_web_plugin_declares_the_web_options(self):
+        """Three options: the strict/interactive ``store_true`` flags and the endpoint ``store`` option."""
         plugin = WebPlugin()
 
         options = {option._name: option for option in plugin.plugin_options}
 
-        assert sorted(options) == ["interactive", "strict"]
+        assert sorted(options) == ["browser_endpoint", "interactive", "strict"]
         assert options["strict"].command_line.opt == "--strict-mode"
         assert options["strict"].command_line.kwargs["action"] == "store_true"
         assert options["interactive"].command_line.opt == "--interactive"
         assert options["interactive"].command_line.kwargs["action"] == "store_true"
+        assert options["browser_endpoint"].command_line.opt == "--browser-endpoint"
+        assert options["browser_endpoint"].command_line.kwargs["action"] == "store"
+        assert options["browser_endpoint"]._nullable is True
+        assert options["browser_endpoint"]._plugin_config_key is None
 
     def test_web_plugin_carries_the_web_fixture(self):
         """A function-scope ``web`` fixture method exists on the plugin."""
@@ -356,6 +371,77 @@ class TestWebPluginConfigure:
         assert flagged.interactive is True
         assert unflagged.interactive is False
 
+    def test_configure_applies_cli_authority_browser_endpoint(self, monkeypatch: pytest.MonkeyPatch):
+        """A typed ``--browser-endpoint`` beats the document's ``browser.endpoint``; untyped keeps it."""
+        document = {"provider": "openai", "browser": {"name": "chromium", "endpoint": "wss://doc.example"}}
+        flagged = _configured_plugin(
+            monkeypatch, document=document, config=_FakePytestConfig(browser_endpoint="ws://flag.example")
+        )
+        unflagged = _configured_plugin(monkeypatch, document=document)
+
+        assert flagged.activation is not None
+        assert flagged.activation.browser.endpoint == "ws://flag.example"
+        assert unflagged.activation is not None
+        assert unflagged.activation.browser.endpoint == "wss://doc.example"
+
+    def test_configure_browser_endpoint_creates_the_missing_browser_section(self, monkeypatch: pytest.MonkeyPatch):
+        """A typed flag on a document without the browser section validates the created section."""
+        plugin = _configured_plugin(
+            monkeypatch, document={"provider": "openai"}, config=_FakePytestConfig(browser_endpoint="ws://flag.example")
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.browser.endpoint == "ws://flag.example"
+        assert plugin.activation.browser.name == "chromium"
+
+    def test_configure_browser_endpoint_overrides_a_null_browser_section(self, monkeypatch: pytest.MonkeyPatch):
+        """A ``browser:`` null document with a typed flag validates the created section."""
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": None},
+            config=_FakePytestConfig(browser_endpoint="ws://flag.example"),
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.browser.endpoint == "ws://flag.example"
+
+    def test_configure_typed_empty_endpoint_forces_local_launch(self, monkeypatch: pytest.MonkeyPatch):
+        """A typed empty flag applies verbatim — it clears the document endpoint (the local launch)."""
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": {"name": "chromium", "endpoint": "wss://doc.example"}},
+            config=_FakePytestConfig(browser_endpoint=""),
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.browser.endpoint == ""
+
+    def test_configure_fails_configphase_on_invalid_typed_endpoint(self, monkeypatch: pytest.MonkeyPatch):
+        """A typed non-URL endpoint fails the same document gate at configphase."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(
+            type(plugin), "plugin_config", {"provider": "openai", "browser": {"name": "chromium"}}, raising=False
+        )
+        plugin.init_pytest_config(_FakePytestConfig(browser_endpoint="not-an-endpoint"))
+
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document") as excinfo:
+            plugin.configure()
+
+        assert "ws/wss or http/https" in str(excinfo.value.__cause__)
+        assert plugin.activation is None
+
+    def test_configure_does_not_mutate_the_read_document(self, monkeypatch: pytest.MonkeyPatch):
+        """The endpoint injection works on a copy — the document the reader supplied stays intact."""
+        document = {"provider": "openai", "browser": {"name": "chromium", "endpoint": "wss://doc.example"}}
+        plugin = _configured_plugin(
+            monkeypatch, document=document, config=_FakePytestConfig(browser_endpoint="ws://flag.example")
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.browser.endpoint == "ws://flag.example"
+        assert document["browser"]["endpoint"] == "wss://doc.example"
+        assert set(document["browser"]) == {"name", "endpoint"}
+
     def test_configure_resolves_modes_from_the_validated_document(self, monkeypatch: pytest.MonkeyPatch):
         """String-typed mode values resolve through the validated model — never the raw parse.
 
@@ -383,14 +469,15 @@ class TestWebPluginConfigure:
         assert flagged.interactive is True
 
     def test_configure_fails_configphase_on_invalid_document(self, monkeypatch: pytest.MonkeyPatch):
-        """A structurally invalid document fails the run naming the document."""
+        """A structurally invalid document fails the run naming the document; the detail chained."""
         plugin = WebPlugin()
         monkeypatch.setattr(type(plugin), "plugin_config", {"provider": "nope"}, raising=False)
         plugin.init_pytest_config(_FakePytestConfig())
 
-        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document"):
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document") as excinfo:
             plugin.configure()
 
+        assert isinstance(excinfo.value.__cause__, ValidationError)
         assert plugin.activation is None
 
     def test_configure_fails_configphase_on_unparsable_document(self, monkeypatch: pytest.MonkeyPatch):
@@ -402,6 +489,119 @@ class TestWebPluginConfigure:
             plugin.configure()
 
         assert isinstance(excinfo.value.__cause__, YAMLError)
+        assert plugin.activation is None
+
+    def test_configure_fills_library_defaults_from_surveyed_minimum(self, monkeypatch: pytest.MonkeyPatch):
+        """The surveyed minimum validates into the library model; the omitted keys fill from defaults."""
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={
+                "provider": "anthropic",
+                "generation_model": "glm-5.3",
+                "classification_model": "glm-5.3",
+                "browser": {"name": "chrome", "headless": False},
+            },
+        )
+
+        assert isinstance(plugin.activation, PrettyConfig)
+        assert plugin.activation.provider == "anthropic"
+        assert plugin.activation.generation_model == "glm-5.3"
+        assert plugin.activation.browser.name == "chrome"
+        assert plugin.activation.browser.headless is False
+        assert plugin.activation.browser.screen == ""
+        assert plugin.activation.strict is False
+        assert plugin.activation.polling_timeout is None
+        assert plugin.activation.generation_attempts == 3
+        assert plugin.activation.generation_approve is True
+
+    def test_configure_fails_configphase_on_non_mapping_document(self, monkeypatch: pytest.MonkeyPatch):
+        """A document parsing to a non-mapping root fails naming the document."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(type(plugin), "plugin_config", ["not", "a", "mapping"], raising=False)
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: the document must parse to a mapping"):
+            plugin.configure()
+
+        assert plugin.activation is None
+
+    def test_configure_fails_configphase_on_empty_document(self, monkeypatch: pytest.MonkeyPatch):
+        """An empty document fails naming the document."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(type(plugin), "plugin_config", {}, raising=False)
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: the document is empty"):
+            plugin.configure()
+
+        assert plugin.activation is None
+
+    def test_configure_fails_configphase_on_unknown_key(self, monkeypatch: pytest.MonkeyPatch):
+        """A mistyped key is an extra input — a validation error, never a silent no-op."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(
+            type(plugin), "plugin_config", {"provider": "openai", "browesr": {"name": "chromium"}}, raising=False
+        )
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document") as excinfo:
+            plugin.configure()
+
+        assert "browesr" in str(excinfo.value.__cause__)
+        assert plugin.activation is None
+
+    def test_configure_fails_configphase_on_off_matrix_browser_name(self, monkeypatch: pytest.MonkeyPatch):
+        """The library semantic validators run at activation — an off-matrix name fails at configphase."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(
+            type(plugin), "plugin_config", {"provider": "openai", "browser": {"name": "safari"}}, raising=False
+        )
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document") as excinfo:
+            plugin.configure()
+
+        assert "must be one of" in str(excinfo.value.__cause__)
+        assert plugin.activation is None
+
+    def test_configure_accepts_http_cdp_endpoint(self, monkeypatch: pytest.MonkeyPatch):
+        """prettyplay 0.0.4: an http/https endpoint addresses a CDP browser of the chromium family."""
+        plugin = _configured_plugin(
+            monkeypatch, document={"provider": "openai", "browser": {"name": "chromium", "endpoint": "https://cdp.example"}}
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.browser.endpoint == "https://cdp.example"
+
+    def test_configure_fails_configphase_on_document_endpoint(self, monkeypatch: pytest.MonkeyPatch):
+        """A document endpoint that is neither ws/wss nor http/https fails the library validator."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(
+            type(plugin),
+            "plugin_config",
+            {"provider": "openai", "browser": {"name": "chromium", "endpoint": "not-an-endpoint"}},
+            raising=False,
+        )
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document") as excinfo:
+            plugin.configure()
+
+        assert "ws/wss or http/https" in str(excinfo.value.__cause__)
+        assert plugin.activation is None
+
+    def test_configure_fails_configphase_on_out_of_range_speed(self, monkeypatch: pytest.MonkeyPatch):
+        """An out-of-range speed fails the library pace validator at activation."""
+        plugin = WebPlugin()
+        monkeypatch.setattr(
+            type(plugin), "plugin_config", {"provider": "openai", "browser": {"speed": 200}}, raising=False
+        )
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document") as excinfo:
+            plugin.configure()
+
+        assert "0-100" in str(excinfo.value.__cause__)
         assert plugin.activation is None
 
 
@@ -484,6 +684,22 @@ class TestWebPluginWebFixture:
             next(generator)
 
         assert made[0].exited
+
+    def test_web_fixture_carries_the_typed_endpoint(self, monkeypatch: pytest.MonkeyPatch):
+        """The typed endpoint flows through the activation into the runtime config unchanged."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={"provider": "openai", "browser": {"name": "chromium"}},
+            config=_FakePytestConfig(browser_endpoint="ws://flag.example"),
+        )
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.browser.endpoint == "ws://flag.example"
 
     def test_web_fixture_closes_runtime_when_test_fails(self, monkeypatch: pytest.MonkeyPatch):
         """An exception raised in the test body still closes the runtime — no browser leak."""

@@ -51,8 +51,13 @@ sentences** (no passwords, tokens, keys, personal data).
 - `pytest tests/ --strict-mode` — replay-only: zero LLM calls; a cache miss fails the test. CI should
   always run web suites with `--strict-mode`.
 - `pytest tests/ --interactive` — interactive step healing on failures.
+- `pytest tests/ --browser-endpoint ws://grid.example:3000` — run against a remote Playwright
+  endpoint for this run only: the flag overrides `browser.endpoint` of the web config, and a typed
+  empty string forces the local launch. `ws://`/`wss://` address a Playwright server,
+  `http://`/`https://` a CDP browser of the chromium family; an invalid value fails the run at
+  pytest configuration.
 
-Both flags force the mode on; they never switch off a mode enabled in the web config.
+Both mode flags force the mode on; they never switch off a mode enabled in the web config.
 
 ## Step cache
 

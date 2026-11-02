@@ -1,12 +1,13 @@
-"""Tests for the `goga_tool_pybuggy.web.keys` module (`WebConfigKeys` + `CONFIG_FILE`).
+"""Tests for the `WebConfigKeys` enum of the `goga_tool_pybuggy.plugins.web_plugin` module.
 
-Covers the fixed 20-member key set in contract order and the standard web-config path constant.
+Covers the fixed 20-member key set in contract order, the facade re-export, and the standard
+web-config path pin against the plugins-cell `defaults.WEB_CONFIG_FILE`.
 """
 
 import typing as t
 
 from goga_tool_pybuggy.plugins import defaults as plugin_defaults
-from goga_tool_pybuggy.web.keys import CONFIG_FILE, WebConfigKeys
+from goga_tool_pybuggy.plugins.web_plugin import WebConfigKeys
 from prettyplay import PrettyConfig
 
 # The contract member list: (name, value) pairs in contract order — the order the documenter walks.
@@ -35,14 +36,16 @@ _CONTRACT_MEMBERS: t.Final[list[tuple[str, str]]] = [
 
 
 class TestWebConfigKeysContract:
-    """Contract tests for the `WebConfigKeys` enum and the `CONFIG_FILE` constant."""
+    """Contract tests for the `WebConfigKeys` enum."""
 
     def test_web_config_keys_importable_from_location(self):
-        """`WebConfigKeys` and `CONFIG_FILE` are importable from the `web.keys` module location."""
-        import goga_tool_pybuggy.web.keys as keys_module
+        """`WebConfigKeys` lives on the `plugins.web_plugin` module and is re-exported by the facade."""
+        import goga_tool_pybuggy.plugins as plugins_module
+        import goga_tool_pybuggy.plugins.web_plugin as web_plugin_module
 
-        assert keys_module.WebConfigKeys is WebConfigKeys
-        assert keys_module.CONFIG_FILE is CONFIG_FILE
+        assert web_plugin_module.WebConfigKeys is WebConfigKeys
+        assert plugins_module.WebConfigKeys is WebConfigKeys
+        assert "WebConfigKeys" in plugins_module.__all__
 
     def test_web_config_keys_exposes_twenty_members(self):
         """The enum carries exactly the 20 contract members — no extras, none missing."""
@@ -56,21 +59,15 @@ class TestWebConfigKeysContract:
         """Every member value is a plain `str` (the `web.yml` key spelling)."""
         assert all(isinstance(member.value, str) for member in WebConfigKeys)
 
-    def test_config_file_names_standard_web_config_path(self):
-        """`CONFIG_FILE` names the standard platform tool-config path of the web document."""
-        assert CONFIG_FILE == ".goga/tools/pybuggy/web.yml"
-
 
 class TestWebConfigKeysLogic:
-    """Logic tests for the `WebConfigKeys` enum and the `CONFIG_FILE` constant."""
+    """Logic tests for the `WebConfigKeys` enum."""
 
     def test_web_config_keys_filename_names_the_document(self):
-        # FILENAME names the document file; CONFIG_FILE is built from it (the error-naming source
-        # of the web cell's validation). The plugins cell's constant binds the plugin and gates
-        # the installation — both name the same document.
+        # FILENAME names the document file; the plugins cell's WEB_CONFIG_FILE constant binds the
+        # plugin config and gates the installation — both name the same document.
         assert WebConfigKeys.FILENAME.value == "web.yml"
-        assert CONFIG_FILE == ".goga/tools/pybuggy/web.yml"
-        assert plugin_defaults.WEB_CONFIG_FILE == CONFIG_FILE
+        assert plugin_defaults.WEB_CONFIG_FILE == ".goga/tools/pybuggy/web.yml"
 
     def test_web_config_keys_members_mirror_pretty_config_fields(self):
         # The 19 scalar/browser key members (everything but FILENAME) equal the library PrettyConfig

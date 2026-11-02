@@ -41,7 +41,7 @@ The `browser` section:
 | `browser.name` | `str` | `chromium` | the browser or channel name (`chromium`, `firefox`, `webkit`, `chrome`, `msedge`) |
 | `browser.headless` | `bool` | `true` | run the browser without a visible window |
 | `browser.screen` | `str` | `""` | the screen mode; empty keeps the runtime default |
-| `browser.endpoint` | `str` | `""` | a remote Playwright endpoint; empty runs locally |
+| `browser.endpoint` | `str` | `""` | a remote Playwright endpoint — `ws://`/`wss://` a Playwright server, `http://`/`https://` a CDP browser of the chromium family; empty runs locally; the `--browser-endpoint` flag overrides it for the run (a typed empty string forces the local launch) |
 | `browser.accept_dialogs` | `bool` | `false` | auto-accept dialogs |
 | `browser.speed` | `int` | `100` | the execution speed in percent |
 | `browser.timeout` | `float` | `30` | the default page timeout, seconds |
@@ -51,10 +51,13 @@ document is validated strictly).
 
 ## Resolution and validation layering
 
-The document is validated structurally at pytest configuration — an unknown key, a wrong
-type, or an unparsable file fails the run there. Value-level semantics (the browser-name
-matrix, positive attempt counts, the endpoint scheme) belong to the runtime: a violation
-surfaces when a test builds its runtime, as the library's own validation error.
+The document is validated at pytest configuration — an unknown key, a wrong type, an
+unparsable file, or a semantic violation (an off-matrix browser name, an invalid endpoint
+scheme, an out-of-range speed) fails the run there, before any collection or browser start.
+
+The `--browser-endpoint` flag joins the same gate: the typed value overrides
+`browser.endpoint` on the document copy before the validation, so an invalid endpoint fails
+at pytest configuration (and a typed empty string forces the local launch).
 
 An empty or omitted key keeps the prettyplay model default: the `web` fixture passes the
 config built from `web.yml` explicitly, and prettyplay adopts an explicit config verbatim —
@@ -88,4 +91,4 @@ record, pinned before the next active key — idempotent, never touching active 
 
 - [Web — Overview](index.md) — activation, writing tests, run modes, the step cache.
 - [CLI — init](../cli/init.md) — the kind-aware onboarding session and the web bootstrap.
-- [Pytest Plugins](../plugins/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` flags.
+- [Pytest Plugins](../plugins/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` / `--browser-endpoint` flags.

@@ -1,7 +1,6 @@
 """Tests for the `goga_tool_pybuggy.web.pretty` module (the prettyplay settings materialization)."""
 
 import pytest
-from goga_tool_pybuggy.web.config import validate_web_config
 from goga_tool_pybuggy.web.pretty import build_pretty_config
 from prettyplay import BrowserConfig, PrettyConfig
 
@@ -18,7 +17,7 @@ class TestBuildPrettyConfigContract:
 
     def test_build_pretty_config_returns_pretty_config_instance(self):
         """Called with `(PrettyConfig, bool, bool)` the routine returns a `PrettyConfig` instance."""
-        config = validate_web_config({"provider": "openai"})
+        config = PrettyConfig.model_validate({"provider": "openai"})
 
         assert isinstance(build_pretty_config(config, False, False), PrettyConfig)
 
@@ -28,7 +27,7 @@ class TestBuildPrettyConfigLogic:
 
     def test_build_pretty_config_maps_every_field(self):
         """Every surveyed field lands on the same-named prettyplay field; defaults stay defaults."""
-        config = validate_web_config(
+        config = PrettyConfig.model_validate(
             {
                 "provider": "anthropic",
                 "base_url": "https://api.example",
@@ -57,7 +56,7 @@ class TestBuildPrettyConfigLogic:
     def test_build_pretty_config_materializes_every_field_explicitly(self):
         """The load-bearing materialization: every field lands in the constructed model — the
         runtime adopts it verbatim, making the web config the single source."""
-        config = validate_web_config({"provider": "openai", "browser": {"name": "firefox"}})
+        config = PrettyConfig.model_validate({"provider": "openai", "browser": {"name": "firefox"}})
 
         result = build_pretty_config(config, False, False)
 
@@ -70,7 +69,7 @@ class TestBuildPrettyConfigLogic:
     )
     def test_build_pretty_config_or_semantics_forces_on_never_off(self, config_value, flag, expected):
         """The same boundary table covers strict and interactive — a flag forces on, never off."""
-        config = validate_web_config({"strict": config_value, "interactive": config_value})
+        config = PrettyConfig.model_validate({"strict": config_value, "interactive": config_value})
 
         assert build_pretty_config(config, flag, False).strict == expected
         assert build_pretty_config(config, False, flag).interactive == expected

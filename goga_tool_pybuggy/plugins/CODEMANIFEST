@@ -25,8 +25,6 @@ Imports:
       - validate_sandbox_config
     From: goga_tool_pybuggy/sandbox/config
   - Types:
-      - WebConfigKeys
-      - validate_web_config
       - build_pretty_config
       - install_event_log_formatter
       - AllureStepHooks
@@ -58,7 +56,7 @@ Annotations: |
 
   The CLI flag for base_url is --base-url, and a typed --base-url is authoritative: configure applies its value with top precedence over the plugin config and the BASE_URL env before rendering (the pluginator chain alone resolves the config before the CLI; see `pluginator`). The CLI value is itself a Jinja2 template rendered against the same context.
 
-  The plugins facade (__all__) re-exports PluginConfigKeys as an importable contract type for data-driven consumption by consumers, and re-exports all three plugin classes (ApiPlugin, SandboxPlugin, WebPlugin).
+  The plugins facade (__all__) re-exports PluginConfigKeys and WebConfigKeys as importable contract types for data-driven consumption by consumers, and re-exports all three plugin classes (ApiPlugin, SandboxPlugin, WebPlugin).
 
   Constraints:
   - `install` is NOT called at import time; a consumer must call goga_tool_pybuggy.plugins.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
@@ -84,10 +82,12 @@ Annotations: |
 
   The cell carries the fixture-driven web activation: the installation entry gates on the presence of
   the web config document (the plugins-cell default path — the platform tool-config path named by the
-  FILENAME member of `WebConfigKeys` from Imports) — with the document the `WebPlugin`
+  FILENAME member of the cell's own `WebConfigKeys`) — with the document the `WebPlugin`
   joins the same installation call and owns the web test kind: the web fixture (a per-test
-  prettyplay runtime with the step cache next to the test file), the --strict-mode and --interactive
-  options, Allure step reporting, and the prettyplay event log formatter. The web plugin reads and
+  prettyplay runtime with the step cache next to the test file), the --strict-mode, --interactive,
+  and --browser-endpoint options, Allure step reporting, and the prettyplay event log formatter.
+  The web config key set (the canonical key set of web.yml) and the document validation live in
+  this cell — the web plugin reads and
   validates its own document in its configure step — an invalid document fails the run at
   configphase; without the document nothing web-related is registered, and a test requesting the web
   fixture gets pytest's standard "fixture 'web' not found".
@@ -214,7 +214,7 @@ Annotations: |
     the sandbox fixture gets pytest's standard "fixture 'sandbox' not found".
     5. Gate the `WebPlugin` on the presence of the web config document (the file check of the
        plugins-cell default path — the platform tool-config path named by the FILENAME member of
-       `WebConfigKeys` from Imports): with the document,
+       the cell's own `WebConfigKeys`): with the document,
        append a `WebPlugin` instance to the same positional plugin list — the plugin reads and
        validates its config itself in its configure step; without the document nothing web-related
        is registered, and a test requesting the web fixture gets pytest's standard "fixture
@@ -287,7 +287,8 @@ Annotations: |
 "WebPlugin()":
   location: web_plugin.py
   annotations: |
-    Pluginator plugin of the web test kind: the web fixture, the strict/interactive options, Allure
+    Pluginator plugin of the web test kind: the web fixture, the fixed web.yml key set
+    (`WebConfigKeys` — declared in this module), the strict/interactive/endpoint options, Allure
     step reporting, and the prettyplay event log formatter. The web config document web.yml is the
     plugin's config: pluginator reads it into plugin_config, and configure validates it into the
     activation — an invalid document fails the run at configphase, before any collection or browser.
@@ -298,7 +299,10 @@ Annotations: |
 
     Algorithm:
     1. Declare the strict and interactive options — the plugin config keys strict and interactive of
-       `WebConfigKeys`, CLI flags --strict-mode and --interactive (store_true).
+       the cell's `WebConfigKeys`, CLI flags --strict-mode and --interactive (store_true) — and the browser
+       endpoint option — a nullable value option with the CLI flag --browser-endpoint (store) and no
+       plugin-config key (the nested browser.endpoint document key never resolves through the
+       pluginator chain; a typed flag reaches the document through the configure-time injection).
     2. Nothing else at construction.
 
     Use `pluginator` for the @define.plugin contract, define.option, fixtures as plugin-class methods,
@@ -314,32 +318,54 @@ Annotations: |
     "interactive -> bool": |
       Resolved interactive healing mode: the web config interactive key → the CLI --interactive flag
       (the same CLI-authority form) → the default False.
+    "browser_endpoint -> str | None": |
+      The typed --browser-endpoint CLI value — a remote Playwright endpoint (ws/wss or http/https,
+      the CDP family). No plugin-config key and no env source: the document value of
+      browser.endpoint flows through the document itself, and a typed flag overrides it in
+      configure before validation (see configure). None when the flag is not typed — the option
+      never carries the document value.
     "activation -> PrettyConfig | None": |
       The validated web config — the library prettyplay model (see `prettyplay`), the document the
       configure step validated; None before configure ran. The fixture builds the runtime from it.
   methods:
     "configure()": |
-      Validate the document into the activation, apply the CLI authority to the options, scrub the
-      library's env layer, and install the prettyplay event log formatter.
+      Validate the document into the activation, apply the CLI authority to the options and the
+      typed endpoint to the document, scrub the library's env layer, and install the prettyplay
+      event log formatter.
 
       Algorithm:
       1. Apply CLI authority: when the user typed --strict-mode or --interactive, store True onto
          the option — a typed flag overrides the config-file and env resolution (see `pluginator` for
          the config-time CLI sources).
-      2. Read plugin_config under a parse guard: an unparsable document (the config reader's parse
-         error) surfaces as the clean error naming the web config document — the pattern of the
-         sandbox plugin; never a raw reader traceback.
-      3. Validate the read document via `validate_web_config` into the activation — the library
-         model with the library validators, so a structural or a semantic violation (an off-matrix
-         browser name) fails with its clean error at configphase.
-      4. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
+      2. Read plugin_config under a parse guard: an unparsable document (the
+         config reader's parse error) surfaces as the clean error naming the web config document —
+         the pattern of the
+         sandbox plugin; never a raw reader traceback. A non-mapping parse fails with the explicit
+         mapping error naming the document.
+      3. Apply the endpoint authority: when the user typed --browser-endpoint, inject the typed
+         value into the browser section of the document copy (creating the section when the document
+         carries none or a null one) — the typed value applies verbatim, an empty string included
+         (it forces the local launch over a document endpoint).
+      4. Reject an empty document copy — the document must carry at least the surveyed minimum (the
+         provider and the browser name) — with the explicit empty-document error naming the document.
+      5. Validate the composed document copy into the activation via PrettyConfig.model_validate —
+         the library model with the library validators, so a structural or a semantic violation (an
+         off-matrix browser name, an invalid endpoint — a typed one included) fails with its clean
+         error at configphase (the pydantic detail chained).
+      6. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
          web.yml is the single configuration source; the library's env layer never overrides it.
-      5. Install the prettyplay event log formatter via `install_event_log_formatter`.
+      7. Install the prettyplay event log formatter via `install_event_log_formatter`.
 
       Requirements:
       - Runs once at pytest configphase, before any collection and before any fixture invocation.
       - An unparsable document fails at configphase with the clean error naming web.yml — never a
         raw reader traceback.
+      - A non-mapping or empty document fails with its explicit error naming web.yml — the same gate
+        order the former web-cell validation routine carried.
+      - A typed --browser-endpoint passes the same document gate: an invalid endpoint fails at
+        configphase with the document error, never at a browser start.
+      - The endpoint injection works on the document copy — the document object the reader supplied
+        is never mutated.
       - The env scrub is permanent for the run and race-free — configphase is single-threaded; the
         variables exist only for the library's env layer.
       - The formatter is installed unconditionally with the plugin active — it is not allure-gated.
@@ -405,6 +431,96 @@ Annotations: |
 
     Use `prettyplay` for the cache addressing contract (the cache key and the path form the address).
     Use `conventions` for type hints.
+
+"WebConfigKeys()":
+  location: web_plugin.py
+  annotations: |
+    Fixed value set of the web config keys — the canonical key set of web.yml, mirroring the
+    PrettyConfig field names 1:1 (membership-pinned by the configure-step validation), plus the
+    config file name. Consumed data-driven by the init web survey and payload builder and the
+    commented-example documentation of the bootstrap (both via the plugins facade re-export);
+    the plugin config binding and the installation gate use the plugins-cell default path built
+    from the FILENAME member.
+
+    Members:
+    - filename — the web config document file name
+    - provider — the LLM provider key
+    - base_url — the optional LLM API proxy endpoint key
+    - model — the shared model override key
+    - generation_model — the step-code generation model key
+    - classification_model — the step classification model key
+    - generation_prompt — the extra generation instructions key
+    - classification_prompt — the extra classification instructions key
+    - strict — the replay-only default key
+    - interactive — the interactive healing default key
+    - polling_timeout — the assertion polling timeout key
+    - polling_delay — the delay between polling attempts key
+    - generation_attempts — the blind generation attempts key
+    - healing_attempts — the healing attempts key
+    - llm_request_attempts — the retries of a failed LLM request key
+    - send_screenshots — the attach-screenshots-to-LLM-requests key
+    - generation_approve — the confirm-generated-code-before-caching key
+    - probe_timeout — the locator probe timeout key
+    - cache_root — the step cache root key
+    - browser — the nested browser section key
+
+    Requirements:
+    - Members map to the lowercase key strings of web.yml; the FILENAME member maps to the file name
+      web.yml.
+    - Scalar members are single values; BROWSER is the complex member carrying the nested browser
+      section (documented as commented examples, never surveyed as a scalar).
+
+    Constraints:
+    - Fixed value set (implement as enum.Enum). Do not add, remove, or rename members or change
+      their values — the init survey, the example documentation, the validation alignment, and the
+      installation gate depend on the exact key set.
+    - Member order is contract order — the bootstrap documenter walks the enum to lay out the
+      commented examples; a reordered set reorders the generated document.
+
+    Use `conventions` for the Enum declaration style and relative imports.
+    Use `prettyplay` for the PrettyConfig field alignment the members mirror.
+  properties:
+    "FILENAME -> str": |
+      web.yml — the web config document file name (under the fixed platform tool-config path of
+      pybuggy).
+    "PROVIDER -> str": |
+      provider — the LLM provider key.
+    "BASE_URL -> str": |
+      base_url — the optional LLM API proxy endpoint key.
+    "MODEL -> str": |
+      model — the shared model override key.
+    "GENERATION_MODEL -> str": |
+      generation_model — the step-code generation model key.
+    "CLASSIFICATION_MODEL -> str": |
+      classification_model — the step classification model key.
+    "GENERATION_PROMPT -> str": |
+      generation_prompt — the extra generation instructions key.
+    "CLASSIFICATION_PROMPT -> str": |
+      classification_prompt — the extra classification instructions key.
+    "STRICT -> str": |
+      strict — the replay-only default key.
+    "INTERACTIVE -> str": |
+      interactive — the interactive healing default key.
+    "POLLING_TIMEOUT -> str": |
+      polling_timeout — the assertion polling timeout key.
+    "POLLING_DELAY -> str": |
+      polling_delay — the delay between polling attempts key.
+    "GENERATION_ATTEMPTS -> str": |
+      generation_attempts — the blind generation attempts key.
+    "HEALING_ATTEMPTS -> str": |
+      healing_attempts — the healing attempts key.
+    "LLM_REQUEST_ATTEMPTS -> str": |
+      llm_request_attempts — the retries of a failed LLM request key.
+    "SEND_SCREENSHOTS -> str": |
+      send_screenshots — the attach-screenshots-to-LLM-requests key.
+    "GENERATION_APPROVE -> str": |
+      generation_approve — the confirm-generated-code-before-caching key.
+    "PROBE_TIMEOUT -> str": |
+      probe_timeout — the locator probe timeout key.
+    "CACHE_ROOT -> str": |
+      cache_root — the step cache root key.
+    "BROWSER -> str": |
+      browser — the nested browser section key; complex member (commented example, not surveyed).
 
 "render_base_url(template: str, context: dict[str, object]) -> rendered:str":
   location: render.py
@@ -483,4 +599,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 16/07/26
 Description: |
-  pybuggy pytest-plugins cell: the ApiPlugin (registered as pybuggy-api) with configurable options and the api fixture, the SandboxPlugin (pybuggy-sandbox), and the WebPlugin (pybuggy-web, relocated from the web cell) — with the install() entry point that wires the plugins into pytest, presence-gated on their documents. Built on pluginator. Exposes PluginConfigKeys as a contract type (the config-key enum) for data-driven consumption by other cells.
+  pybuggy pytest-plugins cell: the ApiPlugin (registered as pybuggy-api) with configurable options and the api fixture, the SandboxPlugin (pybuggy-sandbox), and the WebPlugin (pybuggy-web, relocated from the web cell together with its config key set and the document validation) — with the install() entry point that wires the plugins into pytest, presence-gated on their documents. Built on pluginator. Exposes PluginConfigKeys and WebConfigKeys as contract types (the api and web config-key enums) for data-driven consumption by other cells.
