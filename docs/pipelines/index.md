@@ -33,7 +33,8 @@ artifact it produces lives in the topic's history directory
   produces, and how the test code gets built.
 - [The `web.automate` pipeline](web-automate.md) — the browser-UI counterpart: live page
   exploration via playwright-cli, step-sentence tests through the `web` fixture, and the
-  LLM step generation that happens on the first (building) test run.
+  LLM step generation that happens on the first (building) test run; supports unattended
+  runs from the testcase review onward.
 - [The `api.fix` pipeline](api-fix.md) — the repair cycle for failing suites: failure
   collection, cause classification, the fix plan, and the review verdict.
 - [The `api.patch` pipeline](api-patch.md) — the change cycle for existing tests:

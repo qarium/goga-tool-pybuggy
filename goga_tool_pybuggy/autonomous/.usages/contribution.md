@@ -12,14 +12,17 @@ extending the contribution.
 - `amend_workflow(context)` — the amendment moment: resolves the contribution record for the
   running pipeline and contributes the document when autonomy is enabled; a silent no-op
   otherwise. The gate reads the `name` of the platform-delivered `PipelineIdentity` — the
-  discovered, installer-namespaced form (pybuggy:api.automate or pybuggy:api.patch) — and
-  matches it against the compile-time contribution records.
+  discovered, installer-namespaced form (pybuggy:api.automate, pybuggy:api.patch, or
+  pybuggy:web.automate) — and matches it against the compile-time contribution records.
 - `PipelineContribution` — the record type of one pipeline's contribution: the qualifying run
-  identity, the tool-config axis key, the auto-approval window, and the build artifact. The
-  package ships two records:
-  - automate — axis `api.automate`, window review-testcases … commit-changes, build over
-    `plan.md`;
-  - patch — axis `api.patch`, window review-impact … commit-changes, build over `workplan.md`.
+  identity, the tool-config axis key, the config file the axis lives in, the auto-approval
+  window, and the build artifact. The package ships three records:
+  - automate — axis `api.automate` in `api.yml`, window review-testcases … commit-changes,
+    build over `plan.md`;
+  - patch — axis `api.patch` in `api.yml`, window review-impact … commit-changes, build over
+    `workplan.md`;
+  - web automate — axis `web.automate` in `web.yml`, window testcases-review … commit-changes,
+    build over `plan.md`.
 - `build_autonomous_workflow(contribution)` — the pure builder of the contributed document:
   the record's auto-approval window and the build stage added after commit-changes (the
   topic build of the record's artifact, eight-hour timeout, scratch-tree cleanup). The
@@ -43,8 +46,9 @@ def register_hooks(hooks):
 ## Preconditions and side effects relevant to the consumer
 
 - Autonomy is enabled per pipeline name in the tool config `pipelines` axis — the record's
-  axis key (`api.automate`, `api.patch`); the hook is a silent no-op for every other
-  pipeline and for every disabled configuration.
+  axis key (`api.automate`, `api.patch` in `api.yml`; `web.automate` in `web.yml` — the
+  kind's own document); the hook is a silent no-op for every other pipeline and for every
+  disabled configuration.
 - A raised error inside the hook stops the command with a clean error naming pybuggy — the
   consumer never wraps the hook in error suppression.
 - An authored project workflow wins per slot over the contribution — a project can

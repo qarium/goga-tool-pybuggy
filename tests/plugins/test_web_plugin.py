@@ -442,6 +442,20 @@ class TestWebPluginConfigure:
         assert document["browser"]["endpoint"] == "wss://doc.example"
         assert set(document["browser"]) == {"name", "endpoint"}
 
+    def test_configure_drops_the_pipelines_section_before_validation(self, monkeypatch: pytest.MonkeyPatch):
+        """The foreign ``pipelines`` section (the web autonomy axis) is dropped from the copy —
+        the document with it still validates; the read document keeps it."""
+        document = {
+            "provider": "openai",
+            "browser": {"name": "chromium"},
+            "pipelines": {"web.automate": {"autonomous": True}},
+        }
+        plugin = _configured_plugin(monkeypatch, document=document)
+
+        assert plugin.activation is not None
+        assert plugin.activation.provider == "openai"
+        assert document["pipelines"] == {"web.automate": {"autonomous": True}}
+
     def test_configure_resolves_modes_from_the_validated_document(self, monkeypatch: pytest.MonkeyPatch):
         """String-typed mode values resolve through the validated model — never the raw parse.
 

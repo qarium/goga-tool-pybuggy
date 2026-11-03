@@ -211,7 +211,7 @@ moment, **after** the block:
   [Patch — Autonomous runs](../pipelines/api-patch.md#autonomous-runs)).
 
 The **web branch** (kind `web` or `both`) is asked by pybuggy at the amendment moment
-as well — the web minimum:
+as well — the web minimum, then the web autonomy confirm:
 
 - `provider` — the LLM provider: a choice of `openai` | `anthropic`, default `openai`.
   The prompt states the purpose: the provider's models write and classify the
@@ -226,6 +226,21 @@ as well — the web minimum:
   startup.
 - `headless` — whether the browser runs without a visible window; a confirm, default
   yes.
+- The **web autonomy confirm**, asked last — after the web minimum completed, the same
+  closing pattern as the api branch: `Run the web.automate pipeline unattended
+  (autonomous mode)?` — default No. A Yes is the one way the session writes the web
+  line's `pipelines` entry — into `web.yml` (the web plugin ignores the section; the
+  autonomy resolver reads it — see
+  [web.automate — Автономные прогоны](../pipelines/web-automate.md#автономные-прогоны)):
+
+  ```yaml
+  pipelines:
+    web.automate:
+      autonomous: true
+  ```
+
+  The default (or declined) answer writes nothing — the pipeline's runs stay fully
+  interactive.
 
 A `both` session asks both branches in order — the api branch first, the web branch
 after it. LLM API keys are never surveyed: they live only in `env`/`.env`, and

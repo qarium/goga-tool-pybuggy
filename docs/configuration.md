@@ -125,12 +125,15 @@ specs:
 
 ## The `pipelines` section
 
-Optional per-pipeline autonomy switches, keyed by pipeline name:
+Optional per-pipeline autonomy switches, keyed by pipeline name. The axis lives in the
+kind's own document: the api lines (`api.automate`, `api.patch`) in this file, the web
+line (`web.automate`) in [`web.yml`](web/configuration.md):
 
 ```yaml
-pipelines:
-  api.automate:
-    autonomous: true
+# .goga/tools/pybuggy/api.yml          # .goga/tools/pybuggy/web.yml
+pipelines:                             pipelines:
+  api.automate:                          web.automate:
+    autonomous: true                       autonomous: true
 ```
 
 - The dict key (`api.automate`) names the pipeline; each entry carries exactly one
@@ -139,9 +142,13 @@ pipelines:
 - An absent file, an absent `pipelines` section, an absent name, and
   `autonomous: false` all mean **disabled** (the default interactive run).
 - Entries for pipeline names the tool does not implement are ignored.
-- `autonomous: true` makes a running `api.automate` or `api.patch` pipeline run
-  unattended — see [Automate — Autonomous runs](pipelines/api-automate.md#autonomous-runs)
-  and [Patch — Autonomous runs](pipelines/api-patch.md#autonomous-runs).
+- The files never substitute for each other: a `web.automate` entry is read from
+  `web.yml` only, an `api.*` entry from `api.yml` only.
+- `autonomous: true` makes a running `api.automate`, `api.patch`, or `web.automate`
+  pipeline run unattended — see
+  [Automate — Autonomous runs](pipelines/api-automate.md#autonomous-runs),
+  [Patch — Autonomous runs](pipelines/api-patch.md#autonomous-runs), and
+  [web.automate — Автономные прогоны](pipelines/web-automate.md#автономные-прогоны).
 
 ## The `loader` section
 

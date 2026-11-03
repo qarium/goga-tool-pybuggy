@@ -118,6 +118,9 @@ class WebPlugin:
     option overrides the document's ``browser.endpoint`` key: ``configure()`` injects a typed value
     into the document copy before validation, so the document gate stays the single validation gate
     (an invalid endpoint fails the run at configphase; a typed empty string forces the local launch).
+    The foreign ``pipelines`` section — the web autonomy axis, read by the tool's own resolver,
+    never by the plugin — is dropped from the document copy before the validation; the document
+    gate stays the single validation gate for the web keys.
 
     Attributes:
         plugin_config: Anchor declaration; ``BasePlugin`` supplies the parsed document dict.
@@ -163,7 +166,9 @@ class WebPlugin:
         flags carry authority over the document's explicit values; a typed ``--browser-endpoint``
         is injected into the document copy under the browser section before validation — the
         injected value passes the same document gate, and the typed empty string forces the local
-        launch. The document read stays under a parse guard; the validation is inline — the
+        launch. The foreign ``pipelines`` section (the web autonomy axis, read by the tool's own
+        resolver) is dropped from the copy before validation. The document read stays under a parse
+        guard; the validation is inline — the
         non-mapping and empty gates and the ``PrettyConfig.model_validate`` wrap with the library
         validators, a violation wrapped into the clean error naming ``web.yml`` (the pydantic
         detail chained). The library's env layer is scrubbed so ``web.yml`` is the single source;
@@ -191,6 +196,10 @@ class WebPlugin:
             raise ValueError(f"{defaults.WEB_CONFIG_FILE}: the document must parse to a mapping")
 
         document = dict(parsed)
+
+        # The web autonomy axis — a foreign section consumed by the tool's resolver, not the
+        # plugin; dropped from the copy so the document gate validates the web keys only.
+        document.pop("pipelines", None)
 
         if endpoint_flag is not None:
             browser = dict(document.get(WebConfigKeys.BROWSER, {}) or {})

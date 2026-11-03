@@ -292,6 +292,8 @@ Annotations: |
     step reporting, and the prettyplay event log formatter. The web config document web.yml is the
     plugin's config: pluginator reads it into plugin_config, and configure validates it into the
     activation — an invalid document fails the run at configphase, before any collection or browser.
+    The foreign pipelines section of the document (the web autonomy axis, read by the tool's own
+    resolver) is dropped from the copy before the validation — the plugin never interprets it.
 
     Constructed only by the installation gate of this cell's installation entry (`install` — the
     document presence check); zero constructor arguments; no work at construction — the activation
@@ -346,15 +348,18 @@ Annotations: |
          value into the browser section of the document copy (creating the section when the document
          carries none or a null one) — the typed value applies verbatim, an empty string included
          (it forces the local launch over a document endpoint).
-      4. Reject an empty document copy — the document must carry at least the surveyed minimum (the
+      4. Drop the foreign pipelines section from the document copy — the web autonomy axis
+         (a pipelines section keyed by pipeline name), consumed by the tool's own autonomy
+         resolver, never by the plugin; the document gate validates the web keys only.
+      5. Reject an empty document copy — the document must carry at least the surveyed minimum (the
          provider and the browser name) — with the explicit empty-document error naming the document.
-      5. Validate the composed document copy into the activation via PrettyConfig.model_validate —
+      6. Validate the composed document copy into the activation via PrettyConfig.model_validate —
          the library model with the library validators, so a structural or a semantic violation (an
          off-matrix browser name, an invalid endpoint — a typed one included) fails with its clean
          error at configphase (the pydantic detail chained).
-      6. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
+      7. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
          web.yml is the single configuration source; the library's env layer never overrides it.
-      7. Install the prettyplay event log formatter via `install_event_log_formatter`.
+      8. Install the prettyplay event log formatter via `install_event_log_formatter`.
 
       Requirements:
       - Runs once at pytest configphase, before any collection and before any fixture invocation.
@@ -364,8 +369,8 @@ Annotations: |
         order the former web-cell validation routine carried.
       - A typed --browser-endpoint passes the same document gate: an invalid endpoint fails at
         configphase with the document error, never at a browser start.
-      - The endpoint injection works on the document copy — the document object the reader supplied
-        is never mutated.
+      - The endpoint injection and the pipelines drop work on the document copy — the document
+        object the reader supplied is never mutated.
       - The env scrub is permanent for the run and race-free — configphase is single-threaded; the
         variables exist only for the library's env layer.
       - The formatter is installed unconditionally with the plugin active — it is not allure-gated.

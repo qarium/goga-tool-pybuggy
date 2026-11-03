@@ -49,7 +49,11 @@ runs](pipelines/api-patch.md#autonomous-runs)). The **web branch** (kind `web` o
 `both`) asks the web minimum — the LLM `provider` (its models write and classify the
 browser-test steps), the two required model names, the browser name (a choice of the
 five names the runtime accepts — `chromium`, `firefox`, `webkit`, `chrome`, `msedge`;
-default `chromium`), and the headless confirm (default yes). Whatever you
+default `chromium`), and the headless confirm (default yes) — then its own autonomy
+confirm, **"Run the web.automate pipeline unattended (autonomous mode)?"** (default No;
+a Yes writes the entry into `web.yml` — see
+[web.automate — Автономные прогоны](pipelines/web-automate.md#автономные-прогоны)).
+Whatever you
 answer to the core tools question, pybuggy is always recorded in `.goga/config.yml`.
 The session writes `.goga/config.yml`, the Dockerfile, and the tool config of the
 chosen kind — `.goga/tools/pybuggy/api.yml` (kind api or both) and/or

@@ -24,7 +24,9 @@ def _isolate_os_environ() -> None:
 
 
 @pytest.fixture
-def tool_config(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], pathlib.Path]:
+def tool_config(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> Callable[..., pathlib.Path]:
     """Write a pybuggy tool config under the standard tree, rooted at ``tmp_path``.
 
     Chdirs into ``tmp_path`` so the cwd-relative standard path is exercised with zero patching.
@@ -34,13 +36,13 @@ def tool_config(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> Call
         monkeypatch: The pytest monkeypatch fixture performing the chdir.
 
     Returns:
-        A writer placing ``text`` at the standard tool-config path (``api.yml``), returning the
-        written path.
+        A writer placing ``text`` at the standard tool-config path of the given file
+        (``api.yml`` by default, ``web.yml`` for the web kind), returning the written path.
     """
     monkeypatch.chdir(tmp_path)
 
-    def _write(text: str) -> pathlib.Path:
-        path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
+    def _write(text: str, filename: str = "api.yml") -> pathlib.Path:
+        path = tmp_path / ".goga" / "tools" / "pybuggy" / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text, encoding="utf-8")
         return path

@@ -54,6 +54,9 @@ The web branch (kind `web` or `both`), asked by pybuggy at the amendment moment:
   (`chromium`, `firefox`, `webkit`, `chrome`, `msedge`); default `chromium`. An out-of-list name is rejected at
   the prompt — it would only fail later at test startup.
 - `headless` — whether the browser runs without a visible window; confirm, default yes.
+- `autonomous` — **asked last, after the web minimum completed**. One confirm — `Run the web.automate pipeline
+  unattended (autonomous mode)?`, default no — the same prompt pattern as the api confirms; an accepted confirm
+  enables the web pipeline's autonomous runs, a declined confirm leaves it interactive.
 
 A `both` session asks both branches in order — the api branch first, the web branch after it.
 
@@ -88,7 +91,9 @@ contribution, and the engine commits it. Both tool config files are written by t
   `api.patch`) — the section is absent when every confirm was declined;
 - the web tool config file `.goga/tools/pybuggy/web.yml` (kind web or both) — the surveyed minimum as active keys
   (`provider`, `generation_model`, `classification_model`, `browser.name`, `browser.headless`) plus the
-  `strict: false` / `interactive: false` defaults; the bootstrap adds the commented examples of the remaining
+  `strict: false` / `interactive: false` defaults, plus — per an accepted web confirm — the `pipelines` entry
+  (`web.automate` with `autonomous: true`; absent when the confirm was declined; the web plugin drops the foreign
+  section before its validation); the bootstrap adds the commented examples of the remaining
   keys afterwards;
 - the `build.review.skip: true` amendment — the tool's declared intent in the session answer space. The engine's
   config mapper does not carry the flag into the generated `.goga/config.yml`; the `pybuggy init` bootstrap

@@ -9,10 +9,11 @@ Annotations: |
   All pydantic models use kw_only=True (Python 3.10+).
   Use typing.Optional (not X | None) for fields meaning explicit absence.
   Use relative imports inside the cell.
-  The api tool config file (.goga/tools/pybuggy/api.yml) is the single source of both reading
-  routines: each obtains the raw parse through the platform facade; the platform import resolves at
-  call time so goga never becomes a runtime dependency. Old config.yml files are not read — a clean
-  break, no migration shim; existing consumer projects rename by hand.
+  Each reading routine obtains the raw parse through the platform facade; the platform import
+  resolves at call time so goga never becomes a runtime dependency. `load_config` reads the fixed
+  api tool config file (.goga/tools/pybuggy/api.yml); `resolve_autonomy` reads the kind's own
+  file (api.yml for the api axes, web.yml for the web axis). Old config.yml files are not read —
+  a clean break, no migration shim; existing consumer projects rename by hand.
 
 ---
 
@@ -103,23 +104,28 @@ Annotations: |
     "autonomous -> bool": |
       Whether the pipeline named by the entry's dict key runs unattended.
 
-"resolve_autonomy(pipeline: str) -> enabled: bool":
+"resolve_autonomy(pipeline: str, filename: str) -> enabled: bool":
   location: storage.py
   annotations: |
     Resolve whether autonomy is enabled for the running pipeline, validating the whole
-    pipelines axis of the api tool config on the way.
+    pipelines axis of the given tool-config file on the way.
 
     `pipeline`: the identity of the running pipeline.
+    `filename`: the tool-config file the axis lives in — api.yml or web.yml, the kind's
+    own document.
     `enabled`: True only when the axis carries an enabling entry for `pipeline`.
 
     Algorithm:
-    1. Read the raw content of the api tool config file through the platform facade.
+    1. Read the raw content of the given tool config file through the platform facade.
     2. When the file is absent or holds no pipelines section, return False.
     3. Validate the axis: every entry must be a mapping validatable into `PipelineAutonomy`.
     4. Look up `pipeline` in the axis: an absent name returns False; a present name returns
        its autonomous value.
 
     Requirements:
+    - The axis lives in the kind's own file — an api.* entry is resolved against api.yml,
+      a web.automate entry against web.yml; the caller routes the file, the files never
+      substitute for each other.
     - A structural violation — a non-mapping config root, a non-mapping pipelines value, a
       non-mapping entry, or a record not validatable into `PipelineAutonomy` — fails with a
       clean error naming pybuggy.
@@ -139,6 +145,7 @@ Annotations: |
 Author: Goga
 CreatedAt: 02/07/26
 Description: |
-  pybuggy api-test configuration models and reading routines for .goga/tools/pybuggy/api.yml —
-  the specs schema and the pipelines autonomy axis. The web kind reads its own web.yml (the web
-  cell); this cell is api-only.
+  pybuggy configuration models and reading routines — the specs schema of
+  .goga/tools/pybuggy/api.yml plus the pipelines autonomy axis resolved per kind: the api
+  axes of api.yml and the web axis of web.yml (the web document's own keys are the web
+  cell's concern).

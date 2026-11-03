@@ -13,8 +13,13 @@ from goga.pipeline.hooks.events import PipelineHooks
 from goga.pipeline.hooks.identity import PipelineIdentity, WorkflowDecision, WorkIdentity
 from goga_tool_pybuggy.autonomous import build_autonomous_workflow
 from goga_tool_pybuggy.autonomous.amendment import amend_workflow
-from goga_tool_pybuggy.autonomous.contributions import AUTOMATE_CONTRIBUTION, CONTRIBUTIONS, PATCH_CONTRIBUTION
-from goga_tool_pybuggy.commands.init import build_config_data
+from goga_tool_pybuggy.autonomous.contributions import (
+    AUTOMATE_CONTRIBUTION,
+    CONTRIBUTIONS,
+    PATCH_CONTRIBUTION,
+    WEB_AUTOMATE_CONTRIBUTION,
+)
+from goga_tool_pybuggy.commands.init import build_config_data, build_web_config_data
 from goga_tool_pybuggy.config import resolve_autonomy
 
 from .autonomous.conftest import _AmendmentView, amendment_identity
@@ -27,6 +32,15 @@ _ANSWERS = {
 }
 
 _SPECS = [_ANSWERS["first_spec"]]
+
+# Minimal surveyed web answers of the web branch.
+_WEB_ANSWERS = {
+    "provider": "openai",
+    "generation_model": "glm-5.3",
+    "classification_model": "glm-5.3",
+    "browser_name": "chromium",
+    "headless": True,
+}
 
 # The tool's pipeline identity as the platform delivers it at the amendment checkpoint.
 _RUN_PIPELINE = PipelineIdentity(
@@ -75,6 +89,24 @@ class TestRunChain:
         amend_workflow(view)
 
         assert view.contributed == [build_autonomous_workflow(PATCH_CONTRIBUTION)]
+
+    def test_amend_workflow_end_to_end_web_with_real_config(self, tool_config) -> None:
+        """The real ``web.automate`` axis key in ``web.yml`` routes to the web-shaped document."""
+        tool_config("pipelines:\n  web.automate:\n    autonomous: true\n", "web.yml")
+        view = _AmendmentView(amendment_identity("pybuggy:web.automate"))
+
+        amend_workflow(view)
+
+        assert view.contributed == [build_autonomous_workflow(WEB_AUTOMATE_CONTRIBUTION)]
+
+    def test_amend_workflow_web_run_reads_web_yml_only(self, tool_config) -> None:
+        """An enabling entry in ``api.yml`` never enables a web run — the axis is per kind."""
+        tool_config("pipelines:\n  web.automate:\n    autonomous: true\n")
+        view = _AmendmentView(amendment_identity("pybuggy:web.automate"))
+
+        amend_workflow(view)
+
+        assert view.contributed == []
 
     def test_amend_workflow_end_to_end_disabled_is_silent_no_op(self, tool_config) -> None:
         """A disabled axis in the standard tree contributes nothing and raises nothing."""
@@ -129,8 +161,8 @@ class TestEmitConsumeBridge:
         enabling = build_config_data(dict(_ANSWERS), list(_SPECS), {"api.automate": True, "api.patch": True})
         tool_config(yaml.safe_dump(enabling))
 
-        assert resolve_autonomy("api.automate") is True
-        assert resolve_autonomy("api.patch") is True
+        assert resolve_autonomy("api.automate", "api.yml") is True
+        assert resolve_autonomy("api.patch", "api.yml") is True
 
         disabling = build_config_data(dict(_ANSWERS), list(_SPECS), None)
 
@@ -139,15 +171,27 @@ class TestEmitConsumeBridge:
         written: pathlib.Path = tool_config(yaml.safe_dump(disabling))
 
         assert "pipelines" not in yaml.safe_load(written.read_text(encoding="utf-8"))
-        assert resolve_autonomy("api.automate") is False
+        assert resolve_autonomy("api.automate", "api.yml") is False
+
+    def test_build_web_config_data_payload_enables_resolve_autonomy(self, tool_config) -> None:
+        """The enabling web payload enables the resolver on the web axis; the disabling one writes no axis."""
+        enabling = build_web_config_data(dict(_WEB_ANSWERS), True)
+        written = tool_config(yaml.safe_dump(enabling), "web.yml")
+
+        assert written.name == "web.yml"
+        assert resolve_autonomy("web.automate", "web.yml") is True
+
+        disabling = build_web_config_data(dict(_WEB_ANSWERS), False)
+
+        assert "pipelines" not in disabling
 
 
 def _pipeline_stage_names(axis: str) -> list[str]:
     """Read the declared stage names of the shipped pipeline convention document.
 
     Args:
-        axis: The pipeline axis key (``api.automate`` / ``api.patch``) naming the shipped
-            ``pipelines/<axis>.yml`` document of the package.
+        axis: The pipeline axis key (``api.automate`` / ``api.patch`` / ``web.automate``)
+            naming the shipped ``pipelines/<axis>.yml`` document of the package.
 
     Returns:
         The declared stage names, in document order.
@@ -166,14 +210,18 @@ class TestConventionDrift:
     window or the build anchor from the pipeline.
     """
 
-    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch"])
+    @pytest.mark.parametrize(
+        "contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"]
+    )
     def test_every_window_stage_is_a_declared_pipeline_stage(self, contribution) -> None:
         """Each record's window names real stages of its pipeline — a renamed stage fails here."""
         stages = _pipeline_stage_names(contribution.axis)
 
         assert set(contribution.window) <= set(stages)
 
-    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch"])
+    @pytest.mark.parametrize(
+        "contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"]
+    )
     def test_the_build_anchor_names_a_real_stage_before_the_acceptance(self, contribution) -> None:
         """The build ``after`` anchor (the window's last stage) exists and precedes acceptance."""
         stages = _pipeline_stage_names(contribution.axis)

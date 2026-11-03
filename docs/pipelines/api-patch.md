@@ -160,8 +160,8 @@ Everything outside the window stays with you: the intent-shaping stages
 part of the contribution — it keeps its manual trigger, so accepting the results (the
 full-suite run and the failure triage) remains an interactive step.
 
-The contribution is a silent no-op for every pipeline outside the automate and patch
-lines — the window shape is carried per pipeline record — and for every disabled
+The contribution is a silent no-op for every pipeline outside the automate, patch, and
+web-automate lines — the window shape is carried per pipeline record — and for every disabled
 state: an absent file, an absent
 `pipelines` section, an absent `api.patch` entry, and `autonomous: false` all mean a
 normal interactive run. Autonomy never disables silently on a malformed config: a

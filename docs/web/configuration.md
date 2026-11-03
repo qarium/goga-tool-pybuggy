@@ -49,6 +49,23 @@ The `browser` section:
 An omitted key behaves as the library default; unknown keys are a hard error (the
 document is validated strictly).
 
+## The `pipelines` section
+
+The one sanctioned foreign section is `pipelines` — the autonomy axis of the web line:
+
+```yaml
+pipelines:
+  web.automate:
+    autonomous: true
+```
+
+The web plugin never interprets it: `configure()` drops the section from the document
+copy before the validation, so it cannot fail the run. It is read by the tool's own
+autonomy resolver — an enabling entry makes a running `web.automate` pipeline run
+unattended ([web.automate — Автономные прогоны](../pipelines/web-automate.md#автономные-прогоны)).
+The `pybuggy init` web confirm (`Run the web.automate pipeline unattended (autonomous
+mode)?`) writes it; a declined confirm writes nothing.
+
 ## Resolution and validation layering
 
 The document is validated at pytest configuration — an unknown key, a wrong type, an

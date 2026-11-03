@@ -12,6 +12,7 @@ from goga_tool_pybuggy.autonomous.contributions import (
     AUTOMATE_CONTRIBUTION,
     CONTRIBUTIONS,
     PATCH_CONTRIBUTION,
+    WEB_AUTOMATE_CONTRIBUTION,
 )
 
 _WINDOW_STAGES = [
@@ -27,6 +28,15 @@ _WINDOW_STAGES = [
 _PATCH_WINDOW_STAGES = [
     "review-impact",
     "apply-manifests",
+    "code-design",
+    "design-review",
+    "coding-plan",
+    "plan-review",
+    "commit-changes",
+]
+
+_WEB_WINDOW_STAGES = [
+    "testcases-review",
     "code-design",
     "design-review",
     "coding-plan",
@@ -102,7 +112,33 @@ class TestBuildAutonomousWorkflowBehavior:
         assert "accept-result" not in document.stages
         assert "accept-result" not in document.extend
 
-    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch"])
+    def test_build_autonomous_workflow_web_document_shape(self):
+        """The web record's document carries the six-stage window and the plan build script."""
+        document = build_autonomous_workflow(WEB_AUTOMATE_CONTRIBUTION)
+
+        assert isinstance(document, WorkflowDocument)
+        assert document.prompt is None
+        assert document.memory is None
+        assert list(document.stages) == _WEB_WINDOW_STAGES
+        assert all(stage.approve == "auto" for stage in document.stages.values())
+
+        build = document.extend["build"]
+
+        assert build.after == ["commit-changes"]
+        assert build.before is None
+        assert build.body == {
+            "title": "Build tests",
+            "script": 'python3 -P -m goga.build "$(python3 -m goga history path -f plan.md)"',
+            "after_script": "rm -rf .ralphex",
+            "timeout": "8h",
+        }
+
+        assert "accept-result" not in document.stages
+        assert "accept-result" not in document.extend
+
+    @pytest.mark.parametrize(
+        "contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"]
+    )
     def test_build_autonomous_workflow_deterministic(self, contribution):
         """Two calls with the same record return deeply equal documents — a pure builder."""
         first = build_autonomous_workflow(contribution)

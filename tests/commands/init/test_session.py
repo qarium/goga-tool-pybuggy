@@ -185,7 +185,14 @@ class TestSessionBuildersContract:
                 },
             ),
             (build_config_amendments, {"answers": dict[str, object], "return": dict[str, object]}),
-            (build_web_config_data, {"web_answers": dict[str, object], "return": dict[str, object]}),
+            (
+                build_web_config_data,
+                {
+                    "web_answers": dict[str, object],
+                    "autonomous": bool | None,
+                    "return": dict[str, object],
+                },
+            ),
             (
                 parse_specs,
                 {
@@ -221,7 +228,7 @@ class TestSessionParticipationContract:
             (amend_pybuggy_config, {"context": object, "return": None}),
             (survey_api_options, {"return": dict[str, object]}),
             (survey_specs, {"return": list[dict[str, object]]}),
-            (survey_autonomy, {"return": dict[str, bool]}),
+            (survey_autonomy, {"axes": tuple[str, ...], "return": dict[str, bool]}),
             (survey_web_config, {"return": dict[str, object]}),
             (run_session, {"return": int}),
         ],
@@ -403,14 +410,14 @@ class TestSurveySpecs:
 
 
 class TestSurveyAutonomy:
-    """The autonomy confirms — the closing questions of the api amendment branch."""
+    """The autonomy confirms — the closing questions of each amendment branch."""
 
     def test_survey_autonomy_asks_both_axes_in_order_with_disabled_defaults(self, monkeypatch):
         """One confirm per pipeline — automate first, patch after it — each defaulting to disabled."""
         scripted = _ScriptedClick(confirms=[False, False], prompts=[])
         _patch_scripted_click(monkeypatch, scripted)
 
-        assert survey_autonomy() == {"api.automate": False, "api.patch": False}
+        assert survey_autonomy(session_module._AUTONOMY_AXES) == {"api.automate": False, "api.patch": False}
         assert scripted.confirm_calls == [
             ("Run the api.automate pipeline unattended (autonomous mode)?", False),
             ("Run the api.patch pipeline unattended (autonomous mode)?", False),
@@ -421,14 +428,31 @@ class TestSurveyAutonomy:
         scripted = _ScriptedClick(confirms=[True, True], prompts=[])
         _patch_scripted_click(monkeypatch, scripted)
 
-        assert survey_autonomy() == {"api.automate": True, "api.patch": True}
+        assert survey_autonomy(session_module._AUTONOMY_AXES) == {"api.automate": True, "api.patch": True}
 
     def test_survey_autonomy_answers_are_independent_per_axis(self, monkeypatch):
         """A mixed run — automate accepted, patch declined — records each axis separately."""
         scripted = _ScriptedClick(confirms=[True, False], prompts=[])
         _patch_scripted_click(monkeypatch, scripted)
 
-        assert survey_autonomy() == {"api.automate": True, "api.patch": False}
+        assert survey_autonomy(session_module._AUTONOMY_AXES) == {"api.automate": True, "api.patch": False}
+
+    def test_survey_autonomy_asks_the_web_axis_after_the_web_minimum(self, monkeypatch):
+        """The web branch's single confirm — the same prompt pattern, defaulting to disabled."""
+        scripted = _ScriptedClick(confirms=[False], prompts=[])
+        _patch_scripted_click(monkeypatch, scripted)
+
+        assert survey_autonomy(session_module._WEB_AUTONOMY_AXES) == {"web.automate": False}
+        assert scripted.confirm_calls == [
+            ("Run the web.automate pipeline unattended (autonomous mode)?", False),
+        ]
+
+    def test_survey_autonomy_accepted_web_axis_enables(self, monkeypatch):
+        """An accepted web confirm returns the enabling answer of the web axis."""
+        scripted = _ScriptedClick(confirms=[True], prompts=[])
+        _patch_scripted_click(monkeypatch, scripted)
+
+        assert survey_autonomy(session_module._WEB_AUTONOMY_AXES) == {"web.automate": True}
 
 
 class TestSurveyWebConfig:
@@ -528,6 +552,31 @@ class TestBuildWebConfigData:
         ]
         assert set(data) <= {member.value for member in WebConfigKeys}
         assert yaml.safe_load(yaml.safe_dump(data)) == data
+
+    def test_build_web_config_data_enabling_answer_emits_the_web_axis(self):
+        """An enabling autonomy answer appends the ``pipelines`` entry — the resolver's exact shape."""
+        data = build_web_config_data(dict(_WEB_ANSWERS), True)
+
+        assert data["pipelines"] == {"web.automate": {"autonomous": True}}
+        assert list(data) == [
+            "provider",
+            "generation_model",
+            "classification_model",
+            "browser",
+            "strict",
+            "interactive",
+            "pipelines",
+        ]
+        assert list(data)[-1] == "pipelines"
+        assert yaml.safe_load(yaml.safe_dump(data)) == data
+
+    @pytest.mark.parametrize("autonomous", [None, False], ids=["absent-answer", "declined-confirm"])
+    def test_build_web_config_data_disabling_answers_emit_no_axis(self, autonomous):
+        """An absent or declined autonomy answer writes no ``pipelines`` key."""
+        data = build_web_config_data(dict(_WEB_ANSWERS), autonomous)
+
+        assert "pipelines" not in data
+        assert data["provider"] == "openai"
 
     def test_build_web_config_data_payload_validates_and_maps(self):
         """The payload the session writes validates as a web config and maps onto prettyplay.
@@ -793,6 +842,10 @@ class TestAmendPybuggyConfig:
     def sentinel_surveys(self, monkeypatch) -> list[str]:
         """Patch the four amend-moment surveys to sentinel returns, recording the call order.
 
+        The autonomy double records the axes it was asked for, so the per-branch routing is
+        visible in the log; its return carries both branch axes — ``build_config_data`` filters
+        to the api pair, the web builder reads its single key.
+
         Returns:
             The shared call-order log of the patched surveys.
         """
@@ -805,9 +858,13 @@ class TestAmendPybuggyConfig:
 
             return _survey
 
+        def _autonomy(axes: tuple[str, ...]) -> dict[str, bool]:
+            calls.append(f"autonomy:{','.join(axes)}")
+            return {"api.automate": True, "web.automate": True}
+
         monkeypatch.setattr(session_module, "survey_api_options", _record("api_options", dict(_API_ANSWERS)))
         monkeypatch.setattr(session_module, "survey_specs", _record("specs", [dict(_FIRST_SPEC), dict(_EXTRA_SPEC)]))
-        monkeypatch.setattr(session_module, "survey_autonomy", _record("autonomy", {"api.automate": True}))
+        monkeypatch.setattr(session_module, "survey_autonomy", _autonomy)
         monkeypatch.setattr(session_module, "survey_web_config", _record("web", dict(_WEB_ANSWERS)))
         return calls
 
@@ -822,13 +879,19 @@ class TestAmendPybuggyConfig:
         assert context.amendments == list(build_config_amendments(dict(answers)).items())
 
         if kind == "api":
-            assert sentinel_surveys == ["api_options", "specs", "autonomy"]
+            assert sentinel_surveys == ["api_options", "specs", "autonomy:api.automate,api.patch"]
             assert [file for file, _data in context.files] == ["api.yml"]
         elif kind == "web":
-            assert sentinel_surveys == ["web"]
+            assert sentinel_surveys == ["web", "autonomy:web.automate"]
             assert [file for file, _data in context.files] == ["web.yml"]
         else:
-            assert sentinel_surveys == ["api_options", "specs", "autonomy", "web"]
+            assert sentinel_surveys == [
+                "api_options",
+                "specs",
+                "autonomy:api.automate,api.patch",
+                "web",
+                "autonomy:web.automate",
+            ]
             assert [file for file, _data in context.files] == ["api.yml", "web.yml"]
 
         if kind in ("api", "both"):
@@ -841,7 +904,7 @@ class TestAmendPybuggyConfig:
             assert payload["pipelines"] == {"api.automate": {"autonomous": True}}
 
         if kind in ("web", "both"):
-            assert context.files[-1] == ("web.yml", build_web_config_data(dict(_WEB_ANSWERS)))
+            assert context.files[-1] == ("web.yml", build_web_config_data(dict(_WEB_ANSWERS), True))
 
     def test_amend_pybuggy_config_kind_missing_defaults_to_api(self, contribution_recorder, sentinel_surveys):
         """An answer view without a kind answer runs the api branch — the defensive default."""
@@ -849,7 +912,7 @@ class TestAmendPybuggyConfig:
 
         amend_pybuggy_config(context)
 
-        assert sentinel_surveys == ["api_options", "specs", "autonomy"]
+        assert sentinel_surveys == ["api_options", "specs", "autonomy:api.automate,api.patch"]
         assert [file for file, _data in context.files] == ["api.yml"]
 
     def test_amend_cancelled_prompt_drops_contribution(self, contribution_recorder, monkeypatch):
@@ -871,7 +934,7 @@ class TestAmendPybuggyConfig:
         """A bad numeric answer raises before any write is buffered — the write never happens."""
         monkeypatch.setattr(session_module, "survey_api_options", lambda: {"timeout": "abc"})
         monkeypatch.setattr(session_module, "survey_specs", lambda: [dict(_FIRST_SPEC)])
-        monkeypatch.setattr(session_module, "survey_autonomy", lambda: {})
+        monkeypatch.setattr(session_module, "survey_autonomy", lambda _axes: {})
         context = contribution_recorder(invited=True, answers={"kind": "api"})
 
         with pytest.raises(ValueError, match="could not convert"):

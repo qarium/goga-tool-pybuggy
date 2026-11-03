@@ -119,8 +119,8 @@ The status hook callables live in `goga_tool_pybuggy/statuses`, the autonomy hoo
 re-exported on the package facade, only `register_hooks` is; the platform reaches them through its
 subscription. The onboarding handlers return immediately when the session did not invite pybuggy
 (`goga init` without `-t pybuggy`); the autonomy hook is a silent no-op unless the running pipeline is one of
-the qualifying pipelines (`pybuggy:api.automate`, `pybuggy:api.patch`) with autonomy enabled for its axis in
-the tool config `pipelines` axis.
+the qualifying pipelines (`pybuggy:api.automate`, `pybuggy:api.patch`, `pybuggy:web.automate`) with autonomy
+enabled for its axis in the tool config `pipelines` axis — the api axes of `api.yml`, the web axis of `web.yml`.
 
 The tool identity (`pybuggy`) is assigned by the platform from the package name — the package never names
 itself. Every registered status is stored and shown qualified: `pybuggy.<name>`.

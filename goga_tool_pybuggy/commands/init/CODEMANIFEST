@@ -45,8 +45,9 @@ Annotations: |
   the pybuggy block are surveyed by the engine, two core sections are skipped (the pybuggy session never offers the
   goga base-convention download — the `conventions` slot is the bootstrap's delivery; and the engine's Dockerfile
   gate never appears — a pybuggy project always carries a Dockerfile, the block asks the base image and the
-  built-image name itself, and the amendments deliver the fixed path). The additional specs and the autonomy confirms
-  are surveyed by the tool itself at the amendment moment — specs first, autonomy after them — a confirm-gated
+  built-image name itself, and the amendments deliver the fixed path). The additional specs, the api autonomy
+  confirms, the web minimum, and the web autonomy confirm are surveyed by the tool itself at the amendment
+  moment — each branch's own survey first, its autonomy confirms after it — a confirm-gated
   repeated group is beyond the declarative engine records. The tool config file and the config amendments are
   committed through the participation mechanism; an existing .goga/config.yml ends the session immediately and is
   never rewritten. The bootstrap owns the pybuggy files the session does not carry: the kind-gated packaged usages
@@ -59,8 +60,9 @@ Annotations: |
   gates every downstream block on it. The declarative block carries only the unconditional records —
   the kind, the base image, and the built-image name; every kind-dependent survey happens at the
   amendment moment, where the tool reads the kind from the answer view and branches: the api branch
-  surveys the api options, the specs (first and additional), and the autonomy confirms; the web branch
-  surveys the web minimum (LLM provider, generation/classification model, browser, headless). Both
+  surveys the api options, the specs (first and additional), and the api autonomy confirms; the web branch
+  surveys the web minimum (LLM provider, generation/classification model, browser, headless) and the web
+  autonomy confirm. Both
   tool config files — api.yml and web.yml — are buffered through the session contribution and written
   by the engine. The bootstrap closes kind-dependently on the written files — the kind signals: the
   api root's usage copy and the api usage registration apply only when api.yml was written; the web
@@ -294,8 +296,8 @@ Annotations: |
   location: session.py
   annotations: |
     Amendment moment of the participation contract: survey the kind-gated branches (api options,
-    specs, autonomy confirms / web minimum), read the isolated answer view, and buffer the pybuggy
-    contribution — the config amendments and the tool config files.
+    specs, api autonomy confirms / web minimum, web autonomy confirm), read the isolated answer view,
+    and buffer the pybuggy contribution — the config amendments and the tool config files.
 
     `context`: the amendment surface delivered by the platform.
 
@@ -304,12 +306,14 @@ Annotations: |
     2. Read the answer view from the context.
     3. Read the kind answer.
     4. api or both: survey the api options via `survey_api_options`, the specs via `survey_specs`,
-       then the autonomy confirms via `survey_autonomy` — specs first, autonomy after them.
-    5. web or both: survey the web minimum via `survey_web_config`.
+       then the api autonomy confirms via `survey_autonomy` — specs first, autonomy after them.
+    5. web or both: survey the web minimum via `survey_web_config`, then the web autonomy confirm
+       via `survey_autonomy` — the web minimum first, autonomy after it.
     6. Buffer every entry of `build_config_amendments` as a config amendment (unconditional — the
        image inputs are kind-neutral).
     7. api or both: buffer the api tool config file with `build_config_data`.
-    8. web or both: buffer the web tool config file with `build_web_config_data`.
+    8. web or both: buffer the web tool config file with `build_web_config_data`, passing the web
+       autonomy answer.
 
     Requirements:
     - The answer view carries the core answers plus this tool's own answers under local names.
@@ -423,26 +427,30 @@ Annotations: |
 
     Use `conventions` for logging-free TTY practices and testing.
 
-"survey_autonomy() -> answers:dict[str, bool]":
+"survey_autonomy(axes: tuple[str, ...]) -> answers:dict[str, bool]":
   location: session.py
   annotations: |
-    Interactively survey the autonomy confirms — the closing questions of the amendment moment, asked by the tool
-    after `survey_specs` completed, so the autonomy questions never interleave the spec fields.
+    Interactively survey the autonomy confirms of the given axes — the closing questions of each
+    amendment branch, asked by the tool after the branch's own survey completed, so the autonomy
+    questions never interleave its fields.
 
+    `axes`: the pipeline axes to confirm, in ask order — the api pair (api.automate, api.patch)
+    for the api branch, the single web axis (web.automate) for the web branch.
     `answers`: the autonomy answers keyed by pipeline axis — true enables that pipeline's unattended window.
 
     Algorithm:
-    1. For each axis of the fixed autonomy axis order — api.automate first, api.patch after it — ask
-       "Run the {axis} pipeline unattended (autonomous mode)?" as a confirm (default no).
+    1. For each axis of the given order ask "Run the {axis} pipeline unattended (autonomous mode)?"
+       as a confirm (default no).
     2. Return the answers keyed by axis.
 
     Requirements:
-    - One question per axis, in the fixed order; each prompt matches the Algorithm step pattern verbatim — the
+    - One question per axis, in the given order; each prompt matches the Algorithm step pattern verbatim — the
       automate question is byte-identical to the historical single confirm.
     - The disabled default per axis keeps that pipeline interactive until opted in.
 
     Constraints:
-    - Called only for the api and both kinds, after `survey_specs` completed.
+    - Called by the api branch (api and both kinds) with the api pair after `survey_specs` completed,
+      and by the web branch (web and both kinds) with the web axis after `survey_web_config` completed.
     - Do not catch click.Abort — a cancelled prompt propagates so the engine mediator drops the whole contribution
       with a warning (the session continues).
 
@@ -519,30 +527,38 @@ Annotations: |
     Use `parse_specs`. Use `PluginConfigKeys` for the scalar key set. Use `configuration` for schema compatibility.
     Use `autonomy` for the axis shape. Use `conventions` for type hints and testing.
 
-"build_web_config_data(web_answers: dict[str, object]) -> data:dict[str, object]":
+"build_web_config_data(web_answers: dict[str, object], autonomous: bool | None = None) -> data:dict[str, object]":
   location: session.py
   annotations: |
     Pure mapping of the surveyed web answers into the web config file payload.
 
     `web_answers`: the `survey_web_config` answers.
+    `autonomous`: the web autonomy answer of the `survey_autonomy` web axis; absent, None, or
+      false writes no pipelines entry.
     `data`: the serializable payload of .goga/tools/pybuggy/web.yml.
 
     Algorithm:
     1. Map the surveyed minimum into active keys: provider, generation_model, classification_model,
        browser.name, browser.headless.
     2. Add the active defaults: strict false, interactive false.
-    3. Return the payload.
+    3. Read `autonomous`; a true answer appends the pipelines entry of the web.automate axis with
+       autonomous true — last key of the payload; an absent, None, or false answer adds no entry.
+    4. Return the payload.
 
     Requirements:
-    - The payload satisfies the web config schema — every key is a `WebConfigKeys` member; the
-      document carries the surveyed minimum plus the strict/interactive defaults.
+    - The payload satisfies the web config schema — every config key is a `WebConfigKeys` member;
+      the document carries the surveyed minimum plus the strict/interactive defaults, and — when
+      enabled — the foreign pipelines section the plugin drops and the autonomy resolver reads.
+    - The pipelines entry matches the pipelines contract (see `autonomy`); the section is absent
+      when the axis is not enabled — existing projects stay untouched until the user opts in.
     - The payload is plain serializable data — the engine writes the YAML.
 
     Constraints:
     - Do not prompt or touch the filesystem — pure.
     - Do not emit commented records — `document_web_config_examples` adds them in the bootstrap.
 
-    Use `WebConfigKeys` from Imports for the key set. Use `conventions` for type hints and testing.
+    Use `WebConfigKeys` from Imports for the key set. Use `autonomy` for the axis shape.
+    Use `conventions` for type hints and testing.
 
 "build_config_amendments(answers: dict[str, object]) -> amendments:dict[str, object]":
   location: session.py

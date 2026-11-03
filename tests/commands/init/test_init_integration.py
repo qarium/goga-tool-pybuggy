@@ -238,6 +238,7 @@ class TestSessionSmokeWebKind:
                 "Add tools?": False,
                 "Add usages records?": False,
                 "Run the browser headless?": False,
+                "Run the web.automate pipeline unattended (autonomous mode)?": False,
             },
             prompts={
                 "Language": "python",
@@ -262,9 +263,11 @@ class TestSessionSmokeWebKind:
             "Add tools?",
             "Add usages records?",
             "Run the browser headless?",
+            "Run the web.automate pipeline unattended (autonomous mode)?",
         ]
 
-        # The web branch writes only web.yml — the api branch (base_url, specs, autonomy) never asks.
+        # The web branch writes only web.yml — the api branch (base_url, specs, its autonomy)
+        # never asks; the declined web confirm writes no pipelines entry.
         web_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
         assert yaml.safe_load(web_config_path.read_text("utf-8")) == {
             "provider": "openai",  # the unscripted choice default
@@ -302,6 +305,57 @@ class TestSessionSmokeWebKind:
         assert "RUN cd /tmp/project && goga install && rm -rf /tmp/project\n" in dockerfile
         assert dockerfile.endswith("RUN playwright install --with-deps chromium\nUSER goga\n")
 
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+    def test_session_smoke_web_autonomy_confirm_accepted_writes_web_axis(
+        self, tmp_path, monkeypatch, caplog, scripted_tty
+    ):
+        """Accepting the web autonomy confirm lands the ``pipelines`` axis in the written ``web.yml``.
+
+        The bootstrap's example-documentation pass round-trips the foreign section untouched —
+        the axis survives the whole init chain.
+        """
+        monkeypatch.chdir(tmp_path)
+        tty = scripted_tty(
+            confirms={
+                "Add codemanifest usages?": False,
+                "Add codemanifest annotations?": False,
+                "Configure a build agent?": False,
+                "Configure a pipeline agent?": False,
+                "Add tools?": False,
+                "Add usages records?": False,
+                "Run the browser headless?": True,
+                "Run the web.automate pipeline unattended (autonomous mode)?": True,
+            },
+            prompts={
+                "Language": "python",
+                "Test kind (api — API tests over specs, web — browser UI tests, both)": "web",
+                "Built image name": "pybuggy-web-smoke:latest",
+                "Generation model (the LLM writing the browser-step code, required)": "glm-5.3",
+                "Classification model (the LLM classifying captured steps, required)": "glm-5.3",
+            },
+        )
+        monkeypatch.setattr(click, "confirm", tty.confirm)
+        monkeypatch.setattr(click, "prompt", tty.prompt)
+
+        with caplog.at_level(logging.INFO):
+            assert run_session() == 0
+
+        web_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {
+            "web.automate": {"autonomous": True}
+        }
+
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
+
+        # The example documentation pins commented records before active web keys only — the
+        # foreign pipelines section round-trips intact.
+        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {
+            "web.automate": {"autonomous": True}
+        }
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 

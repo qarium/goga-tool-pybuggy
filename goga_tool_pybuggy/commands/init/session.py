@@ -57,8 +57,11 @@ _SPEC_TYPES = ("swagger", "openapi")
 _BROWSER_NAMES: tuple[str, ...] = ("chromium", "firefox", "webkit", "chrome", "msedge")
 
 # The autonomous pipelines of the amend-moment survey — one confirm per axis, asked and
-# written in this order (automate first, patch after it).
+# written in the given order: the api pair in the api branch (automate first, patch after
+# it), the web axis in the web branch (into the web tool config).
 _AUTONOMY_AXES: tuple[str, ...] = ("api.automate", "api.patch")
+
+_WEB_AUTONOMY_AXES: tuple[str, ...] = ("web.automate",)
 
 # The goga-python image family in age order — the base-image hints the pybuggy block offers.
 # The pybuggy test runtime is pytest, so the python family serves every pybuggy project
@@ -200,12 +203,17 @@ def survey_specs() -> list[dict[str, object]]:
     return surveyed
 
 
-def survey_autonomy() -> dict[str, bool]:
-    """Interactively survey the autonomy confirms — the amend-moment follow-ups after the specs.
+def survey_autonomy(axes: tuple[str, ...]) -> dict[str, bool]:
+    """Interactively survey the autonomy confirms of the given axes — the amend-moment follow-ups.
 
-    Asked by the tool once the whole spec survey completed, so the questions never interleave
-    the spec fields: one confirm per autonomous pipeline, in the fixed axis order — automate
-    first, patch after it. The disabled defaults keep each pipeline interactive until opted in.
+    Asked by the tool once the branch's own survey completed, so the questions never interleave
+    its fields: the api branch asks after the specs (its two axes, automate first, patch after
+    it), the web branch after the web minimum (its single axis). One confirm per axis, in the
+    given order; the disabled defaults keep each pipeline interactive until opted in.
+
+    Args:
+        axes: The pipeline axes to confirm, in ask order — ``_AUTONOMY_AXES`` (api branch)
+            or ``_WEB_AUTONOMY_AXES`` (web branch).
 
     Returns:
         The autonomy answers keyed by pipeline axis — True enables that pipeline's unattended
@@ -217,7 +225,7 @@ def survey_autonomy() -> dict[str, bool]:
     """
     return {
         axis: click.confirm(f"Run the {axis} pipeline unattended (autonomous mode)?", default=False)
-        for axis in _AUTONOMY_AXES
+        for axis in axes
     }
 
 
@@ -298,7 +306,10 @@ def build_config_data(
     return data
 
 
-def build_web_config_data(web_answers: dict[str, object]) -> dict[str, object]:
+def build_web_config_data(
+    web_answers: dict[str, object],
+    autonomous: bool | None = None,
+) -> dict[str, object]:
     """Build the plain serializable web-config payload from the surveyed web answers.
 
     The keys are spelled via ``WebConfigKeys`` members — data-driven, no duplicated literals;
@@ -306,12 +317,15 @@ def build_web_config_data(web_answers: dict[str, object]) -> dict[str, object]:
 
     Args:
         web_answers: The ``survey_web_config`` answers.
+        autonomous: The web-branch autonomy answer of the ``web.automate`` axis; absent, None,
+            or False writes no ``pipelines`` entry.
 
     Returns:
         The payload carrying the surveyed minimum (the provider, the two models, the browser
-        group) plus the explicit ``strict`` and ``interactive`` defaults.
+        group), the explicit ``strict`` and ``interactive`` defaults, and — when enabled — the
+        ``pipelines`` entry of the ``web.automate`` axis, last.
     """
-    return {
+    data: dict[str, object] = {
         WebConfigKeys.PROVIDER.value: web_answers["provider"],
         WebConfigKeys.GENERATION_MODEL.value: web_answers["generation_model"],
         WebConfigKeys.CLASSIFICATION_MODEL.value: web_answers["classification_model"],
@@ -322,6 +336,11 @@ def build_web_config_data(web_answers: dict[str, object]) -> dict[str, object]:
         WebConfigKeys.STRICT.value: False,
         WebConfigKeys.INTERACTIVE.value: False,
     }
+
+    if autonomous:
+        data["pipelines"] = {"web.automate": {"autonomous": True}}
+
+    return data
 
 
 def _pybuggy_version_axis() -> str:
@@ -528,10 +547,10 @@ def amend_pybuggy_config(context: object) -> None:
     """Amend the session answers and buffer the tool configs (participation moment two).
 
     No-op unless invited; the kind answer gates the branches — the api branch surveys the
-    api options, the specs, and the autonomy confirms (in that order), the web branch
-    surveys the web minimum after it; the amendments buffer unconditionally (the image
-    inputs are kind-neutral); any exception makes the mediator drop the contribution (the
-    session continues).
+    api options, the specs, and the api autonomy confirms (in that order), the web branch
+    surveys the web minimum and the web autonomy confirm after it; the amendments buffer
+    unconditionally (the image inputs are kind-neutral); any exception makes the mediator
+    drop the contribution (the session continues).
 
     Args:
         context: The ``ToolContribution`` proxy delivered by name from the hooks platform.
@@ -550,10 +569,11 @@ def amend_pybuggy_config(context: object) -> None:
     if kind in ("api", "both"):
         api_answers = survey_api_options()
         specs = survey_specs()
-        autonomous = survey_autonomy()
+        autonomous = survey_autonomy(_AUTONOMY_AXES)
 
     if kind in ("web", "both"):
         web_answers = survey_web_config()
+        web_autonomous = survey_autonomy(_WEB_AUTONOMY_AXES)
 
     for id, value in build_config_amendments(answers).items():
         context.answer(id, value)
@@ -562,4 +582,4 @@ def amend_pybuggy_config(context: object) -> None:
         context.write_config("api.yml", build_config_data({**answers, **api_answers}, specs, autonomous))
 
     if kind in ("web", "both"):
-        context.write_config("web.yml", build_web_config_data(web_answers))
+        context.write_config("web.yml", build_web_config_data(web_answers, web_autonomous.get("web.automate")))

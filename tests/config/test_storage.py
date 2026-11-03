@@ -50,11 +50,12 @@ class TestStorageContract:
         assert callable(resolve_autonomy)
 
     def test_resolve_autonomy_signature(self) -> None:
-        """The resolver takes ``pipeline: str`` and returns a bool."""
+        """The resolver takes ``pipeline: str`` and ``filename: str`` and returns a bool."""
         signature = inspect.signature(resolve_autonomy)
 
-        assert list(signature.parameters) == ["pipeline"]
+        assert list(signature.parameters) == ["pipeline", "filename"]
         assert signature.parameters["pipeline"].annotation is str
+        assert signature.parameters["filename"].annotation is str
         assert signature.return_annotation is bool
 
     def test_config_facade_no_longer_exports_config_path(self) -> None:
@@ -153,13 +154,13 @@ class TestResolveAutonomyBehavior:
         """An enabling entry for the running pipeline resolves to True."""
         tool_config(_AXIS_ENABLED_TREE)
 
-        assert resolve_autonomy("api.automate") is True
+        assert resolve_autonomy("api.automate", "api.yml") is True
 
     def test_resolve_autonomy_coerces_truthy_spelling(self, tool_config) -> None:
         """A quoted truthy spelling coerces to True through pydantic lax bool (REPL-pinned)."""
         tool_config('pipelines:\n  api.automate:\n    autonomous: "yes"\n')
 
-        assert resolve_autonomy("api.automate") is True
+        assert resolve_autonomy("api.automate", "api.yml") is True
 
     @pytest.mark.parametrize(
         "content",
@@ -179,14 +180,14 @@ class TestResolveAutonomyBehavior:
         tool_config(content)
 
         with pytest.raises(ValueError, match="pybuggy tool config"):
-            resolve_autonomy("api.automate")
+            resolve_autonomy("api.automate", "api.yml")
 
     def test_resolve_autonomy_violation_names_offending_entry(self, tool_config) -> None:
         """The entry violation names the offending entry and chains the pydantic detail."""
         tool_config("pipelines:\n  api.automate:\n    autonomous: maybe\n")
 
         with pytest.raises(ValueError, match=r"invalid pipelines entry 'api\.automate'") as excinfo:
-            resolve_autonomy("api.automate")
+            resolve_autonomy("api.automate", "api.yml")
 
         assert isinstance(excinfo.value.__cause__, Exception)
 
@@ -195,7 +196,7 @@ class TestResolveAutonomyBehavior:
         tool_config("pipelines: [unclosed")
 
         with pytest.raises((yaml.YAMLError, ValueError)):
-            resolve_autonomy("api.automate")
+            resolve_autonomy("api.automate", "api.yml")
 
     @pytest.mark.parametrize(
         "content",
@@ -212,18 +213,43 @@ class TestResolveAutonomyBehavior:
         if content is not None:
             tool_config(content)
 
-        assert resolve_autonomy("api.automate") is False
+        assert resolve_autonomy("api.automate", "api.yml") is False
 
     def test_resolve_autonomy_no_caching(self, tool_config) -> None:
         """A rewrite between two calls is visible immediately — no cached read."""
         tool_config("pipelines:\n  api.automate:\n    autonomous: false\n")
-        assert resolve_autonomy("api.automate") is False
+        assert resolve_autonomy("api.automate", "api.yml") is False
 
         tool_config("pipelines:\n  api.automate:\n    autonomous: true\n")
-        assert resolve_autonomy("api.automate") is True
+        assert resolve_autonomy("api.automate", "api.yml") is True
 
     def test_resolve_autonomy_unknown_names_never_fail(self, tool_config) -> None:
         """Entries for other pipelines never fail the call — the axis is permissive."""
         tool_config(_AXIS_ENABLED_TREE + "  other.pipeline:\n    autonomous: true\n")
 
-        assert resolve_autonomy("code.review") is False
+        assert resolve_autonomy("code.review", "api.yml") is False
+
+    def test_resolve_autonomy_enabled_through_web_yml(self, tool_config) -> None:
+        """An enabling entry in the kind's own file (``web.yml``) resolves to True."""
+        tool_config("provider: openai\npipelines:\n  web.automate:\n    autonomous: true\n", "web.yml")
+
+        assert resolve_autonomy("web.automate", "web.yml") is True
+
+    def test_resolve_autonomy_web_axis_reads_web_yml_only(self, tool_config) -> None:
+        """An enabling web entry living in ``api.yml`` never enables the web run — per-kind isolation."""
+        tool_config(_AXIS_ENABLED_TREE.replace("api.automate", "web.automate"))
+
+        assert resolve_autonomy("web.automate", "web.yml") is False
+
+    def test_resolve_autonomy_web_disabled_when_web_yml_absent(self, tool_config) -> None:
+        """An absent ``web.yml`` resolves to False even with ``api.yml`` present and carrying an axis."""
+        tool_config(_AXIS_ENABLED_TREE)
+
+        assert resolve_autonomy("web.automate", "web.yml") is False
+
+    def test_resolve_autonomy_web_structural_violation_fails(self, tool_config) -> None:
+        """A malformed ``pipelines`` entry in ``web.yml`` stops the call — autonomy never disables silently."""
+        tool_config("pipelines:\n  web.automate: plain-string\n", "web.yml")
+
+        with pytest.raises(ValueError, match="pybuggy tool config"):
+            resolve_autonomy("web.automate", "web.yml")
