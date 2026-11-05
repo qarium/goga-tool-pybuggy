@@ -109,8 +109,9 @@ ralphex build → accept**.
   `goga tool pybuggy init` с kind `web` или `both` (см. [Web / Configuration](../web/configuration.md));
 - браузерные бинарники: `playwright install --with-deps <browser>` (строка дописывается init
   в Dockerfile проекта);
-- `playwright-cli` для исследования страниц: `npm install -g @playwright/cli && playwright-cli install --skills`
-  (строка Dockerfile образа, в котором исполняется пайплайн);
+- `playwright-cli` для исследования страниц: ставится автоматически post-install хуком pybuggy
+  при `goga install` (в образе нужен node/npm на PATH); ручной fallback —
+  `npm install -g @playwright/cli && playwright-cli install --skills --global`;
 - при заданном `browser.endpoint` — браузер хоста с remote debugging (CDP, порт 9222): исследование
   подключается к нему через `attach` (bootstrap резолвит `host.docker.internal` в IP хоста), и
   локальные браузерные бинарники для исследования не нужны;

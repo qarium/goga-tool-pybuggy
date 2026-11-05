@@ -17,6 +17,11 @@ tests with a sandbox document (`.goga/tools/pybuggy/sandbox.yml`) present additi
 requires a docker-compatible container runtime in the test environment (see
 [Sandbox](sandbox/index.md)).
 
+After the pip step `goga install` runs the pybuggy post-install hook: it installs the
+`@playwright/cli` agent CLI globally via npm (the page-exploration tool of the web kind —
+node/npm must be on PATH). Environments without npm (api/sandbox-only) get a warning and
+skip the step cleanly; a present-but-failing npm fails the install carrying npm's stderr.
+
 ## 2. Initialize: `goga tool pybuggy init`
 
 Run in the target project root:

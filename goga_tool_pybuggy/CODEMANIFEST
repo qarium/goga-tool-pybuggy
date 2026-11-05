@@ -24,8 +24,8 @@ Imports:
     Usages: [init, config-build]
     From: goga_tool_pybuggy/commands/init
   - Types: [install]
-    Usages: [enable, configuration]
-    From: goga_tool_pybuggy/plugins
+    Usages: [install]
+    From: goga_tool_pybuggy/lifecycle
   - Types: [services]
     Usages: [data-operations]
     From: goga_tool_pybuggy/sandbox/data
@@ -44,15 +44,19 @@ Annotations: |
   Use `python-dotenv` for loading the .env file into os.environ with override=False.
   Use `goga-hooks` for the facade callback contract, the hook signatures, and the failure behavior of registrations.
   Use `goga-onboarding-hooks` for the two onboarding action subscriptions.
-  Connected practices describe how consumers use the composed commands, the plugin, and the subscribed hooks:
-  `pull`, `list`, `info`, `generate`, `diff`, `init`, `config-build`, `enable`, `configuration`, `registration`,
-  `contribution`.
+  Connected practices describe how consumers use the composed commands, the plugin, the post-install lifecycle
+  hook, and the subscribed hooks: `pull`, `list`, `info`, `generate`, `diff`, `init`, `config-build`, `install`,
+  `registration`, `contribution`. The plugin enablement practices — enable and configuration — moved with the
+  plugin cell: consumers reach them through goga_tool_pybuggy/plugins directly.
 
   This cell is the package composition root: it owns the root group `main`, loads the .env environment before any
   subcommand runs, and assembles the full CLI.
   Hook registration: the facade callback subscribes the tool's hooks to the platform actions from one place — the
   topic-status hooks, the onboarding participation hooks, and the autonomy amendment hook. Use relative imports
   inside the cell.
+  Post-install lifecycle: the facade carries the platform post-install slot — goga install imports the facade
+  and calls `install` with the initiating user after a successful pip; the lifecycle cell owns it (npm absent
+  is a warning skip, a failing command fails the install).
 
   The facade carries the sandbox capability surface: `services` for per-test data presets —
   one import source beside the plugin installation entry; the session sandbox fixture itself is
@@ -206,4 +210,5 @@ Description: |
   Package composition root — owns the root CLI group main, assembles the endpoint subgroup
   (pull/list/info/generate/diff), registers the top-level `init` command, loads the .env environment
   before any command runs, and subscribes the pybuggy hooks — topic statuses, onboarding participation,
-  and the autonomy workflow amendment — on the goga platform.
+  and the autonomy workflow amendment — on the goga platform. Also carries the post-install lifecycle
+  hook `install` that provisions the @playwright/cli agent CLI after pip.

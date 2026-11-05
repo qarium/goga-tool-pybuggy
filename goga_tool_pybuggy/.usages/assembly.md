@@ -97,9 +97,12 @@ context (`EnvContext`), not the config.
 
 ## goga hooks platform integration
 
-The facade exposes one more entry point beside the CLI: `register_hooks` — the callback the goga hooks
+The facade exposes two more entry points beside the CLI: `register_hooks` — the callback the goga hooks
 platform imports and calls when a command first reaches a hook checkpoint of the run (inspect the registry
-with `goga hooks`). A plain `import goga_tool_pybuggy` never triggers it; the platform owns the call.
+with `goga hooks`); and `install` — the post-install hook `goga install` calls after a successful pip
+(owned by the `goga_tool_pybuggy/lifecycle` cell: installs the `@playwright/cli` agent CLI via npm —
+npm absent is a warning skip, a failing command fails the install). A plain `import goga_tool_pybuggy`
+never triggers either; the platform owns the calls.
 
 `register_hooks` lives in `goga_tool_pybuggy/reg_hooks.py` and subscribes six hooks to four addresses —
 the statuses registration action (three status lines), the two onboarding actions, and the pipeline

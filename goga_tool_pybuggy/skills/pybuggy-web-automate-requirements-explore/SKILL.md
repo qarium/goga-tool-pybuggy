@@ -59,8 +59,10 @@ elaborate — здесь они не «исправляются». Секрет�
 
 1. **Доступность CLI**: выполни `playwright-cli --version`. Команда не найдена — проверь
    `npx --no-install playwright --version`; если локальная версия есть, все команды выполняются как
-   `npx playwright cli <cmd>`. Оба недоступны — **STOP**: попроси пользователя установить
-   `npm install -g @playwright/cli` (строка есть в Dockerfile проекта).
+   `npx playwright cli <cmd>`. Оба недоступны — **STOP**: обычно CLI ставится post-install хуком
+   pybuggy при `goga install`; попроси пользователя выполнить fallback
+   `npm install -g @playwright/cli && playwright-cli install --skills --global` (в окружении нужен
+   node/npm).
 2. **Факты веб-рантайма**: прочитай `.goga/tools/pybuggy/web.yml` из [INTAKE_REPORT]:
    - `browser.name` → флаг локального запуска: `chromium` — без флага (дефолт); `firefox`/`webkit`/`chrome`/`msedge` —
      `--browser=<name>` (только для пути `open`);
