@@ -323,7 +323,9 @@ Annotations: |
        sandbox kind carries no default package) and the section into the context.
 
     Use `pluginator` for the plugin-config reading, the zero-option plugin shape, the
-    configure() lifecycle callback, and fixtures as plugin-class methods.
+    configure() lifecycle callback, and fixtures as plugin-class methods — the scoped session
+    fixture as a staticmethod resolving the plugin instance by registration name, since
+    pytest 9.1 deprecates scoped fixtures defined as instance methods.
     Use `discovery` for the shared loader-section contract the constructor runs.
     Use `conventions` for docstrings and relative imports.
 
@@ -340,11 +342,17 @@ Annotations: |
       document location; an empty document fails with the explicit "must carry the instance
       entry" error; an invalid document surfaces the validation error of
       `validate_sandbox_config`. On success sets ``activation`` and logs the armed state.
-    "sandbox() -> sandbox: Iterator[Sandbox]": |
-      Session-scope generator fixture: build `Sandbox` from the activation, start it (lazy —
-      the first test that requests the sandbox starts the containers), yield it for the whole
-      session, stop it on finalization. The same object on every use within a session.
+    "sandbox(request: pytest.FixtureRequest) -> sandbox: Iterator[Sandbox]": |
+      Session-scope staticmethod generator fixture: resolve the owning plugin instance from
+      the plugin manager by the registration name — a staticmethod on purpose, pytest 9.1
+      deprecates scoped fixtures defined as instance methods and under ``filterwarnings =
+      error`` an instance method fails every sandbox test at setup — build `Sandbox` from its
+      activation, start it (lazy — the first test that requests the sandbox starts the
+      containers), yield it for the whole session, stop it on finalization. The same object
+      on every use within a session. A lookup that misses the registration name fails fast
+      with a RuntimeError naming the missing installation step.
 
+      `request`: the fixture request of the first test touching the sandbox.
       `sandbox`: the running session sandbox.
     "_sandbox_test_batch(request: pytest.FixtureRequest)": |
       Autouse function-scope fixture giving the next sandbox test a fresh baseline and its

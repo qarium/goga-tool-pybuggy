@@ -20,15 +20,32 @@ VALID_DOCUMENT = {
 }
 
 
+class _FakePluginManager:
+    """Plugin-manager double answering the name lookups the session fixture makes.
+
+    Attributes:
+        plugins: The registered plugins by name.
+    """
+
+    def __init__(self, plugins: dict[str, object]) -> None:
+        self.plugins = dict(plugins)
+
+    def get_plugin(self, name: str) -> object | None:
+        """Return the plugin registered under ``name`` — ``None`` when absent."""
+        return self.plugins.get(name)
+
+
 class _FakePytestConfig:
-    """Config double collecting ``addinivalue_line`` registrations.
+    """Config double collecting ``addinivalue_line`` registrations and exposing the plugin manager.
 
     Attributes:
         lines: The ``(name, line)`` pairs every call registered, in call order.
+        pluginmanager: The plugin manager the session fixture resolves the plugin through.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, plugins: dict[str, object] | None = None) -> None:
         self.lines: list[tuple[str, str]] = []
+        self.pluginmanager = _FakePluginManager(plugins or {})
 
     def addinivalue_line(self, name: str, line: str) -> None:
         """Record one ini value registration."""
@@ -129,6 +146,17 @@ class _FakeRequest:
         return self._sandbox
 
 
+class _FakeSessionRequest:
+    """Request double carrying the config the session fixture resolves the plugin through.
+
+    Attributes:
+        config: The pytest config double with its plugin manager.
+    """
+
+    def __init__(self, config: _FakePytestConfig) -> None:
+        self.config = config
+
+
 def _configured_plugin(monkeypatch: pytest.MonkeyPatch, document: dict | None = None) -> SandboxPlugin:
     """Build a plugin driven through ``configure`` with a document of the test's choosing.
 
@@ -145,6 +173,23 @@ def _configured_plugin(monkeypatch: pytest.MonkeyPatch, document: dict | None = 
     plugin.configure()
 
     return plugin
+
+
+def _session_request(plugin: SandboxPlugin | None) -> _FakeSessionRequest:
+    """Build the request of one session-fixture use with ``plugin`` registered under its name.
+
+    The session fixture is a staticmethod resolving the owning plugin through the plugin
+    manager — the registration name is the pluginator name asserted by the contract tests.
+
+    Args:
+        plugin: The plugin the lookup returns; ``None`` registers nothing under the name.
+
+    Returns:
+        The request double the ``sandbox`` fixture resolves the plugin through.
+    """
+    plugins = {"pybuggy-sandbox": plugin} if plugin is not None else {}
+
+    return _FakeSessionRequest(_FakePytestConfig(plugins))
 
 
 def _wire_recording_sandbox(monkeypatch: pytest.MonkeyPatch, fail_start: bool = False) -> list[_RecordingSandbox]:
@@ -272,14 +317,19 @@ class TestSandboxPluginConfigure:
 
 
 class TestSandboxPluginSessionFixture:
-    """The session-scoped ``sandbox`` fixture: lazy start, finalization stop."""
+    """The session-scoped ``sandbox`` fixture: lazy start, finalization stop.
+
+    The fixture is a staticmethod resolving the plugin instance through the plugin manager —
+    pytest 9.1 deprecates scoped fixtures defined as instance methods, which under
+    ``filterwarnings = error`` fails every sandbox test at setup.
+    """
 
     def test_sandbox_starts_on_first_use_and_stops_on_exhaustion(self, monkeypatch: pytest.MonkeyPatch):
         """``next`` starts the sandbox; exhausting the generator stops it."""
         plugin = _configured_plugin(monkeypatch)
         made = _wire_recording_sandbox(monkeypatch)
 
-        generator = SandboxPlugin.sandbox.__wrapped__(plugin)
+        generator = SandboxPlugin.sandbox.__wrapped__(_session_request(plugin))
         sandbox = next(generator)
 
         assert sandbox is made[0]
@@ -297,15 +347,21 @@ class TestSandboxPluginSessionFixture:
         plugin = _configured_plugin(monkeypatch)
         made = _wire_recording_sandbox(monkeypatch)
 
-        generator = SandboxPlugin.sandbox.__wrapped__(plugin)
+        generator = SandboxPlugin.sandbox.__wrapped__(_session_request(plugin))
         next(generator)
 
         assert made[0].activation is plugin.activation
 
+    def test_sandbox_fails_fast_when_the_plugin_is_not_registered(self):
+        """A lookup that misses the plugin name names the missing installation step."""
+        with pytest.raises(RuntimeError, match=r"pybuggy-sandbox plugin is not registered.*install\(\) did not run"):
+            next(SandboxPlugin.sandbox.__wrapped__(_session_request(None)))
+
     def test_sandbox_fails_fast_when_the_plugin_is_not_configured(self):
-        """Driving the fixture on an unconfigured plugin names the missing configure step."""
+        """Driving the fixture on a registered but unconfigured plugin names the missing
+        configure step."""
         with pytest.raises(RuntimeError, match=r"configure\(\) did not run"):
-            next(SandboxPlugin.sandbox.__wrapped__(SandboxPlugin(context={})))
+            next(SandboxPlugin.sandbox.__wrapped__(_session_request(SandboxPlugin(context={}))))
 
     def test_sandbox_propagates_a_failed_start(self, monkeypatch: pytest.MonkeyPatch):
         """A failing start surfaces on the first use — the run fails before any test body."""
@@ -313,7 +369,7 @@ class TestSandboxPluginSessionFixture:
         _wire_recording_sandbox(monkeypatch, fail_start=True)
 
         with pytest.raises(RuntimeError, match="refused to start"):
-            next(SandboxPlugin.sandbox.__wrapped__(plugin))
+            next(SandboxPlugin.sandbox.__wrapped__(_session_request(plugin)))
 
 
 class TestSandboxPluginTestBatchFixture:

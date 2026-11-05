@@ -17,8 +17,11 @@ logger = logging.getLogger(__name__)
 
 _MARKER_HELP = "pybuggy_services: per-test sandbox data presets (applied by the pybuggy sandbox)"
 
+# The pluginator registration name; the session fixture resolves the plugin instance by it.
+_PLUGIN_NAME = "pybuggy-sandbox"
 
-@define.plugin("pybuggy-sandbox", config=defaults.SANDBOX_CONFIG_FILE)
+
+@define.plugin(_PLUGIN_NAME, config=defaults.SANDBOX_CONFIG_FILE)
 class SandboxPlugin:
     """Pluginator plugin exposing the product-owned ``sandbox`` fixtures.
 
@@ -89,15 +92,31 @@ class SandboxPlugin:
         )
 
     @pytest.fixture(scope="session")
-    def sandbox(self) -> t.Iterator[Sandbox]:
+    @staticmethod
+    def sandbox(request: pytest.FixtureRequest) -> t.Iterator[Sandbox]:
         """The session sandbox — started lazily on first use, stopped on finalization.
+
+        A staticmethod on purpose: pytest 9.1 deprecates scoped fixtures defined as
+        instance methods, and under ``filterwarnings = error`` an instance method fails
+        every sandbox test at setup. The owning plugin instance — the one carrying the
+        activation ``configure`` validated — is resolved from the plugin manager by the
+        registration name.
+
+        Args:
+            request: The fixture request of the first test touching the sandbox.
 
         Yields:
             The running sandbox — the same object for the whole session.
-        """
-        activation = self._require_activation()
 
-        sandbox = Sandbox(activation)
+        Raises:
+            RuntimeError: The plugin instance is not registered — ``install()`` did not run.
+        """
+        plugin = request.config.pluginmanager.get_plugin(_PLUGIN_NAME)
+
+        if not isinstance(plugin, SandboxPlugin):
+            raise RuntimeError(f"the {_PLUGIN_NAME} plugin is not registered — install() did not run")
+
+        sandbox = Sandbox(plugin._require_activation())
         sandbox.start()
 
         logger.info("sandbox session started", extra={"base_url": sandbox.base_url})
