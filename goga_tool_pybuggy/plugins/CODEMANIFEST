@@ -58,10 +58,18 @@ Annotations: |
 
   The plugins facade (__all__) re-exports PluginConfigKeys and WebConfigKeys as importable contract types for data-driven consumption by consumers, and re-exports all three plugin classes (ApiPlugin, SandboxPlugin, WebPlugin).
 
+  Every tool document (api.yml, sandbox.yml, web.yml) carries the shared loader section — the
+  fixture-discovery axis of the plugins cell (`discovery`): the external fixture packages/modules a
+  project wires into the run without touching the conftest (e.g. a shared presets package with
+  fixtures over the sandbox fixture). The discovery runs synchronously in the plugin constructors at
+  install time — pytest reads pytest_plugins from the conftest namespace once its import finishes —
+  and the section read is guarded, so an unparsable document defers to the configure-time gate of
+  its plugin. A consumer's own conftest pytest_plugins declarations seed the accumulator and survive.
+
   Constraints:
   - `install` is NOT called at import time; a consumer must call goga_tool_pybuggy.plugins.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
   - `ApiPlugin` overrides BasePlugin.__init__ to accept context (and optional loaders) and to register discovered plugins synchronously.
-  - `install` defaults loaders to [PackageLoader('api', required=False)] when omitted, so the generated api/ fixture tree is discovered out of the box; override with install(loaders=[...]), the loader config section (PluginConfigKeys.LOADER), or disable with install(loaders=[]).
+  - The explicit `install` loaders reach every active plugin's discovery; the api plugin owns its default — PackageLoader('api', required=False) when no explicit loaders arrive — so the generated api/ fixture tree is discovered out of the box. The sandbox and web plugins carry no default package: their discovery runs only over the explicit loaders plus their documents' loader sections. Override with install(loaders=[...]) or a loader section; disable the api package default with install(loaders=[]).
   - Minimal fixture profile: base_url, headers, timeout, plus the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) — no auth, no cookies.
   - The api fixture is a generator (yield + teardown): after the test it calls api.close() to close the Api (delegating to the underlying resq.Session's public close()).
   - base_url template rendering is eager: it runs once in configure at pytest configphase, so a missing required base_url surfaces there (not on fixture invocation). The api fixture reads self.base_url, which configure overwrote with the rendered value (configure always runs before any fixture invocation).
@@ -84,16 +92,63 @@ Annotations: |
   the web config document (the plugins-cell default path — the platform tool-config path named by the
   FILENAME member of the cell's own `WebConfigKeys`) — with the document the `WebPlugin`
   joins the same installation call and owns the web test kind: the web fixture (a per-test
-  prettyplay runtime with the step cache next to the test file), the --strict-mode, --interactive,
-  and --browser-endpoint options, Allure step reporting, and the prettyplay event log formatter.
+  prettyplay runtime with the step cache next to the test file), the plugin options of every web.yml
+  directive (the standard pluginator loading) with the --strict-mode, --interactive, and
+  --browser-endpoint CLI flags, Allure step reporting, and the prettyplay event log formatter.
   The web config key set (the canonical key set of web.yml) and the document validation live in
-  this cell — the web plugin reads and
-  validates its own document in its configure step — an invalid document fails the run at
+  this cell — the web plugin loads every web.yml directive through its plugin options and validates
+  the composed values into the activation in its configure step — an invalid document fails the run at
   configphase; without the document nothing web-related is registered, and a test requesting the web
   fixture gets pytest's standard "fixture 'web' not found".
   Use `pybuggy-web` from Imports for the consumer patterns of web tests.
 
 ---
+
+"loader_section_of(plugin: t.Any) -> section: dict":
+  location: discovery.py
+  annotations: |
+    Read the parsed loader section of a plugin's config document — the guarded section read the
+    plugin constructors run before the shared discovery. The section key itself is the module's
+    LOADER_SECTION constant — the one shared key of every tool document (api.yml, sandbox.yml,
+    web.yml), the value PluginConfigKeys.LOADER ties to.
+
+    `plugin`: any plugin exposing plugin_config (the BasePlugin descendants of this cell).
+    `section`: the parsed section mapping; `{}` when absent, null, or unparsable.
+
+    An unparsable document (the config reader's parse error) yields an empty section — the
+    install-time discovery defers to the configure-time gate of the plugin, which fails the run
+    with its clean error; a null section is an empty one.
+
+    Use `pluginator` for the plugin_config reading contract.
+    Use `conventions` for docstrings and type hints.
+
+"load_fixture_plugins(context: dict, loaders: list[BaseLoader], loader_section: t.Mapping[str, t.Any]) -> result: None":
+  location: discovery.py
+  annotations: |
+    Assemble the recursive pytest_plugins list of a namespace from the explicit loaders and a
+    loader section — the shared discovery routine every plugin constructor runs at install time.
+
+    `context`: namespace dict whose pytest_plugins key seeds the list and receives the result.
+    `loaders`: explicit loaders (empty when none).
+    `loader_section`: the parsed loader section of a tool document; empty means no configured
+    discovery.
+
+    Algorithm:
+    1. Seed the accumulator with the existing context["pytest_plugins"] entries — a consumer's
+       own conftest declarations survive.
+    2. Build `PackageLoader`/`ModuleLoader` instances from the section's packages/modules items
+       (each a dotted name or a {name, required} mapping — the loaders' from_config).
+    3. Drive the explicit loaders then the configured loaders to append the discovered dotted
+       module names, and write the deduplicated list back into context["pytest_plugins"].
+
+    Requirements:
+    - Must run synchronously at install time — pytest reads pytest_plugins once the conftest
+      import finishes.
+    - A loader error surfaces unchanged (a required missing package/module, an unsupported
+      section item) — never a silent skip.
+
+    Use `loaders` for the discovery primitives this routine drives.
+    Use `conventions` for docstrings and type hints.
 
 "ApiPlugin(*, context: dict, loaders: list[BaseLoader] | None = None, default_retries: int | None = None, default_assert_timeout: int | None = None, default_assert_delay: int | float | None = None)":
   location: api_plugin.py
@@ -101,7 +156,7 @@ Annotations: |
     Plugin class providing configurable options and the api fixture. Decorated with @define.plugin under the name pybuggy-api (the pytest option-group and pluginmanager registration name), bound to the pybuggy api config file.
 
     `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is populated on construction.
-    `loaders`: explicit loaders in addition to those in the loader config section; defaults to none.
+    `loaders`: explicit loaders in addition to those in the loader config section; None (the default) adds the plugin's own api package default — PackageLoader('api', required=False); an empty list disables the default discovery.
     `default_retries`: default flaky rerun count for the retries option when neither the config key nor the --retries CLI is set; defaults to none (the option then resolves to 0 / no reruns).
     `default_assert_timeout`: default baseline assert-polling timeout for the assert_timeout option when neither the config key nor the --api-assert-timeout CLI is set; defaults to none (no polling unless configured).
     `default_assert_delay`: default baseline assert-polling delay for the assert_delay option when neither the config key nor the --api-assert-delay CLI is set; defaults to none.
@@ -109,10 +164,11 @@ Annotations: |
     Algorithm:
     1. Call super().__init__() so BasePlugin resolves the config file.
     2. Store default_retries/default_assert_timeout/default_assert_delay as the default_from sources for their options.
-    3. Assemble the recursive pytest_plugins list and write it back into `context`: read the loader section of the plugin config, build `PackageLoader`/`ModuleLoader` from its packages/modules, prepend the explicit `loaders`, drive each loader to append discovered dotted names, then deduplicate the list.
+    3. Assemble the recursive pytest_plugins list and write it back into `context` through the shared discovery (`discovery`): the guarded loader-section read of the plugin config plus the explicit `loaders` (the api package default among them when none arrive), driving each loader to append discovered dotted names, then deduplicating the list.
     4. Must complete synchronously on construction so pytest_plugins is populated before import finishes.
 
     Use `pluginator` for the @define.plugin contract and the BasePlugin.__init__ it overrides, the define.option descriptor, and the option resolution chain (plugin_config_key → env → CLI → default_from → required/nullable).
+    Use `discovery` for the shared loader-section contract the constructor's assembly runs.
     Use `conventions` for type hints, relative imports, and kw_only usage where applicable.
     Use `registration` and `discovery` for the loader-driven registration step.
   properties:
@@ -189,37 +245,42 @@ Annotations: |
 "install(...kwargs: object)":
   location: __init__.py
   annotations: |
-    Install the plugin into pytest at import time, then synchronously register discovered generated fixtures.
+    Install the plugins into pytest at import time, each gated on its own activation document, then synchronously register the discovered fixture plugins.
 
-    `kwargs`: context (defaulted via call_context()) and loaders (defaulted to the api package discovery) are forwarded to `ApiPlugin`; ApiPlugin.__init__ then registers discovered plugins, populating the pytest_plugins list.
+    `kwargs`: the installation surface, forwarded to the plugins by name — context (defaulted via
+    call_context()) and the explicit loaders reach every plugin (the api plugin applies its own
+    api package default when no explicit loaders arrive); default_retries, default_assert_timeout,
+    and default_assert_delay tune the api plugin's option defaults.
 
     Algorithm:
     1. Default context to call_context(), which resolves to the caller module's globals through the one-level wrapper — so calling `install` from conftest.py targets the conftest namespace (where pytest picks up the hooks and pytest_plugins).
-    2. Default loaders to [PackageLoader('api', required=False)] when omitted (auto-discovery of the api/ tree); an explicit loaders overrides it, loaders=[] disables it.
-    3. Gate the `ApiPlugin` on the presence of the api document (the file check of the
-       plugins-cell default path): with the document, construct an `ApiPlugin` instance
-       (context and loaders are forwarded; ApiPlugin.__init__ registers discovered plugins
-       synchronously, populating the pytest_plugins list); without the document nothing
+    2. Gate the `ApiPlugin` on the presence of the api document (the file check of the
+       plugins-cell default path): with the document, construct an `ApiPlugin` instance by name
+       (context, loaders, and the three api-tuning defaults are forwarded; ApiPlugin.__init__
+       registers discovered plugins synchronously — applying its own api package default when no
+       explicit loaders arrive — populating the pytest_plugins list); without the document nothing
        api-related is registered — the required base_url never fails a web-only or
        sandbox-only run — and a test requesting the api fixture gets pytest's standard
        "fixture 'api' not found". BASE_URL (the env var) is a value source of the base_url
        option, never an activation source of the plugin.
-    4. Gate the `SandboxPlugin` on the presence of the sandbox document (the file check of the
+    3. Gate the `SandboxPlugin` on the presence of the sandbox document (the file check of the
     plugin-cell default path): with the document, normalize the container-host address first
     (`normalize_container_host` — defaults the TESTCONTAINERS_HOST_OVERRIDE env so a plain
     host run and a container run share one address space; see `testcontainers`),
-    then append a `SandboxPlugin` instance to the same positional plugin list — the plugin reads
-    and validates its config itself in its configure step; without the document nothing
+    then append a `SandboxPlugin` instance to the same positional plugin list by name (context
+    and the explicit loaders are forwarded; the plugin runs its loader-section discovery and
+    reads and validates its config itself in its configure step); without the document nothing
     sandbox-related is registered (the address normalization included), and a test requesting
     the sandbox fixture gets pytest's standard "fixture 'sandbox' not found".
-    5. Gate the `WebPlugin` on the presence of the web config document (the file check of the
+    4. Gate the `WebPlugin` on the presence of the web config document (the file check of the
        plugins-cell default path — the platform tool-config path named by the FILENAME member of
        the cell's own `WebConfigKeys`): with the document,
-       append a `WebPlugin` instance to the same positional plugin list — the plugin reads and
-       validates its config itself in its configure step; without the document nothing web-related
+       append a `WebPlugin` instance to the same positional plugin list by name (context and the
+       explicit loaders are forwarded; the plugin runs its loader-section discovery and reads and
+       validates its config itself in its configure step); without the document nothing web-related
        is registered, and a test requesting the web fixture gets pytest's standard "fixture
        'web' not found".
-    6. Call install_pytest_plugins with every gated plugin to inject pytest_addoption/
+    5. Call install_pytest_plugins with every gated plugin to inject pytest_addoption/
        pytest_configure/pytest_collection_finish into that namespace (see `pluginator`).
 
     Requirements:
@@ -247,10 +308,23 @@ Annotations: |
     ``plugin_config`` (see `pluginator`), and configure validates it into the activation —
     an invalid document fails the run at configphase, before any collection or container.
     Zero options; the installation entry constructs the plugin only when the document is
-    present (see `install`).
+    present (see `install`), passing the namespace and the explicit loaders. The document's
+    loader section — the external fixture packages/modules a project wires in (e.g. a shared
+    presets package with fixtures over the sandbox fixture) — feeds the shared fixture discovery
+    at construction (`discovery`): the one install-time step besides the activation, running
+    synchronously because pytest reads pytest_plugins once the conftest import finishes. The
+    section is tolerated by the config cell's validator as a foreign top-level key.
+
+    Algorithm (constructor):
+    1. Read the loader section of the document through the guarded `loader_section_of` — an
+       unparsable document defers to the configure-time gate (no discovery; the run fails at
+       configphase with the clean error).
+    2. Run the shared `load_fixture_plugins` with the explicit loaders (none by default — the
+       sandbox kind carries no default package) and the section into the context.
 
     Use `pluginator` for the plugin-config reading, the zero-option plugin shape, the
     configure() lifecycle callback, and fixtures as plugin-class methods.
+    Use `discovery` for the shared loader-section contract the constructor runs.
     Use `conventions` for docstrings and relative imports.
 
   properties:
@@ -288,78 +362,168 @@ Annotations: |
   location: web_plugin.py
   annotations: |
     Pluginator plugin of the web test kind: the web fixture, the fixed web.yml key set
-    (`WebConfigKeys` — declared in this module), the strict/interactive/endpoint options, Allure
-    step reporting, and the prettyplay event log formatter. The web config document web.yml is the
-    plugin's config: pluginator reads it into plugin_config, and configure validates it into the
-    activation — an invalid document fails the run at configphase, before any collection or browser.
-    The foreign pipelines section of the document (the web autonomy axis, read by the tool's own
-    resolver) is dropped from the copy before the validation — the plugin never interprets it.
+    (`WebConfigKeys` — declared in this module), the plugin option of every web config directive,
+    Allure step reporting, and the prettyplay event log formatter. The web config document web.yml is
+    the plugin's config: pluginator reads it into plugin_config, and every directive option loads its
+    value through the standard resolution chain (its plugin_config_key, then the CLI layer of the
+    three flags, then default_from). The directive options route the values without casting
+    (strict=False) — the library PrettyConfig stays the single caster and validator: the bare
+    descriptor cast would flip a string-typed "false" boolean to true, coerce shapes the model must
+    reject, and miss the library defaults of the numeric directives; the directives whose empty
+    option fallback would diverge from the library default carry a default_from computed from
+    PrettyConfig.model_fields (the model is the single default source). configure composes the
+    resolved option values into the activation — an invalid configuration fails the run at
+    configphase, before any collection or browser. The foreign pipelines section of the document
+    (the web autonomy axis, read by the tool's own resolver) never rides into the validation — the
+    plugin never interprets it.
 
     Constructed only by the installation gate of this cell's installation entry (`install` — the
-    document presence check); zero constructor arguments; no work at construction — the activation
-    and the formatter land in configure.
+    document presence check), with the namespace and the explicit loaders; the activation and the
+    formatter land in configure. The document's loader section — the external fixture
+    packages/modules a project wires in — feeds the shared fixture discovery at construction
+    (`discovery`): the one install-time step besides the activation, running synchronously
+    because pytest reads pytest_plugins once the conftest import finishes.
 
     Algorithm:
-    1. Declare the strict and interactive options — the plugin config keys strict and interactive of
-       the cell's `WebConfigKeys`, CLI flags --strict-mode and --interactive (store_true) — and the browser
-       endpoint option — a nullable value option with the CLI flag --browser-endpoint (store) and no
-       plugin-config key (the nested browser.endpoint document key never resolves through the
-       pluginator chain; a typed flag reaches the document through the configure-time injection).
-    2. Nothing else at construction.
+    1. Declare the 19 directive options — one per config member of the cell's `WebConfigKeys`
+       (FILENAME excluded), each with plugin_config_key bound to its own key and strict=False (the
+       raw routed value reaches the activation gate, which casts and validates); the six whose empty
+       fallback diverges from the library default (provider, polling_delay, generation_attempts,
+       healing_attempts, llm_request_attempts, generation_approve) carry default_from bound to the
+       model_fields-computed class defaults. Strict and interactive additionally carry the CLI flags
+       --strict-mode and --interactive (store_true). Declare the browser endpoint option — a nullable
+       value option with the CLI flag --browser-endpoint (store) and no plugin-config key (the nested
+       browser.endpoint document key never resolves through the pluginator chain; a typed flag
+       reaches the browser group through the configure-time injection).
+    2. Read the loader section of the document through the guarded `loader_section_of` — an
+       unparsable document defers to the configure-time gate — and run the shared
+       `load_fixture_plugins` with the explicit loaders (none by default — the web kind carries
+       no default package) into the context.
 
-    Use `pluginator` for the @define.plugin contract, define.option, fixtures as plugin-class methods,
-    and the configure() lifecycle.
-    Use `prettyplay` for the runtime contract consumed by the fixture.
+    Use `pluginator` for the @define.plugin contract, define.option, the option resolution chain,
+    fixtures as plugin-class methods, and the configure() lifecycle.
+    Use `prettyplay` for the runtime contract consumed by the fixture and the directive field
+    defaults the default_from attributes compute.
     Use `allure-pytest` for the guarded activation of the reporting hooks.
     Use `conventions` for docstrings, type hints, and relative imports.
   properties:
+    "provider -> str": |
+      Routed provider directive value: the web config provider key → the library default openai
+      (default_from computed from the model fields). Routed uncast — the activation gate validates
+      the {openai, anthropic} set.
+    "base_url -> str": |
+      Routed base_url directive value (the custom LLM API endpoint): the web config base_url key →
+      the empty default. Routed uncast to the activation gate.
+    "model -> str": |
+      Routed shared model directive value: the web config model key → the empty default. Routed
+      uncast to the activation gate.
+    "generation_model -> str": |
+      Routed generation model override directive value: the web config generation_model key → the
+      empty default. Routed uncast to the activation gate.
+    "classification_model -> str": |
+      Routed classification model override directive value: the web config classification_model key
+      → the empty default. Routed uncast to the activation gate.
+    "generation_prompt -> str": |
+      Routed extra generation instructions directive value: the web config generation_prompt key →
+      the empty default. Routed uncast to the activation gate.
+    "classification_prompt -> str": |
+      Routed extra classification instructions directive value: the web config
+      classification_prompt key → the empty default. Routed uncast to the activation gate.
     "strict -> bool": |
       Resolved strict mode: the web config strict key → the CLI --strict-mode flag (a typed flag
       forces true — the CLI authority applied in configure, the pattern of --base-url) → the default
-      False. Strict runs are replay-only: zero LLM calls, a cache miss fails the test.
+      False. Strict runs are replay-only: zero LLM calls, a cache miss fails the test. After the
+      activation the option re-stores from the validated model plus the typed flag — never the raw
+      routed parse.
     "interactive -> bool": |
       Resolved interactive healing mode: the web config interactive key → the CLI --interactive flag
-      (the same CLI-authority form) → the default False.
+      (the same CLI-authority form) → the default False. The same validated-activation re-store as
+      strict.
+    "polling_timeout -> float | None": |
+      Routed settle-window directive value: the web config polling_timeout key → None (nullable;
+      polling off). Routed uncast — the gate accepts None, 0 (an explicit disable), and finite
+      non-negative numbers.
+    "polling_delay -> float": |
+      Routed settle-pause directive value: the web config polling_delay key → the library default
+      0.5 (default_from computed from the model fields). Routed uncast to the activation gate.
+    "generation_attempts -> int": |
+      Routed generation attempt budget directive value: the web config generation_attempts key →
+      the library default 3 (default_from). Routed uncast — the gate enforces the positive int.
+    "healing_attempts -> int": |
+      Routed healing attempt budget directive value: the web config healing_attempts key → the
+      library default 2 (default_from). Routed uncast — the gate enforces the positive int.
+    "llm_request_attempts -> int": |
+      Routed LLM request attempt budget directive value: the web config llm_request_attempts key →
+      the library default 3 (default_from). Routed uncast — the gate enforces the positive int.
+    "send_screenshots -> bool": |
+      Routed screenshot attachment directive value: the web config send_screenshots key → the
+      default False. Routed uncast to the activation gate.
+    "generation_approve -> bool": |
+      Routed compliance gate directive value: the web config generation_approve key → the library
+      default True (default_from — the opt-out default). Routed uncast to the activation gate.
+    "probe_timeout -> float": |
+      Routed probe bound directive value: the web config probe_timeout key → the default 0 (off).
+      Routed uncast to the activation gate.
+    "cache_root -> str": |
+      Routed step-cache root directive value: the web config cache_root key → the empty default
+      (the fixture then roots the cache at the test file's directory). Routed uncast to the
+      activation gate.
+    "browser -> dict": |
+      Routed browser group directive value — the raw section mapping of the web config browser key;
+      default {} (the activation gate builds the BrowserConfig group with the library defaults). A
+      typed --browser-endpoint lands on a copy of it at configure time (see configure).
     "browser_endpoint -> str | None": |
       The typed --browser-endpoint CLI value — a remote Playwright endpoint (ws/wss or http/https,
       the CDP family). No plugin-config key and no env source: the document value of
-      browser.endpoint flows through the document itself, and a typed flag overrides it in
+      browser.endpoint flows through the browser directive option, and a typed flag overrides it in
       configure before validation (see configure). None when the flag is not typed — the option
       never carries the document value.
     "activation -> PrettyConfig | None": |
-      The validated web config — the library prettyplay model (see `prettyplay`), the document the
-      configure step validated; None before configure ran. The fixture builds the runtime from it.
+      The validated web config — the library prettyplay model (see `prettyplay`), composed by the
+      configure step from the resolved option values; None before configure ran. The fixture builds
+      the runtime from it.
   methods:
     "configure()": |
-      Validate the document into the activation, apply the CLI authority to the options and the
-      typed endpoint to the document, scrub the library's env layer, and install the prettyplay
-      event log formatter.
+      Compose the resolved option values into the activation, apply the CLI authority to the mode
+      options and the typed endpoint to the browser group, scrub the library's env layer, and
+      install the prettyplay event log formatter. Runs after the standard option loading — only the
+      operations the standard pluginator loading cannot express land here.
 
       Algorithm:
-      1. Apply CLI authority: when the user typed --strict-mode or --interactive, store True onto
-         the option — a typed flag overrides the config-file and env resolution (see `pluginator` for
-         the config-time CLI sources).
-      2. Read plugin_config under a parse guard: an unparsable document (the
-         config reader's parse error) surfaces as the clean error naming the web config document —
-         the pattern of the
+      1. Read the typed CLI flags raw (--strict-mode, --interactive, --browser-endpoint) — the mode
+         flags carry authority over the document values: the pluginator chain resolves the document
+         before the CLI, so the typed forcing cannot ride the chain (see `pluginator` for the
+         config-time CLI sources; the pattern of --base-url).
+      2. Gate the document under a parse guard: an unparsable document (the config reader's parse
+         error) surfaces as the clean error naming the web config document — the pattern of the
          sandbox plugin; never a raw reader traceback. A non-mapping parse fails with the explicit
-         mapping error naming the document.
-      3. Apply the endpoint authority: when the user typed --browser-endpoint, inject the typed
-         value into the browser section of the document copy (creating the section when the document
-         carries none or a null one) — the typed value applies verbatim, an empty string included
-         (it forces the local launch over a document endpoint).
-      4. Drop the foreign pipelines section from the document copy — the web autonomy axis
-         (a pipelines section keyed by pipeline name), consumed by the tool's own autonomy
-         resolver, never by the plugin; the document gate validates the web keys only.
-      5. Reject an empty document copy — the document must carry at least the surveyed minimum (the
-         provider and the browser name) — with the explicit empty-document error naming the document.
-      6. Validate the composed document copy into the activation via PrettyConfig.model_validate —
+         mapping error naming the document. The gates run before any option read, so the option
+         chain below never meets a broken reader.
+      3. Drop the foreign sections from the document copy — the web autonomy axis (pipelines,
+         a section keyed by pipeline name, consumed by the tool's own autonomy resolver, never by
+         the plugin) and the fixture-discovery section (loader, consumed at install time by the
+         constructor's discovery) — and reject an empty remaining copy with the explicit
+         empty-document error (the document must carry at least the surveyed minimum — the provider
+         and the browser name).
+      4. Collect the unknown document keys — everything outside the WebConfigKeys config members;
+         they ride into the validation so the library forbid rule names a mistyped key (never a
+         silent no-op).
+      5. Apply the endpoint authority: when the user typed --browser-endpoint, inject the typed
+         value into a copy of the resolved browser directive value (creating the group when the
+         directive carries none or a null one) — the typed value applies verbatim, an empty string
+         included (it forces the local launch over a document endpoint); the read document is never
+         mutated.
+      6. Validate the composed document — every resolved directive option value, the injected
+         browser group, and the unknown keys — into the activation via PrettyConfig.model_validate:
          the library model with the library validators, so a structural or a semantic violation (an
          off-matrix browser name, an invalid endpoint — a typed one included) fails with its clean
          error at configphase (the pydantic detail chained).
-      7. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
+      7. Re-store the resolved strict and interactive options from the validated activation plus the
+         typed flags — never from the raw routed parse: a string-typed "false"/"no" the model coerces
+         to false must not surface as true.
+      8. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
          web.yml is the single configuration source; the library's env layer never overrides it.
-      8. Install the prettyplay event log formatter via `install_event_log_formatter`.
+      9. Install the prettyplay event log formatter via `install_event_log_formatter`.
 
       Requirements:
       - Runs once at pytest configphase, before any collection and before any fixture invocation.
@@ -367,16 +531,16 @@ Annotations: |
         raw reader traceback.
       - A non-mapping or empty document fails with its explicit error naming web.yml — the same gate
         order the former web-cell validation routine carried.
-      - A typed --browser-endpoint passes the same document gate: an invalid endpoint fails at
+      - A typed --browser-endpoint passes the same activation gate: an invalid endpoint fails at
         configphase with the document error, never at a browser start.
-      - The endpoint injection and the pipelines drop work on the document copy — the document
-        object the reader supplied is never mutated.
+      - The endpoint injection, the pipelines drop, and the unknown-key collection work on copies —
+        the document object the reader supplied is never mutated.
       - The env scrub is permanent for the run and race-free — configphase is single-threaded; the
         variables exist only for the library's env layer.
       - The formatter is installed unconditionally with the plugin active — it is not allure-gated.
 
       Use `pluginator` for the configure lifecycle and the config-time CLI sources.
-      Use `prettyplay` for the env layer the scrub neutralizes.
+      Use `prettyplay` for the env layer the scrub neutralizes and the validators of the gate.
     "web(request: pytest.FixtureRequest) -> web: Iterator[PrettyPlay]": |
       Function-scope generator fixture: build the per-test prettyplay runtime and close it after the
       test.
@@ -445,7 +609,8 @@ Annotations: |
     config file name. Consumed data-driven by the init web survey and payload builder and the
     commented-example documentation of the bootstrap (both via the plugins facade re-export);
     the plugin config binding and the installation gate use the plugins-cell default path built
-    from the FILENAME member.
+    from the FILENAME member, and every config member binds the plugin_config_key of the plugin's
+    directive option (the standard pluginator loading of the directive values).
 
     Members:
     - filename — the web config document file name

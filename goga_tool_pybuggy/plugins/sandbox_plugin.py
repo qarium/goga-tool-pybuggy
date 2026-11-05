@@ -10,6 +10,8 @@ from yaml import YAMLError
 from ..sandbox import Sandbox
 from ..sandbox.config import SandboxConfig, validate_sandbox_config
 from . import defaults
+from .discovery import load_fixture_plugins, loader_section_of
+from .loaders import BaseLoader
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,10 @@ class SandboxPlugin:
     ``.goga/tools/pybuggy/sandbox.yml`` into ``plugin_config``, and ``configure()`` validates
     it into the activation — an invalid document fails the run at configphase, before any
     collection or container. Zero options; the installation entry constructs the plugin only
-    when the document is present.
+    when the document is present. The document's ``loader:`` section — the external
+    packages/modules a project wires in (e.g. a shared presets package with fixtures over
+    ``sandbox``) — feeds the shared fixture discovery at construction (`discovery`), the one
+    install-time step besides the activation.
 
     Attributes:
         plugin_config: Anchor declaration; ``BasePlugin`` supplies the parsed document dict.
@@ -33,11 +38,25 @@ class SandboxPlugin:
 
     plugin_config: dict
 
-    def __init__(self) -> None:
-        """Initialize the plugin; the activation arrives with ``configure``."""
+    def __init__(self, *, context: dict, loaders: list[BaseLoader] | None = None) -> None:
+        """Initialize the plugin and synchronously register the configured fixture plugins.
+
+        The ``loader:`` section of the sandbox document joins the explicit ``loaders`` in the
+        shared discovery; it runs synchronously here — pytest reads ``pytest_plugins`` once the
+        conftest import finishes — and an unparsable document defers to the configure-time gate
+        (no discovery, the run fails at configphase with the clean error).
+
+        Args:
+            context: Namespace dict the plugin installs into; its ``pytest_plugins`` key is
+                populated here.
+            loaders: Explicit loaders in addition to the ``loader:`` section; none by default —
+                the sandbox kind carries no default package.
+        """
         super().__init__()
 
         self.activation: SandboxConfig | None = None
+
+        load_fixture_plugins(context, loaders or [], loader_section_of(self))
 
     def configure(self) -> None:
         """Register the ``pybuggy_services`` marker and validate the document into the activation.

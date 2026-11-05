@@ -638,7 +638,8 @@ class TestApiPluginJinjaBaseUrl:
 class TestApiPluginLoadPlugins:
     """Contract + behavioral tests for `ApiPlugin._load_plugins`.
 
-    It builds `pytest_plugins` from the `loader` config plus explicit loaders; the api/ default is `install()`'s job.
+    It builds `pytest_plugins` from the `loader` config plus explicit loaders; the api/ package
+    default is the plugin's own — ``__init__`` applies it when no explicit loaders arrive.
     """
 
     @staticmethod
@@ -677,7 +678,8 @@ class TestApiPluginLoadPlugins:
         assert context["pytest_plugins"] == ["api.orders.get_orders.api"]
 
     def test_load_plugins_empty_config_loads_nothing(self, tmp_path, monkeypatch):
-        # No loader section and no explicit loaders -> nothing appended (the api/ default is install()'s).
+        # No loader section and no explicit loaders -> nothing appended (the api/ default applies
+        # only through __init__, never through the method itself).
         monkeypatch.chdir(tmp_path)
 
         plugin = ApiPlugin(context={})
@@ -685,6 +687,28 @@ class TestApiPluginLoadPlugins:
         context: dict[str, object] = {}
 
         plugin._load_plugins(context, [])
+
+        assert context["pytest_plugins"] == []
+
+    def test_init_loaders_none_defaults_to_the_api_package(self, tmp_path, monkeypatch):
+        """Constructing without explicit loaders discovers the generated ``api/`` tree — the plugin's own default."""
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        self._make_api_tree(tmp_path)
+
+        context: dict[str, object] = {}
+        ApiPlugin(context=context)
+
+        assert context["pytest_plugins"] == ["api.orders.get_orders.api"]
+
+    def test_init_empty_loaders_disable_the_api_package_default(self, tmp_path, monkeypatch):
+        """An explicit empty loaders list disables the api package default — the ``install(loaders=[])`` form."""
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        self._make_api_tree(tmp_path)
+
+        context: dict[str, object] = {}
+        ApiPlugin(context=context, loaders=[])
 
         assert context["pytest_plugins"] == []
 

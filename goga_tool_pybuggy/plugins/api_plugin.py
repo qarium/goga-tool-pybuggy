@@ -14,8 +14,9 @@ from pluginator import CommandLine, define
 
 from ..api import Api
 from . import defaults
+from .discovery import LOADER_SECTION, load_fixture_plugins, loader_section_of
 from .envvars import API_TIMEOUT, BASE_URL
-from .loaders import BaseLoader, ModuleLoader, PackageLoader
+from .loaders import BaseLoader, PackageLoader
 from .render import render_base_url
 
 logger = logging.getLogger(__name__)
@@ -24,14 +25,15 @@ logger = logging.getLogger(__name__)
 class PluginConfigKeys(str, Enum):
     """Config-file keys for the ``ApiPlugin`` options.
 
-    Implementation-hint enum; ``LOADER`` is not an option but the fixture-discovery section.
+    Implementation-hint enum; ``LOADER`` is not an option but the fixture-discovery section — the
+    shared ``loader:`` key of every tool document (`discovery.LOADER_SECTION`).
     """
 
     BASE_URL = "base_url"
     HEADERS = "headers"
     TIMEOUT = "timeout"
     RETRIES = "retries"
-    LOADER = "loader"
+    LOADER = LOADER_SECTION
     ASSERT_TIMEOUT = "assert_timeout"
     ASSERT_DELAY = "assert_delay"
     ASSERT_FIELD_CLASS = "assert_field_class"
@@ -147,11 +149,15 @@ class ApiPlugin:
     ) -> None:
         """Initialize the plugin and synchronously register generated fixtures.
 
-        ``_load_plugins`` assembles ``pytest_plugins`` from the ``loader`` config section plus the explicit ``loaders``.
+        ``_load_plugins`` assembles ``pytest_plugins`` from the ``loader`` config section plus the
+        explicit ``loaders``; ``loaders=None`` (the default) adds the generated ``api/`` package
+        tree to the discovery, an empty list disables it — the plugin owns its own default.
 
         Args:
             context: Namespace dict the plugin installs into; its ``pytest_plugins`` key is populated here.
-            loaders: Explicit loaders in addition to the ``loader`` config section; defaults to none.
+            loaders: Explicit loaders in addition to the ``loader`` config section; ``None`` (the
+                default) adds ``PackageLoader("api", required=False)``, ``[]`` disables the
+                default discovery.
             default_retries: Default flaky rerun count when unset via config or ``--retries``.
             default_assert_timeout: Default assert-polling timeout when unset via config or ``--api-assert-timeout``.
             default_assert_delay: Default assert-polling delay when unset via config or ``--api-assert-delay``.
@@ -162,7 +168,7 @@ class ApiPlugin:
         self._default_assert_timeout = default_assert_timeout
         self._default_assert_delay = default_assert_delay
 
-        self._load_plugins(context, loaders or [])
+        self._load_plugins(context, loaders if loaders is not None else [PackageLoader("api", required=False)])
 
     def configure(self) -> None:
         """Render ``base_url`` once against the full environment and passed CLI options.
@@ -223,24 +229,15 @@ class ApiPlugin:
     def _load_plugins(self, context: dict, loaders: list[BaseLoader]) -> None:
         """Assemble the recursive ``pytest_plugins`` list from the config + loaders.
 
-        Existing ``context["pytest_plugins"]`` entries seed the accumulator; the deduplicated result is written back.
+        Delegates to the shared discovery routine (`discovery.load_fixture_plugins`) with the
+        ``loader`` section of the api document — the section read is guarded, so an unparsable
+        document defers to the configphase; existing namespace entries seed the accumulator, the
+        deduplicated result is written back synchronously (the ``pytest_plugins`` deadline of the
+        conftest import).
 
         Args:
             context: Namespace dict whose ``pytest_plugins`` key seeds the list and receives the result.
-            loaders: Explicit loaders in addition to those from the ``loader`` config section.
+            loaders: Explicit loaders in addition to the section — the api package default among
+                them (resolved by ``__init__`` when no explicit loaders arrive).
         """
-        config_loader = self.plugin_config.get(PluginConfigKeys.LOADER, {})
-
-        config_packages = config_loader.get("packages", [])
-        config_package_loaders = [PackageLoader.from_config(i) for i in config_packages]
-
-        config_modules = config_loader.get("modules", [])
-        config_module_loaders = [ModuleLoader.from_config(i) for i in config_modules]
-
-        modules = list(context.get("pytest_plugins", []))
-        loaders = loaders + config_package_loaders + config_module_loaders
-
-        for loader in loaders:
-            loader.load(modules)
-
-        context["pytest_plugins"] = list(set(modules))
+        load_fixture_plugins(context, loaders, loader_section_of(self))

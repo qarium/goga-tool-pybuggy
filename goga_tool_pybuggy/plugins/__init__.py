@@ -12,7 +12,6 @@ from pluginator import call_context, install_pytest_plugins
 from ..sandbox.engines import normalize_container_host
 from . import defaults
 from .api_plugin import ApiPlugin, PluginConfigKeys
-from .loaders import PackageLoader
 from .sandbox_plugin import SandboxPlugin
 from .web_plugin import WebConfigKeys, WebPlugin
 
@@ -30,14 +29,17 @@ def install(**kwargs: object) -> None:
     pytest's standard "fixture 'api' not found" (``BASE_URL`` stays a value source, not an
     activation source).
 
-    ``loaders`` defaults to ``[PackageLoader("api", required=False)]``; ``install(loaders=[])``
-    disables discovery. The sandbox document ``.goga/tools/pybuggy/sandbox.yml`` gates the
-    sandbox plugin by presence only: with the document the ``SandboxPlugin`` joins the same
-    installation call and owns the product ``sandbox`` fixtures — it reads and validates its
-    config itself at configphase — and the container-host address is normalized first, so a
-    plain host run resolves the same address space as a container run; without the document
-    nothing sandbox-related is registered, and a test requesting the ``sandbox`` fixture gets
-    pytest's standard "fixture 'sandbox' not found".
+    The explicit ``loaders`` join every active plugin's own fixture discovery: the api plugin
+    defaults to the generated ``api/`` package tree when none arrive (``install(loaders=[])``
+    disables that default), and the sandbox and web plugins discover what the explicit loaders
+    plus their documents' ``loader:`` sections name — a project wires external fixture packages
+    in through the config, without touching the conftest. The sandbox document
+    ``.goga/tools/pybuggy/sandbox.yml`` gates the sandbox plugin by presence only: with the
+    document the ``SandboxPlugin`` joins the same installation call and owns the product
+    ``sandbox`` fixtures — it reads and validates its config itself at configphase — and the
+    container-host address is normalized first, so a plain host run resolves the same address
+    space as a container run; without the document nothing sandbox-related is registered, and a
+    test requesting the ``sandbox`` fixture gets pytest's standard "fixture 'sandbox' not found".
 
     The web document ``.goga/tools/pybuggy/web.yml`` gates the ``WebPlugin`` by presence only
     as well: with the document the web plugin joins the same installation call and owns the
@@ -46,30 +48,42 @@ def install(**kwargs: object) -> None:
     pytest's standard "fixture 'web' not found".
 
     Args:
-        kwargs: Forwarded to ``ApiPlugin``; ``context`` and ``loaders`` are defaulted here when omitted.
+        kwargs: The installation surface, forwarded by name — ``context`` is defaulted here when
+            omitted and reaches every plugin; the explicit ``loaders`` reach every active plugin's
+            discovery; ``default_retries``, ``default_assert_timeout``, and ``default_assert_delay``
+            tune the api plugin's option defaults.
     """
     kwargs.setdefault("context", call_context())
-    kwargs.setdefault("loaders", [PackageLoader("api", required=False)])
+    context = kwargs["context"]
+    loaders = kwargs.get("loaders")
 
     plugins = []
 
     if Path(defaults.API_CONFIG_FILE).is_file():
-        plugins.append(ApiPlugin(**kwargs))
+        plugins.append(
+            ApiPlugin(
+                context=context,
+                loaders=loaders,
+                default_retries=kwargs.get("default_retries"),
+                default_assert_timeout=kwargs.get("default_assert_timeout"),
+                default_assert_delay=kwargs.get("default_assert_delay"),
+            )
+        )
         logger.info("api plugin enabled", extra={"document": defaults.API_CONFIG_FILE})
     else:
         logger.debug("api plugin absent", extra={"document": defaults.API_CONFIG_FILE})
 
     if Path(defaults.SANDBOX_CONFIG_FILE).is_file():
         normalize_container_host()
-        plugins.append(SandboxPlugin())
+        plugins.append(SandboxPlugin(context=context, loaders=loaders))
         logger.info("sandbox plugin enabled", extra={"document": defaults.SANDBOX_CONFIG_FILE})
     else:
         logger.debug("sandbox plugin absent", extra={"document": defaults.SANDBOX_CONFIG_FILE})
 
     if Path(defaults.WEB_CONFIG_FILE).is_file():
-        plugins.append(WebPlugin())
+        plugins.append(WebPlugin(context=context, loaders=loaders))
         logger.info("web plugin enabled", extra={"document": defaults.WEB_CONFIG_FILE})
     else:
         logger.debug("web plugin absent", extra={"document": defaults.WEB_CONFIG_FILE})
 
-    install_pytest_plugins(*plugins, context=kwargs["context"])
+    install_pytest_plugins(*plugins, context=context)

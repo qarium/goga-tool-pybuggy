@@ -271,7 +271,9 @@ Annotations: |
     Algorithm:
     1. Apply the top-level key diagnostics — a "service" key fails naming the rename to
     "instance"; an "instances" key fails naming the rename to "services"; any other unknown
-    top-level key fails as unknown.
+    top-level key fails as unknown, with one tolerated foreign key: the plugins-cell loader
+    section (the fixture-discovery section read at install time by the sandbox plugin, never by
+    the validator).
     2. Validate the instance entry — image, env, port are required; the base_path is optional,
     empty by default, and must carry a leading slash when declared; the probe is optional with
     the path confined to this entry.

@@ -1,8 +1,10 @@
 """WebPlugin entity: the pluginator activation of the web test kind — the ``web`` fixture.
 
 Owns the fixed ``web.yml`` key set (``WebConfigKeys``): the file name plus the 19 config keys
-mirroring the ``PrettyConfig`` field names 1:1 — consumed data-driven by the init survey, the
-commented-example documentation, and the installation gate.
+mirroring the ``PrettyConfig`` field names 1:1 — every config key binds the ``plugin_config_key``
+of its directive option (the standard pluginator loading resolves the values), and the set is
+consumed data-driven by the init survey, the commented-example documentation, and the
+installation gate.
 """
 
 import logging
@@ -21,6 +23,8 @@ from ..web.allure_hooks import AllureStepHooks
 from ..web.logging_setup import install_event_log_formatter
 from ..web.pretty import build_pretty_config
 from . import defaults
+from .discovery import LOADER_SECTION, load_fixture_plugins, loader_section_of
+from .loaders import BaseLoader
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +34,8 @@ class WebConfigKeys(str, Enum):
 
     Members map to the lowercase ``web.yml`` key strings; ``FILENAME`` names the document file;
     the plugins-cell ``defaults.WEB_CONFIG_FILE`` constant (``.goga/tools/pybuggy/`` plus the
-    file name) binds the ``@define.plugin`` config and gates the installation. Member order is
+    file name) binds the ``@define.plugin`` config and gates the installation; every config
+    member binds the ``plugin_config_key`` of its directive option of the plugin. Member order is
     contract order (the documenter walks it). Fixed set: do not add, remove, or rename members or
     change their values — the init survey, the example documentation, the validation alignment,
     and the installation gate depend on the exact key set.
@@ -109,42 +114,111 @@ def web_cache_path(item: pytest.Item) -> str:
 class WebPlugin:
     """Pluginator plugin exposing the ``web`` fixture of the web test kind.
 
-    The web config document is the plugin's config: pluginator reads ``web.yml`` into
-    ``plugin_config``, and ``configure()`` validates it into the activation — an invalid document
-    fails the run at configphase, before any collection or browser. The strict and interactive
-    options resolve from the document and the ``--strict-mode`` / ``--interactive`` flags; a typed
-    flag forces its mode on (the CLI authority applied in ``configure``), and the resolved modes
-    always mirror the validated activation — never the raw parse. The ``--browser-endpoint`` value
-    option overrides the document's ``browser.endpoint`` key: ``configure()`` injects a typed value
-    into the document copy before validation, so the document gate stays the single validation gate
-    (an invalid endpoint fails the run at configphase; a typed empty string forces the local launch).
-    The foreign ``pipelines`` section — the web autonomy axis, read by the tool's own resolver,
-    never by the plugin — is dropped from the document copy before the validation; the document
-    gate stays the single validation gate for the web keys.
+    Every ``web.yml`` directive loads through its own plugin option — the standard pluginator
+    chain (the document key, then the CLI layer of the three flags, then ``default_from``)
+    resolves each value. The directive options route their values without casting
+    (``strict=False``): the library ``PrettyConfig`` stays the single caster and validator — the
+    bare descriptor cast would flip a string-typed ``"false"`` boolean to true, coerce shapes the
+    model must reject, and miss the library defaults of the numeric directives. The directives
+    whose empty option fallback would diverge from the library default carry a ``default_from``
+    computed from the model — the model is the single default source.
+
+    ``configure()`` performs only what the standard loading cannot: the document gates (the parse
+    guard, the mapping and the empty rejection), the CLI authority of the mode flags (the chain
+    resolves the document before the CLI; a typed flag forces its mode on), the typed
+    ``--browser-endpoint`` injection into the browser group (a nested document path no flat
+    option key addresses), and the validation of the composed option values into the activation —
+    the single gate carrying the library validators, with the unknown document keys riding along
+    to its forbid rule; an invalid configuration fails the run at configphase, before any
+    collection or browser. The foreign ``pipelines`` section — the web autonomy axis, read by the
+    tool's own resolver, never by the plugin — never rides along, and neither does the
+    ``loader:`` section: the external fixture packages/modules a project wires in feed the shared
+    fixture discovery at construction (`discovery`), the one install-time step besides the
+    activation. The library's env layer is scrubbed so ``web.yml`` is the single configuration
+    source; the console formatter lands unconditionally — it is not allure-gated.
 
     Attributes:
         plugin_config: Anchor declaration; ``BasePlugin`` supplies the parsed document dict.
-        strict: Resolved strict mode — replay-only, zero LLM calls; a cache miss fails.
-        interactive: Resolved interactive step healing mode.
+        provider: The LLM provider directive — ``{openai, anthropic}``; default ``openai``.
+        base_url: The custom LLM API endpoint directive; default ``""``.
+        model: The shared LLM model directive; default ``""``.
+        generation_model: The generation model override directive; default ``""``.
+        classification_model: The classification model override directive; default ``""``.
+        generation_prompt: The extra generation instructions directive; default ``""``.
+        classification_prompt: The extra classification instructions directive; default ``""``.
+        strict: The replay-only mode directive — zero LLM calls, a cache miss fails — plus the
+            ``--strict-mode`` flag authority.
+        interactive: The interactive step healing directive plus the ``--interactive`` flag
+            authority.
+        polling_timeout: The settle-window directive; nullable — ``None`` keeps polling off.
+        polling_delay: The settle-pause directive; default ``0.5``.
+        generation_attempts: The generation attempt budget directive; default ``3``.
+        healing_attempts: The healing attempt budget directive; default ``2``.
+        llm_request_attempts: The LLM request attempt budget directive; default ``3``.
+        send_screenshots: The screenshot attachment directive; default ``False``.
+        generation_approve: The compliance gate directive; default ``True``.
+        probe_timeout: The probe bound directive; default ``0``.
+        cache_root: The step-cache root directive; default ``""``.
+        browser: The nested browser group directive — the raw section mapping; default ``{}``.
         browser_endpoint: The typed ``--browser-endpoint`` CLI value — a remote Playwright endpoint
-            overriding the document's ``browser.endpoint`` before validation; ``None`` when the
-            flag is not typed.
+            overriding the ``browser.endpoint`` directive at the configure-time injection;
+            ``None`` when the flag is not typed.
         activation: The validated web config — the library ``PrettyConfig``; set by ``configure``,
             ``None`` before it.
     """
 
     plugin_config: dict
 
+    provider = define.option(
+        str, plugin_config_key=WebConfigKeys.PROVIDER, default_from="_default_provider", strict=False
+    )
+    base_url = define.option(str, plugin_config_key=WebConfigKeys.BASE_URL, strict=False)
+    model = define.option(str, plugin_config_key=WebConfigKeys.MODEL, strict=False)
+    generation_model = define.option(str, plugin_config_key=WebConfigKeys.GENERATION_MODEL, strict=False)
+    classification_model = define.option(str, plugin_config_key=WebConfigKeys.CLASSIFICATION_MODEL, strict=False)
+    generation_prompt = define.option(str, plugin_config_key=WebConfigKeys.GENERATION_PROMPT, strict=False)
+    classification_prompt = define.option(str, plugin_config_key=WebConfigKeys.CLASSIFICATION_PROMPT, strict=False)
     strict = define.option(
         bool,
         plugin_config_key=WebConfigKeys.STRICT,
         command_line=CommandLine("--strict-mode", action="store_true", help="Strict mode for using cache only"),
+        strict=False,
     )
     interactive = define.option(
         bool,
         plugin_config_key=WebConfigKeys.INTERACTIVE,
         command_line=CommandLine("--interactive", action="store_true", help="Interactive step healing mode"),
+        strict=False,
     )
+    polling_timeout = define.option(float, plugin_config_key=WebConfigKeys.POLLING_TIMEOUT, nullable=True, strict=False)
+    polling_delay = define.option(
+        float, plugin_config_key=WebConfigKeys.POLLING_DELAY, default_from="_default_polling_delay", strict=False
+    )
+    generation_attempts = define.option(
+        int,
+        plugin_config_key=WebConfigKeys.GENERATION_ATTEMPTS,
+        default_from="_default_generation_attempts",
+        strict=False,
+    )
+    healing_attempts = define.option(
+        int, plugin_config_key=WebConfigKeys.HEALING_ATTEMPTS, default_from="_default_healing_attempts", strict=False
+    )
+    llm_request_attempts = define.option(
+        int,
+        plugin_config_key=WebConfigKeys.LLM_REQUEST_ATTEMPTS,
+        default_from="_default_llm_request_attempts",
+        strict=False,
+    )
+    send_screenshots = define.option(bool, plugin_config_key=WebConfigKeys.SEND_SCREENSHOTS, strict=False)
+    generation_approve = define.option(
+        bool,
+        plugin_config_key=WebConfigKeys.GENERATION_APPROVE,
+        default_from="_default_generation_approve",
+        strict=False,
+    )
+    probe_timeout = define.option(float, plugin_config_key=WebConfigKeys.PROBE_TIMEOUT, strict=False)
+    cache_root = define.option(str, plugin_config_key=WebConfigKeys.CACHE_ROOT, strict=False)
+    browser = define.option(dict, plugin_config_key=WebConfigKeys.BROWSER, strict=False)
     browser_endpoint = define.option(
         str,
         nullable=True,
@@ -153,31 +227,51 @@ class WebPlugin:
         ),
     )
 
-    def __init__(self) -> None:
-        """Initialize the plugin; the activation arrives with ``configure``."""
+    # Library defaults of the directives whose empty option fallback would diverge — computed from
+    # the model, the single default source; an unset directive resolves to the library default.
+    _default_provider: t.Final = PrettyConfig.model_fields[WebConfigKeys.PROVIDER].get_default()
+    _default_polling_delay: t.Final = PrettyConfig.model_fields[WebConfigKeys.POLLING_DELAY].get_default()
+    _default_generation_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.GENERATION_ATTEMPTS].get_default()
+    _default_healing_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.HEALING_ATTEMPTS].get_default()
+    _default_llm_request_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.LLM_REQUEST_ATTEMPTS].get_default()
+    _default_generation_approve: t.Final = PrettyConfig.model_fields[WebConfigKeys.GENERATION_APPROVE].get_default()
+
+    def __init__(self, *, context: dict, loaders: list[BaseLoader] | None = None) -> None:
+        """Initialize the plugin and synchronously register the configured fixture plugins.
+
+        The ``loader:`` section of the web document joins the explicit ``loaders`` in the shared
+        discovery; it runs synchronously here — pytest reads ``pytest_plugins`` once the conftest
+        import finishes — and an unparsable document defers to the configure-time gate (no
+        discovery, the run fails at configphase with the clean error).
+
+        Args:
+            context: Namespace dict the plugin installs into; its ``pytest_plugins`` key is
+                populated here.
+            loaders: Explicit loaders in addition to the ``loader:`` section; none by default —
+                the web kind carries no default package.
+        """
         super().__init__()
 
         self.activation: PrettyConfig | None = None
 
+        load_fixture_plugins(context, loaders or [], loader_section_of(self))
+
     def configure(self) -> None:
-        """Validate the document into the activation and ready the runtime environment.
+        """Assemble the activation from the resolved options and ready the runtime environment.
 
-        Pluginator lifecycle callback at pytest configphase, before any collection. The typed CLI
-        flags carry authority over the document's explicit values; a typed ``--browser-endpoint``
-        is injected into the document copy under the browser section before validation — the
-        injected value passes the same document gate, and the typed empty string forces the local
-        launch. The foreign ``pipelines`` section (the web autonomy axis, read by the tool's own
-        resolver) is dropped from the copy before validation. The document read stays under a parse
-        guard; the validation is inline — the
-        non-mapping and empty gates and the ``PrettyConfig.model_validate`` wrap with the library
-        validators, a violation wrapped into the clean error naming ``web.yml`` (the pydantic
-        detail chained). The library's env layer is scrubbed so ``web.yml`` is the single source;
-        the console formatter lands unconditionally — it is not allure-gated.
+        Pluginator lifecycle callback at pytest configphase, before any collection. The directive
+        values are already loaded — the standard option chain resolved them; what remains here is
+        only what the standard loading cannot do. The document gates run first (the parse guard,
+        the non-mapping and the empty rejection), so the option reads below never meet a broken
+        reader. The typed ``--browser-endpoint`` is injected into a copy of the resolved browser
+        group before validation — the injected value passes the same gate, and the typed empty
+        string forces the local launch. The validation is the composed option values plus the
+        unknown document keys riding along — the library forbid rule names a mistyped key — with
+        a violation wrapped into the clean error naming ``web.yml`` (the pydantic detail chained).
 
-        The resolved strict and interactive options re-store from the validated document plus the
-        CLI flags — never from the raw parse the option descriptors would cast: a string-typed
-        ``"false"``/``"no"`` the model coerces to false must not surface as true through the
-        descriptor's bare ``bool()`` cast.
+        The resolved strict and interactive options re-store from the validated activation plus
+        the typed flags — never from the raw parse the options route: a string-typed
+        ``"false"``/``"no"`` the model coerces to false must not surface as true.
 
         Raises:
             ValueError: The document is unparsable, non-mapping, empty, or invalid; the message
@@ -197,14 +291,11 @@ class WebPlugin:
 
         document = dict(parsed)
 
-        # The web autonomy axis — a foreign section consumed by the tool's resolver, not the
-        # plugin; dropped from the copy so the document gate validates the web keys only.
+        # The foreign sections — the web autonomy axis consumed by the tool's resolver and the
+        # fixture-discovery section consumed at install time — never ride into the validation;
+        # dropped from the copy so the gates below judge the web keys only.
         document.pop("pipelines", None)
-
-        if endpoint_flag is not None:
-            browser = dict(document.get(WebConfigKeys.BROWSER, {}) or {})
-            browser["endpoint"] = endpoint_flag
-            document[WebConfigKeys.BROWSER] = browser
+        document.pop(LOADER_SECTION, None)
 
         if not document:
             raise ValueError(
@@ -212,8 +303,43 @@ class WebPlugin:
                 "it must carry at least the provider and the browser name"
             )
 
+        # Unknown document keys ride into the validation — the library forbid rule names them.
+        directives = {member.value for member in WebConfigKeys if member is not WebConfigKeys.FILENAME}
+        unknown = {key: value for key, value in document.items() if key not in directives}
+
+        # A null browser group means an empty one; a typed endpoint lands on a copy of the group —
+        # a nested document path no flat option key addresses, and the read document stays intact.
+        browser = {} if self.browser is None else self.browser
+
+        if endpoint_flag is not None:
+            browser = dict(browser) if isinstance(browser, dict) else {}
+            browser["endpoint"] = endpoint_flag
+
         try:
-            self.activation = PrettyConfig.model_validate(document)
+            self.activation = PrettyConfig.model_validate(
+                {
+                    WebConfigKeys.PROVIDER: self.provider,
+                    WebConfigKeys.BASE_URL: self.base_url,
+                    WebConfigKeys.MODEL: self.model,
+                    WebConfigKeys.GENERATION_MODEL: self.generation_model,
+                    WebConfigKeys.CLASSIFICATION_MODEL: self.classification_model,
+                    WebConfigKeys.GENERATION_PROMPT: self.generation_prompt,
+                    WebConfigKeys.CLASSIFICATION_PROMPT: self.classification_prompt,
+                    WebConfigKeys.STRICT: self.strict,
+                    WebConfigKeys.INTERACTIVE: self.interactive,
+                    WebConfigKeys.POLLING_TIMEOUT: self.polling_timeout,
+                    WebConfigKeys.POLLING_DELAY: self.polling_delay,
+                    WebConfigKeys.GENERATION_ATTEMPTS: self.generation_attempts,
+                    WebConfigKeys.HEALING_ATTEMPTS: self.healing_attempts,
+                    WebConfigKeys.LLM_REQUEST_ATTEMPTS: self.llm_request_attempts,
+                    WebConfigKeys.SEND_SCREENSHOTS: self.send_screenshots,
+                    WebConfigKeys.GENERATION_APPROVE: self.generation_approve,
+                    WebConfigKeys.PROBE_TIMEOUT: self.probe_timeout,
+                    WebConfigKeys.CACHE_ROOT: self.cache_root,
+                    WebConfigKeys.BROWSER: browser,
+                }
+                | unknown
+            )
         except ValidationError as err:
             raise ValueError(f"{defaults.WEB_CONFIG_FILE}: invalid web config document") from err
 

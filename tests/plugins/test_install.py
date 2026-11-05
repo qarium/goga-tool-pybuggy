@@ -14,6 +14,7 @@ from unittest import mock
 import goga_tool_pybuggy.plugins
 import pytest
 from goga_tool_pybuggy.plugins import SandboxPlugin
+from goga_tool_pybuggy.plugins.loaders import ModuleLoader
 from pluginator import install_pytest_plugins
 
 
@@ -204,6 +205,47 @@ class TestInstallLogic:
         assert callable(namespace.pytest_configure)
         assert "pytest_plugins" not in namespace.__dict__
 
+    def test_install_forwards_the_named_surface_to_every_plugin(self, tmp_path, monkeypatch):
+        """Every plugin is constructed by name — the shared context/loaders reach all three, the
+        api-specific defaults reach the api plugin alone."""
+        write_api_document(tmp_path)
+        sandbox_document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+        web_document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        for document in (sandbox_document, web_document):
+            document.parent.mkdir(parents=True, exist_ok=True)
+        sandbox_document.write_text(
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\n", encoding="utf-8"
+        )
+        web_document.write_text("provider: openai\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        sentinel = ModuleLoader("some.fixtures", required=False)
+        context: dict[str, object] = {}
+
+        with (
+            mock.patch("goga_tool_pybuggy.plugins.ApiPlugin") as api_plugin,
+            mock.patch("goga_tool_pybuggy.plugins.SandboxPlugin") as sandbox_plugin,
+            mock.patch("goga_tool_pybuggy.plugins.WebPlugin") as web_plugin,
+        ):
+            goga_tool_pybuggy.plugins.install(
+                context=context, loaders=[sentinel], default_retries=5, default_assert_timeout=9
+            )
+
+            # The context dict is later mutated by the hook injection — assert by identity.
+            api_plugin.assert_called_once_with(
+                context=context,
+                loaders=[sentinel],
+                default_retries=5,
+                default_assert_timeout=9,
+                default_assert_delay=None,
+            )
+            sandbox_plugin.assert_called_once()
+            web_plugin.assert_called_once()
+            assert sandbox_plugin.call_args.kwargs["context"] is context
+            assert sandbox_plugin.call_args.kwargs["loaders"] == [sentinel]
+            assert web_plugin.call_args.kwargs["context"] is context
+            assert web_plugin.call_args.kwargs["loaders"] == [sentinel]
+
     def test_install_with_both_documents_carries_the_three_plugins_in_order(self, tmp_path, monkeypatch):
         """A project with all documents (a both-kind session) carries all three plugins in order.
 
@@ -232,9 +274,9 @@ class TestInstallLogic:
         ]
 
     def test_install_gates_web_plugin_on_document_presence(self, tmp_path, monkeypatch):
-        """The web document gates the web plugin by presence only — with it ``WebPlugin()``
-        joins the installation with zero arguments; without it nothing web-related is
-        registered, and the api/sandbox gating stays keyed on their own documents."""
+        """The web document gates the web plugin by presence only — with it ``WebPlugin`` joins
+        the installation carrying the namespace and the explicit loaders; without it nothing
+        web-related is registered, and the api/sandbox gating stays keyed on their own documents."""
         namespace = types.ModuleType("ctx")
         web_document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
         web_document.parent.mkdir(parents=True)
@@ -250,7 +292,7 @@ class TestInstallLogic:
         ):
             goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
 
-            web_plugin.assert_called_once_with()
+            web_plugin.assert_called_once_with(context=namespace.__dict__, loaders=None)
             sandbox_plugin.assert_not_called()  # no sandbox.yml — its own gate decides
 
         assert callable(namespace.pytest_addoption)  # the hooks land whatever the gates decide
@@ -282,7 +324,7 @@ class TestInstallLogic:
         with mock.patch("goga_tool_pybuggy.plugins.WebPlugin") as web_plugin:
             goga_tool_pybuggy.plugins.install(context=namespace.__dict__)
 
-        web_plugin.assert_called_once_with()
+        web_plugin.assert_called_once_with(context=namespace.__dict__, loaders=None)
 
     def test_invalid_document_fails_at_configure_not_at_install(self, tmp_path, monkeypatch):
         """An invalid document passes the presence gate and fails at the configure step —

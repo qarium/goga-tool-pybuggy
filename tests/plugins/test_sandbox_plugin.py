@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 from goga_tool_pybuggy.plugins import SandboxPlugin
 from goga_tool_pybuggy.plugins import sandbox_plugin as sandbox_plugin_module
+from goga_tool_pybuggy.plugins.loaders import ModuleLoader
 from goga_tool_pybuggy.sandbox.config import SandboxConfig
 from yaml import YAMLError
 
@@ -138,10 +139,8 @@ def _configured_plugin(monkeypatch: pytest.MonkeyPatch, document: dict | None = 
     Returns:
         The configured plugin — ``configure`` ran, ``activation`` is set.
     """
-    plugin = SandboxPlugin()
-    monkeypatch.setattr(
-        type(plugin), "plugin_config", document if document is not None else VALID_DOCUMENT, raising=False
-    )
+    plugin = SandboxPlugin(context={})
+    monkeypatch.setattr(plugin, "plugin_config", document if document is not None else VALID_DOCUMENT, raising=False)
     plugin.init_pytest_config(_FakePytestConfig())
     plugin.configure()
 
@@ -181,28 +180,28 @@ class TestSandboxPluginContract:
         assert inspect.isclass(plugins.SandboxPlugin)
         assert "SandboxPlugin" in plugins.__all__
 
-    def test_sandbox_plugin_constructor_takes_no_arguments(self):
-        """The constructor takes nothing — the activation arrives with ``configure``."""
+    def test_sandbox_plugin_constructor_takes_the_namespace_and_loaders(self):
+        """The constructor takes the namespace and optional loaders — the activation arrives with ``configure``."""
         parameters = list(inspect.signature(SandboxPlugin.__init__).parameters)
 
-        assert parameters == ["self"]
+        assert parameters == ["self", "context", "loaders"]
 
     def test_sandbox_plugin_meta_declares_the_name_and_the_document(self):
         """The plugin name is ``pybuggy-sandbox``; its config file is the sandbox document."""
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
 
         assert plugin.meta.name == "pybuggy-sandbox"
         assert plugin.meta.config_file == ".goga/tools/pybuggy/sandbox.yml"
 
     def test_sandbox_plugin_declares_no_options(self):
         """The plugin carries zero ``define.option`` members."""
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
 
         assert list(plugin.plugin_options) == []
 
     def test_sandbox_plugin_activation_defaults_to_none(self):
         """A fresh plugin is unconfigured — ``activation`` is ``None`` until ``configure``."""
-        assert SandboxPlugin().activation is None
+        assert SandboxPlugin(context={}).activation is None
 
 
 class TestSandboxPluginConfigure:
@@ -210,8 +209,8 @@ class TestSandboxPluginConfigure:
 
     def test_configure_registers_the_marker_line(self, monkeypatch: pytest.MonkeyPatch):
         """``configure`` registers ``pybuggy_services`` pre-collection, warning-free."""
-        plugin = SandboxPlugin()
-        monkeypatch.setattr(type(plugin), "plugin_config", VALID_DOCUMENT, raising=False)
+        plugin = SandboxPlugin(context={})
+        monkeypatch.setattr(plugin, "plugin_config", VALID_DOCUMENT, raising=False)
         config = _FakePytestConfig()
         plugin.init_pytest_config(config)
 
@@ -231,8 +230,8 @@ class TestSandboxPluginConfigure:
 
     def test_configure_fails_on_the_empty_document(self, monkeypatch: pytest.MonkeyPatch):
         """A present-but-empty document is an invalid document — the run stops at configphase."""
-        plugin = SandboxPlugin()
-        monkeypatch.setattr(type(plugin), "plugin_config", {}, raising=False)
+        plugin = SandboxPlugin(context={})
+        monkeypatch.setattr(plugin, "plugin_config", {}, raising=False)
         plugin.init_pytest_config(_FakePytestConfig())
 
         with pytest.raises(ValueError, match=r"sandbox\.yml.*must carry the instance entry"):
@@ -249,7 +248,7 @@ class TestSandboxPluginConfigure:
             def plugin_config(self) -> dict:
                 raise YAMLError("bad indentation")
 
-        plugin = _RefusingPlugin()
+        plugin = _RefusingPlugin(context={})
         plugin.init_pytest_config(_FakePytestConfig())
 
         with pytest.raises(ValueError, match=r"sandbox\.yml: unparsable document.*bad indentation"):
@@ -257,9 +256,9 @@ class TestSandboxPluginConfigure:
 
     def test_configure_fails_on_the_invalid_document_before_any_container(self, monkeypatch: pytest.MonkeyPatch):
         """An invalid document surfaces the validation error of the config cell."""
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         monkeypatch.setattr(
-            type(plugin),
+            plugin,
             "plugin_config",
             {"instance": {"image": "i", "port": 1, "env": {}}, "services": {"db": {"kind": "mysql"}}},
             raising=False,
@@ -306,7 +305,7 @@ class TestSandboxPluginSessionFixture:
     def test_sandbox_fails_fast_when_the_plugin_is_not_configured(self):
         """Driving the fixture on an unconfigured plugin names the missing configure step."""
         with pytest.raises(RuntimeError, match=r"configure\(\) did not run"):
-            next(SandboxPlugin.sandbox.__wrapped__(SandboxPlugin()))
+            next(SandboxPlugin.sandbox.__wrapped__(SandboxPlugin(context={})))
 
     def test_sandbox_propagates_a_failed_start(self, monkeypatch: pytest.MonkeyPatch):
         """A failing start surfaces on the first use — the run fails before any test body."""
@@ -322,7 +321,7 @@ class TestSandboxPluginTestBatchFixture:
 
     def test_batch_fixture_is_inert_without_the_sandbox_in_the_closure(self):
         """A test that does not use the sandbox never triggers the lookup."""
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         request = _FakeRequest(fixturenames=["api"])
 
         SandboxPlugin._sandbox_test_batch.__wrapped__(plugin, request)
@@ -331,7 +330,7 @@ class TestSandboxPluginTestBatchFixture:
 
     def test_batch_fixture_resets_then_enqueues_the_marked_presets(self, monkeypatch: pytest.MonkeyPatch):
         """The order is ``clear`` -> ``new_test_batch`` -> one enqueue per marked preset."""
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         double = _RecordingSandbox(plugin.activation)
         marker = pytest.mark.pybuggy_services(presets={"postgresql": {"db": [{"table": "t", "rows": []}]}})
         request = _FakeRequest(fixturenames=["api", "sandbox"], node=_FakeNode([marker]), sandbox=double)
@@ -343,7 +342,7 @@ class TestSandboxPluginTestBatchFixture:
 
     def test_batch_fixture_enqueues_every_marker_in_carried_order(self):
         """Several ``pybuggy_services`` markers enqueue in the order the item carries them."""
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         double = _RecordingSandbox(plugin.activation)
         first = pytest.mark.pybuggy_services(presets={"postgresql": {"db": [{"table": "a", "rows": []}]}})
         second = pytest.mark.pybuggy_services(presets={"http": {"payments": [{"request": {}}]}})
@@ -358,7 +357,7 @@ class TestSandboxPluginTestBatchFixture:
 
     def test_batch_fixture_skips_a_marker_without_presets(self):
         """A marker carrying no ``presets`` kwarg enqueues an empty mapping — a no-op."""
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         double = _RecordingSandbox(plugin.activation)
         bare = pytest.mark.pybuggy_services()
         request = _FakeRequest(fixturenames=["sandbox"], node=_FakeNode([bare]), sandbox=double)
@@ -367,3 +366,81 @@ class TestSandboxPluginTestBatchFixture:
 
         assert double.calls == ["clear", "new_test_batch", "enqueue_presets"]
         assert double.enqueued == [{}]
+
+
+_GENERATED_FIXTURE_SOURCE = """
+import pytest
+
+
+@pytest.fixture
+def get_orders():
+    return 1
+"""
+
+
+class TestSandboxPluginDiscovery:
+    """The install-time fixture discovery of the sandbox document's ``loader:`` section."""
+
+    @staticmethod
+    def _make_presets_tree(tmp_path):
+        """Create a one-fixture ``presets/orders/api.py`` package tree under ``tmp_path``."""
+        presets = tmp_path / "presets"
+        (presets / "orders").mkdir(parents=True)
+        (presets / "__init__.py").write_text("")
+        (presets / "orders" / "__init__.py").write_text("")
+        (presets / "orders" / "api.py").write_text(_GENERATED_FIXTURE_SOURCE)
+
+    def test_loader_section_discovers_the_configured_fixture_packages(self, tmp_path, monkeypatch: pytest.MonkeyPatch):
+        """The sandbox document's ``loader:`` section wires an external fixture package — e.g. a
+        shared presets package with fixtures over ``sandbox`` — into the run without touching the
+        conftest."""
+        self._make_presets_tree(tmp_path)
+
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text(
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\nloader:\n  packages:\n    - presets\n",
+            encoding="utf-8",
+        )
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        context: dict[str, Any] = {}
+
+        SandboxPlugin(context=context)
+
+        assert context["pytest_plugins"] == ["presets.orders.api"]
+
+    def test_explicit_loaders_join_the_section(self, tmp_path, monkeypatch: pytest.MonkeyPatch):
+        """The explicit construction loaders run in addition to the document's section."""
+        self._make_presets_tree(tmp_path)
+
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text("instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\n", encoding="utf-8")
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+
+        context: dict[str, Any] = {}
+
+        SandboxPlugin(context=context, loaders=[ModuleLoader("presets.orders.api", required=False)])
+
+        assert context["pytest_plugins"] == ["presets.orders.api"]
+
+    def test_unparsable_document_defers_to_the_configure_gate(self, tmp_path, monkeypatch: pytest.MonkeyPatch):
+        """An unparsable sandbox document never crashes the install-time discovery — the run
+        fails at configphase with the plugin's own clean error."""
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text("instance: [unclosed\n", encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+
+        context: dict[str, Any] = {}
+        plugin = SandboxPlugin(context=context)
+
+        assert context["pytest_plugins"] == []
+
+        plugin.init_pytest_config(_FakePytestConfig())
+
+        with pytest.raises(ValueError, match=r"sandbox\.yml: unparsable document"):
+            plugin.configure()

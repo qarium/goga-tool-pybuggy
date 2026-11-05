@@ -20,6 +20,9 @@ logger = logging.getLogger(__name__)
 ModelT = TypeVar("ModelT", bound=BaseModel)
 
 _TOP_LEVEL_KEYS = ("instance", "services", "data")
+# The plugins-cell fixture-discovery section — read at install time by the sandbox plugin
+# (`discovery`), never by the validator; tolerated at the top level like the tool-owned axes.
+_PLUGIN_SECTIONS = ("loader",)
 _SUPPORTED_KINDS = ("postgresql", "kafka", "vault", "http", "redis")
 _REQUIRED_INSTANCE_FIELDS = ("image", "env", "port")
 _SECTION_KINDS = {"vault": "vault", "http": "http", "postgres": "postgresql", "redis": "redis"}
@@ -98,7 +101,7 @@ def _validate_top_level_keys(document: dict[str, object], location: Path) -> Non
         raise ValueError(f"{location}: top-level key 'instances' was renamed to 'services'")
 
     for key in document:
-        if key not in _TOP_LEVEL_KEYS:
+        if key not in _TOP_LEVEL_KEYS and key not in _PLUGIN_SECTIONS:
             raise ValueError(
                 f"{location}: unknown top-level key '{key}' (supported keys: {', '.join(_TOP_LEVEL_KEYS)})"
             )

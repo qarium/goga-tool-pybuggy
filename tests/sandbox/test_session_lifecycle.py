@@ -297,7 +297,7 @@ def configured_plugin(
             The configured plugin and the config double of the session.
         """
         path = sandbox_yaml(document)
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         monkeypatch.setattr(type(plugin), "plugin_config", full_load(path.read_text(encoding="utf-8")), raising=False)
 
         config = ConfigStub()
@@ -645,7 +645,7 @@ class TestLiveSessionLifecycle:
         the reset flow restarts the mock and replays the journaled baseline.
         """
         path = sandbox_yaml(LIVE_DOCUMENT)
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         monkeypatch.setattr(type(plugin), "plugin_config", full_load(path.read_text(encoding="utf-8")), raising=False)
 
         config = ConfigStub()
