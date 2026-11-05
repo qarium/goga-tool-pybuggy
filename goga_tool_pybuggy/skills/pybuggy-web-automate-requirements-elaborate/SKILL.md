@@ -24,7 +24,7 @@ testcases из досье страниц.
 
 ### Step 1. Load context
 
-1. [INTAKE_REPORT] (цель, скоуп, Target Pages, viewport, auth, бюджет).
+1. [INTAKE_REPORT] (цель, скоуп, Target Pages, viewport, auth).
 2. [EXPLORE_REPORT] (досье PAGE-<N>: итоговые URL, элементы/локаторы, формы/валидации, навигация,
    состояния, сеть, расхождения).
 

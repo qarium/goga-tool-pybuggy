@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-intake
-description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined, reads the web runtime facts, and asks the target pages, viewport, auth, and exploration budget
+description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined, reads the web runtime facts, and asks the target pages, viewport, and auth method
 ---
 
 # Pybuggy Web Topic Requirements — Intake
@@ -63,7 +63,6 @@ description: Intake and formalization of the tested web topic's description — 
       или она будет найдена исследованием) | **«SSO/внешний провайдер»** | **«Тестовые креденшалы есть»**.
       Для вариантов с входом уточни источник креденшалов: имена env-переменных или «введу при
       исследовании». **Значения секретов не запрашивай и не записывай.**
-   4. **Бюджет исследования** — сколько страниц исследовать: «8 (по умолчанию)» | «12» | «20» | «сколько нужно».
 
 3. ⚠️ Противоречие: пользователь называет pages feature-деплоя, но веб-конфиг указывает на иной
    `browser.endpoint` — не блокируй, но зафиксируй факт: исследование подключается к endpoint-браузеру
@@ -129,10 +128,6 @@ provider, generation_model]
 
 [без авторизации | форма логина (URL, если назван) | SSO/внешний провайдер | тестовые креденшалы —
 источник: env `<имена>` / введёт при исследовании. Значений секретов НЕТ и не будет]
-
-## Exploration Budget
-
-[8 (по умолчанию) | 12 | 20 | сколько нужно — максимум исследуемых страниц]
 
 ## Known Signals
 
