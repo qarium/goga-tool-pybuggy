@@ -792,8 +792,8 @@ class TestRunBootstrap:
         assert dockerfile.endswith(f"{_PLAYWRIGHT_LINE}\nUSER goga\n")
 
         web_text = web_config.read_text(encoding="utf-8")
-        assert "# base_url: (skipped optional scalar)" in web_text
-        assert "# cache_root: (path example — the step cache root, e.g. tests/.web_cache)" in web_text
+        assert "# base_url: ''" in web_text
+        assert "# cache_root: ''" in web_text
 
         # The api-kind steps no-op'd naturally — the absent api.yml is never created or documented.
         assert not (tools / "api.yml").exists()
@@ -825,7 +825,7 @@ class TestRunBootstrap:
 
         # Both documents gain their commented examples; the registrations carry both kinds.
         assert "# headers: example (skipped complex member)" in tool_config.read_text(encoding="utf-8")
-        assert "# base_url: (skipped optional scalar)" in web_config.read_text(encoding="utf-8")
+        assert "# base_url: ''" in web_config.read_text(encoding="utf-8")
 
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
         usages_record = config["codemanifest"]["usages"]

@@ -12,11 +12,17 @@ Imports:
     Usages:
       - pybuggy-web
     From: goga_tool_pybuggy/plugins
+  - Types:
+      - PrettyConfig
+    Usages:
+      - prettyplay
+    From: prettyplay
 
 Usages:
   conventions: .goga/usages/conventions.md
   click: .goga/usages/cooks/click.md
   ruamel-yaml: .goga/usages/cooks/ruamel-yaml.md
+  prettyplay: .goga/usages/cooks/prettyplay.md
   goga-scaffold: .goga/usages/github/goga/scaffold/scaffold-usage.md
   goga-onboarding: .goga/usages/github/goga/onboarding/onboarding-usage.md
   goga-onboarding-hooks: .goga/usages/github/goga/onboarding/registering-hooks.md
@@ -679,7 +685,9 @@ Annotations: |
   location: bootstrap.py
   annotations: |
     Round-trip edit of .goga/tools/pybuggy/web.yml documenting the absent web keys as commented
-    example records — the option surface the engine's plain serialization does not carry.
+    default records — every key the engine's plain serialization does not carry lands with its
+    library default value, so an uncommented record line is a valid active key applying exactly
+    that default.
 
     `config_path`: path to the web config file.
     `documented`: the record texts added; empty when nothing was added.
@@ -687,25 +695,34 @@ Annotations: |
     Algorithm:
     1. No-op (return an empty list) when the file is absent or holds no mapping.
     2. Walk the `WebConfigKeys` members in declaration order; a member absent as an active key whose
-       record marker is not already in the file text accumulates its example record — the browser
-       subkeys as nested records, the prompts as block-scalar examples, the scalars as one-line
-       records, cache_root as a path example.
+       record marker is not already in the file text accumulates its default record — every scalar
+       as the one-line ``key: default`` record, the browser group as its full nested block.
     3. Pin the accumulated records, in walk order, before the next active key via the
        before-comment — the browser section is the terminal anchor.
-    4. Write the document back only when at least one record was added.
+    4. Document the absent nested keys of the browser group the same way: their default records pin
+       above the group's last active nested key, at the group's emitted indentation (the
+       probe-measured comment token column), so an uncommented nested line lands inside the
+       browser mapping.
+    5. Write the document back only when at least one record was added.
 
     Requirements:
     - Idempotent by marker detection: a repeat run over its own output adds nothing.
     - Active keys and their values are never modified — only comments are added.
     - The surveyed keys (provider, the models, browser.name, browser.headless) and the
       strict/interactive defaults stay active and are never documented.
+    - Every record value equals the library default of its key — computed from the library
+      `PrettyConfig` model, never hand-mirrored; a library default change re-renders the records.
+    - An uncommented record is a valid active key applying exactly that default — the scalar texts
+      are type-faithful (booleans, numbers, null, empty strings as '' quotes) and the nested
+      browser records sit at the group's own indentation.
 
     Constraints:
     - Do not create the file when absent — only document an existing web config.
     - Do not touch keys or comments beyond the added records.
+    - Do not document the nested keys of a flow-style, empty, or absent browser group.
 
-    Use `WebConfigKeys` from Imports for the member walk. Use `ruamel-yaml` for the round-trip edit. Use `conventions` for
-    testing.
+    Use `WebConfigKeys` from Imports for the member walk and `PrettyConfig` from Imports for the
+    default source. Use `ruamel-yaml` for the round-trip edit. Use `conventions` for testing.
 
 "ensure_review_skip(config_path: Path) -> changed:bool":
   location: bootstrap.py

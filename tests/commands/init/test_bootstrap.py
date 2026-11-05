@@ -12,6 +12,7 @@ from pathlib import Path
 
 import click
 import pytest
+import yaml
 from goga_tool_pybuggy.commands.init import (
     document_config_examples,
     document_web_config_examples,
@@ -550,10 +551,10 @@ class TestDocumentConfigExamples:
 
 
 class TestDocumentWebConfigExamples:
-    """The commented web example records — the option surface the engine serialization does not carry."""
+    """The commented web default records — the option surface the engine serialization does not carry."""
 
     def test_document_web_config_examples_documents_absent_keys(self, tmp_path):
-        """Absent web keys land as commented records; the second run adds nothing and never touches values."""
+        """Absent web keys land as commented default records; the second run adds nothing and never touches values."""
         web = tmp_path / "web.yml"
         web.write_text(
             "provider: openai\ngeneration_model: g\nclassification_model: c\nbrowser:\n"
@@ -563,10 +564,13 @@ class TestDocumentWebConfigExamples:
 
         documented = document_web_config_examples(web)
 
-        assert len(documented) == 14  # every absent member except the six active ones
+        # every absent member except the six active ones, plus the five absent browser subkeys
+        assert len(documented) == 19
         text = web.read_text(encoding="utf-8")
-        assert "# base_url: (skipped optional scalar)" in text
-        assert "# cache_root: (path example — the step cache root, e.g. tests/.web_cache)" in text
+        assert "# base_url: ''" in text
+        assert "# cache_root: ''" in text
+        assert "# screen: ''" in text
+        assert "# speed: 100" in text
 
         snapshot = web.read_bytes()
         assert document_web_config_examples(web) == []
@@ -580,6 +584,61 @@ class TestDocumentWebConfigExamples:
         assert data["strict"] is False
         assert data["interactive"] is False
 
+    def test_document_web_config_examples_records_carry_library_defaults(self, tmp_path):
+        """Every record value equals the library default — the model is the single default source."""
+        from prettyplay import PrettyConfig
+
+        web = tmp_path / "web.yml"
+        web.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\nbrowser:\n"
+            "  name: chromium\n  headless: true\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+
+        documented = document_web_config_examples(web)
+
+        defaults = PrettyConfig().model_dump()
+        for record in documented:
+            key, _, value = record.partition(": ")
+            expected = defaults["browser"][key] if key in defaults["browser"] else defaults[key]
+
+            assert yaml.safe_load(value) == expected, record
+
+    def test_document_web_config_examples_uncommented_records_are_valid_active_keys(self, tmp_path):
+        """Uncommenting every documented line yields a valid document of exactly the defaults.
+
+        The user-facing contract of the records: an uncommented line is a working active key — the
+        nested browser lines land inside the browser mapping at its own indentation.
+        """
+        web = tmp_path / "web.yml"
+        web.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\nbrowser:\n"
+            "  name: chromium\n  headless: true\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+
+        document_web_config_examples(web)
+
+        uncommented = "\n".join(
+            ("  " + line[4:] if line.startswith("  # ") else line[2:] if line.startswith("# ") else line)
+            for line in web.read_text(encoding="utf-8").splitlines()
+        )
+        data = yaml.safe_load(uncommented)
+        assert data["polling_delay"] == 0.5
+        assert data["polling_timeout"] is None
+        assert data["request_max_tokens"] == 16384
+        assert data["generation_approve"] is True
+        assert data["cache_root"] == ""
+        assert data["browser"]["screen"] == ""
+        assert data["browser"]["endpoint"] == ""
+        assert data["browser"]["accept_dialogs"] is False
+        assert data["browser"]["speed"] == 100
+        assert data["browser"]["timeout"] == 30
+        # the surveyed values survive the uncommenting — records never overwrite active keys
+        assert data["provider"] == "openai"
+        assert data["browser"]["name"] == "chromium"
+        assert data["browser"]["headless"] is True
+
     def test_document_web_config_examples_pins_before_next_active_key(self, tmp_path):
         """Records land in walk order pinned before the next active key — browser is the terminal anchor."""
         web = tmp_path / "web.yml"
@@ -592,12 +651,14 @@ class TestDocumentWebConfigExamples:
         document_web_config_examples(web)
 
         text = web.read_text(encoding="utf-8")
-        assert text.index("# base_url: (skipped optional scalar)") < text.index("generation_model:")
-        assert text.index("# model: (skipped optional scalar)") < text.index("generation_model:")
-        assert text.index("# generation_prompt: |") < text.index("strict:")
-        assert text.index("# classification_prompt: |") < text.index("strict:")
-        assert text.index("# generation_attempts: (skipped optional scalar)") < text.index("browser:")
-        assert text.index("# cache_root: (path example") < text.index("browser:")
+        assert text.index("# base_url: ''") < text.index("generation_model:")
+        assert text.index("# model: ''") < text.index("generation_model:")
+        assert text.index("# generation_prompt: ''") < text.index("strict:")
+        assert text.index("# classification_prompt: ''") < text.index("strict:")
+        assert text.index("# generation_attempts: 3") < text.index("browser:")
+        assert text.index("# cache_root: ''") < text.index("browser:")
+        # the nested records sit inside the browser block, above its last active key
+        assert text.index("browser:") < text.index("  # screen: ''") < text.index("  headless: true")
 
     def test_document_web_config_examples_noop_when_absent_or_non_mapping(self, tmp_path):
         """An absent web config and a non-mapping document are no-ops — the file is never created."""
@@ -610,17 +671,40 @@ class TestDocumentWebConfigExamples:
         assert document_web_config_examples(listed) == []
         assert listed.read_text(encoding="utf-8") == "- a\n- b\n"
 
+    def test_document_web_config_examples_skips_nested_of_non_block_browser(self, tmp_path):
+        """A flow-style or empty browser group gets no nested records — nothing pins into a flow block."""
+        nested_prefixes = ("screen", "endpoint", "accept_dialogs", "speed", "timeout")
+
+        flow = tmp_path / "flow.yml"
+        flow.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\n"
+            "browser: {name: chromium, headless: true}\nstrict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+        documented = document_web_config_examples(flow)
+        assert not any(record.startswith(nested_prefixes) for record in documented)
+        assert "# screen:" not in flow.read_text(encoding="utf-8")
+
+        empty = tmp_path / "empty.yml"
+        empty.write_text(
+            "provider: openai\ngeneration_model: g\nclassification_model: c\nbrowser: {}\n"
+            "strict: false\ninteractive: false\n",
+            encoding="utf-8",
+        )
+        documented = document_web_config_examples(empty)
+        assert not any(record.startswith(nested_prefixes) for record in documented)
+
     def test_document_web_config_examples_marker_matches_the_comment_line_only(self, tmp_path):
         """A sibling's record line is not the key's own marker — ``model`` still gets documented.
 
-        ``model: (skipped optional scalar)`` is a substring of ``generation_model: (skipped
-        optional scalar)``; the detection must match the emitted comment line so a file carrying
-        the sibling's record (e.g. after a hand edit) does not silently skip the key's own.
+        ``model: ''`` is a substring of ``generation_model: ''``; the detection must match the
+        emitted comment line so a file carrying the sibling's record (e.g. after a hand edit)
+        does not silently skip the key's own.
         """
         web = tmp_path / "web.yml"
         web.write_text(
             "provider: openai\n"
-            "# generation_model: (skipped optional scalar)\n"
+            "# generation_model: ''\n"
             "classification_model: c\n"
             "browser:\n"
             "  name: chromium\n"
@@ -632,12 +716,12 @@ class TestDocumentWebConfigExamples:
 
         documented = document_web_config_examples(web)
 
-        assert "base_url: (skipped optional scalar)" in documented
-        assert "model: (skipped optional scalar)" in documented
+        assert "base_url: ''" in documented
+        assert "model: ''" in documented
         text = web.read_text(encoding="utf-8")
-        assert "# model: (skipped optional scalar)" in text
+        assert "# model: ''" in text
         # The present sibling record is detected by its own marker — never duplicated.
-        assert text.count("generation_model: (skipped optional scalar)") == 1
+        assert text.count("generation_model: ''") == 1
 
     def test_document_web_config_examples_drops_pending_without_browser(self, tmp_path):
         """Without the browser anchor the tail records are dropped silently; the run stays idempotent."""
@@ -650,14 +734,14 @@ class TestDocumentWebConfigExamples:
         documented = document_web_config_examples(web)
 
         assert [record.split("\n", 1)[0] for record in documented] == [
-            "base_url: (skipped optional scalar)",
-            "model: (skipped optional scalar)",
-            "generation_prompt: |",
-            "classification_prompt: |",
+            "base_url: ''",
+            "model: ''",
+            "generation_prompt: ''",
+            "classification_prompt: ''",
         ]
         text = web.read_text(encoding="utf-8")
         assert text.index("# base_url:") < text.index("generation_model:")
-        assert text.index("# generation_prompt: |") < text.index("strict:")
+        assert text.index("# generation_prompt: ''") < text.index("strict:")
         assert "# polling_timeout" not in text
         assert "# cache_root" not in text
         assert "# browser:" not in text

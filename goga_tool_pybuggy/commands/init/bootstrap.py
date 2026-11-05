@@ -6,8 +6,10 @@ Six pure writers orchestrated by :func:`goga_tool_pybuggy.commands.init.run_boot
 import importlib.resources
 import logging
 import re
+from io import StringIO
 from pathlib import Path
 
+from prettyplay import PrettyConfig
 from ruamel.yaml import YAML, YAMLError
 from ruamel.yaml.comments import CommentedMap
 from ruamel.yaml.scalarstring import LiteralScalarString
@@ -94,18 +96,51 @@ _CONFTEST_TEMPLATE = (
 _HEADERS_BLOCK = "headers: example (skipped complex member)\n  X-Example: value\n  default request headers dict"
 _LOADER_BLOCK = "loader: example (skipped complex member)\n  packages:\n    - api\n  modules: []"
 
-# Commented example records for web keys the session never captures — the prompts as block-scalar
-# examples, cache_root as a path example, the scalars as one-line records.
-_GENERATION_PROMPT_BLOCK = (
-    "generation_prompt: |\n  extra instructions appended to the generation prompt (skipped optional scalar)"
-)
-_CLASSIFICATION_PROMPT_BLOCK = (
-    "classification_prompt: |\n  extra instructions appended to the classification prompt (skipped optional scalar)"
-)
-_CACHE_ROOT_RECORD = "cache_root: (path example — the step cache root, e.g. tests/.web_cache)"
-_BROWSER_BLOCK = (
-    "browser:\n  name: chromium\n  screen: ''\n  headless: true\n  endpoint: ''\n"
-    "  accept_dialogs: false\n  speed: 100\n  timeout: 30"
+# The web defaults the example records carry — computed from the library model, the single default
+# source (the same resolution the plugin's own ``_default_*`` constants perform); a library default
+# change re-renders every record without touching this cell. The browser entry is the nested
+# BrowserConfig default in field order.
+_WEB_DEFAULTS = PrettyConfig().model_dump()
+
+# The scalar shapes that render bare — identifier-like strings (chromium, openai); every other
+# string (the empty defaults included) renders as a quoted '' scalar.
+_BARE_TEXT = re.compile(r"[A-Za-z_][A-Za-z0-9_./-]*")
+
+
+def _scalar_text(value: object) -> str:
+    """Return the YAML scalar text of one default ``value`` — type-faithful and uncommentable.
+
+    ``None`` renders as ``null``, booleans and numbers verbatim, identifier-like strings bare,
+    every other string (the empty defaults included) as a quoted ``''`` scalar — so an uncommented
+    record parses back to exactly the library default of its key.
+
+    Args:
+        value: The default value of one config key (or nested browser key).
+
+    Returns:
+        The YAML scalar text of the value.
+    """
+    if value is None:
+        return "null"
+
+    if isinstance(value, bool):
+        return "true" if value else "false"
+
+    if isinstance(value, (int, float)):
+        return str(value)
+
+    text = str(value)
+
+    return text if _BARE_TEXT.fullmatch(text) else "''"
+
+
+# The commented browser record of a fully absent browser group — the group with every nested key
+# at its library default.
+_BROWSER_BLOCK = "\n".join(
+    [
+        f"{WebConfigKeys.BROWSER.value}:",
+        *(f"  {key}: {_scalar_text(value)}" for key, value in _WEB_DEFAULTS[WebConfigKeys.BROWSER.value].items()),
+    ]
 )
 
 
@@ -151,9 +186,10 @@ def _example_record(member: PluginConfigKeys) -> str:
 
 
 def _web_example_record(member: WebConfigKeys) -> str:
-    """Return the commented example record text of one web config key.
+    """Return the commented example record text of one web config key — the key with its default.
 
-    Complex members resolve to their example blocks; scalars to the ``(skipped optional scalar)`` record.
+    The browser group resolves to its full nested block; every other key to the one-line
+    ``key: default`` record the user uncomments to activate the default.
 
     Args:
         member: The web config key to document.
@@ -161,19 +197,10 @@ def _web_example_record(member: WebConfigKeys) -> str:
     Returns:
         The record text emitted as ``# ``-prefixed comment lines.
     """
-    if member is WebConfigKeys.GENERATION_PROMPT:
-        return _GENERATION_PROMPT_BLOCK
-
-    if member is WebConfigKeys.CLASSIFICATION_PROMPT:
-        return _CLASSIFICATION_PROMPT_BLOCK
-
-    if member is WebConfigKeys.CACHE_ROOT:
-        return _CACHE_ROOT_RECORD
-
     if member is WebConfigKeys.BROWSER:
         return _BROWSER_BLOCK
 
-    return f"{member.value}: (skipped optional scalar)"
+    return f"{member.value}: {_scalar_text(_WEB_DEFAULTS[member.value])}"
 
 
 def document_config_examples(config_path: Path) -> list[str]:
@@ -231,11 +258,62 @@ def document_config_examples(config_path: Path) -> list[str]:
     return documented
 
 
-def document_web_config_examples(config_path: Path) -> list[str]:
-    """Document the absent web config keys of ``web.yml`` as commented example records.
+def _document_browser_defaults(yaml: YAML, data: CommentedMap, text: str) -> list[str]:
+    """Document the absent nested keys of the browser group as commented default records.
 
-    Idempotent comment-only edit: records are pinned in ``WebConfigKeys`` walk order before the next
-    active key (``browser`` is the terminal anchor); active keys are never modified.
+    The records pin above the group's last active nested key — before-comments of a nested map
+    emit above the key line — at the group's own emitted indentation (the probe-measured token
+    column), so an uncommented nested line lands inside the browser mapping as a valid active key.
+
+    Args:
+        yaml: The round-trip YAML instance the caller dumps with.
+        data: The round-trip web config document.
+        text: The current file text — the marker detection source.
+
+    Returns:
+        The record texts added; empty when the group is absent, empty, flow-style, or fully active.
+    """
+    browser = data.get(WebConfigKeys.BROWSER.value)
+
+    if not isinstance(browser, CommentedMap) or not browser:
+        return []
+
+    defaults = _WEB_DEFAULTS[WebConfigKeys.BROWSER.value]
+    records = [
+        f"{key}: {_scalar_text(value)}"
+        for key, value in defaults.items()
+        if key not in browser and f"# {key}: {_scalar_text(value)}" not in text
+    ]
+
+    if not records:
+        return []
+
+    # Probe-dump to measure the group's emitted indentation — the token column the new lines must
+    # carry to sit inside the block (the default column 0 would land them at the top level).
+    probe = StringIO()
+    yaml.dump(data, probe)
+    block = re.search(rf"(?m)^{WebConfigKeys.BROWSER.value}:\n([ \t]+)\S", probe.getvalue())
+
+    if block is None:  # a flow-style or single-line group — nothing to pin into
+        return []
+
+    anchor = list(browser)[-1]
+    known = len((browser.ca.items.get(anchor) or [None, []])[1] or [])
+    browser.yaml_set_comment_before_after_key(anchor, before="\n".join(records))
+
+    for token in browser.ca.items[anchor][1][known:]:
+        token.start_mark.column = len(block.group(1))
+
+    return records
+
+
+def document_web_config_examples(config_path: Path) -> list[str]:
+    """Document the absent web config keys of ``web.yml`` as commented default records.
+
+    Idempotent comment-only edit: top-level records are pinned in ``WebConfigKeys`` walk order
+    before the next active key (``browser`` is the terminal anchor), the absent nested keys of the
+    browser group above its last active nested key; every record carries its library default, and
+    active keys are never modified.
 
     Args:
         config_path: Path to the web config file (``<cwd>/.goga/tools/pybuggy/web.yml``).
@@ -279,6 +357,8 @@ def document_web_config_examples(config_path: Path) -> list[str]:
                 pending = []
         elif marker not in text:
             pending.append(record)
+
+    documented.extend(_document_browser_defaults(yaml, data, text))
 
     if documented:
         yaml.dump(data, config_path)
