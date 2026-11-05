@@ -59,6 +59,7 @@ Two consequences pybuggy accounts for:
 | `generation_attempts` | `int` | `3` | Blind generation attempts before diagnosis |
 | `healing_attempts` | `int` | `2` | Healing attempts for a failing step |
 | `llm_request_attempts` | `int` | `3` | Retries of a failed LLM request |
+| `request_max_tokens` | `int` | `16384` | Completion cap of one anthropic request (`max_tokens`); sized so a reasoning model never truncates — thinking blocks spend the budget before the text block, and a cap-truncated response carries no text block (an empty completion); the openai side sends no cap |
 | `send_screenshots` | `bool` | `False` | Attach screenshots to LLM requests |
 | `generation_approve` | `bool` | `True` | Confirm generated code before caching |
 | `probe_timeout` | `float` | `0` | Locator probe timeout in seconds (0 — page default) |

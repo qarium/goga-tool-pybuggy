@@ -1,6 +1,6 @@
 """Tests for the `WebConfigKeys` enum of the `goga_tool_pybuggy.plugins.web_plugin` module.
 
-Covers the fixed 20-member key set in contract order, the facade re-export, and the standard
+Covers the fixed 21-member key set in contract order, the facade re-export, and the standard
 web-config path pin against the plugins-cell `defaults.WEB_CONFIG_FILE`.
 """
 
@@ -27,6 +27,7 @@ _CONTRACT_MEMBERS: t.Final[list[tuple[str, str]]] = [
     ("GENERATION_ATTEMPTS", "generation_attempts"),
     ("HEALING_ATTEMPTS", "healing_attempts"),
     ("LLM_REQUEST_ATTEMPTS", "llm_request_attempts"),
+    ("REQUEST_MAX_TOKENS", "request_max_tokens"),
     ("SEND_SCREENSHOTS", "send_screenshots"),
     ("GENERATION_APPROVE", "generation_approve"),
     ("PROBE_TIMEOUT", "probe_timeout"),
@@ -47,9 +48,9 @@ class TestWebConfigKeysContract:
         assert plugins_module.WebConfigKeys is WebConfigKeys
         assert "WebConfigKeys" in plugins_module.__all__
 
-    def test_web_config_keys_exposes_twenty_members(self):
-        """The enum carries exactly the 20 contract members — no extras, none missing."""
-        assert len(WebConfigKeys) == 20
+    def test_web_config_keys_exposes_twenty_one_members(self):
+        """The enum carries exactly the 21 contract members — no extras, none missing."""
+        assert len(WebConfigKeys) == 21
 
     def test_web_config_keys_members_contract_order_exact_values(self):
         """Members appear in contract order with the exact `web.yml` key values."""
@@ -70,7 +71,7 @@ class TestWebConfigKeysLogic:
         assert plugin_defaults.WEB_CONFIG_FILE == ".goga/tools/pybuggy/web.yml"
 
     def test_web_config_keys_members_mirror_pretty_config_fields(self):
-        # The 19 scalar/browser key members (everything but FILENAME) equal the library PrettyConfig
+        # The 20 scalar/browser key members (everything but FILENAME) equal the library PrettyConfig
         # field names as a set — the membership alignment and the drift guard: a renamed prettyplay
         # field fails here instead of silently diverging from web.yml. The member order stays the
         # web.yml document contract order (the documenter walks it), not the library field order.

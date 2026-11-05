@@ -385,11 +385,11 @@ Annotations: |
     because pytest reads pytest_plugins once the conftest import finishes.
 
     Algorithm:
-    1. Declare the 19 directive options — one per config member of the cell's `WebConfigKeys`
+    1. Declare the 20 directive options — one per config member of the cell's `WebConfigKeys`
        (FILENAME excluded), each with plugin_config_key bound to its own key and strict=False (the
-       raw routed value reaches the activation gate, which casts and validates); the six whose empty
+       raw routed value reaches the activation gate, which casts and validates); the seven whose empty
        fallback diverges from the library default (provider, polling_delay, generation_attempts,
-       healing_attempts, llm_request_attempts, generation_approve) carry default_from bound to the
+       healing_attempts, llm_request_attempts, request_max_tokens, generation_approve) carry default_from bound to the
        model_fields-computed class defaults. Strict and interactive additionally carry the CLI flags
        --strict-mode and --interactive (store_true). Declare the browser endpoint option — a nullable
        value option with the CLI flag --browser-endpoint (store) and no plugin-config key (the nested
@@ -455,6 +455,9 @@ Annotations: |
     "llm_request_attempts -> int": |
       Routed LLM request attempt budget directive value: the web config llm_request_attempts key →
       the library default 3 (default_from). Routed uncast — the gate enforces the positive int.
+    "request_max_tokens -> int": |
+      Routed anthropic completion cap directive value: the web config request_max_tokens key → the
+      library default 16384 (default_from). Routed uncast — the gate enforces the positive int.
     "send_screenshots -> bool": |
       Routed screenshot attachment directive value: the web config send_screenshots key → the
       default False. Routed uncast to the activation gate.
@@ -628,6 +631,7 @@ Annotations: |
     - generation_attempts — the blind generation attempts key
     - healing_attempts — the healing attempts key
     - llm_request_attempts — the retries of a failed LLM request key
+    - request_max_tokens — the anthropic completion cap key
     - send_screenshots — the attach-screenshots-to-LLM-requests key
     - generation_approve — the confirm-generated-code-before-caching key
     - probe_timeout — the locator probe timeout key
@@ -681,6 +685,8 @@ Annotations: |
       healing_attempts — the healing attempts key.
     "LLM_REQUEST_ATTEMPTS -> str": |
       llm_request_attempts — the retries of a failed LLM request key.
+    "REQUEST_MAX_TOKENS -> str": |
+      request_max_tokens — the anthropic completion cap key.
     "SEND_SCREENSHOTS -> str": |
       send_screenshots — the attach-screenshots-to-LLM-requests key.
     "GENERATION_APPROVE -> str": |

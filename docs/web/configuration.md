@@ -28,6 +28,7 @@ LLM API keys are **never** written to this file — they live only in the enviro
 | `generation_attempts` | `int` | `3` | blind generation attempts before diagnosis |
 | `healing_attempts` | `int` | `2` | healing attempts for a failing step |
 | `llm_request_attempts` | `int` | `3` | retries of a failed LLM request |
+| `request_max_tokens` | `int` | `16384` | the anthropic completion cap (`max_tokens`) — a reasoning model spends the budget on thinking before the text block, and a cap-truncated response carries no text block at all (an empty completion); raise it for models that think longer; the openai side sends no cap |
 | `send_screenshots` | `bool` | `false` | attach screenshots to LLM requests |
 | `generation_approve` | `bool` | `true` | confirm generated code before caching |
 | `probe_timeout` | `float` | `0` | the locator probe timeout, seconds; `0` keeps the page default |

@@ -563,7 +563,7 @@ class TestDocumentWebConfigExamples:
 
         documented = document_web_config_examples(web)
 
-        assert len(documented) == 13  # every absent member except the six active ones
+        assert len(documented) == 14  # every absent member except the six active ones
         text = web.read_text(encoding="utf-8")
         assert "# base_url: (skipped optional scalar)" in text
         assert "# cache_root: (path example — the step cache root, e.g. tests/.web_cache)" in text

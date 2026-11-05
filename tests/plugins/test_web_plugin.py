@@ -247,7 +247,7 @@ class TestWebPluginContract:
         assert plugin.meta.config_file == ".goga/tools/pybuggy/web.yml"
 
     def test_web_plugin_declares_the_web_options(self):
-        """Twenty options: the 19 config directives bound to their config keys, plus the endpoint.
+        """Twenty one options: the 20 config directives bound to their config keys, plus the endpoint.
 
         Every directive option carries its own ``web.yml`` key as the ``plugin_config_key`` — the
         standard pluginator loading resolves the value; the endpoint option stays CLI-only.
@@ -275,6 +275,7 @@ class TestWebPluginContract:
             "polling_timeout",
             "probe_timeout",
             "provider",
+            "request_max_tokens",
             "send_screenshots",
             "strict",
         ]
@@ -390,6 +391,7 @@ class TestWebPluginOptions:
         assert plugin.generation_attempts == PrettyConfig.model_fields["generation_attempts"].get_default()
         assert plugin.healing_attempts == PrettyConfig.model_fields["healing_attempts"].get_default()
         assert plugin.llm_request_attempts == PrettyConfig.model_fields["llm_request_attempts"].get_default()
+        assert plugin.request_max_tokens == PrettyConfig.model_fields["request_max_tokens"].get_default()
         assert plugin.generation_approve is True
         assert plugin.send_screenshots is False
         assert plugin.browser == {"name": "chromium"}

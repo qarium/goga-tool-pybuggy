@@ -56,6 +56,7 @@ class WebConfigKeys(str, Enum):
     GENERATION_ATTEMPTS = "generation_attempts"
     HEALING_ATTEMPTS = "healing_attempts"
     LLM_REQUEST_ATTEMPTS = "llm_request_attempts"
+    REQUEST_MAX_TOKENS = "request_max_tokens"
     SEND_SCREENSHOTS = "send_screenshots"
     GENERATION_APPROVE = "generation_approve"
     PROBE_TIMEOUT = "probe_timeout"
@@ -155,6 +156,7 @@ class WebPlugin:
         generation_attempts: The generation attempt budget directive; default ``3``.
         healing_attempts: The healing attempt budget directive; default ``2``.
         llm_request_attempts: The LLM request attempt budget directive; default ``3``.
+        request_max_tokens: The anthropic completion cap directive; default ``16384``.
         send_screenshots: The screenshot attachment directive; default ``False``.
         generation_approve: The compliance gate directive; default ``True``.
         probe_timeout: The probe bound directive; default ``0``.
@@ -209,6 +211,12 @@ class WebPlugin:
         default_from="_default_llm_request_attempts",
         strict=False,
     )
+    request_max_tokens = define.option(
+        int,
+        plugin_config_key=WebConfigKeys.REQUEST_MAX_TOKENS,
+        default_from="_default_request_max_tokens",
+        strict=False,
+    )
     send_screenshots = define.option(bool, plugin_config_key=WebConfigKeys.SEND_SCREENSHOTS, strict=False)
     generation_approve = define.option(
         bool,
@@ -234,6 +242,7 @@ class WebPlugin:
     _default_generation_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.GENERATION_ATTEMPTS].get_default()
     _default_healing_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.HEALING_ATTEMPTS].get_default()
     _default_llm_request_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.LLM_REQUEST_ATTEMPTS].get_default()
+    _default_request_max_tokens: t.Final = PrettyConfig.model_fields[WebConfigKeys.REQUEST_MAX_TOKENS].get_default()
     _default_generation_approve: t.Final = PrettyConfig.model_fields[WebConfigKeys.GENERATION_APPROVE].get_default()
 
     def __init__(self, *, context: dict, loaders: list[BaseLoader] | None = None) -> None:
@@ -332,6 +341,7 @@ class WebPlugin:
                     WebConfigKeys.GENERATION_ATTEMPTS: self.generation_attempts,
                     WebConfigKeys.HEALING_ATTEMPTS: self.healing_attempts,
                     WebConfigKeys.LLM_REQUEST_ATTEMPTS: self.llm_request_attempts,
+                    WebConfigKeys.REQUEST_MAX_TOKENS: self.request_max_tokens,
                     WebConfigKeys.SEND_SCREENSHOTS: self.send_screenshots,
                     WebConfigKeys.GENERATION_APPROVE: self.generation_approve,
                     WebConfigKeys.PROBE_TIMEOUT: self.probe_timeout,
