@@ -1,6 +1,6 @@
 """WebPlugin entity: the pluginator activation of the web test kind — the ``web`` fixture.
 
-Owns the fixed ``web.yml`` key set (``WebConfigKeys``): the file name plus the 19 config keys
+Owns the fixed ``web.yml`` key set (``WebConfigKeys``): the file name plus the 20 config keys
 mirroring the ``PrettyConfig`` field names 1:1 — every config key binds the ``plugin_config_key``
 of its directive option (the standard pluginator loading resolves the values), and the set is
 consumed data-driven by the init survey, the commented-example documentation, and the

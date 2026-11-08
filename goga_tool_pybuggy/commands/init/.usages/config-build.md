@@ -77,7 +77,9 @@ records in the file itself (uncomment and fill them when needed):
 
 The remaining web keys are never surveyed either — only the web minimum lands as active keys in `web.yml`, and the
 bootstrap documents every absent web key (models' prompts, attempts, polling, screenshots, probe timeout,
-`cache_root`, the browser subkeys beyond name/headless) as commented example records in the same style.
+`cache_root`, the browser subkeys beyond name/headless) as commented default records: each record line carries
+its prettyplay library default, so uncommenting it activates exactly that default (the browser subkeys as
+nested records inside the browser group, at the group's own indentation).
 
 ## The contribution
 
@@ -122,7 +124,8 @@ contribution, and the engine commits it. Both tool config files are written by t
 `parse_specs`, `build_config_data`, `build_web_config_data`, and `build_config_amendments` are pure mappings from
 the answer view — test
 them directly with dict inputs, no TTY and no filesystem (`specs` is the list of surveyed mappings; `autonomous`
-carries the surveyed confirm answers — a mapping of pipeline axis to boolean; `build_config_amendments` reads the
+carries the surveyed confirm answers — a mapping of pipeline axis to boolean for `build_config_data`, the single
+web confirm answer (a boolean) for `build_web_config_data`; `build_config_amendments` reads the
 image inputs from the answer view). `pybuggy_questions` is likewise
 pure: assert the record shapes and the survey order — exactly the kind, base_image, and image records.
 `survey_api_options`, `survey_specs`, `survey_autonomy`, and `survey_web_config` are the TTY routines — stub

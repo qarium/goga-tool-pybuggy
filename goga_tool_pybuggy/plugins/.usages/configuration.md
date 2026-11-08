@@ -136,8 +136,9 @@ assert_response_class: my_pkg.asserts:CustomExpect      # optional, module:Class
 ```
 
 The file may also carry a `loader` section that overrides generated-fixture discovery (`packages`/`modules`). The
-default discovery is the `api/` package (set by `install()` as `[PackageLoader("api", required=False)]`); a `loader`
-section or an explicit `install(loaders=[...])` overrides it, and `install(loaders=[])` disables it. The plugin reads
+default discovery is the `api/` package — the api plugin's own default, applied when `install()` receives no
+explicit loaders (`[PackageLoader("api", required=False)]`); a `loader` section or an explicit
+`install(loaders=[...])` overrides it, and `install(loaders=[])` disables it. The plugin reads
 its option keys and the `loader` section from the same file without conflicting with the CLI's own keys.
 
 ## Preconditions and side effects

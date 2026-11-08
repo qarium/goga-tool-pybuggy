@@ -300,7 +300,7 @@ Annotations: |
     Use `testcontainers` for the container-host override seam of the address normalization.
     Use `pybuggy-web` from Imports for the consumer patterns of the web test kind.
 
-"SandboxPlugin()":
+"SandboxPlugin(*, context: dict, loaders: list[BaseLoader] | None = None)":
   location: sandbox_plugin.py
   annotations: |
     Pluginator plugin exposing the product-owned sandbox fixtures. The sandbox document
@@ -314,6 +314,11 @@ Annotations: |
     at construction (`discovery`): the one install-time step besides the activation, running
     synchronously because pytest reads pytest_plugins once the conftest import finishes. The
     section is tolerated by the config cell's validator as a foreign top-level key.
+
+    `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is
+    populated on construction.
+    `loaders`: explicit loaders in addition to the loader section; none by default — the sandbox
+    kind carries no default package.
 
     Algorithm (constructor):
     1. Read the loader section of the document through the guarded `loader_section_of` — an
@@ -366,7 +371,7 @@ Annotations: |
 
       `request`: the fixture request of the test being set up.
 
-"WebPlugin()":
+"WebPlugin(*, context: dict, loaders: list[BaseLoader] | None = None)":
   location: web_plugin.py
   annotations: |
     Pluginator plugin of the web test kind: the web fixture, the fixed web.yml key set
@@ -391,6 +396,11 @@ Annotations: |
     packages/modules a project wires in — feeds the shared fixture discovery at construction
     (`discovery`): the one install-time step besides the activation, running synchronously
     because pytest reads pytest_plugins once the conftest import finishes.
+
+    `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is
+    populated on construction.
+    `loaders`: explicit loaders in addition to the loader section; none by default — the web
+    kind carries no default package.
 
     Algorithm:
     1. Declare the 20 directive options — one per config member of the cell's `WebConfigKeys`
