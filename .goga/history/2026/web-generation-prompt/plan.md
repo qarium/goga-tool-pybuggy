@@ -653,14 +653,14 @@ behavior (backward compatibility — every existing call site unchanged). Touche
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)** — declare this task (`Task 3: build_pretty_config prompt_extra`)
+- [x] **STEP 0 (DECLARATION)** — declare this task (`Task 3: build_pretty_config prompt_extra`)
   and its target files (`goga_tool_pybuggy/web/pretty.py`, `tests/web/test_pretty.py`)
-- [ ] **STEP 1 (CONTRACT TESTS)** — in `tests/web/test_pretty.py` (`TestBuildPrettyConfigContract`),
+- [x] **STEP 1 (CONTRACT TESTS)** — in `tests/web/test_pretty.py` (`TestBuildPrettyConfigContract`),
   add `test_build_pretty_config_declares_the_prompt_extra_parameter`: via
   `inspect.signature(build_pretty_config)` assert the parameter list is
   `["config", "strict_flag", "interactive_flag", "prompt_extra"]` with
   `prompt_extra` defaulting to `""` (expected to fail now — the parameter does not exist)
-- [ ] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/web/pretty.py`: change the
+- [x] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/web/pretty.py`: change the
   signature to
   `def build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_flag: bool, prompt_extra: str = "") -> PrettyConfig:`
   and insert the join after the mode OR-forcing and before the constructor call:
@@ -674,7 +674,7 @@ behavior (backward compatibility — every existing call site unchanged). Touche
   (document prompt first, extras second, empty parts skipped, both empty → `""` still set
   explicitly). Extend the docstring `Args` with `prompt_extra` and one sentence for the
   join semantics; nothing else changes
-- [ ] **STEP 2a (REPL CYCLE)** — evaluate the join live (fresh interpreter; reload after
+- [x] **STEP 2a (REPL CYCLE)** — evaluate the join live (fresh interpreter; reload after
   edits):
 
   ```
@@ -697,11 +697,11 @@ behavior (backward compatibility — every existing call site unchanged). Touche
   Expected: `'global instructions\nper-test quirk'`; the default call keeps
   `'global instructions'`; both-empty keeps `''` with `model_fields_set` complete. Iterate
   until every observation matches, then confirm the migrated source carries it
-- [ ] **STEP 3 (INTERFACE VERIFICATION)** —
+- [x] **STEP 3 (INTERFACE VERIFICATION)** —
   `/workspace/.venv/bin/pytest tests/web/test_pretty.py -v` — the signature contract test
   passes; all pre-existing `build_pretty_config` tests (field mapping, OR semantics,
   all-fields materialization) stay green
-- [ ] **STEP 4 (LOGIC TESTS)** — add to `TestBuildPrettyConfigLogic` (assertions exactly as
+- [x] **STEP 4 (LOGIC TESTS)** — add to `TestBuildPrettyConfigLogic` (assertions exactly as
   the design specifies):
   - `test_build_pretty_config_prompt_extra_appends_to_document_prompt` — config validated
     from `{"provider": "openai", "generation_prompt": "global instructions",
@@ -718,16 +718,16 @@ behavior (backward compatibility — every existing call site unchanged). Touche
     `result.generation_prompt == ""` **and**
     `result.model_fields_set == set(PrettyConfig.model_fields)` (the all-fields
     materialization survives the new computation)
-- [ ] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/web/test_pretty.py -v` —
+- [x] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/web/test_pretty.py -v` —
   fix the implementation (never the tests) until all pass
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: default path byte-identical;
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: default path byte-identical;
   join inside the constructor materialization (not applied after construction); purity (no
   env/pyproject reads); no normalization beyond the empty-part skip
-- [ ] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/web tests/web`
+- [x] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/web tests/web`
   and `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/web tests/web` (R3)
-- [ ] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
+- [x] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
   gate
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 4: Web cell facade — re-export `generation_prompt` from `goga_tool_pybuggy.web` (infrastructure)
 

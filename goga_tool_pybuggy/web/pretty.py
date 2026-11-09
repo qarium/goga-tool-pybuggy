@@ -15,7 +15,9 @@ import pytest
 from prettyplay import BrowserConfig, PrettyConfig
 
 
-def build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_flag: bool) -> PrettyConfig:
+def build_pretty_config(
+    config: PrettyConfig, strict_flag: bool, interactive_flag: bool, prompt_extra: str = ""
+) -> PrettyConfig:
     """Materialize the validated web config with the resolved strict and interactive modes.
 
     Args:
@@ -23,6 +25,9 @@ def build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_fla
         strict_flag: The effective strict override — True forces strict even when the document
             says false.
         interactive_flag: The effective interactive override — the same form.
+        prompt_extra: The per-test extra generation instructions — the non-empty parts of the
+            document generation prompt and this text join with a single newline, document
+            first.
 
     Returns:
         The explicitly constructed prettyplay config — the complete effective settings, adopted
@@ -34,6 +39,8 @@ def build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_fla
 
     fields["strict"] = config.strict or strict_flag
     fields["interactive"] = config.interactive or interactive_flag
+
+    fields["generation_prompt"] = "\n".join(part for part in (config.generation_prompt, prompt_extra) if part)
 
     return PrettyConfig(browser=browser, **fields)
 

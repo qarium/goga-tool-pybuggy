@@ -1,6 +1,8 @@
 """Tests for the `goga_tool_pybuggy.web.pretty` module (the settings materialization and the
 per-test generation-prompt declaration)."""
 
+import inspect
+
 import pytest
 from goga_tool_pybuggy.web.pretty import build_pretty_config, generation_prompt
 from prettyplay import BrowserConfig, PrettyConfig
@@ -83,6 +85,13 @@ class TestBuildPrettyConfigContract:
 
         assert isinstance(build_pretty_config(config, False, False), PrettyConfig)
 
+    def test_build_pretty_config_declares_the_prompt_extra_parameter(self):
+        """The signature declares the defaulted `prompt_extra` parameter in the last slot."""
+        signature = inspect.signature(build_pretty_config)
+
+        assert list(signature.parameters) == ["config", "strict_flag", "interactive_flag", "prompt_extra"]
+        assert signature.parameters["prompt_extra"].default == ""
+
 
 class TestBuildPrettyConfigLogic:
     """Logic tests for the field mapping, the OR semantics, and the explicit materialization."""
@@ -135,3 +144,41 @@ class TestBuildPrettyConfigLogic:
 
         assert build_pretty_config(config, flag, False).strict == expected
         assert build_pretty_config(config, False, flag).interactive == expected
+
+    def test_build_pretty_config_prompt_extra_appends_to_document_prompt(self):
+        """Extras append after the document prompt — a single newline between, both kept."""
+        config = PrettyConfig.model_validate(
+            {"provider": "openai", "generation_prompt": "global instructions", "browser": {"name": "chromium"}}
+        )
+
+        result = build_pretty_config(config, False, False, prompt_extra="per-test quirk")
+
+        assert result.generation_prompt == "global instructions\nper-test quirk"
+
+    def test_build_pretty_config_prompt_extra_alone_when_document_prompt_empty(self):
+        """An empty document prompt is skipped — the extras stand alone with no leading newline."""
+        config = PrettyConfig.model_validate({"provider": "openai"})
+
+        result = build_pretty_config(config, False, False, prompt_extra="only extras")
+
+        assert result.generation_prompt == "only extras"
+
+    def test_build_pretty_config_without_prompt_extra_keeps_document_prompt(self):
+        """The positional three-argument call is unchanged — the document prompt and OR forcing hold."""
+        config = PrettyConfig.model_validate(
+            {"provider": "openai", "generation_prompt": "global instructions", "browser": {"name": "chromium"}}
+        )
+
+        result = build_pretty_config(config, True, False)
+
+        assert result.generation_prompt == "global instructions"
+        assert result.strict is True
+
+    def test_build_pretty_config_both_prompts_empty_keeps_library_default(self):
+        """Both parts empty keep the library default — and the all-fields materialization survives."""
+        config = PrettyConfig.model_validate({"provider": "openai"})
+
+        result = build_pretty_config(config, False, False)
+
+        assert result.generation_prompt == ""
+        assert result.model_fields_set == set(PrettyConfig.model_fields)
