@@ -209,18 +209,26 @@ def _wire_recording_prettyplay(monkeypatch: pytest.MonkeyPatch) -> list[_Recordi
     return made
 
 
-def _request_for(path: str, name: str, originalname: str | None = None) -> SimpleNamespace:
+def _request_for(
+    path: str, name: str, originalname: str | None = None, markers: list[pytest.Mark] | None = None
+) -> SimpleNamespace:
     """Build a request double whose node carries the addressing attributes of a test item.
 
     Args:
         path: The module file path of the test item.
         name: The node name of the test item (parametrize-aware).
         originalname: The parametrize-agnostic name; ``None`` omits the attribute.
+        markers: The marks of the test item in collection order (bottom decorator first);
+            ``None`` serves the empty list.
 
     Returns:
         The request double the fixture reads ``node`` from.
     """
-    node: dict[str, Any] = {"path": Path(path), "name": name}
+    node: dict[str, Any] = {
+        "path": Path(path),
+        "name": name,
+        "iter_markers": lambda name_: [m for m in (markers or []) if m.name == name_],
+    }
 
     if originalname is not None:
         node["originalname"] = originalname
@@ -908,6 +916,76 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].config.cache_root == str(Path("/elsewhere/tests").resolve())
+
+    def test_web_fixture_collects_prompt_extras_in_written_order(self, monkeypatch: pytest.MonkeyPatch):
+        """The marker texts apply in written order (top decorator first), joined by one newline."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(monkeypatch, document={"provider": "openai", "browser": {"name": "chromium"}})
+        made = _wire_recording_prettyplay(monkeypatch)
+        markers = [
+            pytest.mark.pybuggy_generation_prompt(text="bottom text").mark,
+            pytest.mark.pybuggy_generation_prompt(text="top text").mark,
+        ]
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a", markers=markers)
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.generation_prompt == "top text\nbottom text"
+        assert made[0].cleanup is False
+        assert made[0].cache_key == "test_a"
+
+    def test_web_fixture_appends_extras_to_the_document_prompt(self, monkeypatch: pytest.MonkeyPatch):
+        """The document prompt comes first, the per-test extras second, one newline between."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={
+                "provider": "openai",
+                "generation_prompt": "global instructions",
+                "browser": {"name": "chromium"},
+            },
+        )
+        made = _wire_recording_prettyplay(monkeypatch)
+        markers = [
+            pytest.mark.pybuggy_generation_prompt(text="extra two").mark,
+            pytest.mark.pybuggy_generation_prompt(text="extra one").mark,
+        ]
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a", markers=markers)
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.generation_prompt == "global instructions\nextra one\nextra two"
+
+    def test_web_fixture_without_markers_builds_the_unchanged_config(self, monkeypatch: pytest.MonkeyPatch):
+        """No markers — the runtime config is exactly the activation, no cross-test leakage."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(monkeypatch, document={"provider": "openai", "browser": {"name": "chromium"}})
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.generation_prompt == plugin.activation.generation_prompt == ""
+        assert made[0].config.provider == "openai"
+
+    def test_web_fixture_ignores_a_marker_without_the_text_kwarg(self, monkeypatch: pytest.MonkeyPatch):
+        """A hand-written marker without ``text`` contributes nothing — never a setup crash."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(monkeypatch, document={"provider": "openai", "browser": {"name": "chromium"}})
+        made = _wire_recording_prettyplay(monkeypatch)
+        markers = [
+            pytest.mark.pybuggy_generation_prompt.mark,
+            pytest.mark.pybuggy_generation_prompt(text="real text").mark,
+        ]
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a", markers=markers)
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.generation_prompt == "real text"
 
 
 class TestWebPluginDiscovery:

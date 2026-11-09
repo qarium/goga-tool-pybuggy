@@ -376,9 +376,10 @@ class WebPlugin:
 
         The cache address derives from the requesting item itself — the root is the activation's
         ``cache_root`` when set, otherwise the absolute directory of the test's own module file
-        (never the cwd); the path is parametrize-agnostic, the key parametrize-aware. Cleanup is
-        disabled: the persistence mode of the committed-cache workflow keeps every cached file of
-        the test's key.
+        (never the cwd); the path is parametrize-agnostic, the key parametrize-aware. The item's
+        ``pybuggy_generation_prompt`` marker texts join (written order, top decorator first) into
+        the generation prompt of exactly this test. Cleanup is disabled: the persistence mode of
+        the committed-cache workflow keeps every cached file of the test's key.
 
         Args:
             request: The fixture request of the test being set up.
@@ -391,7 +392,10 @@ class WebPlugin:
         item = request.node
         root = activation.cache_root or str(item.path.parent.resolve())
 
-        config = build_pretty_config(activation, self.strict, self.interactive)
+        texts = [marker.kwargs.get("text", "") for marker in item.iter_markers("pybuggy_generation_prompt")]
+        extras = "\n".join(text for text in reversed(texts) if text)
+
+        config = build_pretty_config(activation, self.strict, self.interactive, prompt_extra=extras)
 
         if not activation.cache_root:
             config = config.model_copy(update={"cache_root": root})

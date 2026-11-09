@@ -883,10 +883,10 @@ every existing fixture test with an `AttributeError`. Touches only
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)** — declare this task (`Task 6: WebPlugin.web prompt extras`)
+- [x] **STEP 0 (DECLARATION)** — declare this task (`Task 6: WebPlugin.web prompt extras`)
   and its target files (`goga_tool_pybuggy/plugins/web_plugin.py`,
   `tests/plugins/test_web_plugin.py`)
-- [ ] **STEP 1 (CONTRACT TESTS → the double extension + the design's fixture scenarios)** —
+- [x] **STEP 1 (CONTRACT TESTS → the double extension + the design's fixture scenarios)** —
   in `tests/plugins/test_web_plugin.py`:
   - Extend the `_request_for` double (General Setup, verbatim from the design): signature
     `_request_for(path, name, originalname=None, markers: list[pytest.Mark] | None = None)`;
@@ -906,7 +906,7 @@ every existing fixture test with an `AttributeError`. Touches only
     `next(WebPlugin.web.__wrapped__(plugin, request))` yields
     `made[0].config.generation_prompt == "top text\nbottom text"`,
     `made[0].cleanup is False`, `made[0].cache_key == "test_a"`
-- [ ] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/plugins/web_plugin.py`, inside the
+- [x] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/plugins/web_plugin.py`, inside the
   `web` fixture after the cache-address lines and before the `build_pretty_config` call:
 
   ```python
@@ -920,7 +920,7 @@ every existing fixture test with an `AttributeError`. Touches only
   the `PrettyPlay` construction, the guarded allure hooks, the debug log, enter/yield/close —
   is unchanged; one docstring sentence naming the extras collection is allowed; **no new log
   lines** — the prompt text is deliberately not logged)
-- [ ] **STEP 2a (REPL CYCLE)** — evaluate the collection + composition live (fresh
+- [x] **STEP 2a (REPL CYCLE)** — evaluate the collection + composition live (fresh
   interpreter; reload after edits):
 
   ```
@@ -952,10 +952,10 @@ every existing fixture test with an `AttributeError`. Touches only
 
   Expected: `extras: 'extra one\nextra two'` (reversed to written order, top first);
   `composed: 'global instructions\nextra one\nextra two'`. Iterate until both match
-- [ ] **STEP 3 (INTERFACE VERIFICATION)** —
+- [x] **STEP 3 (INTERFACE VERIFICATION)** —
   `/workspace/.venv/bin/pytest tests/plugins/test_web_plugin.py -v` — the new test passes;
   all existing fixture tests stay green
-- [ ] **STEP 4 (LOGIC TESTS)** — add to `TestWebPluginWebFixture` (assertions exactly as the
+- [x] **STEP 4 (LOGIC TESTS)** — add to `TestWebPluginWebFixture` (assertions exactly as the
   design specifies; all with allure forced absent + recording PrettyPlay):
   - `test_web_fixture_appends_extras_to_the_document_prompt` — document
     `{"provider": "openai", "generation_prompt": "global instructions",
@@ -974,19 +974,19 @@ every existing fixture test with an `AttributeError`. Touches only
     `mark(text="real text")` in collection order; texts `["", "real text"]` → reversed →
     filtered → `made[0].config.generation_prompt == "real text"` (the defensive `.get` must
     neither crash the setup nor blank the real declarations)
-- [ ] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/plugins/test_web_plugin.py -v`
+- [x] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/plugins/test_web_plugin.py -v`
   — fix the implementation (never the tests) until all pass; then
   `/workspace/.venv/bin/pytest tests/ -x` — the whole suite green
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: written order (top first);
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: written order (top first);
   `""` without markers; `prompt_extra` keyword form; total collection (`.get` default);
   no text normalization in the fixture; the activation and the plugin options never mutated
   (locals only); `model_copy` preserves the computed prompt; unchanged error semantics of
   `_require_activation`
-- [ ] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/plugins tests/plugins`
+- [x] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/plugins tests/plugins`
   and `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/plugins tests/plugins` (R3)
-- [ ] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
+- [x] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
   gate
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 7: Root facade — re-export `generation_prompt` beside `services` (TDD coding)
 
