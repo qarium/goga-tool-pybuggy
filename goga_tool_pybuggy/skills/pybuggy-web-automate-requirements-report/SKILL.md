@@ -13,22 +13,26 @@ description: Assemble the final "Detailed web topic requirements" artifact and s
 
 1. Собери выводы всех предыдущих шагов: [INTAKE_REPORT], [EXPLORE_REPORT], [ELABORATION_REPORT].
 2. Синтезируй их в единый артефакт [TOPIC_SPEC].
-3. Назначь каждому требованию §3 стабильный идентификатор `REQ-<N>` — на него ссылаются тест-кейсы
-   и матрица покрытия требований. Правила:
+3. Назначь каждому требованию §3 стабильный идентификатор `REQ-<N>` — на него ссылается сессионный
+   реестр покрытия фазы routines design. Правила:
     - нумеруй последовательно внутри §3, начиная с 1, без пропусков и дублей;
     - порядок нумерации по подразделам: "Main behavior" → "Error behavior (contract)" →
       "Acceptance criteria" → "Constraints and boundaries";
     - идентификаторы вводятся только в §3 — §4 (предусловия) и §5 (роли) остаются текстовыми.
 4. Назначь каждой странице §2 стабильный идентификатор `PAGE-<N>` (порядок — как в [EXPLORE_REPORT]);
-   на него ссылаются кейсы (поле page) и границы ячеек.
+   на него ссылаются рутины (стартовые URL) и границы ячеек.
 5. Включай только проверенные факты — из досье [EXPLORE_REPORT] и решения пользователя из
    [ELABORATION_REPORT]. Не выдумывай.
 6. Скопируй факты веб-рантайма из [INTAKE_REPORT] в §1 ("Web runtime") и §4 — **дословно**
-   (browser, headless, endpoint, provider, generation model). Нижестоящие пайплайны читают их отсюда.
+   (provider, generation model — LLM-факты генерации шагов). Нижестоящие пайплайны читают их отсюда.
 7. Скопируй целевое окружение из [INTAKE_REPORT] в §1 ("Target environment") и §4 — дословно, с
    подтверждённым решением пользователя. Правило веб-тестов: шаги несут **полные URL**, никакой
    base_url-шаблонизации — смена окружения означает смену предложений шагов; каждая записанная
-   команда прогона — `pytest tests/web/<cell>/ -q` (без `--strict-mode` на первом прогоне).
+   команда прогона — `pytest tests/web/<cell>/ -q` (без `--strict-mode` на первом прогоне)
+   + суффикс Browser Endpoint (см. ниже), если задан. Скопируй решение Browser Endpoint из
+   [INTAKE_REPORT] в §1 ("Browser endpoint") и §4: адрес от пользователя добавляет в каждую
+   записанную команду прогона суффикс `--browser-endpoint <адрес>`; «из конфига» — без суффикса.
+   Исследование и прогоны используют один браузер.
 8. Скопируй описание топика из секции "Original Request" [INTAKE_REPORT] в §1 дословно — стадия
    testcases сопоставляет это описание с досье страниц.
 9. Скопируй механизм авторизации из [INTAKE_REPORT]/[EXPLORE_REPORT] в §4 ("Auth") дословно:
@@ -59,16 +63,18 @@ description: Assemble the final "Detailed web topic requirements" artifact and s
 - **Service:** [Краткое описание сайта/сервиса]
 - **Topic description (verbatim):** [Исходный запрос пользователя — из intake "Original Request"]
 - **Topic goal:** [Уточнённая цель]
-- **Web runtime:** [Дословно из .goga/tools/pybuggy/web.yml: browser.name, browser.headless,
-  browser.endpoint (если задан), provider, generation_model]
+- **Web runtime:** [Дословно из .goga/tools/pybuggy/web.yml: provider, generation_model —
+  LLM-факты генерации шагов]
+- **Browser endpoint:** [«из конфига» (`browser.endpoint: <значение>`) | `<ws(s)://… | http(s)://…>`
+  от пользователя; суффикс команд прогона: без флага | `--browser-endpoint <адрес>` —
+  адрес браузера для исследования и прогонов, не тестируемый сайт]
 - **Target environment:** [Полные базовые URL тестируемого окружения (прод/stage/feature-деплой).
   Правило: шаги веб-тестов несут полные URL — смена окружения означает смену предложений шагов;
-  записанные команды прогона — `pytest tests/web/<cell>/ -q`]
-- **Viewport/Device:** [desktop | mobile]
+  записанные команды прогона — `pytest tests/web/<cell>/ -q` + суффикс Browser endpoint]
 
 **2. Topic pages:**
 
-Каждая страница несёт стабильный идентификатор `PAGE-<N>` — на него ссылаются кейсы и ячейки.
+Каждая страница несёт стабильный идентификатор `PAGE-<N>` — на него ссылаются рутины и ячейки.
 
 | PAGE | URL (итоговый) | Title | Назначение | Роль в топике |
 |------|----------------|-------|------------|---------------|
@@ -80,7 +86,7 @@ description: Assemble the final "Detailed web topic requirements" artifact and s
 **3. Functional requirements:**
 
 Каждое требование несёт стабильный идентификатор `REQ-<N>` (последовательная нумерация внутри §3
-в порядке подразделов, без пропусков и дублей) — реестр для трассируемости тест-кейсов.
+в порядке подразделов, без пропусков и дублей) — реестр для трассируемости рутин.
 
 - **Main behavior:**
     - `REQ-1` — [Сценарий/правило: условие → ожидаемое поведение страницы]
@@ -98,6 +104,7 @@ description: Assemble the final "Detailed web topic requirements" artifact and s
   источник креденшалов: env `<имена>` / пользователь. Значений секретов НЕТ]
 - Target environment: [полные URL тестируемого окружения]
 - Web runtime: [дословно из web.yml — повтор пункта §1]
+- Browser endpoint: [повтор пункта §1 — «из конфига» | адрес + суффикс `--browser-endpoint <адрес>`]
 
 **5. Roles and permissions:**
 
@@ -118,7 +125,7 @@ description: Assemble the final "Detailed web topic requirements" artifact and s
 | `<key>` | [.goga/usages/…] | [runtime reference / data-mocks-utilities / other] | [предметная область — фраза] |
 
 Реестр — результат сканирования `.goga/usages/` целевого проекта. Это **справочник доступных
-активов**, а не выбор инструментов: потребности кейсов согласуются с инструментами (существующими
+активов**, а не выбор инструментов: потребности тестов согласуются с инструментами (существующими
 или новыми) на стадии testcases — там же создаются usage-файлы новых библиотек
 (`.goga/usages/cooks/<key>.md`). Если `.goga/usages/` пуст — напиши "no usages".
 

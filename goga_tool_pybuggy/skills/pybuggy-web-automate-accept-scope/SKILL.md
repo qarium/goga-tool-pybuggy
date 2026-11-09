@@ -17,19 +17,18 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 
 Для текущего топика проверь существование и загрузи:
 
-1. Путь, напечатанный `goga history path -f testcases.md` — кейсы (TC-<N>) и матрица REQ→TC.
-2. Путь, напечатанный `goga history path -f arch.md` — план ячеек (контекст: ожидаемый состав
-   ячеек/Routine для кросс-чека).
-3. `tests/web/<cell>/CODEMANIFEST` — все ячейки топика. Источник истины о составе — CODEMANIFEST
-   на диске (фактическое состояние); план arch.md — ожидание для кросс-чека.
-4. Сгенерированные `test_<name>.py` — по `location` каждой Routine.
-5. **Кеши шагов**: `tests/web/<cell>/test_<name>/` на каждый тест (создаются первым, генерирующим
+1. Путь, напечатанный `goga history path -f requirements.md` — §1 Browser endpoint / Target
+   environment и §2 страницы (для URL-сверки).
+2. `tests/web/<cell>/CODEMANIFEST` — все ячейки топика. Источник истины о составе — CODEMANIFEST
+   на диске (фактическое состояние).
+3. Сгенерированные `test_<name>.py` — по `location` каждой Routine.
+4. **Кеши шагов**: `tests/web/<cell>/test_<name>/` на каждый тест (создаются первым, генерирующим
    прогоном на `goga build`); зафиксируй наличие/отсутствие и наполненность каждого.
-6. `conftest.py` в корне — проверь наличие (загрузка `.env` + pybuggy-плагин с веб-фикстурой).
-7. Документ `.goga/tools/pybuggy/web.yml` — факт активации веб-рантайма.
-8. Usage-файлы: базовый `.goga/usages/cooks/pybuggy/pybuggy-web.md` + cell-specific
+5. `conftest.py` в корне — проверь наличие (загрузка `.env` + pybuggy-плагин с веб-фикстурой).
+6. Документ `.goga/tools/pybuggy/web.yml` — факт активации веб-рантайма.
+7. Usage-файлы: базовый `.goga/usages/cooks/pybuggy/pybuggy-web.md` + cell-specific
    `.goga/usages/cooks/<key>.md` (ключи из Header каждой ячейки).
-9. Путь, напечатанный `goga history path -f bugs.md` — проверь существующий файл багов (цель
+8. Путь, напечатанный `goga history path -f bugs.md` — проверь существующий файл багов (цель
    дописывания рекордов).
 
 ### Step 2. Extract Routines and build the trace
@@ -37,12 +36,9 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 Из CODEMANIFEST каждой ячейки:
 
 1. Имена Routine `test_<name>` и их `location: test_<name>.py`.
-2. Соотнеси с кейсами из `goga history path -f testcases.md`: кейс покрыт напрямую Routine или
-   вариантом параметризованной Routine (варианты — из аннотаций `Data:`/`Steps:`). Одна Routine
-   может покрывать несколько кейсов.
-3. Пометь Routine слитых ячеек: добавленные в существующую ячейку поверх прошлых топиков — в объём
-   приёмки этого топика входят только Routine из текущего плана arch.md.
-4. К каждой Routine — статус кеша шагов: каталог существует и не пуст / отсутствует.
+2. Построй трассу Routine → `test_<name>.py`: каждая Routine из CODEMANIFEST обязана иметь
+   материализованный тест-файл.
+3. К каждой Routine — статус кеша шагов: каталог существует и не пуст / отсутствует.
 
 ### Step 3. Determine the run command
 
@@ -50,11 +46,14 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
    (`tests/web/` целиком или `tests/web/<cell>/` по ячейке). Строгий режим оправдан: первый
    (генерирующий) прогон уже сделан на `goga build`, кеш на месте — strict даёт 0 LLM-вызовов и
    проверяет полноту кеша.
-2. Если у какого-то теста кеш отсутствует — зафиксируй: прогон строгий, но cache-miss по этому
+2. Добавь суффикс из Browser endpoint требований §1: адрес от пользователя →
+   `--browser-endpoint <адрес>`; «из конфига» — без флага. Прогоны и исследование используют
+   один браузер.
+3. Если у какого-то теста кеш отсутствует — зафиксируй: прогон строгий, но cache-miss по этому
    тесту ожидаем (догенерация — по решению триажа в accept-run).
-3. Зафиксируй корень прогона: каталог с `conftest.py` (pytest запускается оттуда).
-4. Запиши окружение: браузер/endpoint из требований §1 (факты веб-рантайма), доступность сайта —
-   не проверяй здесь (это делает run).
+4. Зафиксируй корень прогона: каталог с `conftest.py` (pytest запускается оттуда).
+5. Запиши окружение: браузер/endpoint из требований §1 (Browser endpoint + факты веб-рантайма),
+   доступность сайта — не проверяй здесь (это делает run).
 
 ### Step 4. Acceptance scope viability checks
 
@@ -66,7 +65,7 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 
 STOP if:
 
-- артефакты топика не найдены (нет ни testcases, ни CODEMANIFEST-ячеек);
+- артефакты топика не найдены (нет ни requirements.md, ни CODEMANIFEST-ячеек);
 - сгенерированных тест-файлов нет вообще (фаза `goga build` не исполнялась).
 
 ---
@@ -86,17 +85,14 @@ Fill in every section. Empty sections are prohibited.
 
 [Таблица: Ячейка (tests/web/<cell>/) | Routine | тест-файлы найдены (N/M) | кеш шагов (N/M) | Usage-ключи]
 
-## Trace: testcase → Routine → test file
+## Trace: Routine → test file
 
-[Таблица: TC-<N> | Routine test_<name> | tests/web/<cell>/test_<name>.py | кеш test_<name>/ | Статус (materialized / not)]
-
-## Uncovered testcases
-
-[Кейсы без Routine — из матрицы testcases.md. Напиши `none`, если ничего]
+[Таблица: Routine test_<name> | tests/web/<cell>/test_<name>.py | кеш test_<name>/ | Статус (materialized / not)]
 
 ## Run command
 
-[Команда pytest (строгий режим: pytest tests/web/ -q --strict-mode) и каталог прогона (корень с conftest.py)]
+[Команда pytest (строгий режим: pytest tests/web/ -q --strict-mode [--browser-endpoint <адрес>],
+если Browser endpoint требует суффикс) и каталог прогона (корень с conftest.py)]
 
 ## Environment notes
 

@@ -44,7 +44,7 @@ usages:
   github:
     goga:
       git: git@github.com:qarium/goga.git
-      ref: 2.0.x
+      ref: 2.1.x
       root: goga
 
 codemanifest:

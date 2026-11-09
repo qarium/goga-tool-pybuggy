@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-explore
-description: Live page exploration via playwright-cli — opens the target pages in a named browser session, builds per-page dossiers (final URLs, key elements with stable locators, forms and validations, navigation map, observable states, console/network findings including API endpoints), handles auth without recording secrets, and produces [EXPLORE_REPORT]
+description: Live page exploration via playwright-cli — attaches to the browser from Browser Endpoint ([INTAKE_REPORT]) in a named session, builds per-page dossiers (final URLs, key elements with stable locators, forms and validations, navigation map, observable states, console/network findings including API endpoints), handles auth without recording secrets, and produces [EXPLORE_REPORT]
 ---
 
 # Pybuggy Web Topic Requirements — Explore
@@ -23,15 +23,11 @@ elaborate — здесь они не «исправляются». Секрет�
 ## Командный словарь playwright-cli
 
 Скилл самодостаточен: используемый минимум команд встроен ниже. Если в среде доступен скилл
-`playwright-cli` — загрузи его через Skill tool для полного референса (не критично: алгоритм работает
-и без него).
+`playwright-cli` — загрузи его через Skill tool для полного референса.
 
 - `PLAYWRIGHT_MCP_OUTPUT_DIR=<каталог> playwright-cli -s=pybuggy-explore attach --cdp=<url>` —
-  подключиться к уже запущенному браузеру по CDP-endpoint (основной путь при заданном
-  `browser.endpoint`; локальные бинарники браузера не нужны);
-- `playwright-cli -s=pybuggy-explore open <url> [--browser=<name>] [--mobile]` — открыть сессию
-  локальным браузером (путь при пустом `browser.endpoint`; именованная сессия `-s=` не трогает
-  браузеры пользователя);
+  подключиться к уже запущенному браузеру по адресу из Browser Endpoint ([INTAKE_REPORT]);
+  `ws(s)://` — флаг `--endpoint=` вместо `--cdp=`;
 - `playwright-cli -s=pybuggy-explore goto <url>` — переход; печатает итоговый URL и title страницы;
 - `playwright-cli -s=pybuggy-explore snapshot [--depth=N] [ref]` — снапшот доступности с рефами `e<N>`
   (после каждой команды снапшот печатается автоматически);
@@ -45,10 +41,7 @@ elaborate — здесь они не «исправляются». Секрет�
 - `playwright-cli -s=pybuggy-explore tab-list | tab-select 0` — вкладки (держи одну);
 - `playwright-cli -s=pybuggy-explore state-save auth.json` / `state-load auth.json` — сохранить/загрузить
   состояние авторизации;
-- `playwright-cli -s=pybuggy-explore detach` — отключиться от attached-браузера, не закрывая его
-  (гигиена attached-сессии: всегда в конце, включая STOP);
-- `playwright-cli -s=pybuggy-explore close` — закрыть локально открытую сессию (не применяй к
-  attached-браузеру — это закроет браузер пользователя);
+- `playwright-cli -s=pybuggy-explore detach` — отключиться от attached-браузера, не закрывая его;
 - `playwright-cli list` — список открытых сессий.
 
 ---
@@ -57,57 +50,42 @@ elaborate — здесь они не «исправляются». Секрет�
 
 ### Шаг 0. Проверки до исследования
 
-1. **Доступность CLI**: выполни `playwright-cli --version`. Команда не найдена — проверь
-   `npx --no-install playwright --version`; если локальная версия есть, все команды выполняются как
-   `npx playwright cli <cmd>`. Оба недоступны — **STOP**: обычно CLI ставится post-install хуком
-   pybuggy при `goga install`; попроси пользователя выполнить fallback
-   `npm install -g @playwright/cli && playwright-cli install --skills --global` (в окружении нужен
-   node/npm).
-2. **Факты веб-рантайма**: прочитай `.goga/tools/pybuggy/web.yml` из [INTAKE_REPORT]:
-   - `browser.name` → флаг локального запуска: `chromium` — без флага (дефолт); `firefox`/`webkit`/`chrome`/`msedge` —
-     `--browser=<name>` (только для пути `open`);
-   - `browser.endpoint` — если задан, исследование **подключается к endpoint-браузеру** через
-     `attach` (bootstrap — п.5 ниже); пустой — локальный запуск `open`;
-   - файла нет — **STOP** (верни в intake).
+1. **Доступность CLI**: выполни `playwright-cli --version`. Недоступна — **STOP** (CLI ставится при
+   `goga install`).
+2. **Эндпоинт браузера**: секция Browser Endpoint из [INTAKE_REPORT] обязана содержать адрес
+   («из конфига» или от пользователя) — исследование **подключается к нему** через `attach`
+   (bootstrap — п.5 ниже). Секции нет / без адреса — **STOP** (верни в intake).
 3. **Целевые URL**: возьми таблицу Target Pages из [INTAKE_REPORT]. Пусто — **STOP**: вернись в intake.
 4. **Скилл-референс**: попытайся загрузить `playwright-cli` через Skill tool (если недоступен — продолжай
    по встроенному словарю).
-5. **Bootstrap сессии** (при заданном `browser.endpoint`) — предвыполненные команды до первого
-   `goto`, одним вызовом Bash (env и переменные между вызовами не живут):
+5. **Bootstrap сессии** — предвыполненные команды до первого `goto`, одним вызовом Bash
+   (env и переменные между вызовами не живут):
 
    ```bash
-   IP="$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1; exit}')"
    PLAYWRIGHT_MCP_OUTPUT_DIR="$(goga history path 2>/dev/null)/playwright" \
-     playwright-cli -s=pybuggy-explore attach --cdp="http://${IP:-host.docker.internal}:9222"
+     playwright-cli -s=pybuggy-explore attach --cdp=<адрес из Browser Endpoint>
    ```
 
    - `PLAYWRIGHT_MCP_OUTPUT_DIR` — артефакты сессии (скриншоты/трейсы) пишутся в
      `<история топика>/playwright/`;
-   - `getent` резолвит `host.docker.internal` в IP хоста внутри Docker; вне Linux его нет —
-     подстановка пуста, fallback `${IP:-host.docker.internal}` оставляет имя как есть;
-   - хост и порт — из `browser.endpoint`: `http(s)://` — CDP → `--cdp=`; `ws(s)://` — Playwright
-     server → `--endpoint=` вместо `--cdp=`;
-   - `browser.endpoint` пустой — bootstrap пропускается, сессия открывается локально
-     (`open <первый URL> [--browser=<name>]`);
-   - attach недоступен (браузер хоста не запущен / порт закрыт) — **STOP** с AskUserQuestion:
-     «поднять браузер хоста с remote debugging» / «исследовать локальным браузером» — как поступить?
+   - адрес `http(s)://` — CDP → `--cdp=`; `ws(s)://` — Playwright server → `--endpoint=` вместо
+     `--cdp=`; адрес с `host.docker.internal` внутри Docker резолвится в IP хоста через
+     `getent hosts host.docker.internal` (вне Linux `getent` пуст — используй имя как есть);
+   - attach недоступен (браузер не запущен / порт закрыт) — **STOP** с AskUserQuestion:
+     «поднять браузер по адресу с remote debugging» / «другой адрес (возврат в intake)» —
+     как поступить?
 6. **Достижимость**: в подключённой сессии выполни `goto` на первый URL. Таймаут/DNS/5xx — одна повторная
    попытка (`reload`). Неудача — **STOP** с AskUserQuestion: «URL неверный» / «окружение не поднято» /
    «нужен VPN/доступ» — как поступить?
 
 ## Стратегия сессии
 
-- Одна именованная сессия на всё исследование: при заданном `browser.endpoint` — подключение
-  `attach` (браузер внешний, хоста; локальные бинарники не нужны); при пустом — локальный запуск
-  `playwright-cli -s=pybuggy-explore open <первый URL> [--browser=<name>]`.
-- Мобильная эмуляция `--mobile` — только при `mobile` в [INTAKE_REPORT] и только для локального
-  `open` (переоткрой сессию с флагом); для attached-браузера невозможна — зафиксируй в
-  «Технические находки».
+- Одна именованная сессия на всё исследование: подключение `attach` по адресу из Browser Endpoint
+  ([INTAKE_REPORT]) — браузер всегда внешний, локальные бинарники не нужны.
 - Один таб: pop-up/новое окно фиксируй через `tab-list` в «Технические находки» и возвращайся `tab-select 0`.
-- Гигиена: в конце работы — и на любом STOP — закрой сессию по способу подключения: локальная —
-  `close`, attached — `detach` (не закрывает браузер пользователя).
-  Краш сессии — перезапусти (`close`/`detach`, затем `attach`/`open` + `state-load auth.json`,
-  если авторизация была); после 2 безуспешных перезапусков — **STOP**.
+- Гигиена: в конце работы — и на любом STOP — `detach` (не закрывает браузер пользователя).
+  Краш сессии — перезапусти (`detach`, затем `attach` + `state-load auth.json`, если авторизация
+  была); после 2 безуспешных перезапусков — **STOP**.
 
 ## Бюджет
 
@@ -126,7 +104,7 @@ elaborate — здесь они не «исправляются». Секрет�
 
 ### Шаг 1. Инициализация
 
-Pre-flight (Шаг 0) → сессия подключена (`attach`/`open`), первый URL загружен.
+Pre-flight (Шаг 0) → сессия подключена (`attach`), первый URL загружен.
 
 ### Шаг 2. Досье на каждую целевую страницу (PAGE-<N>)
 
@@ -180,14 +158,13 @@ Pre-flight (Шаг 0) → сессия подключена (`attach`/`open`), �
 
 ### Шаг 5. Завершение
 
-Закрой сессию по способу подключения (`close` — локальная, `detach` — attached). Собери
-[EXPLORE_REPORT].
+Отключись от сессии (`detach`). Собери [EXPLORE_REPORT].
 
 STOP if:
 
-- playwright-cli недоступен (глобально и локально);
+- playwright-cli недоступен;
 - `.goga/tools/pybuggy/web.yml` отсутствует;
-- CDP-endpoint из `browser.endpoint` недоступен для attach, и пользователь не выбрал локальный браузер;
+- адрес из Browser Endpoint недоступен для attach, и пользователь не предложил другой адрес;
 - сайт недостижим после повторной попытки (и пользователь не пояснил, как поступить);
 - все целевые страницы за авторизацией, креденшалы не предоставлены;
 - captcha/2FA без ручного обхода;

@@ -1,45 +1,21 @@
 ---
 name: goga-tool-pybuggy-web-automate-testcases
-description: Web test mega-pipeline — from the requirements artifact to materialized CODEMANIFESTs; the orchestrator builds the test cases (TC-<N>, REQ→TC traceability) first, then distributes them into cells with full CODEMANIFESTs (Routines with step sentences), verifies the plan, and materializes it into tests/web/<cell>/ — all requirements must be covered by test cases
+description: Web test pipeline — from the requirements artifact straight to materialized CODEMANIFESTs; designs Routines (a test case IS a Routine — step sentences, no REQ ids in the manifests) with per-routine user approval, distributes them into cells, and assembles/materializes the CODEMANIFESTs into tests/web/<cell>/ — every requirement §3 must be covered by a Routine (session-time coverage registry)
 ---
 
 # Pybuggy Web Topic Testcases
 
 ## Identity
 
-Ты — оркестратор генерации веб-тест-кейсов и тест-ячеек топика. Ты принимаешь требования топика
-(включая досье страниц), строишь детальные кейсы, раскладываешь их по ячейкам как Routine с
-шагами-предложениями (будущими `web.step(...)`/`web.expect(...)`), верифицируешь план и материализуешь
-CODEMANIFEST-ы в `tests/web/<cell>/`. Границы ячеек — дизайн-решение; 1 кейс = 1 Routine не требуется.
+Ты — оркестратор генерации тест-кейсов топика. Ты принимаешь требования топика, проектируешь
+рутины сразу целиком (тест-кейс = Routine: шаги-предложения, будущие `web.step(...)`/`web.expect(...)`),
+утверждаешь каждую с пользователем, раскладываешь по клеткам и материализуешь CODEMANIFEST-ы в
+`tests/web/<cell>/`.
 
 ## Mission
 
-Создать и материализовать артефакты: «Детальные тест-кейсы топика» (TC-<N>, трассируемость REQ→TC,
-матрица покрытия требований) — по пути, напечатанному `goga history path -f testcases.md`; «План
-тест-ячеек» (полные CODEMANIFEST каждой ячейки) — по пути, напечатанному `goga history path -f arch.md`;
-и сами CODEMANIFEST-ы в `tests/web/<cell>/` целевого проекта. Каждое требование §3 покрыто кейсом.
-
-## Paths
-
-Pipeline input: путь, напечатанный `goga history path -f requirements.md`.
-Pipeline output: пути, напечатанные `goga history path -f testcases.md` и `goga history path -f arch.md`,
-плюс `tests/web/<cell>/CODEMANIFEST` в целевом проекте.
-
-Pre-flight: проверь, что входной путь существует.
-- **Missing** — STOP: сначала запусти пайплайн `goga-tool-pybuggy-web-automate-requirements`.
-- **Exists** — продолжай.
-
-## Context Initialization
-
-До старта пайплайна загрузи контекст через **Skill tool**:
-
-- **`goga-cell`** — DSL-спецификация ячеек и CODEMANIFEST.
-- **`goga-tool-pybuggy-web-cookbook`** — принципы применения DSL к веб-тест-ячейкам.
-- **`goga-cell-python`** — правила Python для CODEMANIFEST (именование, location).
-- **`goga-codemanifest-base`** — базовые usages/annotations из `.goga/config.yml`.
-- **`goga-tool-pybuggy-web-usage`** — референс веб-рантайма pybuggy (фикстура `web`, шаги-предложения).
-
-Используй эти скиллы активно при дизайне и валидации.
+Материализовать `tests/web/<cell>/CODEMANIFEST` в целевом проекте так, чтобы каждое требование §3
+requirements.md было покрыто хотя бы одной Routine.
 
 ## Pipeline
 
@@ -47,80 +23,46 @@ Pre-flight: проверь, что входной путь существует.
 
 - Каждый шаг ОБЯЗАН произвести полный вывод до начала следующего.
 - Каждый шаг — независимая атомарная операция, вызываемая через **Skill tool**.
-- WAIT-gate: шаги 3, 6, 7 и 9 требуют подтверждения пользователя (один вопрос за сообщение, 2–4 варианта).
+- WAIT-gate: шаги 2, 3 (каждая Routine) и 4 требуют подтверждения пользователя (один вопрос за
+  сообщение, 2–4 варианта).
 
 ### Step 1. Intake
 
 - Invoke: `goga-tool-pybuggy-web-automate-testcases-intake`
-- Reads: путь, напечатанный `goga history path -f requirements.md`
 - Output: [TESTCASES_INTAKE]
-- STOP if: requirements.md отсутствует или пуст; в §2 нет страниц; реестр REQ §3 пуст
+- STOP if: requirements.md отсутствует или пуст; в §2 нет страниц; реестр REQ §3 пуст;
+  базовые usages/annotations не резолвятся
 
-### Step 2. Plan
-
-- Invoke: `goga-tool-pybuggy-web-automate-testcases-plan`
-- Reads: [TESTCASES_INTAKE]
-- Output: [TESTCASES_PLAN] — трассы (Вход → Действие → Эффект → Проверка) и матрица кейсов
-- STOP if: не удаётся построить ни одного конкретного сценария
-
-### Step 3. Tools (WAIT)
+### Step 2. Tools
 
 - Invoke: `goga-tool-pybuggy-web-automate-testcases-tools`
-- Reads: [TESTCASES_PLAN], `goga history path -f requirements.md` (§8 — реестр usages)
+- Reads: [TESTCASES_INTAKE]
 - Output: [TOOLS_REPORT] + созданные usage-файлы `.goga/usages/cooks/<key>.md` (новые инструменты)
 - WAIT: согласовать инструменты с пользователем (существующие usages / новые / отложить)
 - STOP if: блокирующая потребность осталась без инструмента после согласования
 
-### Step 4. Write
+### Step 3. Routines design
 
-- Invoke: `goga-tool-pybuggy-web-automate-testcases-write`
-- Reads: [TESTCASES_INTAKE], [TESTCASES_PLAN], [TOOLS_REPORT]
-- Output: [TOPIC_TESTCASES] — сохраняется по пути, напечатанному `goga history path -f testcases.md`
+- Invoke: `goga-tool-pybuggy-web-automate-testcases-routines`
+- Reads: [TESTCASES_INTAKE], [TOOLS_REPORT]
+- Output: [ROUTINES_REPORT]
+- WAIT: пользователь утверждает каждую Routine (правки при необходимости)
 
-### Step 5. Cells Context
+### Step 4. Cell map
 
-- Invoke: `goga-tool-pybuggy-web-automate-cells-context`
-- Reads: [TESTCASES_INTAKE]
-- Output: [CELLS_CONTEXT]
-- STOP if: базовые usages/annotations не резолвятся через `goga-codemanifest-base`
-
-### Step 6. Cell Map (WAIT)
-
-- Invoke: `goga-tool-pybuggy-web-automate-cells-cell-map`
-- Reads: путь, напечатанный `goga history path -f testcases.md`, [CELLS_CONTEXT]
+- Invoke: `goga-tool-pybuggy-web-automate-testcases-cell-map`
+- Reads: [ROUTINES_REPORT], [TESTCASES_INTAKE]
 - Output: [CELL_MAP_REPORT]
-- WAIT: подтвердить с пользователем границы ячеек и распределение кейсов по Routine
-- STOP if: 0 ячеек; пользователь не утверждает
+- WAIT: утвердить раскладку с пользователем (готовый вариант / правки)
+- STOP if: 0 клеток; рутина осталась нераспределённой; пользователь не утверждает
 
-### Step 7. Contracts (WAIT на ячейку)
+### Step 5. Assembly
 
-- Invoke: `goga-tool-pybuggy-web-automate-cells-contracts`
-- Reads: [CELL_MAP_REPORT], [CELLS_CONTEXT], путь, напечатанный `goga history path -f testcases.md`
-- Output: [CONTRACTS_REPORT]
-- WAIT: пользователь утверждает каждый CODEMANIFEST
-- STOP if: DSL-ошибка не устранена; пользователь не утверждает
-
-### Step 8. Assembly
-
-- Invoke: `goga-tool-pybuggy-web-automate-cells-assembly`
-- Reads: [CONTRACTS_REPORT], [CELL_MAP_REPORT]
-- Output: [CELLS_PLAN] — сохраняется по пути, напечатанному `goga history path -f arch.md`
-- STOP if: план неполон; кейс остался непокрыт
-
-### Step 9. Verification (финальный WAIT)
-
-- Invoke: `goga-tool-pybuggy-web-automate-cells-verification`
-- Reads: путь, напечатанный `goga history path -f arch.md`, путь, напечатанный `goga history path -f testcases.md`
-- Output: [VERIFICATION_REPORT]
-- WAIT: финальное утверждение плана пользователем
-- STOP if: DSL-ошибки не устранены; покрытие провалено (кейсы потеряны / висячие Routine); пользователь не утверждает
-
-### Step 10. Apply
-
-- Invoke: `goga-tool-pybuggy-web-automate-apply`
-- Reads: путь, напечатанный `goga history path -f arch.md`
-- Output: [APPLY_REPORT] + `tests/web/<cell>/CODEMANIFEST` в целевом проекте
-- STOP if: DSL-ошибки плана; `goga lint`/`goga schema` красные после материализации
+- Invoke: `goga-tool-pybuggy-web-automate-testcases-assembly`
+- Reads: [ROUTINES_REPORT], [CELL_MAP_REPORT], [TESTCASES_INTAKE] (базовый блок Header, §3)
+- Output: [ASSEMBLY_REPORT] + `tests/web/<cell>/CODEMANIFEST` в целевом проекте
+- STOP if: DSL-ошибка CODEMANIFEST; `goga lint` красный после материализации; REQ §3 остался
+  без Routine
 
 ## Output Rule
 
@@ -131,23 +73,17 @@ Pre-flight: проверь, что входной путь существует.
 
 ### NEVER
 
-- писать код тестов (pytest, playwright, вызовы фикстур, `web.step(...)`) в артефакты кейсов и плана —
-  только описания поведения на естественном языке; предложения шагов появляются только в аннотациях
-  Routine на фазе contracts
-- пропускать шаги пайплайна
-- обходить условие STOP или пропускать WAIT-gate
+- писать тестовый код (pytest, playwright, фикстуры, `__init__.py`)
+- хранить REQ-идентификаторы в CODEMANIFEST
+- писать предложения шагов где-либо, кроме `Steps:` рутин
+- пропускать шаги пайплайна, обходить условие STOP или WAIT-gate
 - оставлять секции вывода пустыми
-- выдумывать данные или поведение — только проверенные факты из артефактов и досье
+- выдумывать данные или поведение — только факты из requirements.md и досье
 
 ### ALWAYS
 
 - исполнять шаги по порядку
-- связывать каждый кейс с требованиями §3 (`REQ-<N>` в поле `requirements`) и строить матрицу покрытия
-  требований — источник истины матрицы: поля `requirements` кейсов
-- связывать каждый кейс со страницей (поле `page` = `PAGE-<N>`)
-- проектировать границы ячеек как дизайн-решение (подтверждение пользователя на WAIT) и распределять
-  кейсы по Routine по критерию линейности
-- материализовывать только DSL-артефакты (CODEMANIFEST) в `tests/web/<cell>/` — без тестового кода
+- покрывать каждый REQ §3 хотя бы одной Routine; параметризация — решение фазы routines design
+  по критерию линейности (совпадающие шаги/проверки, разные данные)
+- предлагать пользователю готовые решения на каждом WAIT; границы ячеек — дизайн-решение
 - после материализации запускать `goga lint` и `goga schema tests/`
-- сохранять артефакты по путям, напечатанным `goga history path -f testcases.md` и `goga history path -f arch.md`
-- задавать открытые вопросы с вариантами ответов

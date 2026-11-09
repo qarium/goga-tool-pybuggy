@@ -119,15 +119,15 @@ reorders the automate or fix lines:
 
 | Artifact               | Status                    |
 |------------------------|---------------------------|
-| `intent.md`            | `pybuggy.patch.intended`  |
-| `impact.md`            | `pybuggy.patch.analyzed`  |
-| `apply.md`             | `pybuggy.patch.applied`   |
-| `rework.md`            | `pybuggy.patch.designed`  |
-| `workplan.md`          | `pybuggy.patch.planned`   |
-| `completed/workplan.md`| `pybuggy.patch.done`      |
+| `intent.md`            | `pybuggy.api.patch.intended`  |
+| `impact.md`            | `pybuggy.api.patch.analyzed`  |
+| `apply.md`             | `pybuggy.api.patch.applied`   |
+| `rework.md`            | `pybuggy.api.patch.designed`  |
+| `workplan.md`          | `pybuggy.api.patch.planned`   |
+| `completed/workplan.md`| `pybuggy.api.patch.done`      |
 
 A topic mid-patch therefore shows one maximal status per line — e.g.
-`[pybuggy.patch.planned] [pybuggy.automate.done]`. Read the scale with
+`[pybuggy.api.patch.planned] [pybuggy.api.automate.done]`. Read the scale with
 `goga history status`; see
 [api.automate — Topic status](api-automate.md#topic-status) for the scale itself.
 

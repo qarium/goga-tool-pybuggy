@@ -76,7 +76,9 @@ The final loop of the flow: runs the generated tests and triages the failures. I
 The browser-UI counterpart of the automate flow, built on the `web` fixture (step sentences turned into
 Playwright code by the LLM once, cached next to the test and committed). Same context principles: each
 stage is a clean context, stages exchange artifacts of the topic's history directory only; the traceability
-backbone is `REQ-<N>` → `TC-<N>` → Routine → `test_*.py`, extended with `PAGE-<N>` page identifiers.
+durable chain is Routine → `test_*.py` (manifests carry no REQ ids); the REQ→Routine coverage is a
+session-time registry of the testcases stage, checked mechanically at assembly against §3, extended
+with `PAGE-<N>` page identifiers.
 Web specifics: steps carry **full URLs** (no base_url templating); the **first** run of each test — the
 `ralphex-build` stage, via the executable Task checkboxes of the plan — generates the Playwright steps via
 the LLM and writes the step cache (`tests/web/<cell>/test_<name>/`); repeated runs and acceptance replay
@@ -84,13 +86,13 @@ from the cache with `--strict-mode` (zero LLM calls). Page exploration at the re
 through `playwright-cli`. Requires the web runtime document `.goga/tools/pybuggy/web.yml`
 (`goga tool pybuggy init`, kind web/both).
 
-| Skill                                          | Purpose                                                                                                                              | Input                                  | Output artifact                              |
-|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|----------------------------------------------|
-| `goga-tool-pybuggy-web-automate-requirements`  | Interviews the user, explores the live pages via playwright-cli (per-page dossiers), reconciles discrepancies, collects requirements  | topic description (pages to test)       | `requirements.md`                            |
-| `goga-tool-pybuggy-web-automate-testcases`     | Mega-stage: builds the test cases (TC-<N>, REQ→TC matrix), distributes them into cells, assembles CODEMANIFESTs, and materializes them into `tests/web/<cell>/` | `requirements.md`          | `testcases.md` + `arch.md` + `tests/web/<cell>/CODEMANIFEST` |
-| `goga-tool-pybuggy-web-automate-design`        | Dispatch wrapper around `goga-design` in web testing mode (the `web` fixture, step sentences, full URLs)                              | `tests/web/*/CODEMANIFEST`              | `design.md`                                  |
-| `goga-tool-pybuggy-web-automate-plan`          | Dispatch wrapper around `goga-plan`: guarantees an executable test-run checkbox in every generating Task **without** `--strict-mode` — that run is when the LLM generates the step code and writes the cache | `design.md`              | `plan.md`                                    |
-| `goga-tool-pybuggy-web-automate-accept`        | Acceptance: cross-checks TC → Routine → `test_*.py` (step sentences, caches), runs pytest in strict mode, triages failures; service bugs go to the topic's `bugs.md` | `testcases.md` + built tests | [ACCEPT_REPORT] + `bugs.md` |
+| Skill                                          | Purpose                                                                                                                                                                                                                                        | Input                                  | Output artifact                              |
+|------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|----------------------------------------------|
+| `goga-tool-pybuggy-web-automate-requirements`  | Interviews the user, explores the live pages via playwright-cli (per-page dossiers), reconciles discrepancies, collects requirements                                                                                                           | topic description (pages to test)       | `requirements.md`                            |
+| `goga-tool-pybuggy-web-automate-testcases`     | Designs Routines directly from the requirements (a test case IS a Routine — step sentences, per-routine user approval; the REQ coverage registry is session-time, no REQ ids in the manifests), distributes them into cells, and assembles/materializes CODEMANIFESTs into `tests/web/<cell>/` | `requirements.md`          | `tests/web/<cell>/CODEMANIFEST` |
+| `goga-tool-pybuggy-web-automate-design`        | Dispatch wrapper around `goga-design` in web testing mode (the `web` fixture, step sentences, full URLs)                                                                                                                                       | `tests/web/*/CODEMANIFEST`              | `design.md`                                  |
+| `goga-tool-pybuggy-web-automate-plan`          | Dispatch wrapper around `goga-plan`: guarantees an executable test-run checkbox in every generating Task **without** `--strict-mode` — that run is when the LLM generates the step code and writes the cache                                   | `design.md`              | `plan.md`                                    |
+| `goga-tool-pybuggy-web-automate-accept`        | Acceptance: cross-checks Routine → `test_*.py` (step sentences, caches), runs pytest in strict mode, triages failures; service bugs go to the topic's `bugs.md`                                                                          | `requirements.md` + built tests | [ACCEPT_REPORT] + `bugs.md` |
 
 Full flow: **requirements → testcases (cases → cells → materialization) → design → plan → ralphex build
 (`goga build` — the generating first run) → accept**.

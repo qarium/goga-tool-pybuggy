@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-intake
-description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined, reads the web runtime facts, and asks the target pages, viewport, and auth method
+description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined, reads the web runtime facts, and asks the target pages, auth method, and the browser endpoint (config or user-provided) for exploration and runs
 ---
 
 # Pybuggy Web Topic Requirements — Intake
@@ -48,26 +48,26 @@ description: Intake and formalization of the tested web topic's description — 
 артефакта требований.
 
 1. Прочитай документ `.goga/tools/pybuggy/web.yml` в целевом проекте (от текущего рабочего каталога,
-   без поиска вверх). Запиши **дословно** активные ключи: `browser.name`, `browser.headless`,
-   `browser.endpoint` (если задан), `provider`, `generation_model`. Документа нет — **STOP**: попроси
-   пользователя запустить `goga tool pybuggy init` (kind `web` или `both`) и повторить.
+   без поиска вверх). Запиши **дословно** активные ключи `provider`, `generation_model` — LLM-факты
+   генерации шагов; `browser.endpoint` (если задан) — кандидат ответа «Из конфига» в вопросе 3.
+   Документа нет — **STOP**: попроси пользователя запустить `goga tool pybuggy init` (kind `web` или `both`) и повторить.
 
 2. Спроси через AskUserQuestion (один вопрос за сообщение, 2–4 варианта):
 
    1. **Целевые страницы** — какие URL тестируем (полные URL; пользователь вводит или подтверждает
       предложенные из описания топика). Уточни, какое это окружение: прод / stage / feature-деплой ветки —
       все URL должны принадлежать одному окружению.
-   2. **Viewport** — `desktop` (по умолчанию) | `mobile` — от этого зависит эмуляция при исследовании
-      и дизайн кейсов.
-   3. **Способ авторизации** на сайте — **«Без авторизации»** | **«Форма логина»** (укажи URL формы —
+   2. **Способ авторизации** на сайте — **«Без авторизации»** | **«Форма логина»** (укажи URL формы —
       или она будет найдена исследованием) | **«SSO/внешний провайдер»** | **«Тестовые креденшалы есть»**.
       Для вариантов с входом уточни источник креденшалов: имена env-переменных или «введу при
       исследовании». **Значения секретов не запрашивай и не записывай.**
-
-3. ⚠️ Противоречие: пользователь называет pages feature-деплоя, но веб-конфиг указывает на иной
-   `browser.endpoint` — не блокируй, но зафиксируй факт: исследование подключается к endpoint-браузеру
-   через `attach` (endpoint применяется и исследованием, и рантаймом на прогонах); расхождение
-   окружений попадёт в отчёт исследования.
+   3. **Эндпоинт браузера для написания тестов** — к какому браузеру подключаться при исследовании страниц
+      и прогонах тестов. Адрес браузера, не тестируемого сайта.
+      Варианты: 
+       - «Из конфига» — `browser.endpoint` (предлагается только при заданном)
+       - «Введу адрес» —  `http(s)://…` (CDP) или `ws(s)://…` (Playwright server).
+         Введённый адрес применяется и к исследованию (`attach`), и к прогонам — команды несут 
+         `--browser-endpoint <адрес>`; «из конфига» — без флага.
 
 ### Step 3. Capture preliminary signals
 
@@ -111,18 +111,18 @@ Fill in every section. Empty sections are forbidden.
 
 ## Web Runtime Facts
 
-[Дословно из .goga/tools/pybuggy/web.yml: browser.name, browser.headless, browser.endpoint (если задан),
-provider, generation_model]
+[Дословно из .goga/tools/pybuggy/web.yml: provider, generation_model — LLM-факты генерации шагов]
+
+## Browser Endpoint
+
+[«из конфига» (`browser.endpoint: <значение>`) | `<ws(s)://… | http(s)://…>` от пользователя;
+суффикс команд прогона: без флага | `--browser-endpoint <адрес>`]
 
 ## Target Pages
 
 | # | URL (как назван пользователем) | Что пользователь говорит о странице | Роль в топике |
 |---|--------------------------------|-------------------------------------|---------------|
 | 1 | https://…                      | […]                                 | […]           |
-
-## Viewport / Device
-
-[desktop | mobile — подтверждение пользователя]
 
 ## Auth
 

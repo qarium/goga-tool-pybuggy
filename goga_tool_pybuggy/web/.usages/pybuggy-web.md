@@ -45,6 +45,36 @@ Captured vars are addressed by name in later sentences. Everything captured — 
 sentence — reaches the LLM provider prompt and the repository: **never put secrets in step
 sentences** (no passwords, tokens, keys, personal data).
 
+## Group steps into one mini-scenario
+
+```python
+def test_checkout(web):
+    web.step("Open https://shop.example.com/checkout")
+
+    with web.group("Submit the order form") as g:
+        g.step('Fill the "Email" field with user@example.com')
+        g.step("Submit the form")
+        g.expect("The order confirmation appears")
+```
+
+- `web.group(prompt)` — the authoring block for one coherent mini-scenario with a shared goal;
+  the prompt names that goal and reaches generation requests verbatim. Inside the block the
+  surface is the ordinary one: `g.step` / `g.expect` with the `tries`/`delay`/`vars` step
+  parameters.
+- Use a group when a set of actions moves the page or a widget from one state to another —
+  fill and submit a form, walk a multi-field dialog to its outcome, log in. Such steps are
+  meaningful together and the group prompt names the reached state; independent actions stay
+  as ordinary steps.
+- A group heals as a unit: on a non-strict run a failed group step is diagnosed once against
+  the whole group, and a `recoverable` verdict regenerates the affected steps forward — the
+  case where a later step fails because an earlier action never actually moved the page to
+  the expected state. A diagnosed product defect still fails the test loudly.
+- Group membership changes no step's cache address: cached group steps replay as ordinary
+  steps, `--strict-mode` included; the steps after the block are ordinary steps again.
+- `speed` (0–100, between-step pace) and `delay` (entry pause, seconds) optionally pace the
+  block.
+- The group prompt follows the same no-secrets rule as step sentences.
+
 ## Per-test extra instructions
 
 Some tests need test-specific instructions (an unusual selector, a page quirk) that must not

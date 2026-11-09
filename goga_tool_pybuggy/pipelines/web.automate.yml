@@ -8,6 +8,23 @@ description: "Pybuggy web-test automate lifecycle"
   prompt: |
     Constraints:
       - Don't open pages or explore the site until the user names what to test
+      - The pipeline runs inside Docker. Timing: this applies only at the explore step, when
+        bootstrapping the browser session — after the intake step has recorded the Browser
+        Endpoint answer in [INTAKE_REPORT]; do not attach at stage start. Attach to that address
+        (a ws(s):// address takes --endpoint= instead of --cdp=). Two cases:
+          1) remote address — no rewriting, attach as is:
+            PLAYWRIGHT_MCP_OUTPUT_DIR="$(goga history path 2>/dev/null)/playwright" \
+              playwright-cli -s=pybuggy-explore attach --cdp="<адрес>"
+          2) loopback address (127.0.0.1 / localhost — a browser on the Docker host; same when the
+          address already says host.docker.internal) — rewrite it to reach the host from the
+          container, then attach:
+            ADDR="<адрес>"
+            ADDR="${ADDR//127.0.0.1/host.docker.internal}"
+            ADDR="${ADDR//localhost/host.docker.internal}"
+            IP="$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1; exit}')"
+            ADDR="${ADDR/host.docker.internal/${IP:-host.docker.internal}}"
+            PLAYWRIGHT_MCP_OUTPUT_DIR="$(goga history path 2>/dev/null)/playwright" \
+              playwright-cli -s=pybuggy-explore attach --cdp="$ADDR"
   skills:
     - goga-tool-pybuggy-web-automate-requirements
 
@@ -24,7 +41,7 @@ description: "Pybuggy web-test automate lifecycle"
     - goga-tool-pybuggy-web-automate-testcases
 
 - name: testcases-review
-  title: "Review testcases"
+  title: "Review cells CODEMANIFESTs"
   communication: true
   skills:
     - goga-tool-pybuggy-web-automate-testcases-review

@@ -93,14 +93,14 @@ reached stage under its own name instead of the built-in axis:
 
 | Artifact            | Status                                 |
 |---------------------|----------------------------------------|
-| `requirements.md`   | `pybuggy.automate.requirements-created`|
-| `testcases.md`      | `pybuggy.automate.testcases-designed`  |
-| `arch.md`           | `pybuggy.automate.arch-prepared`       |
-| `design.md`         | `pybuggy.automate.code-designed`       |
-| `plan.md`           | `pybuggy.automate.coding-planned`      |
-| `completed/plan.md` | `pybuggy.automate.done`                |
+| `requirements.md`   | `pybuggy.api.automate.requirements-created`|
+| `testcases.md`      | `pybuggy.api.automate.testcases-designed`  |
+| `arch.md`           | `pybuggy.api.automate.arch-prepared`       |
+| `design.md`         | `pybuggy.api.automate.code-designed`       |
+| `plan.md`           | `pybuggy.api.automate.coding-planned`      |
+| `completed/plan.md` | `pybuggy.api.automate.done`                |
 
-Each automate status anchors above its built-in twin (`automate.done` above the built-in `done`), and
+Each automate status anchors above its built-in twin (`api.automate.done` above the built-in `done`), and
 `goga history status` shows the latest reached stage of the topic. Read the scale with
 `goga history status`; filter topics by any registered name with `goga history status -s <name>`.
 Service bugs recorded in `bugs.md` are history records — they mark no status on the scale.

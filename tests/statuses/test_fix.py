@@ -32,9 +32,9 @@ class TestRegisterFixStatusesBehavior:
         register_fix_statuses(recorder_context)
 
         assert recorder_context.calls == [
-            ("fix.collected", "fix-collect.md", "empty", None),
-            ("fix.analyzed", "fix-analysis.md", "pybuggy.fix.collected", None),
-            ("fix.planned", "fix-plan.md", "pybuggy.fix.analyzed", None),
-            ("fix.executed", "fix-execute.md", "pybuggy.fix.planned", None),
-            ("fix.reviewed", "fix-review.md", "pybuggy.fix.executed", None),
+            ("api.fix.collected", "fix-collect.md", "empty", None),
+            ("api.fix.analyzed", "fix-analysis.md", "pybuggy.api.fix.collected", None),
+            ("api.fix.planned", "fix-plan.md", "pybuggy.api.fix.analyzed", None),
+            ("api.fix.executed", "fix-execute.md", "pybuggy.api.fix.planned", None),
+            ("api.fix.reviewed", "fix-review.md", "pybuggy.api.fix.executed", None),
         ]

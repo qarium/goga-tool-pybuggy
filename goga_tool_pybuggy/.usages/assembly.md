@@ -104,15 +104,16 @@ with `goga hooks`); and `install` — the post-install hook `goga install` calls
 npm absent is a warning skip, a failing command fails the install). A plain `import goga_tool_pybuggy`
 never triggers either; the platform owns the calls.
 
-`register_hooks` lives in `goga_tool_pybuggy/reg_hooks.py` and subscribes six hooks to four addresses —
-the statuses registration action (three status lines), the two onboarding actions, and the pipeline
+`register_hooks` lives in `goga_tool_pybuggy/reg_hooks.py` and subscribes seven hooks to four addresses —
+the statuses registration action (four status lines), the two onboarding actions, and the pipeline
 amendment action:
 
 | Hook name | Callable | Address | Registers / contributes |
 |-----------|----------|---------|------------------------|
-| `automate` | `register_automate_statuses` | statuses / register_statuses | the six automate-line statuses (including the completed-accept `automate.done`) |
-| `fix` | `register_fix_statuses` | statuses / register_statuses | the five fix-line statuses |
-| `patch` | `register_patch_statuses` | statuses / register_statuses | the six patch-line statuses |
+| `api.automate` | `register_automate_statuses` | statuses / register_statuses | the six api-automate-line statuses (including the completed-accept `api.automate.done`) |
+| `web.automate` | `register_web_statuses` | statuses / register_statuses | the four web-automate-line statuses (no testcases/arch — the web pipeline writes no such artifacts) |
+| `api.fix` | `register_fix_statuses` | statuses / register_statuses | the five api-fix-line statuses |
+| `api.patch` | `register_patch_statuses` | statuses / register_statuses | the six api-patch-line statuses |
 | `declare` | `declare_pybuggy_session` | onboarding / declare_session | the pybuggy question block of the session survey |
 | `amend` | `amend_pybuggy_config` | onboarding / amend_config | the `build.review.skip` amendment and the tool config file |
 | `autonomy` | `amend_workflow` | pipeline / amend_workflow | the autonomous workflow amendment (auto-approval window + build stage) for a qualifying run |
@@ -132,27 +133,33 @@ The registered topic statuses (artifact paths relative to the topic directory):
 
 | Qualified status | Artifact | Anchors |
 |------------------|----------|---------|
-| `pybuggy.automate.done` | `completed/plan.md` | after `done` |
-| `pybuggy.automate.coding-planned` | `plan.md` | after `planned`, before `pybuggy.automate.done` |
-| `pybuggy.automate.code-designed` | `design.md` | after `designed`, before `pybuggy.automate.coding-planned` |
-| `pybuggy.automate.arch-prepared` | `arch.md` | after `designed`, before `pybuggy.automate.code-designed` |
-| `pybuggy.automate.testcases-designed` | `testcases.md` | after `backlog`, before `pybuggy.automate.arch-prepared` |
-| `pybuggy.automate.requirements-created` | `requirements.md` | after `defined`, before `pybuggy.automate.testcases-designed` |
-| `pybuggy.fix.collected` | `fix-collect.md` | after `empty` |
-| `pybuggy.fix.analyzed` | `fix-analysis.md` | after `pybuggy.fix.collected` |
-| `pybuggy.fix.planned` | `fix-plan.md` | after `pybuggy.fix.analyzed` |
-| `pybuggy.fix.executed` | `fix-execute.md` | after `pybuggy.fix.planned` |
-| `pybuggy.fix.reviewed` | `fix-review.md` | after `pybuggy.fix.executed` |
-| `pybuggy.patch.intended` | `intent.md` | after `empty` |
-| `pybuggy.patch.analyzed` | `impact.md` | after `pybuggy.patch.intended` |
-| `pybuggy.patch.applied` | `apply.md` | after `pybuggy.patch.analyzed` |
-| `pybuggy.patch.designed` | `rework.md` | after `pybuggy.patch.applied` |
-| `pybuggy.patch.planned` | `workplan.md` | after `pybuggy.patch.designed` |
-| `pybuggy.patch.done` | `completed/workplan.md` | after `pybuggy.patch.planned` |
+| `pybuggy.api.automate.done` | `completed/plan.md` | after `done` |
+| `pybuggy.api.automate.coding-planned` | `plan.md` | after `planned`, before `pybuggy.api.automate.done` |
+| `pybuggy.api.automate.code-designed` | `design.md` | after `designed`, before `pybuggy.api.automate.coding-planned` |
+| `pybuggy.api.automate.arch-prepared` | `arch.md` | after `designed`, before `pybuggy.api.automate.code-designed` |
+| `pybuggy.api.automate.testcases-designed` | `testcases.md` | after `backlog`, before `pybuggy.api.automate.arch-prepared` |
+| `pybuggy.api.automate.requirements-created` | `requirements.md` | after `defined`, before `pybuggy.api.automate.testcases-designed` |
+| `pybuggy.web.automate.done` | `completed/plan.md` | after `done` |
+| `pybuggy.web.automate.planned` | `plan.md` | after `planned`, before `pybuggy.web.automate.done` |
+| `pybuggy.web.automate.designed` | `design.md` | after `designed`, before `pybuggy.web.automate.planned` |
+| `pybuggy.web.automate.requirements-created` | `requirements.md` | after `defined`, before `pybuggy.web.automate.designed` |
+| `pybuggy.api.fix.collected` | `fix-collect.md` | after `empty` |
+| `pybuggy.api.fix.analyzed` | `fix-analysis.md` | after `pybuggy.api.fix.collected` |
+| `pybuggy.api.fix.planned` | `fix-plan.md` | after `pybuggy.api.fix.analyzed` |
+| `pybuggy.api.fix.executed` | `fix-execute.md` | after `pybuggy.api.fix.planned` |
+| `pybuggy.api.fix.reviewed` | `fix-review.md` | after `pybuggy.api.fix.executed` |
+| `pybuggy.api.patch.intended` | `intent.md` | after `empty` |
+| `pybuggy.api.patch.analyzed` | `impact.md` | after `pybuggy.api.patch.intended` |
+| `pybuggy.api.patch.applied` | `apply.md` | after `pybuggy.api.patch.analyzed` |
+| `pybuggy.api.patch.designed` | `rework.md` | after `pybuggy.api.patch.applied` |
+| `pybuggy.api.patch.planned` | `workplan.md` | after `pybuggy.api.patch.designed` |
+| `pybuggy.api.patch.done` | `completed/workplan.md` | after `pybuggy.api.patch.planned` |
 
-The automate statuses register in reverse pipeline order: `automate.done` lands above the built-in `done`,
+The automate statuses register in reverse pipeline order: `api.automate.done` lands above the built-in `done`,
 and each middle status anchors above its built-in twin and below the previously registered automate status
-(the arch/design/plan artifacts are the same files as their built-in twins). The fix chain starts above the
+(the arch/design/plan artifacts are the same files as their built-in twins); the web automate line stacks the
+same way over its own four artifacts — it shares the requirements/design/plan file names with the api line,
+and both lines apply independently. The fix chain starts above the
 built-in `empty` and stacks in pipeline order, every status anchored to its predecessor; the patch chain
 stacks the same way above `empty` — an independent chain that never reorders the automate line.
 Registration is add-only and never cached — package edits apply from the next run, without reinstall.
