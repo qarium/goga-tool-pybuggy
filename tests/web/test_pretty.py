@@ -1,8 +1,70 @@
-"""Tests for the `goga_tool_pybuggy.web.pretty` module (the prettyplay settings materialization)."""
+"""Tests for the `goga_tool_pybuggy.web.pretty` module (the settings materialization and the
+per-test generation-prompt declaration)."""
 
 import pytest
-from goga_tool_pybuggy.web.pretty import build_pretty_config
+from goga_tool_pybuggy.web.pretty import build_pretty_config, generation_prompt
 from prettyplay import BrowserConfig, PrettyConfig
+
+
+class TestGenerationPrompt:
+    """Contract tests for the `generation_prompt` decorator."""
+
+    def test_generation_prompt_is_module_level_callable(self):
+        """`generation_prompt` is a callable defined on the `web.pretty` module."""
+        import goga_tool_pybuggy.web.pretty as pretty_module
+
+        assert callable(pretty_module.generation_prompt)
+        assert pretty_module.generation_prompt.__module__ == "goga_tool_pybuggy.web.pretty"
+
+    def test_generation_prompt_attaches_marker_with_stripped_text(self):
+        """One prompt marker carries the stripped text and a `usefixtures` stamp lands too."""
+
+        def sample(): ...
+
+        generation_prompt("  Dates render as DD.MM.YYYY.  ")(sample)
+
+        prompt_marks = [m for m in sample.pytestmark if m.name == "pybuggy_generation_prompt"]
+        assert len(prompt_marks) == 1
+        assert prompt_marks[0].kwargs == {"text": "Dates render as DD.MM.YYYY."}
+        assert any(m.name == "usefixtures" for m in sample.pytestmark)
+
+    def test_generation_prompt_returns_function_unchanged(self):
+        """The decorator returns the same function object — no wrapping, nothing executed."""
+
+        def sample(): ...
+
+        decorated = generation_prompt("Dates render as DD.MM.YYYY.")(sample)
+
+        assert decorated is sample
+        assert callable(decorated)
+
+    def test_generation_prompt_stacks_attaching_own_markers_in_written_order(self):
+        """Stacked applications attach one marker each in application order, bottom first."""
+
+        def sample(): ...
+
+        generation_prompt("Dates render as DD.MM.YYYY.")(sample)
+        generation_prompt("The #country dropdown is a native <select>.")(sample)
+
+        texts = [m.kwargs["text"] for m in sample.pytestmark if m.name == "pybuggy_generation_prompt"]
+        assert texts == ["Dates render as DD.MM.YYYY.", "The #country dropdown is a native <select>."]
+
+    @pytest.mark.parametrize("text", [123, None, "", "   ", "\n\t"])
+    def test_generation_prompt_rejects_invalid_text(self, text):
+        """Every invalid text — non-string or whitespace-only — fails at decoration time."""
+        with pytest.raises(ValueError, match="generation_prompt"):
+            generation_prompt(text)
+
+    def test_generation_prompt_double_application_preserves_both_texts(self):
+        """The same text applied twice keeps both markers — duplicates are never dropped."""
+
+        def sample(): ...
+
+        generation_prompt("same text")(sample)
+        generation_prompt("same text")(sample)
+
+        texts = [m.kwargs["text"] for m in sample.pytestmark if m.name == "pybuggy_generation_prompt"]
+        assert texts == ["same text", "same text"]
 
 
 class TestBuildPrettyConfigContract:

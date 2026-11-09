@@ -547,15 +547,15 @@ the Contract Surface above (transfer them from there verbatim). This task touche
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)** — declare this task (`Task 2: generation_prompt`) and restate
+- [x] **STEP 0 (DECLARATION)** — declare this task (`Task 2: generation_prompt`) and restate
   its target files (`goga_tool_pybuggy/web/pretty.py`, `tests/web/test_pretty.py`)
-- [ ] **STEP 1 (CONTRACT TESTS)** — in `tests/web/test_pretty.py`, extend the file with a
+- [x] **STEP 1 (CONTRACT TESTS)** — in `tests/web/test_pretty.py`, extend the file with a
   `TestGenerationPrompt` class (contract part) and add:
   `test_generation_prompt_is_module_level_callable` — import
   `goga_tool_pybuggy.web.pretty` and assert `callable(pretty_module.generation_prompt)` and
   `generation_prompt.__module__ == "goga_tool_pybuggy.web.pretty"` (expected to fail now —
   the routine does not exist)
-- [ ] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/web/pretty.py`: add
+- [x] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/web/pretty.py`: add
   `import pytest` and `import typing as t` to the import block (third-party/stdlib, absolute
   — isort-clean above the `prettyplay` import), then implement the module-level routine:
 
@@ -573,7 +573,7 @@ the Contract Surface above (transfer them from there verbatim). This task touche
   (`text`, the return decorator, `Raises: ValueError`); update the module docstring with one
   sentence naming the per-test generation-prompt declaration surface (do not restate the
   algorithm); one blank line between logical blocks (R1.8)
-- [ ] **STEP 2a (REPL CYCLE)** — evaluate the decorator live against the real module
+- [x] **STEP 2a (REPL CYCLE)** — evaluate the decorator live against the real module
   (fresh interpreter; hot-reload with `importlib.reload` after any edit):
 
   ```
@@ -597,10 +597,10 @@ the Contract Surface above (transfer them from there verbatim). This task touche
   `usefixtures` mark carrying `('web',)`; the `ValueError` message names
   `generation_prompt`. Iterate (edit → reload → re-evaluate) until every observation
   matches, then ensure the migrated source file carries exactly what passed
-- [ ] **STEP 3 (INTERFACE VERIFICATION)** — run the contract test:
+- [x] **STEP 3 (INTERFACE VERIFICATION)** — run the contract test:
   `/workspace/.venv/bin/pytest tests/web/test_pretty.py -v` — the contract test passes and
   the pre-existing tests in the file stay green
-- [ ] **STEP 4 (LOGIC TESTS)** — add to `TestGenerationPrompt` in
+- [x] **STEP 4 (LOGIC TESTS)** — add to `TestGenerationPrompt` in
   `tests/web/test_pretty.py` (assertions exactly as the design specifies):
   - `test_generation_prompt_attaches_marker_with_stripped_text` — apply
     `generation_prompt("  Dates render as DD.MM.YYYY.  ")` to a plain `def sample(): ...`;
@@ -621,18 +621,18 @@ the Contract Surface above (transfer them from there verbatim). This task touche
     `pytest.raises(ValueError, match="generation_prompt")`
   - `test_generation_prompt_double_application_preserves_both_texts` (edge) — the same text
     applied twice yields two markers, `texts == ["same text", "same text"]` (no dedup)
-- [ ] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/web/test_pretty.py -v` —
+- [x] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/web/test_pretty.py -v` —
   fix the implementation (never the tests) until all pass
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)** — re-check the obligations: module-level routine
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)** — re-check the obligations: module-level routine
   at `pretty.py` (`__module__` pinned), the marker name/kwarg spelling
   (`pybuggy_generation_prompt` / `text`), the `usefixtures("web")` stamp, identity return,
   no execution at factory time, no config keys touched
-- [ ] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/web tests/web`
+- [x] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/web tests/web`
   and `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/web tests/web`; fix
   formatting (R3); apply decomposition if any complexity finding appears
-- [ ] **STEP 8 (COMPLETION)** — mark this task's checkboxes complete; local commit only
+- [x] **STEP 8 (COMPLETION)** — mark this task's checkboxes complete; local commit only
   through the R3 commit gate (lint + format + `pytest tests/web/test_pretty.py -v` green)
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 3: `build_pretty_config` — the `prompt_extra` parameter and the effective-prompt join (TDD coding)
 
