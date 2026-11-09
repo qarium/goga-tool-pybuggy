@@ -342,9 +342,7 @@ class TestSessionSmokeWebKind:
             assert run_session() == 0
 
         web_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
-        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {
-            "web.automate": {"autonomous": True}
-        }
+        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {"web.automate": {"autonomous": True}}
 
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
 
@@ -353,9 +351,7 @@ class TestSessionSmokeWebKind:
 
         # The example documentation pins commented records before active web keys only — the
         # foreign pipelines section round-trips intact.
-        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {
-            "web.automate": {"autonomous": True}
-        }
+        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {"web.automate": {"autonomous": True}}
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 

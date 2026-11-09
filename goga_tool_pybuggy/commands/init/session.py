@@ -224,8 +224,7 @@ def survey_autonomy(axes: tuple[str, ...]) -> dict[str, bool]:
             contribution with a warning.
     """
     return {
-        axis: click.confirm(f"Run the {axis} pipeline unattended (autonomous mode)?", default=False)
-        for axis in axes
+        axis: click.confirm(f"Run the {axis} pipeline unattended (autonomous mode)?", default=False) for axis in axes
     }
 
 

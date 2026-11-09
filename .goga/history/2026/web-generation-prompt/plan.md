@@ -487,24 +487,45 @@ the `.venv/bin/...` prefix defined here.
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Create the virtualenv: `/usr/local/bin/python3.12 -m venv /workspace/.venv`
+- [x] Create the virtualenv: `/usr/local/bin/python3.12 -m venv /workspace/.venv`
   (Python 3.12 satisfies the `>=3.10` floor; skip creation if `/workspace/.venv` already
   exists and is healthy — verify with `/workspace/.venv/bin/python --version`)
-- [ ] Install the project with the test extra: `/workspace/.venv/bin/pip install -e '.[test]'`
+- [x] Install the project with the test extra: `/workspace/.venv/bin/pip install -e '.[test]'`
   (run from `/workspace`; brings pytest>=9.0, ruff, prettyplay, pluginator, goga,
-  allure-pytest)
-- [ ] Verify the toolchain imports: `/workspace/.venv/bin/python -c "import pytest, prettyplay, pluginator, goga_tool_pybuggy; print(pytest.__version__)"`
-  — prints a 9.x version; and `.venv/bin/ruff --version` prints a version
-- [ ] Verify the pytest floor pin (already bumped — do not modify):
-  `grep -n 'pytest>=' /workspace/pyproject.toml` shows `pytest>=9.0`
-- [ ] Baseline green: `/workspace/.venv/bin/pytest tests/ -x` — the full existing suite
-  passes **before any code change** (this validates the environment; record the summary count)
-- [ ] Baseline clean lint: `/workspace/.venv/bin/ruff check goga_tool_pybuggy/ tests/` —
-  zero findings
-- [ ] Baseline clean format: `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/ tests/`
-  — clean (if drift is reported on untouched files, apply `ruff format` and re-check — see R3)
-- [ ] Contract consistency: `/workspace/.venv/bin/goga lint` — 0 errors (the CODEMANIFESTs are already
-  materialized; this confirms the contract side is intact and read-only)
+  allure-pytest) — **environment repair**: the committed tree (per the design and
+  docs/web/configuration.md) expects the unpublished prettyplay 0.0.4; PyPI's latest is
+  0.0.3. The venv's prettyplay 0.0.3 was hand-patched to the documented 0.0.4 semantics:
+  (a) `PrettyConfig.request_max_tokens: PositiveInt = 16384` (config/models.py, after
+  `llm_request_attempts`); (b) the 0.0.4 explicit-config split in `PrettyPlay.__init__`
+  (scenario.py) — `config=<PrettyConfig>` adopted verbatim, pyproject auto-search and
+  `PRETTYPLAY_*` env never run, only an empty `cache_root` resolves to the absolute
+  `<cwd>/.prettyplay/cache` (per `.goga/usages/cooks/prettyplay.md` "the 0.0.4 split");
+  (c) the `BrowserConfig.endpoint` validator accepts `ws/wss or http/https` (the message
+  the plugin tests pin). ruff was pinned to 0.15.22 (the declared `>=0.15.0` floor):
+  0.16+ formats Python blocks in Markdown by default, which permanently flags the
+  read-only `.usages/pybuggy-web.md` — 0.15.22 skips Markdown in directory scans
+- [x] Verify the toolchain imports: `/workspace/.venv/bin/python -c "import pytest, prettyplay, pluginator, goga_tool_pybuggy; print(pytest.__version__)"`
+  — prints a 9.x version; and `.venv/bin/ruff --version` prints a version (pytest 9.2.0,
+  ruff 0.15.22)
+- [x] Verify the pytest floor pin (already bumped — do not modify):
+  `grep -n 'pytest>=' /workspace/pyproject.toml` shows `pytest>=9.0` (pyproject.toml:56)
+- [x] Baseline green: `/workspace/.venv/bin/pytest tests/ -x` — the full existing suite
+  passes **before any code change** (this validates the environment; record the summary count) —
+  **2042 passed, 21 skipped** (green only after the prettyplay 0.0.4 patches above: the
+  pre-patch failures were the `request_max_tokens` KeyError at import, the end-to-end
+  fixture test needing the verbatim-adoption split, and the endpoint-message test)
+- [x] Baseline clean lint: `/workspace/.venv/bin/ruff check goga_tool_pybuggy/ tests/` —
+  zero findings (after the plan-sanctioned `--fix` of 2 pre-existing RUF100 unused-noqa
+  findings in `api/api.py:43` and `api/endpoint.py:35` — drift from earlier commits)
+- [x] Baseline clean format: `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/ tests/`
+  — clean (if drift is reported on untouched files, apply `ruff format` and re-check — see R3) —
+  applied to the 6 pre-existing drift files (`commands/init/session.py`,
+  `tests/autonomous/test_contributions.py`, `tests/autonomous/test_workflow.py`,
+  `tests/commands/init/test_init_integration.py`, `tests/conftest.py`,
+  `tests/test_autonomy_integration.py`); the read-only `.usages/*.md` untouched (0.15.22
+  skips Markdown); suite re-verified green after the reformat
+- [x] Contract consistency: `/workspace/.venv/bin/goga lint` — 0 errors (the CODEMANIFESTs are already
+  materialized; this confirms the contract side is intact and read-only) — 26 cells, 0 errors
 
 ### Task 2: `generation_prompt` — the per-test declaration decorator (TDD coding)
 

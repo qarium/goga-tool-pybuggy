@@ -136,9 +136,7 @@ class TestBuildAutonomousWorkflowBehavior:
         assert "accept-result" not in document.stages
         assert "accept-result" not in document.extend
 
-    @pytest.mark.parametrize(
-        "contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"]
-    )
+    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"])
     def test_build_autonomous_workflow_deterministic(self, contribution):
         """Two calls with the same record return deeply equal documents — a pure builder."""
         first = build_autonomous_workflow(contribution)

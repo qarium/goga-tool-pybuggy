@@ -63,7 +63,9 @@ class TestPipelineContributionBehavior:
         from_tuple = PipelineContribution(
             identity="i", axis="a", config_file="c.yml", window=("s", "t"), build_artifact="f.md"
         )
-        from_list = PipelineContribution(identity="i", axis="a", config_file="c.yml", window=["s", "t"], build_artifact="f.md")
+        from_list = PipelineContribution(
+            identity="i", axis="a", config_file="c.yml", window=["s", "t"], build_artifact="f.md"
+        )
 
         assert from_tuple.window == ["s", "t"]
         assert from_tuple == from_list

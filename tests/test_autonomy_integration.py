@@ -210,18 +210,14 @@ class TestConventionDrift:
     window or the build anchor from the pipeline.
     """
 
-    @pytest.mark.parametrize(
-        "contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"]
-    )
+    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"])
     def test_every_window_stage_is_a_declared_pipeline_stage(self, contribution) -> None:
         """Each record's window names real stages of its pipeline — a renamed stage fails here."""
         stages = _pipeline_stage_names(contribution.axis)
 
         assert set(contribution.window) <= set(stages)
 
-    @pytest.mark.parametrize(
-        "contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"]
-    )
+    @pytest.mark.parametrize("contribution", CONTRIBUTIONS, ids=["api.automate", "api.patch", "web.automate"])
     def test_the_build_anchor_names_a_real_stage_before_the_acceptance(self, contribution) -> None:
         """The build ``after`` anchor (the window's last stage) exists and precedes acceptance."""
         stages = _pipeline_stage_names(contribution.axis)

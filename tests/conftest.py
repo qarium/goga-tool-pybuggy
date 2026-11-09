@@ -24,9 +24,7 @@ def _isolate_os_environ() -> None:
 
 
 @pytest.fixture
-def tool_config(
-    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
-) -> Callable[..., pathlib.Path]:
+def tool_config(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> Callable[..., pathlib.Path]:
     """Write a pybuggy tool config under the standard tree, rooted at ``tmp_path``.
 
     Chdirs into ``tmp_path`` so the cwd-relative standard path is exercised with zero patching.
