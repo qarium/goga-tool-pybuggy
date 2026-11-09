@@ -45,6 +45,44 @@ Captured vars are addressed by name in later sentences. Everything captured — 
 sentence — reaches the LLM provider prompt and the repository: **never put secrets in step
 sentences** (no passwords, tokens, keys, personal data).
 
+## Per-test extra instructions
+
+Some tests need test-specific instructions (an unusual selector, a page quirk) that must not
+leak into the global prompt. Declare them with the `generation_prompt` decorator — imported
+from the package root:
+
+```python
+from goga_tool_pybuggy import generation_prompt
+
+
+@generation_prompt("A cookie banner (#onetrust) covers the page on every navigation — dismiss it before any interaction.")
+def test_checkout(web):
+    web.step("Open https://shop.example.com/checkout")
+```
+
+- The text **appends** to `web.yml:generation_prompt` (newline-joined) for this test only — the
+  file stays the single project-wide source, the decorator carries only the extras; other
+  tests are unaffected.
+- The marked test gets the web runtime even without an explicit `web` parameter (an automatic
+  `usefixtures("web")` stamp). Without `web.yml` it fails at setup with pytest's standard
+  "fixture 'web' not found" — the same as any web test.
+- Stack decorators; texts apply top-to-bottom in the order written:
+
+```python
+@generation_prompt("The #country dropdown is a native <select> — use select_option.")
+@generation_prompt("Dates render as DD.MM.YYYY.")
+def test_order_form(web):
+    ...
+```
+
+- Validation is early: a non-string, empty, or whitespace-only text raises `ValueError` at
+  collection — before any browser or LLM. The text is trimmed at decoration.
+- **Never put secrets in the text** — it lands in LLM prompts and logs, exactly like step
+  sentences.
+- The prompt participates only in generation (a cache miss): changing the text never
+  regenerates already-cached steps — delete the step's cache file to force regeneration on
+  the next non-strict run. In `--strict-mode` runs the decorator is inert (zero LLM calls).
+
 ## Run modes
 
 - `pytest tests/` — normal runs: a cache miss triggers one LLM generation round, then the step is cached.

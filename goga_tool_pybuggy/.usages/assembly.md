@@ -170,7 +170,9 @@ Registration is add-only and never cached — package edits apply from the next 
   pybuggy environment (packaged usages, `conventions` slot, `build.review.skip`, Dockerfile install line, root
   conftest).
 
-The facade also re-exports the sandbox capability surface — `services` (the per-test
-data-preset decorator) — so consumer tests import it from the package root:
-`from goga_tool_pybuggy import services`. The session sandbox fixture is product-owned through
-the plugin installation and needs no facade import.
+The facade also re-exports the capability surfaces of the test kinds — `services` (the
+per-test data-preset decorator of the sandbox kind) and `generation_prompt` (the per-test
+extra generation-instructions decorator of the web kind) — so consumer tests import them from
+the package root: `from goga_tool_pybuggy import services`, `from goga_tool_pybuggy import
+generation_prompt`. The session sandbox fixture and the web runtime fixture are product-owned
+through the plugin installation and need no facade import.

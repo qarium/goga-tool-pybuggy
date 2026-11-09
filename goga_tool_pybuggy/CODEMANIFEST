@@ -29,6 +29,11 @@ Imports:
   - Types: [services]
     Usages: [data-operations]
     From: goga_tool_pybuggy/sandbox/data
+  - Types:
+      - generation_prompt
+    Usages:
+      - pybuggy-web
+    From: goga_tool_pybuggy/web
 
 Usages:
   conventions: .goga/usages/conventions.md
@@ -62,6 +67,12 @@ Annotations: |
   one import source beside the plugin installation entry; the session sandbox fixture itself is
   product-owned through the plugin installation.
   Connected capability practices: `data-operations`.
+
+  The facade carries the web prompt surface: `generation_prompt` for per-test extra generation
+  instructions of web tests — re-exported from the web cell (the `services` re-export pattern);
+  the web runtime itself is product-owned through the plugin installation (the web fixture), and
+  the decorator's texts append to the web config's generation_prompt for the decorated test
+  only. Connected capability practices: `pybuggy-web`.
 
 ---
 
@@ -201,6 +212,8 @@ Annotations: |
 ->install: {}
 
 ->services: {}
+
+->generation_prompt: {}
 
 ---
 

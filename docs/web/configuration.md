@@ -105,6 +105,33 @@ interactive: false
 The bootstrap then documents every absent key inside the file as a commented example
 record, pinned before the next active key — idempotent, never touching active entries.
 
+## Per-test extra instructions
+
+The `generation_prompt` key above is the project-wide baseline. A single test can add its own
+instructions with the `generation_prompt` decorator — imported from the package root:
+
+```python
+from goga_tool_pybuggy import generation_prompt
+
+
+@generation_prompt("A cookie banner (#onetrust) covers the page on every navigation — dismiss it before any interaction.")
+def test_checkout(web):
+    web.step("Open https://shop.example.com/checkout")
+```
+
+- The text appends to the `generation_prompt` key (newline-joined) for this test only — the
+  file stays the single project-wide source; other tests are unaffected.
+- Stack decorators — texts apply top-to-bottom in the order written.
+- Validation is early: a non-string, empty, or whitespace-only text raises `ValueError` at
+  collection, before any browser or LLM.
+- The marked test gets the web runtime automatically (an automatic `usefixtures("web")` stamp);
+  without `web.yml` it fails at setup with pytest's standard "fixture 'web' not found".
+- **Never put secrets in the text** — it lands in LLM prompts and logs, exactly like step
+  sentences.
+- The prompt participates only in generation (a cache miss): changing the text never
+  regenerates already-cached steps — delete the step's cache file to force regeneration. In
+  `--strict-mode` runs the decorator is inert.
+
 ## Related
 
 - [Web — Overview](index.md) — activation, writing tests, run modes, the step cache.

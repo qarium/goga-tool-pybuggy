@@ -94,7 +94,9 @@ Annotations: |
   joins the same installation call and owns the web test kind: the web fixture (a per-test
   prettyplay runtime with the step cache next to the test file), the plugin options of every web.yml
   directive (the standard pluginator loading) with the --strict-mode, --interactive, and
-  --browser-endpoint CLI flags, Allure step reporting, and the prettyplay event log formatter.
+  --browser-endpoint CLI flags, Allure step reporting, the prettyplay event log formatter, and
+  the pybuggy_generation_prompt marker registration (the carrier of the per-test
+  generation-prompt decorator — the pybuggy_services pattern).
   The web config key set (the canonical key set of web.yml) and the document validation live in
   this cell — the web plugin loads every web.yml directive through its plugin options and validates
   the composed values into the activation in its configure step — an invalid document fails the run at
@@ -376,7 +378,9 @@ Annotations: |
   annotations: |
     Pluginator plugin of the web test kind: the web fixture, the fixed web.yml key set
     (`WebConfigKeys` — declared in this module), the plugin option of every web config directive,
-    Allure step reporting, and the prettyplay event log formatter. The web config document web.yml is
+    Allure step reporting, the prettyplay event log formatter, and the
+    pybuggy_generation_prompt marker registration of the per-test generation-prompt decorator
+    (the pybuggy_services pattern of the sandbox plugin). The web config document web.yml is
     the plugin's config: pluginator reads it into plugin_config, and every directive option loads its
     value through the standard resolution chain (its plugin_config_key, then the CLI layer of the
     three flags, then default_from). The directive options route the values without casting
@@ -506,45 +510,50 @@ Annotations: |
   methods:
     "configure()": |
       Compose the resolved option values into the activation, apply the CLI authority to the mode
-      options and the typed endpoint to the browser group, scrub the library's env layer, and
-      install the prettyplay event log formatter. Runs after the standard option loading — only the
-      operations the standard pluginator loading cannot express land here.
+      options and the typed endpoint to the browser group, scrub the library's env layer, install
+      the prettyplay event log formatter, and register the pybuggy_generation_prompt marker. Runs
+      after the standard option loading — only the operations the standard pluginator loading
+      cannot express land here.
 
       Algorithm:
-      1. Read the typed CLI flags raw (--strict-mode, --interactive, --browser-endpoint) — the mode
+      1. Register the pybuggy_generation_prompt marker with a help line (the pattern of the
+         sandbox plugin's pybuggy_services) — applying the marker in test modules stays
+         warning-free whenever the plugin is active; the registration runs before the document
+         gates, at configphase, before any collection.
+      2. Read the typed CLI flags raw (--strict-mode, --interactive, --browser-endpoint) — the mode
          flags carry authority over the document values: the pluginator chain resolves the document
          before the CLI, so the typed forcing cannot ride the chain (see `pluginator` for the
          config-time CLI sources; the pattern of --base-url).
-      2. Gate the document under a parse guard: an unparsable document (the config reader's parse
+      3. Gate the document under a parse guard: an unparsable document (the config reader's parse
          error) surfaces as the clean error naming the web config document — the pattern of the
          sandbox plugin; never a raw reader traceback. A non-mapping parse fails with the explicit
          mapping error naming the document. The gates run before any option read, so the option
          chain below never meets a broken reader.
-      3. Drop the foreign sections from the document copy — the web autonomy axis (pipelines,
+      4. Drop the foreign sections from the document copy — the web autonomy axis (pipelines,
          a section keyed by pipeline name, consumed by the tool's own autonomy resolver, never by
          the plugin) and the fixture-discovery section (loader, consumed at install time by the
          constructor's discovery) — and reject an empty remaining copy with the explicit
          empty-document error (the document must carry at least the surveyed minimum — the provider
          and the browser name).
-      4. Collect the unknown document keys — everything outside the WebConfigKeys config members;
+      5. Collect the unknown document keys — everything outside the WebConfigKeys config members;
          they ride into the validation so the library forbid rule names a mistyped key (never a
          silent no-op).
-      5. Apply the endpoint authority: when the user typed --browser-endpoint, inject the typed
+      6. Apply the endpoint authority: when the user typed --browser-endpoint, inject the typed
          value into a copy of the resolved browser directive value (creating the group when the
          directive carries none or a null one) — the typed value applies verbatim, an empty string
          included (it forces the local launch over a document endpoint); the read document is never
          mutated.
-      6. Validate the composed document — every resolved directive option value, the injected
+      7. Validate the composed document — every resolved directive option value, the injected
          browser group, and the unknown keys — into the activation via PrettyConfig.model_validate:
          the library model with the library validators, so a structural or a semantic violation (an
          off-matrix browser name, an invalid endpoint — a typed one included) fails with its clean
          error at configphase (the pydantic detail chained).
-      7. Re-store the resolved strict and interactive options from the validated activation plus the
+      8. Re-store the resolved strict and interactive options from the validated activation plus the
          typed flags — never from the raw routed parse: a string-typed "false"/"no" the model coerces
          to false must not surface as true.
-      8. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
+      9. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
          web.yml is the single configuration source; the library's env layer never overrides it.
-      9. Install the prettyplay event log formatter via `install_event_log_formatter`.
+      10. Install the prettyplay event log formatter via `install_event_log_formatter`.
 
       Requirements:
       - Runs once at pytest configphase, before any collection and before any fixture invocation.
@@ -559,12 +568,14 @@ Annotations: |
       - The env scrub is permanent for the run and race-free — configphase is single-threaded; the
         variables exist only for the library's env layer.
       - The formatter is installed unconditionally with the plugin active — it is not allure-gated.
+      - The pybuggy_generation_prompt marker is registered with a help line whenever the plugin is
+        active — applying it in test modules is warning-free.
 
       Use `pluginator` for the configure lifecycle and the config-time CLI sources.
       Use `prettyplay` for the env layer the scrub neutralizes and the validators of the gate.
     "web(request: pytest.FixtureRequest) -> web: Iterator[PrettyPlay]": |
-      Function-scope generator fixture: build the per-test prettyplay runtime and close it after the
-      test.
+      Function-scope generator fixture: build the per-test prettyplay runtime and close it after
+      the test.
 
       `request`: the fixture request of the test being set up.
       web: the opened prettyplay runtime the test consumes — step, expect, group, run_on_page (see
@@ -573,27 +584,38 @@ Annotations: |
       Algorithm:
       1. Compute the cache address: the root is the activation cache_root when set, otherwise the
          absolute directory of the requesting test's own module file (from the item — never the
-         cwd); the per-test path is `web_cache_path` of request.node; the cache key is the item's name
-         (parametrize-aware).
-      2. Build the explicit prettyplay config via `build_pretty_config` from the activation and the
-         resolved strict and interactive options.
-      3. Construct the prettyplay runtime with the cache key, the path, and the config, with
+         cwd); the per-test path is `web_cache_path` of request.node; the cache key is the item's
+         name (parametrize-aware).
+      2. Collect the per-test prompt extras: read the requesting item's
+         pybuggy_generation_prompt markers and take each marker's text kwarg. The natural
+         collection order of the stacked markers is last-applied-first (the bottom decorator's
+         marker lands first in the item's mark list) — reverse it to the order written (top
+         decorator first), then join the texts with a single newline; a test without the
+         markers yields the empty string.
+      3. Build the explicit prettyplay config via `build_pretty_config` from the activation, the
+         resolved strict and interactive options, and the joined extras as prompt_extra.
+      4. Construct the prettyplay runtime with the cache key, the path, and the config, with
          cleanup disabled (the persistence mode of the committed-cache workflow: every cached
          file of the test's key is kept — a run that fails mid-test must not destroy the cached
          steps it never reached, so the next strict replay stays green; a stale step is removed
          by deleting its file).
-      4. When allure is importable (see `allure-pytest`), attach `AllureStepHooks` to the runtime.
-      5. Open the runtime (the context manager), yield it, close it on finalization.
+      5. When allure is importable (see `allure-pytest`), attach `AllureStepHooks` to the runtime.
+         Open the runtime (the context manager), yield it, close it on finalization.
 
       Requirements:
       - A --strict-mode run makes zero LLM calls — a cache miss fails the test.
       - The step cache lands next to the test file and is committable; the addressing never depends
         on the cwd — tests running outside the project root resolve their paths from the item
         itself.
+      - The marked prompt extras affect only the requesting test's runtime — the activation and
+        the options are never mutated; a test without the decorator builds exactly the config it
+        built before.
 
       Constraints:
       - No base_url templating and no sandbox binding — web steps carry full URLs.
       - Do not construct `AllureStepHooks` when the guarded import reports allure absent.
+      - Do not normalize the collected texts here — the decorator already stripped them; the
+        fixture only joins and passes.
 
       Use `pluginator` for the fixture-as-method convention.
       Use `prettyplay` for the runtime construction and the cache addressing contract.

@@ -39,6 +39,14 @@ Annotations: |
   document; this cell registers nothing on its own. Web steps carry full URLs
   (web.step("Open https://ya.ru")) — no base_url templating, no sandbox binding in v1.
 
+  The cell also carries the per-test prompt declaration surface: the `generation_prompt`
+  decorator (the pattern of the sandbox services decorator) attaches the
+  pybuggy_generation_prompt marker and a usefixtures("web") stamp to a test function — a pure
+  declaration; this cell registers nothing on its own. The marker registration and the per-test
+  read live in the plugins cell (the WebPlugin configure step and the web fixture). Decorator
+  text, like step sentences, lands in LLM prompts and logs — the no-secrets rule extends to it
+  (documented in this cell's consumer usage doc).
+
   Constraints:
   - The cell declares no config models of its own — the document model is the library PrettyConfig,
     imported from prettyplay and never re-exported by the facade.
@@ -50,36 +58,78 @@ Annotations: |
 
 ---
 
-"build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_flag: bool) -> pretty: PrettyConfig":
+"build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_flag: bool, prompt_extra: str = \"\") -> pretty: PrettyConfig":
   location: pretty.py
   annotations: |
-    Materialize the validated web config with the resolved strict and interactive modes — the single
-    construction point of the prettyplay settings layer.
+    Materialize the validated web config with the resolved strict and interactive modes and
+    the per-test prompt extras — the single construction point of the prettyplay settings
+    layer.
 
     `config`: the validated web config (the activation).
     `strict_flag`: the effective strict override — True forces strict even when the document says
       false.
     `interactive_flag`: the effective interactive override — the same form.
+    `prompt_extra`: the per-test extra generation instructions (the decorator texts, already
+      joined by the caller); empty means no extras.
     `pretty`: the explicitly constructed prettyplay config.
 
     Algorithm:
     1. Compute the effective modes: strict = config.strict or strict_flag; interactive =
        config.interactive or interactive_flag — a CLI flag forces the mode on, never off.
-    2. Construct the explicit object — every field, the browser group included, passed as a
-       constructor argument.
+    2. Compute the effective generation prompt: join the non-empty parts of
+       config.generation_prompt and `prompt_extra`, in this order, with a single newline.
+    3. Construct the explicit object — every field, the browser group included, passed as a
+       constructor argument; generation_prompt receives the computed join.
 
     Requirements:
-    - The all-fields construction is load-bearing: every field lands in the constructed model, and
-      the runtime adopts the result verbatim (the library's adopt step) — the pyproject+env file
-      layer never loads for it; an empty or None field keeps the library model default
-      (see `prettyplay`).
+    - The all-fields construction is load-bearing: every field lands in the constructed model,
+      and the runtime adopts the result verbatim; an empty or None field keeps the library
+      model default (see `prettyplay`).
     - Pure — no I/O, no environment reads.
+    - `prompt_extra` defaults to the empty string — call sites without extras are unchanged.
 
     Constraints:
     - Do not read env or pyproject here — the single source is the passed model and flags.
+    - Do not normalize `prompt_extra` beyond the empty-part skip — the texts are stripped and
+      joined by the caller.
 
     Use `prettyplay` for the PrettyConfig and browser config field contract.
     Use `conventions` for type hints.
+
+"generation_prompt(text: str) -> decorator: Callable":
+  location: pretty.py
+  annotations: |
+    Per-test generation-instruction decorator: declare test-specific extra instructions that
+    append (newline-joined) to the generation prompt of exactly this test — web.yml stays the
+    single global source, the decorator carries only the extras (see `prettyplay` for the
+    generation_prompt field the text rides on).
+
+    `text`: the instruction text — a non-empty, non-whitespace-only string.
+    `decorator`: the marker decorator applied to a test function.
+
+    Algorithm:
+    1. Validate at decoration: `text` must be a str whose stripped form is non-empty — a
+       non-string, empty, or whitespace-only value raises ValueError (visible at collection,
+       before any browser or LLM).
+    2. Attach the pybuggy_generation_prompt marker carrying the stripped text as its `text`
+       kwarg.
+    3. Stamp the function with a usefixtures mark requesting the web fixture — the marked test
+       always gets the web runtime, with or without an explicit web parameter.
+    4. Return the function unchanged.
+
+    Requirements:
+    - Function-level application; stacking allowed — each application attaches its own marker,
+      and the texts concatenate in the order written (the plugins-cell web fixture collects
+      them).
+    - Pure declaration — no I/O, no plugin lookup, no config read; works without web.yml (the
+      failure then arrives at setup as pytest's standard fixture-not-found).
+
+    Constraints:
+    - Do not wrap the function body and do not execute anything at decoration time.
+    - No new config keys and no presets — the web.yml key set stays fixed.
+
+    Use `conventions` for docstrings, type hints, and testing.
+    Use `prettyplay` for the generation_prompt semantics and the no-secrets rule.
 
 "AllureStepHooks(play: PrettyPlay)":
   location: allure_hooks.py
@@ -179,7 +229,8 @@ CreatedAt: 28/10/26
 Description: |
   Web library cell — the prettyplay capability's library surface: the prettyplay settings
   materialization of the validated web config (no mirror model — the cell declares no config
-  models of its own), the Allure step reporting hooks, and the console event log formatter. The
-  web plugin itself (the web fixture, the strict/interactive options), the web config key set,
-  and the document validation live in the plugins cell (goga_tool_pybuggy/plugins), activated by
-  its installation gate on the presence of the web config document.
+  models of its own), the per-test generation-prompt decorator, the Allure step reporting
+  hooks, and the console event log formatter. The web plugin itself (the web fixture, the
+  strict/interactive options), the web config key set, and the document validation live in the
+  plugins cell (goga_tool_pybuggy/plugins), activated by its installation gate on the presence
+  of the web config document.
