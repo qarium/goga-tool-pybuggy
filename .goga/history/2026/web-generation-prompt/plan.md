@@ -780,10 +780,10 @@ module-level `t.Final` constant next to `_PRETTYPLAY_ENV_PREFIX`, mirroring
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)** — declare this task
+- [x] **STEP 0 (DECLARATION)** — declare this task
   (`Task 5: WebPlugin.configure marker registration`) and its target files
   (`goga_tool_pybuggy/plugins/web_plugin.py`, `tests/plugins/test_web_plugin.py`)
-- [ ] **STEP 1 (CONTRACT TESTS → the design's configure scenarios)** — in
+- [x] **STEP 1 (CONTRACT TESTS → the design's configure scenarios)** — in
   `tests/plugins/test_web_plugin.py` (`TestWebPluginConfigure`), add (both fail now):
   - `test_configure_registers_the_generation_prompt_marker` — via
     `_configured_plugin(monkeypatch, config=_FakePytestConfig())`; assert
@@ -796,7 +796,7 @@ module-level `t.Final` constant next to `_PRETTYPLAY_ENV_PREFIX`, mirroring
     `plugin.configure()`, and still
     `any(name == "markers" for name, _ in config.lines)` — the registration precedes the
     gates (pins the algorithm's step order)
-- [ ] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/plugins/web_plugin.py`: define the
+- [x] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/plugins/web_plugin.py`: define the
   module-level constant next to `_PRETTYPLAY_ENV_PREFIX`:
 
   ```python
@@ -810,7 +810,7 @@ module-level `t.Final` constant next to `_PRETTYPLAY_ENV_PREFIX`, mirroring
   as the **first statement** of `configure()` — before the typed-flag reads and every gate.
   Do not touch `WebConfigKeys`, the option declarations, or any gate (one docstring sentence
   naming the registration in the `configure` docstring is allowed; no algorithm restatement)
-- [ ] **STEP 2a (REPL CYCLE)** — drive the real plugin live (fresh interpreter; reload after
+- [x] **STEP 2a (REPL CYCLE)** — drive the real plugin live (fresh interpreter; reload after
   edits):
 
   ```
@@ -842,22 +842,22 @@ module-level `t.Final` constant next to `_PRETTYPLAY_ENV_PREFIX`, mirroring
   Expected: `cfg.lines` starts with the `('markers', 'pybuggy_generation_prompt: …')` entry;
   the invalid document still raises `ValueError` **after** the marker line was recorded.
   Iterate until both observations match
-- [ ] **STEP 3 (INTERFACE VERIFICATION)** —
+- [x] **STEP 3 (INTERFACE VERIFICATION)** —
   `/workspace/.venv/bin/pytest tests/plugins/test_web_plugin.py -v` — the two new tests pass;
   every existing configure test stays green (the gates are untouched)
-- [ ] **STEP 4 (LOGIC TESTS)** — covered by STEP 1 (both scenarios are behavioral); add
+- [x] **STEP 4 (LOGIC TESTS)** — covered by STEP 1 (both scenarios are behavioral); add
   nothing further — verify instead that the full plugin file suite is green (STEP 5)
-- [ ] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/plugins/test_web_plugin.py -v`
+- [x] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/plugins/test_web_plugin.py -v`
   — fix the implementation (never the tests) until all pass
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: registration is the first
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: registration is the first
   operation; help line names the marker with a one-line description (the
   `pybuggy_services` form); unconditional (before the gates); configure runs once per plugin
   (idempotent registration regardless); no gate reordering beyond the insertion
-- [ ] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/plugins tests/plugins`
+- [x] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy/plugins tests/plugins`
   and `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/plugins tests/plugins` (R3)
-- [ ] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
+- [x] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
   gate
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 6: `WebPlugin.web` — collect the per-test prompt extras (TDD coding)
 

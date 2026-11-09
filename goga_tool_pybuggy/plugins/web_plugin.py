@@ -67,6 +67,12 @@ class WebConfigKeys(str, Enum):
 # Prefix of the library's env layer — every matching variable is scrubbed at configphase.
 _PRETTYPLAY_ENV_PREFIX: t.Final[str] = "PRETTYPLAY_"
 
+# Help line of the per-test generation-instruction marker — registered at configphase so
+# applying it in test modules stays warning-free.
+_GENERATION_PROMPT_MARKER_HELP: t.Final[str] = (
+    "pybuggy_generation_prompt: per-test extra generation instructions (applied by the pybuggy web plugin)"
+)
+
 
 def _scrub_prettyplay_env() -> None:
     """Remove every ``PRETTYPLAY_`` environment variable of the process.
@@ -268,9 +274,11 @@ class WebPlugin:
     def configure(self) -> None:
         """Assemble the activation from the resolved options and ready the runtime environment.
 
-        Pluginator lifecycle callback at pytest configphase, before any collection. The directive
+        Pluginator lifecycle callback at pytest configphase, before any collection. The
+        ``pybuggy_generation_prompt`` marker is registered first — applying the per-test
+        generation-instruction decorator in test modules stays warning-free. The directive
         values are already loaded — the standard option chain resolved them; what remains here is
-        only what the standard loading cannot do. The document gates run first (the parse guard,
+        only what the standard loading cannot do. The document gates run next (the parse guard,
         the non-mapping and the empty rejection), so the option reads below never meet a broken
         reader. The typed ``--browser-endpoint`` is injected into a copy of the resolved browser
         group before validation — the injected value passes the same gate, and the typed empty
@@ -286,6 +294,8 @@ class WebPlugin:
             ValueError: The document is unparsable, non-mapping, empty, or invalid; the message
                 names the document location (the pydantic detail chained).
         """
+        self.pytest_config.addinivalue_line("markers", _GENERATION_PROMPT_MARKER_HELP)
+
         strict_flag = bool(self.pytest_config.getoption("strict_mode", default=False))
         interactive_flag = bool(self.pytest_config.getoption("interactive", default=False))
         endpoint_flag = self.pytest_config.getoption("browser_endpoint", default=None)

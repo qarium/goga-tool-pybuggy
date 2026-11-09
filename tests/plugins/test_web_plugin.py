@@ -430,6 +430,26 @@ class TestWebPluginConfigure:
         assert logger.level == logging.INFO
         assert [type(handler.formatter) for handler in logger.handlers] == [EventLogFormatter]
 
+    def test_configure_registers_the_generation_prompt_marker(self, monkeypatch: pytest.MonkeyPatch):
+        """``configure`` registers the per-test generation-prompt marker with a help line."""
+        config = _FakePytestConfig()
+        plugin = _configured_plugin(monkeypatch, config=config)
+
+        assert any(name == "markers" and "pybuggy_generation_prompt" in line for name, line in config.lines)
+        assert plugin.activation is not None
+
+    def test_configure_registers_the_marker_before_the_document_gates(self, monkeypatch: pytest.MonkeyPatch):
+        """The registration precedes the gates — the marker line is recorded even in a failing run."""
+        plugin = WebPlugin(context={})
+        monkeypatch.setattr(plugin, "plugin_config", {"provider": "nope"}, raising=False)
+        config = _FakePytestConfig()
+        plugin.init_pytest_config(config)
+
+        with pytest.raises(ValueError, match=r"web\.yml: invalid web config document"):
+            plugin.configure()
+
+        assert any(name == "markers" for name, _ in config.lines)
+
     def test_configure_applies_cli_authority(self, monkeypatch: pytest.MonkeyPatch):
         """A typed ``--strict-mode`` flag beats an explicit ``strict: false`` in the document."""
         flagged = _configured_plugin(
