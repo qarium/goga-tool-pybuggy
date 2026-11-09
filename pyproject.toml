@@ -46,7 +46,7 @@ dependencies = [
     "kafka-python>=3.0",
     "redis>=7.0",
     "requests>=2.31",
-    "prettyplay>=0.0.3,<0.1.0",
+    "prettyplay>=0.0.4,<0.1.0",
 ]
 
 [project.optional-dependencies]

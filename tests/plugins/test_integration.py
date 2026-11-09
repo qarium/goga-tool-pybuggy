@@ -105,6 +105,10 @@ strict: false
 interactive: false
 """
 
+# The surveyed minimum plus a document-level generation prompt — the per-test extras of the
+# stacked decorators must append after the document text.
+_WEB_PROMPT_CONFIG_SOURCE = _WEB_CONFIG_SOURCE + "generation_prompt: global instructions\n"
+
 # Consumer test of the web kind: the web fixture resolves, both CLI options registered,
 # and no api surface exists (the api plugin gated off registers nothing).
 _WEB_TEST_SOURCE = """\
@@ -125,6 +129,38 @@ def test_web_only_run_registers_no_api_options(pytestconfig):
     # No api.yml and no BASE_URL — the api plugin never installs, so its option never registers.
     with pytest.raises(ValueError):
         pytestconfig.getoption("--base-url")
+"""
+
+# Consumer test of the per-test generation-prompt decorator: stacked applications compose through
+# real pytest marker iteration — the bottom decorator's marker lands first in the item's mark
+# list, the fixture reverses to written order and appends after the document prompt. The module
+# wraps the plugin cell's `build_pretty_config` with a delegating recorder (the runtime exposes
+# no config surface), so the real routine still builds the value the test asserts. The decorator
+# comes from the root facade; an unregistered marker fails the run via -W error.
+_WEB_PROMPT_TEST_SOURCE = """\
+from pathlib import Path
+
+import goga_tool_pybuggy.plugins.web_plugin as web_plugin_module
+from goga_tool_pybuggy import generation_prompt
+
+_real_build_pretty_config = web_plugin_module.build_pretty_config
+
+
+def _recording_build_pretty_config(config, strict_flag, interactive_flag, prompt_extra=""):
+    built = _real_build_pretty_config(config, strict_flag, interactive_flag, prompt_extra=prompt_extra)
+    Path("recorded_prompt.txt").write_text(built.generation_prompt, encoding="utf-8")
+
+    return built
+
+
+web_plugin_module.build_pretty_config = _recording_build_pretty_config
+
+
+@generation_prompt("top text")
+@generation_prompt("bottom text")
+def test_stacked_generation_prompt_composes_in_written_order(web):
+    assert web is not None
+    assert Path("recorded_prompt.txt").read_text(encoding="utf-8") == "global instructions\\ntop text\\nbottom text"
 """
 
 
@@ -222,8 +258,10 @@ class TestWebPluginEndToEnd:
     """End-to-end: a real pytest subprocess enabling the web plugin through ``plugins.install()``.
 
     Pins the seam no in-process double reaches: the installation gate appending the real
-    ``WebPlugin``, pluginator binding it to ``web.yml``, ``configure`` running at configphase, and
-    the ``web`` fixture resolving by its consumer-facing name.
+    ``WebPlugin``, pluginator binding it to ``web.yml``, ``configure`` running at configphase, the
+    ``web`` fixture resolving by its consumer-facing name, and the stacked
+    ``@generation_prompt`` decorators composing through real pytest marker iteration in written
+    order — warning-free under the configphase-registered marker.
     """
 
     def test_web_kind_end_to_end_pytest_resolves_web_fixture(self, tmp_path):
@@ -257,3 +295,45 @@ class TestWebPluginEndToEnd:
         assert result.returncode == 0, output
         assert "test_web_fixture_resolves" in output
         assert "test_web_options_registered" in output
+
+    def test_web_kind_stacked_generation_prompts_compose_in_written_order(self, tmp_path):
+        """Real pytest run: stacked ``@generation_prompt`` decorators join top-first after the document prompt.
+
+        The decorator's markers land on the collected item in application order (bottom
+        decorator first) — the fixture's reversal restores written order, and the composed
+        runtime config carries the document prompt plus the extras. The ``-W error`` filter
+        fails the run on an unregistered-marker warning, pinning the warning-free use.
+        """
+        config_dir = tmp_path / ".goga" / "tools" / "pybuggy"
+        config_dir.mkdir(parents=True)
+        (config_dir / "web.yml").write_text(_WEB_PROMPT_CONFIG_SOURCE, encoding="utf-8")
+        (tmp_path / "conftest.py").write_text(_BOOTSTRAP_CONFTEST_SOURCE, encoding="utf-8")
+        (tmp_path / "test_prompts.py").write_text(_WEB_PROMPT_TEST_SOURCE, encoding="utf-8")
+
+        env = {key: value for key, value in os.environ.items() if key != "BASE_URL"}
+        env["PYTHONPATH"] = _PROJECT_ROOT
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                str(tmp_path),
+                "-v",
+                "-p",
+                "no:cacheprovider",
+                "-W",
+                "error::pytest.PytestUnknownMarkWarning",
+            ],
+            cwd=str(tmp_path),
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+
+        output = result.stdout + result.stderr
+        assert result.returncode == 0, output
+        assert "test_stacked_generation_prompt_composes_in_written_order" in output
+        assert "PytestUnknownMarkWarning" not in output

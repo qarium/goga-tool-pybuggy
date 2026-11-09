@@ -28,7 +28,11 @@ class TestGenerationPrompt:
         prompt_marks = [m for m in sample.pytestmark if m.name == "pybuggy_generation_prompt"]
         assert len(prompt_marks) == 1
         assert prompt_marks[0].kwargs == {"text": "Dates render as DD.MM.YYYY."}
-        assert any(m.name == "usefixtures" for m in sample.pytestmark)
+
+        usefixtures_marks = [m for m in sample.pytestmark if m.name == "usefixtures"]
+
+        assert len(usefixtures_marks) == 1
+        assert usefixtures_marks[0].args == ("web",)
 
     def test_generation_prompt_returns_function_unchanged(self):
         """The decorator returns the same function object — no wrapping, nothing executed."""
