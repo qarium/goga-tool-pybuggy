@@ -1080,15 +1080,17 @@ never to read-only surfaces).
 - `pybuggy-web`: the consumer patterns the integration snippet mirrors (root import,
   stacking, the automatic web runtime).
 
-- [ ] Full suite: `/workspace/.venv/bin/pytest tests/ -x` — green, including the 18 new
+- [x] Full suite: `/workspace/.venv/bin/pytest tests/ -x` — green, including the 18 new
   test functions (17 design scenarios + the signature contract test; 22 collected cases with
-  the parametrized table)
-- [ ] Feature-scoped suite:
+  the parametrized table) — **2064 passed, 21 skipped** (baseline 2042 + 22 new cases, exact)
+- [x] Feature-scoped suite:
   `/workspace/.venv/bin/pytest tests/web/test_pretty.py tests/plugins/test_web_plugin.py tests/test_facade.py -v`
-  — green
-- [ ] Facade smoke: `/workspace/.venv/bin/python -c "from goga_tool_pybuggy import generation_prompt"`
+  — green — **80 passed** (the PytestUnknownMarkWarning entries in unit-test contexts are
+  expected: the marker is registered by the plugin's configure, which unit tests bypass; the
+  contract's warning-free requirement covers real plugin runs)
+- [x] Facade smoke: `/workspace/.venv/bin/python -c "from goga_tool_pybuggy import generation_prompt"`
   — exit 0
-- [ ] **REPL integration checkpoint** — the consumer declaration flow of the interaction
+- [x] **REPL integration checkpoint** — the consumer declaration flow of the interaction
   diagram (stacked decorators through the root import, marks and order verified):
 
   ```
@@ -1107,18 +1109,21 @@ never to read-only surfaces).
 
   Expected: `written order: ['The #country dropdown is a native <select>.',
   'Dates render as DD.MM.YYYY.']` (bottom applied first — the fixture's `reversed` restores
-  this written order) and `fixture stamped: True`
-- [ ] Lint gate: `/workspace/.venv/bin/ruff check goga_tool_pybuggy/ tests/` — zero findings
-- [ ] Format gate: `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` —
-  clean
-- [ ] Contract consistency: `/workspace/.venv/bin/goga lint` — 0 errors (the read-only surfaces untouched;
-  `git status` still shows exactly the design-stage modifications to them plus this plan's
-  code/test output)
-- [ ] Read-only surfaces audit: `git diff --stat` confirms no changes to the three
+  this written order) and `fixture stamped: True` — observed exactly
+- [x] Lint gate: `/workspace/.venv/bin/ruff check goga_tool_pybuggy/ tests/` — zero findings
+  ("All checks passed!")
+- [x] Format gate: `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/ tests/` —
+  clean ("257 files already formatted")
+- [x] Contract consistency: `/workspace/.venv/bin/goga lint` — 0 errors (26 cells, 0 errors;
+  the read-only surfaces untouched — the design-stage content (commit ff04a7a) is intact and
+  carries the `generation_prompt` contract in all five surfaces)
+- [x] Read-only surfaces audit: `git diff --stat` confirms no changes to the three
   `CODEMANIFEST` files, `goga_tool_pybuggy/web/.usages/pybuggy-web.md`,
   `goga_tool_pybuggy/.usages/assembly.md`, `docs/web/configuration.md`, and `pyproject.toml`
-  beyond what the working tree already carried at Task 1
-- [ ] Final local commit through the R3 gate (lint + format + full suite green)
+  beyond what the working tree already carried at Task 1 — the working tree is clean (zero
+  diff); the plan-wide file list confirms only pretty/web facades/web_plugin, the three
+  feature test files, Task 1's sanctioned baseline lint/format fixes, and this plan file
+- [x] Final local commit through the R3 gate (lint + format + full suite green)
 
 ---
 
@@ -1142,38 +1147,38 @@ All commands run inside the project virtualenv (R1.2) from `/workspace`:
 
 ## Completion Criteria
 
-- [ ] Every contract entity is implemented in the correct `location`: `generation_prompt`
+- [x] Every contract entity is implemented in the correct `location`: `generation_prompt`
       and `build_pretty_config` in `goga_tool_pybuggy/web/pretty.py`; the configure/web
       changes in `goga_tool_pybuggy/plugins/web_plugin.py`; the re-exports in both facades
-- [ ] Every contract entity is accessible from the facade:
+- [x] Every contract entity is accessible from the facade:
       `from goga_tool_pybuggy import generation_prompt` and
       `from goga_tool_pybuggy.web import generation_prompt` both resolve to
       `goga_tool_pybuggy.web.pretty.generation_prompt`
-- [ ] Properties and methods match the declared API: the `prompt_extra: str = ""` parameter;
+- [x] Properties and methods match the declared API: the `prompt_extra: str = ""` parameter;
       the marker registration as configure step 1; the extras collection as web-fixture
       step 2
-- [ ] Descriptions are reflected in behavior: decoration-time validation, stripped-text
+- [x] Descriptions are reflected in behavior: decoration-time validation, stripped-text
       marker kwarg, `usefixtures("web")` stamp, identity return, stacking in written order,
       append semantics with empty-part skip, per-test isolation, warning-free marker use
-- [ ] Contract dependencies are met: root → web re-export hop through the web cell facade;
+- [x] Contract dependencies are met: root → web re-export hop through the web cell facade;
       plugins → web keyword call at the existing import
-- [ ] Re-exports are accessible from the facade (the `->generation_prompt: {}` embedding)
-- [ ] Every coding task followed the TDD workflow (contract tests → code → REPL checkpoint →
+- [x] Re-exports are accessible from the facade (the `->generation_prompt: {}` embedding)
+- [x] Every coding task followed the TDD workflow (contract tests → code → REPL checkpoint →
       verification → logic tests → debugging → re-verification → lint)
-- [ ] Contract tests and logic tests cover facade, API, and behavior within each coding task
+- [x] Contract tests and logic tests cover facade, API, and behavior within each coding task
       (18 new test functions; 22 collected cases)
-- [ ] The REPL cycle (R4) ran inside every coding task: live evaluation, hot reload after
+- [x] The REPL cycle (R4) ran inside every coding task: live evaluation, hot reload after
       edits, verbatim migration into the source files, post-migration re-verification
-- [ ] The lint/format gates (R3) passed at the end of every task and before every local
+- [x] The lint/format gates (R3) passed at the end of every task and before every local
       commit
-- [ ] The coding style (R1) and test writing rules (R2) hold on every touched file
-- [ ] No package boundary was expanded (no new cells, no new packages, no new test files
+- [x] The coding style (R1) and test writing rules (R2) hold on every touched file
+- [x] No package boundary was expanded (no new cells, no new packages, no new test files
       beyond the three existing ones)
-- [ ] `CODEMANIFEST` files were not modified (contract is read-only); the `.usages/` files,
+- [x] `CODEMANIFEST` files were not modified (contract is read-only); the `.usages/` files,
       `docs/web/configuration.md`, and `pyproject.toml` are untouched beyond the
       design-stage working-tree state
-- [ ] All validation commands pass (the full suite, lint, format, facade smoke, `goga lint`)
-- [ ] Every Usages entry is applied in at least one task: `conventions` (R1–R3, every task),
+- [x] All validation commands pass (the full suite, lint, format, facade smoke, `goga lint`)
+- [x] Every Usages entry is applied in at least one task: `conventions` (R1–R3, every task),
       the ralphex REPL protocol (R4, every coding task),
       `prettyplay` (Tasks 2, 3, 6), `pluginator` (Tasks 5, 6), `allure-pytest`
       (Task 6 — forced absent in fixture tests), `pybuggy-web` (Tasks 7, 8 — the consumer
