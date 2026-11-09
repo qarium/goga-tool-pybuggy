@@ -742,18 +742,21 @@ constitute the facade). Pure re-export, import-time only, no behavior. Touches o
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] Change the import line `from .pretty import build_pretty_config` to
+- [x] Change the import line `from .pretty import build_pretty_config` to
   `from .pretty import build_pretty_config, generation_prompt`
-- [ ] Add `"generation_prompt"` to `__all__` in its alphabetical slot — between
+- [x] Add `"generation_prompt"` to `__all__` in its alphabetical slot — between
   `"build_pretty_config"` and `"install_event_log_formatter"`
-- [ ] Extend the module docstring with one sentence naming the per-test generation-prompt
+- [x] Extend the module docstring with one sentence naming the per-test generation-prompt
   declaration surface (do not restate the algorithm)
-- [ ] **REPL cycle — facade checkpoint** (fresh interpreter):
+- [x] **REPL cycle — facade checkpoint** (fresh interpreter):
   `/workspace/.venv/bin/python -c "from goga_tool_pybuggy.web import generation_prompt as g; from goga_tool_pybuggy.web.pretty import generation_prompt as p; import goga_tool_pybuggy.web as w; print(g is p, 'generation_prompt' in w.__all__)"`
   — prints `True True`
-- [ ] Verify facade accessibility + no regression:
-  `/workspace/.venv/bin/pytest tests/web/ -v` — green
-- [ ] Lint: `/workspace/.venv/bin/ruff check goga_tool_pybuggy/web` and
+- [x] Verify facade accessibility + no regression:
+  `/workspace/.venv/bin/pytest tests/web/ -v` — green (54 passed; one pre-existing stale pin
+  in `tests/web/test_integration.py` — `test_facade_exports_exactly_four_names` hardcoded the
+  pre-contract four-name facade — updated to the five contract names per the materialized
+  read-only CODEMANIFEST, whose precedence the plan pins above conventions)
+- [x] Lint: `/workspace/.venv/bin/ruff check goga_tool_pybuggy/web` and
   `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy/web` — clean (R3; the import
   edit must stay isort-clean)
 
