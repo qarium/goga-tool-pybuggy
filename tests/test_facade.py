@@ -1,4 +1,4 @@
-"""Contract and logic tests for the root facade re-exports (services, install)."""
+"""Contract and logic tests for the root facade re-exports (services, install, generation_prompt)."""
 
 # Contract tests — facade surface and shapes.
 
@@ -37,6 +37,18 @@ def test_facade_install_is_not_the_plugins_install() -> None:
     from goga_tool_pybuggy.plugins import install as plugins_install
 
     assert goga_tool_pybuggy.install is not plugins_install
+
+
+def test_facade_reexports_generation_prompt() -> None:
+    """The facade should re-export the web cell's per-test generation-prompt decorator."""
+    import goga_tool_pybuggy
+    from goga_tool_pybuggy import generation_prompt
+    from goga_tool_pybuggy.web.pretty import generation_prompt as cell_entity
+
+    assert callable(generation_prompt)
+    assert generation_prompt is cell_entity
+    assert "generation_prompt" in goga_tool_pybuggy.__all__
+    assert "generation_prompt" in goga_tool_pybuggy.web.__all__
 
 
 def test_facade_keeps_existing_exports() -> None:

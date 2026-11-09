@@ -1007,9 +1007,9 @@ generation_prompt` is the **last** import line (module order
 
 **CRITICAL: `CODEMANIFEST` files — read-only contract definitions. Do NOT modify them. If implementation does not match the contract, fix the implementation — never fix the contract.**
 
-- [ ] **STEP 0 (DECLARATION)** — declare this task (`Task 7: root facade re-export`) and its
+- [x] **STEP 0 (DECLARATION)** — declare this task (`Task 7: root facade re-export`) and its
   target files (`goga_tool_pybuggy/__init__.py`, `tests/test_facade.py`)
-- [ ] **STEP 1 (CONTRACT TESTS)** — in `tests/test_facade.py`, add
+- [x] **STEP 1 (CONTRACT TESTS)** — in `tests/test_facade.py`, add
   `test_facade_reexports_generation_prompt` (expected to fail now — the name is absent):
 
   ```python
@@ -1025,11 +1025,11 @@ generation_prompt` is the **last** import line (module order
 
   (update the module docstring of `tests/test_facade.py` to name the third capability
   surface)
-- [ ] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/__init__.py`: add
+- [x] **STEP 2 (IMPLEMENTATION)** — in `goga_tool_pybuggy/__init__.py`: add
   `from .web import generation_prompt` as the **last** import line (after
   `from .tools import retries`) and insert `"generation_prompt"` into `__all__` between
   `"EnvContext"` and `"install"`
-- [ ] **STEP 2a (REPL CYCLE)** — the consumer declaration flow end-to-end (fresh
+- [x] **STEP 2a (REPL CYCLE)** — the consumer declaration flow end-to-end (fresh
   interpreter):
 
   ```
@@ -1049,23 +1049,23 @@ generation_prompt` is the **last** import line (module order
   Expected: `identity: True`; marks contain
   `('pybuggy_generation_prompt', {'text': 'Dates render as DD.MM.YYYY.'})` and the
   `usefixtures` stamp — the exact consumer flow of the interaction diagram
-- [ ] **STEP 3 (INTERFACE VERIFICATION)** —
+- [x] **STEP 3 (INTERFACE VERIFICATION)** —
   `/workspace/.venv/bin/pytest tests/test_facade.py -v` — the new test passes and the
   pre-existing facade tests stay green
-- [ ] **STEP 4 (LOGIC TESTS)** — covered by STEP 1 (a pure re-export has no further
+- [x] **STEP 4 (LOGIC TESTS)** — covered by STEP 1 (a pure re-export has no further
   behavior); confirm the facade smoke check:
   `/workspace/.venv/bin/python -c "from goga_tool_pybuggy import generation_prompt"` exits 0
-- [ ] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/ -x` — the whole suite
+- [x] **STEP 5 (DEBUGGING)** — `/workspace/.venv/bin/pytest tests/ -x` — the whole suite
   green (fix the implementation, never the tests)
-- [ ] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: import direction one-way
+- [x] **STEP 6 (CONTRACT RE-VERIFICATION)** — obligations: import direction one-way
   (root → web; no cycle); both `__all__` entries present; the identity through the chain;
   no other facade entries disturbed
-- [ ] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy tests/test_facade.py`
+- [x] **STEP 7 (LINT)** — `/workspace/.venv/bin/ruff check goga_tool_pybuggy tests/test_facade.py`
   and `/workspace/.venv/bin/ruff format --check goga_tool_pybuggy tests/test_facade.py`
   (R3 — the new import line's position is exactly what isort expects)
-- [ ] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
+- [x] **STEP 8 (COMPLETION)** — mark checkboxes complete; local commit only through the R3
   gate
-- [ ] → REVIEW → APPROVAL → NEXT TASK
+- [x] → REVIEW → APPROVAL → NEXT TASK
 
 ### Task 8: Final gate — full-suite validation and the consumer-flow integration check
 
