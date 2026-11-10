@@ -29,7 +29,8 @@ def test_duckduckgo_search(web):
 - `web.step(sentence)` — an action step: generated once, then replayed from the cache.
 - `web.expect(sentence)` — an assertion step: polled until it holds or the polling budget ends.
 - Steps carry full URLs — no base_url templating, no sandbox binding.
-- One action per step sentence; name the target and the action in plain language.
+- One action per step sentence; name the target and the action in plain language: the target is
+  addressed by its visible name (label, text) — never by CSS/XPath selectors or testids.
 
 ## Capture vars from a page
 
@@ -77,7 +78,7 @@ def test_checkout(web):
 
 ## Per-test extra instructions
 
-Some tests need test-specific instructions (an unusual selector, a page quirk) that must not
+Some tests need test-specific instructions (a page quirk) that must not
 leak into the global prompt. Declare them with the `generation_prompt` decorator — imported
 from the package root:
 
@@ -85,7 +86,7 @@ from the package root:
 from goga_tool_pybuggy import generation_prompt
 
 
-@generation_prompt("A cookie banner (#onetrust) covers the page on every navigation — dismiss it before any interaction.")
+@generation_prompt("A cookie banner covers the page on every navigation — dismiss it before any interaction.")
 def test_checkout(web):
     web.step("Open https://shop.example.com/checkout")
 ```
@@ -99,7 +100,7 @@ def test_checkout(web):
 - Stack decorators; texts apply top-to-bottom in the order written:
 
 ```python
-@generation_prompt("The #country dropdown is a native <select> — use select_option.")
+@generation_prompt("The country dropdown is a native <select> — use select_option.")
 @generation_prompt("Dates render as DD.MM.YYYY.")
 def test_order_form(web):
     ...
