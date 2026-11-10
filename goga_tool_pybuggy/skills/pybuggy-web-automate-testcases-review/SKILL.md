@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-testcases-review
-description: Verification of the materialized web cells `tests/web/<cell>/CODEMANIFEST` — semantic REQ coverage (REQ ids are not stored in the manifests; the review re-derives coverage from requirements §3 against Routine Purpose/Steps), step-sentence quality (one action, unambiguous target, full URLs, concrete expectations, no secrets, the group criterion), parameterization linearity, DSL structure and usage resolution — fixes the manifests with user approval
+description: Verification of the materialized web cells `tests/web/<cell>/CODEMANIFEST` — semantic REQ coverage (REQ ids are not stored in the manifests; the review re-derives coverage from requirements §3 against Routine Purpose/Steps), step-sentence quality (one action, unambiguous target by visible name — no locators/selectors/testids, full URLs, concrete expectations, no secrets, the group criterion), parameterization linearity, DSL structure and usage resolution — fixes the manifests with user approval
 ---
 # Pybuggy Web Topic Testcases — Review
 
@@ -109,7 +109,9 @@ CODEMANIFEST — утверждённый пользователем контр�
    групп-основания) — **High**.
 2. **Адресат однозначен** для поиска на странице: видимое имя элемента, текст, URL. «Нужная
    кнопка», «соответствующее поле», «правильные данные», «форма» без указания какой — **High**
-   (LLM не найдёт элемент стабильно).
+   (LLM не найдёт элемент стабильно). Локатор/селектор/testid (CSS, XPath, data-атрибут) в
+   предложении вместо видимого имени — **High** (запрет линейки: адресация элементов — видимыми
+   именами, локаторы в аннотации не попадают).
 3. **URL полные** и принадлежат Target environment §1 (соответствуют страницам §2) — сокращение
    или чужой домен **High**.
 4. **Ожидания — отдельные предложения-проверки** (в будущем `web.expect`) и конкретны: дословный
@@ -141,7 +143,10 @@ CODEMANIFEST — утверждённый пользователем контр�
    остаются в `Steps:` — расхождение **Medium**.
 3. **Prompt:** — только особенности генерации страницы (баннер cookie, нативный `<select>`, формат
    дат DD.MM.YYYY), опирающиеся на факты требований §2; поведение или шаги в `Prompt:` —
-   **Medium**; каждый буллет материализуем декоратором `@generation_prompt("<текст>")` (одна
+   **Medium**; адресация элементов в `Prompt:` — локатор/селектор/testid, «находить по
+   `<локатору>`» — **High** (`Prompt:` — странности страницы, не адресация; адресат называется
+   видимым именем в предложении шага); каждый буллет материализуем декоратором
+   `@generation_prompt("<текст>")` (одна
    строка, без секретов) — нематериализуемый буллет **Medium**.
 4. **Use …**: только специфичные для рутины ключи; базовые (`pybuggy-web`, `conventions`) не
    дублируются — дубль **Medium**; каждый ключ подключён в Header ячейки — отсутствие **High**.
@@ -210,7 +215,8 @@ updated / unchanged.
    бэктики, отсутствие REQ-id и кода)?
 4. Восстановлено ли покрытие по смыслу: каждый REQ §3 ↔ Routine (включая error-REQ), висячие
    рутины выявлены?
-5. Проверено ли качество предложений шагов (одно действие, однозначный адресат, полные URL,
+5. Проверено ли качество предложений шагов (одно действие, однозначный адресат видимым именем —
+   без локаторов/селекторов/testid, полные URL,
    конкретные отдельные ожидания, секреты, критерий группы, линейность параметризации, захваты)?
 6. Проверена ли сборка рутин (`web`-буллет, auth-предусловия, `Prompt:`-уместность, `Use …`,
    Purpose↔Steps) и ячейки (merge сохранил существующие рутины, коллизии)?

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-explore
-description: Live page exploration via playwright-cli — attaches to the browser from Browser Endpoint ([INTAKE_REPORT]) in a named session, builds per-page dossiers (final URLs, key elements with stable locators, forms and validations, navigation map, observable states, console/network findings including API endpoints), handles auth without recording secrets, and produces [EXPLORE_REPORT]
+description: Live page exploration via playwright-cli — attaches to the browser from Browser Endpoint ([INTAKE_REPORT]) in a named session, builds per-page dossiers (final URLs, key elements with visible names, forms and validations, navigation map, observable states, console/network findings including API endpoints; no locators/selectors — test addressing is by visible names), handles auth without recording secrets, and produces [EXPLORE_REPORT]
 ---
 
 # Pybuggy Web Topic Requirements — Explore
@@ -8,7 +8,7 @@ description: Live page exploration via playwright-cli — attaches to the browse
 ## Identity
 
 Ты — исследователь страниц. Ты открываешь целевые страницы живого сайта через playwright-cli и собираешь
-по каждой странице фактическое досье: итоговый URL, назначение, ключевые элементы со стабильными локаторами,
+по каждой странице фактическое досье: итоговый URL, назначение, ключевые элементы с видимыми именами,
 формы с валидациями, карту навигации, наблюдаемые состояния, ошибки консоли и сети (включая API-эндпоинты
 страницы). Досье — единственный источник фактов о страницах для всех следующих шагов.
 
@@ -34,7 +34,6 @@ elaborate — здесь они не «исправляются». Секрет�
 - `playwright-cli -s=pybuggy-explore find "text"` / `find --regex "/…/i"` — поиск по снапшоту (как grep -C);
 - `playwright-cli -s=pybuggy-explore --raw eval "<js>" [ref]` — вычислить JS в странице (без статуса
   и снапшота в выводе);
-- `playwright-cli -s=pybuggy-explore --raw generate-locator e<N>` — стабильный Playwright-локатор элемента;
 - `playwright-cli -s=pybuggy-explore click e<N> | fill e<N> "text" | press Enter | select e<N> "val" | check e<N>` — взаимодействия;
 - `playwright-cli -s=pybuggy-explore console` — сообщения консоли; `requests` — сетевые запросы страницы;
 - `playwright-cli -s=pybuggy-explore go-back` — назад; `reload` — перезагрузка;
@@ -119,8 +118,9 @@ Pre-flight (Шаг 0) → сессия подключена (`attach`), перв
 5. **Формы и валидации**:
    `--raw eval "JSON.stringify([...document.querySelectorAll('form')].slice(0,5).map(f => ({action: f.action, method: f.method, fields: [...f.querySelectorAll('input,select,textarea')].slice(0,30).map(el => ({name: el.name, type: el.type, required: el.required, placeholder: (el.placeholder||'').slice(0,60), pattern: el.pattern || '', maxLength: el.maxLength || ''}))})))"`.
 6. **Ключевые интерактивные элементы**: выбери 3–7 рефов из снапшота (главные CTA, фильтры, табы,
-   переключатели) и для каждого получи стабильный локатор: `--raw generate-locator e<N>`. Запиши
-   тройку «назначение + стабильный локатор + ref».
+   переключатели) и запиши тройку «назначение + видимое имя (текст/подпись) + ref». Локаторы
+   (CSS/XPath, testid) в досье не собираются: адресация элементов в веб-тестах идёт видимыми
+   именами, локаторы в артефакты топика не попадают.
 7. **Консоль и сеть**: `console` (ошибки) и `requests` (падённые запросы 4xx/5xx — метод URL → статус).
    Отдельно выпиши **API-эндпоинты страницы** (XHR/fetch: метод + путь) — главный источник фактов для
    §6 требований.
@@ -188,9 +188,9 @@ Fill in every section. Empty sections are forbidden.
 - **Назначение:** <1–2 предложения — что это за страница>
 - **Ключевые элементы:**
 
-  | Элемент | Назначение | Стабильный локатор |
-  |---------|------------|--------------------|
-  | […]     | […]        | getByRole('button', { name: '…' }) |
+  | Элемент (видимое имя) | Назначение | ref |
+  |-----------------------|------------|-----|
+  | […]                   | […]        | e12 |
 
 - **Формы:** по каждой: action, method; поля `name / type / required / валидации (placeholder, pattern, maxLength)`
 - **Навигация:** `действие (клик по <элементу>) → <URL назначения>` — по каждому переходу

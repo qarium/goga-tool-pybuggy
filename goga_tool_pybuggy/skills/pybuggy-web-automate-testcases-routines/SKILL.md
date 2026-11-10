@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-testcases-routines
-description: Routines design — builds complete test Routines directly from the requirements (a test case IS a Routine — name, Purpose, Precondition, Data with parameterization by linearity, optional Prompt for per-test generation instructions, Steps as step sentences, Use; the REQ coverage registry is session-time, no REQ ids in the manifests); shows each Routine to the user and waits for approval
+description: Routines design — builds complete test Routines directly from the requirements (a test case IS a Routine — name, Purpose, Precondition, Data with parameterization by linearity, optional Prompt for per-test generation instructions (page quirks only — no locators/selectors, addressing is by visible names in step sentences), Steps as step sentences, Use; the REQ coverage registry is session-time, no REQ ids in the manifests); shows each Routine to the user and waits for approval
 ---
 
 # Pybuggy Web Topic Testcases — Routines
@@ -14,7 +14,9 @@ description: Routines design — builds complete test Routines directly from the
 ## Core Principle
 
 Рутина строится только из фактов [TESTCASES_INTAKE] (§2 страницы с итоговыми URL, §3 REQ, §4 auth и
-предусловия, §6 интеграции) — элементы и поведение не выдумываются. Параметризация — решение этой
+предусловия, §6 интеграции) — элементы и поведение не выдумываются. Локаторы/селекторы/testid
+(в том числе оставшиеся в контексте сессии из исследования страниц) в аннотации не попадают:
+адресация элементов — видимыми именами в предложениях шагов. Параметризация — решение этой
 фазы: варианты с совпадающим набором шагов и проверок (различаются только данными) — одна
 параметризованная Routine; другой набор шагов или проверок — отдельные Routine.
 
@@ -45,11 +47,15 @@ description: Routines design — builds complete test Routines directly from the
    (буллет `` `web` `` + предусловия) →
    `Data:` (захваты переменных и/или варианты параметризации; опускается, если пусто) →
    `Prompt:` (пер-тестовые доп-инструкции генерации — особенности страницы из §2, мешающие
-   генерации: баннер cookie, нативный `<select>`, формат дат; один буллет = один
+   генерации: баннер cookie, нативный `<select>`, формат дат; только странности страницы, без
+   адресации элементов — локаторы/селекторы/testid в `Prompt:` запрещены, адресат называется
+   видимым именем в предложении шага; один буллет = один
    `@generation_prompt`-текст; опускается, если особенностей нет) → `Steps:`
    (нумерованные предложения) → `Use …` (ключи из [TOOLS_REPORT], используемые этой рутиной;
    опускается). Пустая строка между секциями.
-7. **Правила предложений шагов**: один шаг = одно действие (названы цель и действие); URL всегда
+7. **Правила предложений шагов**: один шаг = одно действие (названы цель и действие); адресат —
+   видимое имя/текст элемента (локаторы, селекторы, testid в предложениях запрещены — даже
+   известные из исследования); URL всегда
    полные; секреты запрещены (вход — «Выполнить вход как тестовый пользователь `<роль>`», значения
    из env/usage-файла); каждая проверка — отдельное expect-предложение; мини-сценарий из 2–3 тесно
    связанных шагов → одно предложение-группа (`web.group`). Критерий группы: набор действий

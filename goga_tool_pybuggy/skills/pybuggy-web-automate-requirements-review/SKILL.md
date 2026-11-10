@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-review
-description: Verification of the web test requirements artifact `goga history path -f requirements.md` — requirement quality (checkable browser-observable behavior with a concrete outcome, no vague predicates), internal consistency (environment, auth, roles, pages), realness of web runtime facts and the usage registry against the disk; no browser session and no `goga schema` (cells and routines do not exist yet at this stage)
+description: Verification of the web test requirements artifact `goga history path -f requirements.md` — requirement quality (checkable browser-observable behavior with a concrete outcome, no vague predicates, no locators/selectors outside §4 auth), internal consistency (environment, auth, roles, pages), realness of web runtime facts and the usage registry against the disk; no browser session and no `goga schema` (cells and routines do not exist yet at this stage)
 ---
 # Pybuggy Web Topic Requirements — Review
 
@@ -93,7 +93,9 @@ Upstream-артефакта нет: это голова цепочки топи�
 5. Наблюдаемые названы конкретно: тексты реакций дословно (в кавычках), URL полные, элементы по
    видимым именам. Слова-паразиты в ожиданиях — «корректно», «правильно», «успешно»,
    «актуальные данные», «в приемлемом виде» — **High**: из такого ожидания не строится
-   стабильная проверка.
+   стабильная проверка. Локаторы/селекторы (CSS, XPath, testid, атрибуты-адресации) вне
+   механизма входа §4 Auth — **High**: адресация в шагах тестов идёт видимыми именами; локатор
+   из требований протекает в аннотации рутин (`Prompt:`, предложения шагов).
 6. Условия могут быть поведенческими (конкретные тестовые данные выберет стадия testcases), но
    заглушки `<…>`, «какие-нибудь», «и т.д.» внутри REQ — **Medium**.
 
@@ -185,8 +187,8 @@ updated / unchanged.
 4. Проверена ли структура (§1–§9, идентификаторы REQ/PAGE, отсутствие кода)?
 5. Проверена ли **проверяемость** каждого REQ (условие → наблюдаемая через браузер реакция,
    измеримые acceptance criteria, error-контракты с конкретикой)?
-6. Проверена ли **конкретность** (дословные тексты, полные URL, отсутствие слов-паразитов) и
-   **обоснованность** (опора на §2/§4/§6, атомарность, роли)?
+6. Проверена ли **конкретность** (дословные тексты, полные URL, отсутствие слов-паразитов и
+   локаторов вне §4 Auth) и **обоснованность** (опора на §2/§4/§6, атомарность, роли)?
 7. Проверена ли согласованность (единый origin окружения, §1↔§4, auth, задействованность страниц)
    и реальность (web runtime факты, §8/§9 ↔ диск, секреты)?
 8. Показана ли каждая находка по одной с выбором Apply/Alternative/Skip?
