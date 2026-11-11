@@ -32,6 +32,20 @@ def test_duckduckgo_search(web):
 - One action per step sentence; name the target and the action in plain language: the target is
   addressed by its visible name (label, text) — never by CSS/XPath selectors or testids.
 
+## One session per test
+
+The `web` fixture is function-scoped: each test composes its own runtime — a Playwright driver,
+a browser, one isolated context with a single page — and closes it after the test. Nothing is
+shared between tests: cookies, localStorage, and auth state never carry over from one test into
+another.
+
+- With `browser.endpoint` set, the runtime connects to that browser for the test (`ws://` —
+  a Playwright server, `http://` — CDP) and opens a fresh isolated context inside it; the
+  external browser process keeps running between tests. Without an endpoint the browser is
+  launched per test and closed with it.
+- Cross-test state must be produced inside the test itself: logging in is part of the test's own
+  steps (a login group / a precondition), never a shared setup between tests.
+
 ## Capture vars from a page
 
 ```python
