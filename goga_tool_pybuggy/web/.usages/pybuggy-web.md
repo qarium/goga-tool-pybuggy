@@ -49,16 +49,24 @@ another.
 ## Capture vars from a page
 
 ```python
-def test_order_total(web):
-    web.step("Open https://shop.example.com/orders/42")
-    web.step("Capture the order total into `total`")
+def test_open_third_video(web):
+    web.step("Open https://video.example.com/feed")
+    web.step("Save the title of the third video in {% var video_title %}")
+    web.step("Open the video '{{ video_title }}'")
 
-    web.expect("The total equals the captured `total`")
+    web.expect("The opened video page shows the text '{{ video_title }}'")
 ```
 
-Captured vars are addressed by name in later sentences. Everything captured — and every step
-sentence — reaches the LLM provider prompt and the repository: **never put secrets in step
-sentences** (no passwords, tokens, keys, personal data).
+- `{% var <name> %}` inside a step sentence captures a value from the page into a variable —
+  place the marker inline at the point of the sentence where the value belongs.
+- `{{ <name> }}` in any later sentence — a step or an expectation — interpolates the captured
+  value.
+- Capture only a value the test cannot know at write time — dynamic page data (the title of the
+  third video, a generated order number). A value known in advance — a URL, a typed text, an
+  expected literal — stays inline in the sentence; capturing it is noise. A captured var lives
+  inside its own test only (one session per test, nothing carries between tests).
+- Everything captured — and every step sentence — reaches the LLM provider prompt and the
+  repository: **never put secrets in step sentences** (no passwords, tokens, keys, personal data).
 
 ## Group steps into one mini-scenario
 
@@ -153,7 +161,10 @@ tests/test_search/test_duckduckgo_search/   # the per-test cache
 ```
 
 The address is class-aware: a test inside `class TestLogin` gets `test_login/TestLogin/<test_name>`.
-Parametrized tests share the directory; each parameter case keeps its own cache key. Cache files
+A parametrized test gets a directory per parameter case — the address carries the node name with
+its `[<param_id>]` suffix (`test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII
+escape of a non-latin id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and
+unsafe characters and spaces flatten to dashes. Cache files
 are never deleted automatically — the runtime runs in the persistence mode, so a run that fails
 mid-test keeps the cached steps it never reached. Do not edit cache files by hand — delete a step's
 file to force its regeneration on the next non-strict run.
@@ -162,7 +173,11 @@ file to force its regeneration on the next non-strict run.
 
 When allure-pytest is installed, every step renders as an Allure step (groups as nested steps) and a
 failed step attaches `screenshot.png` to the report; without the package the integration stays
-inactive and the tests run exactly the same. Web-test runs render prettyplay log events in the
+inactive and the tests run exactly the same. Attachments reach the report only when the run passes
+`--alluredir` (`pytest tests/web/ -q --alluredir=allure-results --clean-alluredir`, then `allure
+serve allure-results`) — the project convention keeps the flag out of addopts (a CI concern), and
+without it allure-pytest writes no result files: steps and failure screenshots go nowhere silently.
+Web-test runs render prettyplay log events in the
 console (human-readable, no payload duplication). Browser binaries are an environment requirement:
 `playwright install --with-deps <browser>` locally; the Dockerfile line appended by `pybuggy init`
 covers images.

@@ -9,7 +9,9 @@ installation gate.
 
 import logging
 import os
+import re
 import typing as t
+import warnings
 from enum import Enum
 
 import pytest
@@ -67,6 +69,11 @@ class WebConfigKeys(str, Enum):
 # Prefix of the library's env layer — every matching variable is scrubbed at configphase.
 _PRETTYPLAY_ENV_PREFIX: t.Final[str] = "PRETTYPLAY_"
 
+# Characters unsafe as one path segment of the node-name tail — both separators, the
+# Windows-forbidden set, and whitespace; every run flattens to a single dash, so a parametrize
+# id never nests directories, escapes the cache root, or carries spaces.
+_FLATTENED_CHARS: t.Final[re.Pattern[str]] = re.compile(r'[/\\:*?"<>|\s]+')
+
 # Help line of the per-test generation-instruction marker — registered at configphase so
 # applying it in test modules stays warning-free.
 _GENERATION_PROMPT_MARKER_HELP: t.Final[str] = (
@@ -93,6 +100,33 @@ def _scrub_prettyplay_env() -> None:
         logger.debug("prettyplay env layer scrubbed", extra={"variables": names})
 
 
+def _readable_node_name(name: str) -> str:
+    """Decode the pytest ASCII escape of a non-latin node name back into readable characters.
+
+    pytest escapes every non-ASCII id through ``unicode_escape`` (``имя`` becomes
+    ``\\u0438\\u043c\\u044f``) — this restores the characters, so a Cyrillic parameter case
+    keeps a readable cache directory instead of a ``-u0438-`` tail. A name that never went
+    through the escape (pure ASCII without a backslash, or an escaping-disabled run keeping
+    the real letters) returns unchanged; an undecodable one returns unchanged too — the
+    readable form is cosmetic, never a failure of the run.
+
+    Args:
+        name: The item's node name.
+
+    Returns:
+        The name with pytest's escape sequences restored to characters.
+    """
+    if "\\" not in name or not name.isascii():
+        return name
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # a lone un-escaped backslash passes through
+            return name.encode("ascii").decode("unicode_escape")
+    except (UnicodeError, ValueError):
+        return name
+
+
 def web_cache_path(item: pytest.Item) -> str:
     """Compute the per-test step-cache path from the requesting test item.
 
@@ -102,17 +136,17 @@ def web_cache_path(item: pytest.Item) -> str:
     Returns:
         The posix-relative subdirectory inside the cache root —
         ``<module_stem>/<ClassName>/<test_name>`` with a class, ``<module_stem>/<test_name>``
-        without.
+        without; ``<test_name>`` is the item's node name with pytest's ASCII escape of a
+        non-latin id decoded back, so a parametrized test addresses
+        ``<test_name>[<param_id>]`` — one readable directory per parameter case.
     """
     segments = [item.path.stem]
-
-    original = getattr(item, "originalname", None) or item.name
 
     cls = getattr(item, "cls", None)
     if cls is not None:
         segments.append(cls.__name__)
 
-    segments.append(original)
+    segments.append(_FLATTENED_CHARS.sub("-", _readable_node_name(item.name)))
 
     return "/".join(segments)
 
@@ -376,7 +410,8 @@ class WebPlugin:
 
         The cache address derives from the requesting item itself — the root is the activation's
         ``cache_root`` when set, otherwise the absolute directory of the test's own module file
-        (never the cwd); the path is parametrize-agnostic, the key parametrize-aware. The item's
+        (never the cwd); the path and the key are both the item's own name — parametrize-aware,
+        one cache directory per parameter case. The item's
         ``pybuggy_generation_prompt`` marker texts join (written order, top decorator first) into
         the generation prompt of exactly this test. Cleanup is disabled: the persistence mode of
         the committed-cache workflow keeps every cached file of the test's key.

@@ -585,7 +585,8 @@ Annotations: |
       1. Compute the cache address: the root is the activation cache_root when set, otherwise the
          absolute directory of the requesting test's own module file (from the item — never the
          cwd); the per-test path is `web_cache_path` of request.node; the cache key is the item's
-         name (parametrize-aware).
+         name — both parametrize-aware, so a parametrized test addresses one directory per
+         parameter case.
       2. Collect the per-test prompt extras: read the requesting item's
          pybuggy_generation_prompt markers and take each marker's text kwarg. The natural
          collection order of the stacked markers is last-applied-first (the bottom decorator's
@@ -628,18 +629,28 @@ Annotations: |
 
     `item`: the pytest item of the requesting test.
     `path`: the posix-relative subdirectory inside the cache root — <module_stem>/<ClassName>/<test_name>
-      with a class, <module_stem>/<test_name> without.
+      with a class, <module_stem>/<test_name> without; <test_name> is the item's node name with
+      pytest's ASCII escape of a non-latin id decoded back, so a parametrized test addresses
+      <test_name>[<param_id>] — one readable directory per parameter case.
 
     Algorithm:
     1. Take the module stem from the item's own module file path.
-    2. Take the original name — originalname when present, the node name otherwise: the path is
-       parametrize-agnostic while the cache key stays parametrize-aware.
+    2. Take the item's node name — parametrize-aware like the cache key, so every parameter case
+       addresses its own directory. Decode pytest's ASCII escape of a non-latin id back into
+       characters (pytest renders such an id as backslash-u code points; the decode is the
+       exact inverse and restores the letters — "имя" stays readable); a name without a
+       backslash, a non-ASCII name of an escaping-disabled run, and an undecodable name all
+       stay unchanged — the readable form is cosmetic, never a failure. Then flatten every run
+       of characters unsafe as one path segment (both separators, the Windows-forbidden set,
+       and whitespace) to a single dash, keeping the tail a single directory inside the cache
+       root.
     3. Insert the class-name segment when the item carries a class.
     4. Join the segments with forward slashes.
 
     Requirements:
     - Derived from the item's own file — never from the cwd.
     - Pure — no filesystem access.
+    - The decode never fails the run — any decoding problem leaves the raw name in place.
 
     Use `prettyplay` for the cache addressing contract (the cache key and the path form the address).
     Use `conventions` for type hints.

@@ -72,16 +72,21 @@ def test_duckduckgo_search(web):
 Capture values from a page into variables addressed by name in later sentences:
 
 ```python
-def test_order_total(web):
-    web.step("Open https://shop.example.com/orders/42")
-    web.step("Capture the order total into `total`")
+def test_open_third_video(web):
+    web.step("Open https://video.example.com/feed")
+    web.step("Save the title of the third video in {% var video_title %}")
+    web.step("Open the video '{{ video_title }}'")
 
-    web.expect("The total equals the captured `total`")
+    web.expect("The opened video page shows the text '{{ video_title }}'")
 ```
 
-Everything captured — and every step sentence — reaches the LLM provider prompt and the
-repository: **never put secrets in step sentences** (no passwords, tokens, keys,
-personal data).
+- `{% var <name> %}` inside a step sentence captures a value from the page into a variable;
+  `{{ <name> }}` in any later sentence — a step or an expectation — interpolates it.
+- Capture only dynamic page data the test cannot know at write time; a value known in advance
+  (a URL, a typed text, an expected literal) stays inline in the sentence.
+- Everything captured — and every step sentence — reaches the LLM provider prompt and the
+  repository: **never put secrets in step sentences** (no passwords, tokens, keys,
+  personal data).
 
 Coherent mini-scenarios group under a shared goal:
 
@@ -118,10 +123,14 @@ tests/test_search/test_duckduckgo_search/   # the per-test cache
 ```
 
 The address is class-aware: a test inside `class TestLogin` gets
-`tests/test_login/TestLogin/<test_name>`. Parametrized tests share the directory; each
-parameter case keeps its own cache key. Cache files are never deleted automatically — a
-run that fails mid-test keeps the cached steps it never reached. Do not edit cache files
-by hand — delete a step's file to force its regeneration on the next non-strict run.
+`tests/test_login/TestLogin/<test_name>`. A parametrized test gets a directory per parameter
+case — the address carries the node name with its `[<param_id>]` suffix
+(`tests/test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII escape of a non-latin
+id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and unsafe characters
+and spaces flatten to dashes. Cache files are never deleted
+automatically — a run that fails mid-test keeps the cached steps it never reached. Do not
+edit cache files by hand — delete a step's file to force its regeneration on the next
+non-strict run.
 
 ## Reporting
 

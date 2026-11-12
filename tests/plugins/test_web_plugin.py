@@ -318,11 +318,11 @@ class TestWebPluginContract:
 
 
 class TestWebCachePath:
-    """The pure cache-path computation: module stem, class segment, original name."""
+    """The pure cache-path computation: module stem, class segment, node name."""
 
     def test_web_cache_path_shapes(self):
-        """Plain items render ``<stem>/<name>``; class items insert the class; parametrize is
-        agnostic."""
+        """Plain items render ``<stem>/<name>``; class items insert the class; the parametrize
+        suffix addresses — one directory per parameter case."""
 
         class TestLogin:
             pass
@@ -341,14 +341,28 @@ class TestWebCachePath:
 
         assert web_cache_path(plain) == "test_search/test_duckduckgo_search"
         assert web_cache_path(grouped) == "test_login/TestLogin/test_foo"
-        assert web_cache_path(parametrized) == "test_mod/test_foo"
+        assert web_cache_path(parametrized) == "test_mod/test_foo[x-1]"
 
-    def test_web_cache_path_originalname_missing_falls_back_to_name(self):
-        """An item without ``originalname`` addresses by its node name."""
-        item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_plain")
+    def test_web_cache_path_sanitizes_unsafe_segment_characters(self):
+        """Path-unsafe id characters flatten to dashes — the tail stays one directory."""
+        item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[a/b\\c:d]")
 
-        assert web_cache_path(item).endswith(item.name)
-        assert web_cache_path(item) == "test_mod/test_plain"
+        assert web_cache_path(item) == "test_mod/test_foo[a-b-c-d]"
+
+    def test_web_cache_path_decodes_the_pytest_ascii_escape(self):
+        """A non-latin id restored from pytest's ``\\u`` escape keeps a readable directory."""
+        escaped = "test_edit[\\u0438\\u043c\\u044f \\u0438 \\u043e\\u0442\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e]"
+        item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name=escaped)
+
+        assert web_cache_path(item) == "test_mod/test_edit[имя-и-отчество]"
+
+    def test_web_cache_path_flattens_whitespace_runs_and_keeps_plain_names(self):
+        """Space runs flatten to single dashes; an escaping-disabled run keeps the real letters."""
+        spaced = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[a  b]")
+        native = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[имя и отчество]")
+
+        assert web_cache_path(spaced) == "test_mod/test_foo[a-b]"
+        assert web_cache_path(native) == "test_mod/test_foo[имя-и-отчество]"
 
 
 class TestWebPluginOptions:
@@ -814,6 +828,19 @@ class TestWebPluginWebFixture:
             next(generator)
 
         assert made[0].exited
+
+    def test_web_fixture_addresses_each_parameter_case_apart(self, monkeypatch: pytest.MonkeyPatch):
+        """A parametrized item addresses its own cache directory — the suffix rides the path."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        plugin = _configured_plugin(monkeypatch)
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a[x-1]", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].cache_key == "test_a[x-1]"
+        assert made[0].cache_path == "test_a/test_a[x-1]"
 
     def test_web_fixture_carries_the_typed_endpoint(self, monkeypatch: pytest.MonkeyPatch):
         """The typed endpoint flows through the activation into the runtime config unchanged."""
