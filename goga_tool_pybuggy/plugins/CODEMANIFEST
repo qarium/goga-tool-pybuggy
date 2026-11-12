@@ -6,8 +6,6 @@ Imports:
     From: goga_tool_pybuggy/api
   - Types:
       - BaseLoader
-      - PackageLoader
-      - ModuleLoader
     Usages:
       - registration
       - discovery
@@ -106,52 +104,6 @@ Annotations: |
 
 ---
 
-"loader_section_of(plugin: t.Any) -> section: dict":
-  location: discovery.py
-  annotations: |
-    Read the parsed loader section of a plugin's config document — the guarded section read the
-    plugin constructors run before the shared discovery. The section key itself is the module's
-    LOADER_SECTION constant — the one shared key of every tool document (api.yml, sandbox.yml,
-    web.yml), the value PluginConfigKeys.LOADER ties to.
-
-    `plugin`: any plugin exposing plugin_config (the BasePlugin descendants of this cell).
-    `section`: the parsed section mapping; `{}` when absent, null, or unparsable.
-
-    An unparsable document (the config reader's parse error) yields an empty section — the
-    install-time discovery defers to the configure-time gate of the plugin, which fails the run
-    with its clean error; a null section is an empty one.
-
-    Use `pluginator` for the plugin_config reading contract.
-    Use `conventions` for docstrings and type hints.
-
-"load_fixture_plugins(context: dict, loaders: list[BaseLoader], loader_section: t.Mapping[str, t.Any]) -> result: None":
-  location: discovery.py
-  annotations: |
-    Assemble the recursive pytest_plugins list of a namespace from the explicit loaders and a
-    loader section — the shared discovery routine every plugin constructor runs at install time.
-
-    `context`: namespace dict whose pytest_plugins key seeds the list and receives the result.
-    `loaders`: explicit loaders (empty when none).
-    `loader_section`: the parsed loader section of a tool document; empty means no configured
-    discovery.
-
-    Algorithm:
-    1. Seed the accumulator with the existing context["pytest_plugins"] entries — a consumer's
-       own conftest declarations survive.
-    2. Build `PackageLoader`/`ModuleLoader` instances from the section's packages/modules items
-       (each a dotted name or a {name, required} mapping — the loaders' from_config).
-    3. Drive the explicit loaders then the configured loaders to append the discovered dotted
-       module names, and write the deduplicated list back into context["pytest_plugins"].
-
-    Requirements:
-    - Must run synchronously at install time — pytest reads pytest_plugins once the conftest
-      import finishes.
-    - A loader error surfaces unchanged (a required missing package/module, an unsupported
-      section item) — never a silent skip.
-
-    Use `loaders` for the discovery primitives this routine drives.
-    Use `conventions` for docstrings and type hints.
-
 "ApiPlugin(*, context: dict, loaders: list[BaseLoader] | None = None, default_retries: int | None = None, default_assert_timeout: int | None = None, default_assert_delay: int | float | None = None)":
   location: api_plugin.py
   annotations: |
@@ -201,7 +153,7 @@ Annotations: |
       1. Collect the CLI options the user actually typed: take the option tokens from the CLI, normalize their names, take their resolved values, and drop None. The full resolved option namespace is intentionally NOT used — it carries internal/plugin options that must not leak into the template (see `pluginator` for the config-time CLI sources).
       2. When the user typed the base_url CLI flag (--base-url), store its resolved value onto the base_url option — a typed --base-url overrides the plugin config and BASE_URL resolution (the pluginator chain resolves the config before the CLI; the CLI is authoritative for base_url).
       3. Build the rendering context as a plain dict initialized with the full os.environ and merge in the collected CLI options.
-      4. Render the template once via `render_base_url` (Jinja2; StrictUndefined; the match_re test registered) against the rendering context, and store the result back onto the base_url option. `render_base_url` also removes every whitespace run from the rendered URL, so a multi-line base_url template renders to a single clean URL. A plain base_url without placeholders renders to itself.
+      4. Render the template once via the internal render_base_url routine of render.py (Jinja2; StrictUndefined; the match_re test registered) against the rendering context, and store the result back onto the base_url option. render_base_url also removes every whitespace run from the rendered URL, so a multi-line base_url template renders to a single clean URL. A plain base_url without placeholders renders to itself.
 
       Requirements:
       - Runs once at pytest configphase, before any test or fixture invocation.
@@ -210,7 +162,7 @@ Annotations: |
       Constraints:
       - Rendering uses Jinja2 only (a required dependency declared in pyproject.toml).
       - Jinja2 uses StrictUndefined: an unknown variable raises (URLs must not be silently truncated).
-      - Rendering is performed by the `render_base_url` routine, which also normalizes the URL (removes every whitespace run).
+      - Rendering is performed by the internal render_base_url routine of render.py, which also normalizes the URL (removes every whitespace run).
 
       Use `pluginator` for the configure() lifecycle discovery and the pytest_config contract.
       Use `jinja2` for the Jinja2 engine configuration, StrictUndefined, and the match_re test.
@@ -323,11 +275,11 @@ Annotations: |
     kind carries no default package.
 
     Algorithm (constructor):
-    1. Read the loader section of the document through the guarded `loader_section_of` — an
-       unparsable document defers to the configure-time gate (no discovery; the run fails at
-       configphase with the clean error).
-    2. Run the shared `load_fixture_plugins` with the explicit loaders (none by default — the
-       sandbox kind carries no default package) and the section into the context.
+    1. Read the loader section of the document through the guarded loader_section_of read of
+       discovery.py — an unparsable document defers to the configure-time gate (no discovery;
+       the run fails at configphase with the clean error).
+    2. Run the shared load_fixture_plugins of discovery.py with the explicit loaders (none by
+       default — the sandbox kind carries no default package) and the section into the context.
 
     Use `pluginator` for the plugin-config reading, the zero-option plugin shape, the
     configure() lifecycle callback, and fixtures as plugin-class methods — the scoped session
@@ -417,10 +369,10 @@ Annotations: |
        value option with the CLI flag --browser-endpoint (store) and no plugin-config key (the nested
        browser.endpoint document key never resolves through the pluginator chain; a typed flag
        reaches the browser group through the configure-time injection).
-    2. Read the loader section of the document through the guarded `loader_section_of` — an
-       unparsable document defers to the configure-time gate — and run the shared
-       `load_fixture_plugins` with the explicit loaders (none by default — the web kind carries
-       no default package) into the context.
+    2. Read the loader section of the document through the guarded loader_section_of read of
+       discovery.py — an unparsable document defers to the configure-time gate — and run the
+       shared load_fixture_plugins of discovery.py with the explicit loaders (none by default —
+       the web kind carries no default package) into the context.
 
     Use `pluginator` for the @define.plugin contract, define.option, the option resolution chain,
     fixtures as plugin-class methods, and the configure() lifecycle.
@@ -584,7 +536,7 @@ Annotations: |
       Algorithm:
       1. Compute the cache address: the root is the activation cache_root when set, otherwise the
          absolute directory of the requesting test's own module file (from the item — never the
-         cwd); the per-test path is `web_cache_path` of request.node; the cache key is the item's
+         cwd); the per-test path is the internal web_cache_path of request.node; the cache key is the item's
          name — both parametrize-aware, so a parametrized test addresses one directory per
          parameter case.
       2. Collect the per-test prompt extras: read the requesting item's
@@ -621,39 +573,6 @@ Annotations: |
       Use `pluginator` for the fixture-as-method convention.
       Use `prettyplay` for the runtime construction and the cache addressing contract.
       Use `conventions` for type hints.
-
-"web_cache_path(item: pytest.Item) -> path: str":
-  location: web_plugin.py
-  annotations: |
-    Compute the per-test step-cache path from the requesting test item.
-
-    `item`: the pytest item of the requesting test.
-    `path`: the posix-relative subdirectory inside the cache root — <module_stem>/<ClassName>/<test_name>
-      with a class, <module_stem>/<test_name> without; <test_name> is the item's node name with
-      pytest's ASCII escape of a non-latin id decoded back, so a parametrized test addresses
-      <test_name>[<param_id>] — one readable directory per parameter case.
-
-    Algorithm:
-    1. Take the module stem from the item's own module file path.
-    2. Take the item's node name — parametrize-aware like the cache key, so every parameter case
-       addresses its own directory. Decode pytest's ASCII escape of a non-latin id back into
-       characters (pytest renders such an id as backslash-u code points; the decode is the
-       exact inverse and restores the letters — "имя" stays readable); a name without a
-       backslash, a non-ASCII name of an escaping-disabled run, and an undecodable name all
-       stay unchanged — the readable form is cosmetic, never a failure. Then flatten every run
-       of characters unsafe as one path segment (both separators, the Windows-forbidden set,
-       and whitespace) to a single dash, keeping the tail a single directory inside the cache
-       root.
-    3. Insert the class-name segment when the item carries a class.
-    4. Join the segments with forward slashes.
-
-    Requirements:
-    - Derived from the item's own file — never from the cwd.
-    - Pure — no filesystem access.
-    - The decode never fails the run — any decoding problem leaves the raw name in place.
-
-    Use `prettyplay` for the cache addressing contract (the cache key and the path form the address).
-    Use `conventions` for type hints.
 
 "WebConfigKeys()":
   location: web_plugin.py
@@ -748,26 +667,6 @@ Annotations: |
       cache_root — the step cache root key.
     "BROWSER -> str": |
       browser — the nested browser section key; complex member (commented example, not surveyed).
-
-"render_base_url(template: str, context: dict[str, object]) -> rendered:str":
-  location: render.py
-  annotations: |
-    Render a base_url template once with the Jinja2 engine against `context`, then normalize the result as a URL.
-
-    `template`: the base_url option value, a Jinja2 template string.
-    `context`: the rendering context — the full environment plus the CLI options the user actually passed.
-    `rendered`: the rendered URL with all literal whitespace removed; a plain template without placeholders renders to itself.
-
-    Algorithm:
-    1. Build a Jinja2 Environment with StrictUndefined (an unknown variable raises) and register the match_re test (regex match anchored at start) for conditional URL assembly.
-    2. Render `template` against `context`.
-    3. Remove every whitespace run from the rendered string: a URL never legitimately contains literal whitespace (it would be percent-encoded to %20 and break the request path), so whitespace introduced by a YAML folded/literal block scalar or an empty Jinja block is dropped. This lets a multi-line base_url template render to a single clean URL in both conditional branches.
-
-    Constraints:
-    - Single-engine: Jinja2 only (a required dependency). URLs must not be silently truncated.
-    - The output is URL-normalized: it contains no literal whitespace (whitespace runs are removed, not preserved).
-
-    Use `jinja2` for the Environment configuration, StrictUndefined, and the match_re test.
 
 "PluginConfigKeys()":
   location: api_plugin.py
