@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-plan
-description: Dispatch wrapper around goga-plan for web testing mode — compiles the ralphex test-materialization plan; guarantees an executable test-run checkbox in every generating Task WITHOUT --strict-mode, because the first run is when the LLM generates the Playwright step code and writes the committed step cache; every run command collects Allure results (--alluredir, one-shot --clean-alluredir, allure-results gitignored)
+description: Dispatch wrapper around goga-plan for web testing mode — compiles the ralphex test-materialization plan; guarantees an executable test-run checkbox in every generating Task WITHOUT --strict-mode, because the first run is when the LLM generates the Playwright step code and writes the committed step cache
 ---
 
 # Pybuggy Web Topic Plan (dispatch)
@@ -18,11 +18,10 @@ description: Dispatch wrapper around goga-plan for web testing mode — compiles
 чтобы выполнялись условия:
 
 1. каждая Routine веб-ячейки отображается в Task, генерирующую соответствующий `test_*.py`;
-2. `## Validation Commands` содержит `pytest tests/web/ -q --alluredir=allure-results` (или по
-   ячейке) — **без** `--strict-mode`;
-3. каждая генерирующая Task несёт **блок запуска теста**: команду прогона с
-   `--alluredir=allure-results` — исполняемый чекбокс (не «manual/skipped»), чтобы ralphex её
-   выполнил (генерация шагов происходит именно в этот
+2. `## Validation Commands` содержит `pytest tests/web/ -q` (или по ячейке) — **без**
+   `--strict-mode`;
+3. каждая генерирующая Task несёт **блок запуска теста**: команду прогона — исполняемый чекбокс
+   (не «manual/skipped»), чтобы ralphex её выполнил (генерация шагов происходит именно в этот
    момент), **строку подключения к браузеру** (`--browser-endpoint <адрес>` в исполнимой форме
    Browser endpoint §1 требований; «из конфига» — пометка «браузер из `web.yml`», без флага) и
    **явный CRITICAL-запрет `--strict-mode`** в тексте задачи — ralphex исполняет задачи дословно и
@@ -31,10 +30,7 @@ description: Dispatch wrapper around goga-plan for web testing mode — compiles
 4. **ни одна** команда/чекбокс плана не содержит `--strict-mode` — строгий режим на первом прогоне
    означает гарантированный cache-miss без генерации;
 5. план предписывает сохранить кеш шагов (`tests/web/<cell>/test_<name>/`) — не удалять, не чистить,
-   не гитигнорить; кеш коммитится в репозиторий; контраст: `allure-results/` — артефакт прогона,
-   живёт в `.gitignore` и не коммитится, а `--clean-alluredir` стоит в плане ровно один раз —
-   первым прогоном сборки (чекбоксы задач его не несут: каждая задача иначе сотрёт результаты
-   предыдущих);
+   не гитигнорить; кеш коммитится в репозиторий;
 6. **каждая** Task плана несёт CRITICAL-инструкцию о падающих тестах: если тест падает и failure
    не чинится — оставить тест падающим и перейти к следующей задаче, не блокируя сборку; скип-тесты
    (`pytest.skip`, skip-маркеры, `xfail`) **запрещены**; если LLM не смог сгенерировать шаг —
@@ -72,10 +68,6 @@ ralphex (`task.txt`, STEP 2 VALIDATE): *"Run the test and lint commands specifie
   (`test -f /.dockerenv`) → `host.docker.internal` (IP через `getent hosts host.docker.internal`,
   пустой вывод — имя как есть); иначе — дословно. План компилируется и исполняется ralphex в одном
   окружении: форма, верная при компиляции, верна и при исполнении.
-- **Сбор отчёта Allure:** каждая команда прогона несёт `--alluredir=allure-results` — конвенция
-  проекта держит флаг вне addopts, и без него allure-pytest не пишет ни одного файла результатов:
-  шаги, скриншоты падений и FAILURE_SUMMARY теряются молча. `--clean-alluredir` — один раз, первым
-  прогоном сборки; `allure-results/` в `.gitignore` — артефакт прогона, в отличие от кеша шагов.
 - **CRITICAL: strict-запрет в каждой задаче —** каждая генерирующая Task несёт явный запрет текстом:
   первый прогон идёт **без** `--strict-mode` — LLM генерирует Playwright-код предложений и пишет
   кеш именно сейчас; strict на первом прогоне = гарантированный cache-miss без генерации.
@@ -101,12 +93,8 @@ Arguments: `$ARGUMENTS`
 3. Вызови `goga-plan` через **Skill tool**, передав payload режима веб-тестирования (маркерная фраза:
    "Pybuggy web testing mode: compile a plan to GENERATE and RUN browser UI tests from CODEMANIFEST
    web-cells; deliverable is `test_*.py` using the `web` fixture with step sentences;
-   `pytest tests/web/ -q --alluredir=allure-results` MUST be in Validation Commands and as
-   executable Task checkboxes — allure-pytest writes result files only with `--alluredir`
-   (without the flag steps and failure screenshots are lost silently); `--clean-alluredir` appears
-   exactly once on the first run of the build, never in Task checkboxes; `allure-results/` is a
-   run artifact — gitignored, never committed (unlike the step cache) — WITHOUT `--strict-mode`
-   (the first run generates the Playwright steps via the LLM and writes the
+   `pytest tests/web/ -q` MUST be in Validation Commands and as executable Task checkboxes —
+   WITHOUT `--strict-mode` (the first run generates the Playwright steps via the LLM and writes the
    step cache next to the test; the cache is committed); every generating Task carries the browser
    connection line — `--browser-endpoint <address>` in the executable form of the Browser endpoint
    (requirements §1; a 'browser from web.yml config' note when no flag) — and an explicit CRITICAL
@@ -122,31 +110,26 @@ Arguments: `$ARGUMENTS`
 
 После генерации `goga history path -f plan.md` проверь условия ниже и дополни план при необходимости:
 
-1. **`## Validation Commands`** содержит команду прогона вида `pytest tests/web/ -q
-   --alluredir=allure-results` (или `pytest tests/web/<cell>/ -q --alluredir=allure-results` для
-   конкретной ячейки) — **без** `--strict-mode`. Команда отсутствует — добавь; `--alluredir`
-   отсутствует — допиши (без него прогон не соберёт отчёт Allure).
+1. **`## Validation Commands`** содержит команду прогона вида `pytest tests/web/ -q` (или
+   `pytest tests/web/<cell>/ -q` для конкретной ячейки) — **без** `--strict-mode`. Команда
+   отсутствует — добавь.
 2. **Ни одна команда или чекбокс плана не содержит `--strict-mode`.** Найден — убери флаг: первый
    прогон обязан генерировать шаги и писать кеш; strict на первом прогоне = гарантированный
    cache-miss.
 3. **Браузер подключения:** при адресе от пользователя (Browser endpoint требований §1) каждая
    команда прогона — Validation Commands и чекбоксы Task — несёт `--browser-endpoint <адрес>` в
-   исполнимой форме (правило Testing Mode) рядом с `--alluredir=allure-results`; «из конфига» —
-   без флага браузера.
+   исполнимой форме (правило Testing Mode); «из конфига» — без флага.
 4. **Tasks** содержат чекбокс прогона, который **исполняем** (например
-   `[ ] Run tests: pytest tests/web/<cell>/ -q --alluredir=allure-results`), в каждой генерирующей
-   задаче — именно в этот момент генерируются шаги. Никогда не помечай прогон как «manual»,
-   «skipped», «not automatable» — ralphex пропускает такие пункты. В каждой генерирующей Task
-   также обязаны быть **строка подключения к браузеру** (`--browser-endpoint <адрес>` | «браузер
-   из `web.yml`») и **явный CRITICAL-запрет `--strict-mode`** — отсутствуют, добавь.
+   `[ ] Run tests: pytest tests/web/<cell>/ -q`), в каждой генерирующей задаче — именно в этот
+   момент генерируются шаги. Никогда не помечай прогон как «manual», «skipped», «not automatable» —
+   ralphex пропускает такие пункты. В каждой генерирующей Task также обязаны быть **строка
+   подключения к браузеру** (`--browser-endpoint <адрес>` | «браузер из `web.yml`») и **явный
+   CRITICAL-запрет `--strict-mode`** — отсутствуют, добавь.
 5. Каждая Task, генерирующая `test_*.py`, ссылается на поле `location` из CODEMANIFEST
    соответствующей веб-ячейки.
 6. **Инструкция о кеше** присутствует в плане: каталоги `tests/web/<cell>/test_<name>/` создаются
    первым прогоном; не удалять, не чистить, не гитигнорить; после прогона убедиться, что кеш-файлы
-   появились. Отсутствует — добавь. Рядом — контр-инструкция об `allure-results/`: артефакт
-   прогона, в `.gitignore`, не коммитится; `--clean-alluredir` в плане ровно один раз (первый
-   прогон) — в чекбоксах задач его быть не должно (стирает результаты предыдущих задач); найденный
-   в чекбоксе — убери.
+   появились. Отсутствует — добавь.
 7. **URL-сверка:** URL в задачах ↔ целевое окружение из `goga history path -f requirements.md`
    (§1/§2) — полные URL записанного окружения.
 8. **CRITICAL failing-test policy в каждой Task** (+ веб-дополнение: неудачная генерация шага —
@@ -179,10 +162,8 @@ Arguments: `$ARGUMENTS`
 - встроить пре-промпт веб-тестирования до вызова `goga-plan`
 - гарантировать в каждой генерирующей Task блок запуска: исполняемый чекбокс прогона без strict
   (момент генерации шагов), строку подключения к браузеру в исполнимой форме и явный запрет
-  `--strict-mode`; команда прогона несёт `--alluredir=allure-results`
-- включить в план инструкцию о сохранении кеша шагов (коммитится в репозиторий) и об
-  `allure-results/` (артефакт прогона: `.gitignore`, без коммита, очистка `--clean-alluredir`
-  один раз первым прогоном)
+  `--strict-mode`
+- включить в план инструкцию о сохранении кеша шагов (коммитится в репозиторий)
 - провести Post-Dispatch Gate и дорабатывать план, пока pytest-валидация без strict не на месте
 - строить план на CODEMANIFEST веб-ячеек и их полях `location`
 - загрузить референс веб-рантайма и DSL

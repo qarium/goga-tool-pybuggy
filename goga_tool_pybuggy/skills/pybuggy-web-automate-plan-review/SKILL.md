@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-plan-review
-description: Verification of the web ralphex plan `goga history path -f plan.md` — guarantees the plan actually runs the tests WITHOUT --strict-mode (the first run generates the Playwright steps via the LLM and writes the committed step cache), the browser connection line in executable form in every generating Task, Allure result collection on every run command (--alluredir, one-shot --clean-alluredir, allure-results gitignored), the cache-preservation instruction, and the CRITICAL failing-test policy in every Task
+description: Verification of the web ralphex plan `goga history path -f plan.md` — guarantees the plan actually runs the tests WITHOUT --strict-mode (the first run generates the Playwright steps via the LLM and writes the committed step cache), the browser connection line in executable form in every generating Task, the cache-preservation instruction, and the CRITICAL failing-test policy in every Task
 ---
 # Pybuggy Web Topic Plan — Review
 
@@ -52,18 +52,15 @@ API: без прогона нет не только проверки — **не�
 
 ### Phase 3. Critical Test-Execution Checks
 
-1. **`## Validation Commands` содержит** `pytest tests/web/ -q --alluredir=allure-results` (или
-   `pytest tests/web/<cell>/ -q --alluredir=allure-results`) — **без** `--strict-mode`. Отсутствие
-   pytest — **Critical** (тесты не запустятся); флаг strict в команде — **Critical** (шаги не
-   сгенерируются); отсутствие `--alluredir` — **High** (allure-pytest не пишет результатов без
-   флага: шаги, скриншоты падений и FAILURE_SUMMARY теряются молча).
+1. **`## Validation Commands` содержит** `pytest tests/web/ -q` (или `pytest tests/web/<cell>/ -q`)
+   — **без** `--strict-mode`. Отсутствие pytest — **Critical** (тесты не запустятся); флаг strict
+   в команде — **Critical** (шаги не сгенерируются).
 2. **Ни одна команда или чекбокс плана не содержит `--strict-mode`** — любое вхождение —
    **Critical**.
 3. **Исполняемый чекбокс прогона** в каждой генерирующей Task (например
-   `[ ] Run tests: pytest tests/web/<cell>/ -q --alluredir=allure-results`) — именно в этот момент
-   генерируются шаги. Чекбокс «manual/skipped/not automatable» или его отсутствие — **Critical**:
-   ralphex пропускает такие пункты; прогон без `--alluredir` — **High** (результаты задачи не
-   попадут в отчёт).
+   `[ ] Run tests: pytest tests/web/<cell>/ -q`) — именно в этот момент генерируются шаги. Чекбокс
+   «manual/skipped/not automatable» или его отсутствие — **Critical**: ralphex пропускает такие
+   пункты.
 4. **Строка подключения к браузеру** в каждой генерирующей Task: при адресе от пользователя
    (Browser endpoint требований §1) — `--browser-endpoint <адрес>` в исполнимой форме (адрес
    loopback `127.0.0.1`/`localhost` внутри Docker-контейнера → `host.docker.internal` с резолвом
@@ -75,9 +72,7 @@ API: без прогона нет не только проверки — **не�
 6. **Инструкция о кеше шагов**: каталоги `tests/web/<cell>/test_<name>/` создаются первым
    прогоном; не удалять, не чистить, не гитигнорить; кеш коммитится; после прогона убедиться, что
    кеш-файлы появились. Отсутствие инструкции — **High**; предписание чистки/гитигнора —
-   **Critical**. Рядом — контр-инструкция об `allure-results/`: артефакт прогона, `.gitignore`,
-   без коммита — отсутствие **Medium**; `--clean-alluredir` в чекбоксе задачи — **High** (стирает
-   результаты предыдущих задач), очисток не ровно одна (первый прогон) — **Medium**.
+   **Critical**.
 7. **CRITICAL failing-test policy в каждой Task:** на неустранимом падении — оставить тест
    падающим и перейти к следующей задаче без блокировки сборки; `pytest.skip`/skip-маркеры/
    `xfail` запрещены; неудачная генерация шага — предложение и падающий тест остаются, факт
@@ -125,14 +120,12 @@ AskUserQuestion (2–4 варианта): **Apply suggested fix** / **Propose al
 
 1. Прочитаны ли план, дизайн-документ, все CODEMANIFEST веб-ячеек и requirements.md?
 2. Вызван ли `goga-review-plan` и объединены ли его находки с критическими проверками исполнения?
-3. Есть ли pytest без `--strict-mode` (с `--alluredir=allure-results`) в `## Validation Commands`,
-   и нет ли strict **нигде** в командах/чекбоксах плана?
+3. Есть ли pytest без `--strict-mode` в `## Validation Commands`, и нет ли strict **нигде** в
+   командах/чекбоксах плана?
 4. Несёт ли каждая генерирующая Task исполняемый чекбокс прогона, строку подключения к браузеру в
    исполнимой форме и явный CRITICAL-запрет strict текстом?
 5. Присутствует ли инструкция о кеше (коммитится, не чистится, проверить появление) и
-   failing-test policy в каждой Task; нет ли skip/xfail где-либо? Собран ли Allure: флаг в каждой
-   команде прогона, `--clean-alluredir` ровно один раз (не в чекбоксах задач), `allure-results/`
-   в `.gitignore`?
+   failing-test policy в каждой Task; нет ли skip/xfail где-либо?
 6. Покрыты ли все Routine (ссылки на `location`) и сверены ли URL с записанным окружением §1/§2?
 7. Показана ли каждая находка по одной с выбором Apply/Alternative/Skip; применены ли правки
    только в plan.md?
