@@ -13,8 +13,9 @@ the document present, the standard `goga_tool_pybuggy.plugins.install()` call (t
 pybuggy project) registers the web plugin and the `web` fixture; without it nothing web-related is
 registered and a test requesting `web` fails with pytest's standard "fixture 'web' not found".
 `pybuggy init` (test kind: web or both) writes the document — the surveyed minimum (LLM provider,
-generation/classification model, browser, headless) as active keys, the remaining keys as commented
-examples inside the file. LLM API keys live only in env/`.env`; the document never contains keys.
+generation/classification model, the tested-site base URL, browser, headless) as active keys, the
+remaining keys as commented examples inside the file. LLM API keys live only in env/`.env`; the
+document never contains keys.
 
 ## Write a web test
 
@@ -28,9 +29,67 @@ def test_duckduckgo_search(web):
 
 - `web.step(sentence)` — an action step: generated once, then replayed from the cache.
 - `web.expect(sentence)` — an assertion step: polled until it holds or the polling budget ends.
-- Steps carry full URLs — no base_url templating, no sandbox binding.
+- Steps carry full URLs — no sentence templating, no sandbox binding; the tested site's own base
+  URL is the `site.base_url` directive of the web config, consumed by `BasePage` (below).
 - One action per step sentence; name the target and the action in plain language: the target is
   addressed by its visible name (label, text) — never by CSS/XPath selectors or testids.
+
+## Tested-site pages (`BasePage`)
+
+When the suite addresses one site, set its base URL once — the `site.base_url` directive of the
+web config (a Jinja2 template rendered at pytest configuration) — and model pages as classes:
+a page object **inherits `BasePage`**, declares its `path`, and encapsulates the page's own
+logic as methods — the web counterpart of the api kind's `Endpoint`, but with behavior.
+
+```python
+# pages/login_page.py — the page object: inheritance + encapsulated logic
+import pytest
+
+from goga_tool_pybuggy.web import BasePage
+
+
+class LoginPage(BasePage):
+    path = "/login"
+
+    def dismiss_cookie_banner(self) -> None:
+        """Dismiss the cookie banner that covers the form on every visit."""
+        self.goto()
+        with self.web.group("Dismiss the cookie banner"):
+            self.web.step("Close the cookie banner")
+
+        self.web.expect("The cookie banner is gone")
+
+
+@pytest.fixture(scope="function")
+def page_login(web) -> LoginPage:
+    return LoginPage(web)
+```
+
+```python
+def test_login_form(page_login):
+    page_login.dismiss_cookie_banner()  # the page drives its own steps
+
+    page_login.web.expect("The login form is visible")
+```
+
+- A page object is a **`BasePage` subclass** with a class-level `path` — `class LoginPage(BasePage):
+  path = "/login"`; the constructor also accepts a path (`BasePage(web, "/login")` for a quick
+  anonymous page), but the subclass form is the working pattern for real pages.
+- **Encapsulate the page's logic as methods**: closing a cookie banner, a form flow, adding to
+  cart — any repeated scenario becomes a method that runs its steps through the held runtime
+  (`self.web.step` / `self.web.expect` / `self.web.group`, `self.goto()` included). The test
+  reads as domain actions; the sentences live next to the page they belong to, one fixture per
+  page.
+- `page.url` joins the site base URL with the page path (slashes normalized); `page.goto()`
+  executes the "Open <url>" action step — an ordinary step of the cycle (generated once, cached,
+  replayed, healed).
+- Scaffold the class and its fixture with `goga tool pybuggy page generate /login login` — it
+  writes the `LoginPage` skeleton and the fixture under `pages/`; the scenario methods are added
+  by hand inside the generated subclass.
+- A missing `site.base_url` fails loudly at first use (`url`/`goto`), never at construction.
+- The no-secrets rule covers everything a page method renders into a sentence — the base URL,
+  the vars, the literals: real secrets (passwords, tokens, keys) never go into a step sentence —
+  it reaches the LLM prompt and the committed cache.
 
 ## One session per test
 

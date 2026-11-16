@@ -35,6 +35,12 @@ The package facade `pybuggy` exposes the root group `main`:
       pybuggy endpoint diff
       pybuggy endpoint diff -s shop clients_startup_get
 
+- Page-object scaffolding for the web kind (`page generate`, positional PATH + optional NAME,
+  `-f/--force`):
+
+      pybuggy page generate /admin/api/v1/mocks
+      pybuggy page generate /login login --force
+
 - Project initialization and bootstrap (top-level `init`, three modes):
 
       pybuggy init                                  # bare onboarding (refused over an existing .goga/)
@@ -81,10 +87,13 @@ Assembly lives in the `goga_tool_pybuggy/cli.py` module (owned by the root cell)
    (from `goga_tool_pybuggy/commands/{pull,list,info,generate,diff}`).
 4. Add the `endpoint` subgroup to `main`.
 5. Register the top-level command `init_cmd` on `main` directly (from `goga_tool_pybuggy/commands/init`).
-6. Export `main` via `__all__`. `load_env` and `EnvContext` are also available on the facade.
+6. Create the `page` subgroup and register the command `page_generate_cmd` on it (from
+   `goga_tool_pybuggy/commands/page`), then add the subgroup to `main`.
+7. Export `main` via `__all__`. `load_env` and `EnvContext` are also available on the facade.
 
 Top-level on `main`: `init`.
 Registered under `endpoint`: `pull`, `list`, `info`, `generate`, `diff`.
+Registered under `page`: `generate`.
 
 ## Static config
 

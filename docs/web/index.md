@@ -106,42 +106,58 @@ def test_checkout(web):
 
 When the suite addresses one site, set its base URL once — the `site.base_url` directive of
 [the web document](configuration.md#keys) (a Jinja2 template rendered at pytest
-configuration) — and bind pages with `BasePage`, the web kind's counterpart of the api kind's
-`Endpoint`: the base URL lives on the `web` runtime, the page adds its path, and `goto()` opens
-the full URL through one ordinary step sentence (generated once, then replayed from the cache
-like every step).
+configuration) — and model pages as classes: a page object **inherits `BasePage`**, declares
+its `path`, and encapsulates the page's logic as methods — the web counterpart of the api
+kind's `Endpoint`, but with behavior.
 
 ```python
-# conftest.py of the test project — a fixture per page, used instead of web in tests
+# pages/login_page.py — inheritance + encapsulated logic
 import pytest
+
 from goga_tool_pybuggy.web import BasePage
 
 
+class LoginPage(BasePage):
+    path = "/login"
+
+    def dismiss_cookie_banner(self) -> None:
+        """Dismiss the cookie banner that covers the form on every visit."""
+        self.goto()
+        with self.web.group("Dismiss the cookie banner"):
+            self.web.step("Close the cookie banner")
+
+        self.web.expect("The cookie banner is gone")
+
+
 @pytest.fixture(scope="function")
-def page___login(web) -> BasePage:
-    return BasePage(web, "/login")
+def page_login(web) -> LoginPage:
+    return LoginPage(web)
 ```
 
 ```python
 # test_login.py — the page fixture replaces the web fixture
-def test_login_form(page___login):
-    page___login.goto()  # web.step("Open https://staging.example.com/login")
+def test_login_form(page_login):
+    page_login.dismiss_cookie_banner()  # the page drives its own steps
 
-    page___login.web.expect("The login form is visible")
+    page_login.web.expect("The login form is visible")
 ```
 
-- `BasePage(web, path)` — bind one page; the constructor path wins over the class attribute.
-- Subclass and declare the path once — `class LoginPage(BasePage): path = "/login"` — then
-  build it with `LoginPage(web)` in the fixture.
-- Scaffold the module with the generator — `goga tool pybuggy page generate /login login`
-  writes the subclass and its fixture under `pages/` (see
-  [page generate](../cli/page-generate.md)).
-- `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized; an empty path
-  yields the bare base URL).
-- `page.goto()` — one action step carrying the full URL; a missing `site.base_url` fails
-  loudly at the call, naming the directive.
-- Secrets never belong in the base URL (query tokens included) — step sentences reach the
-  LLM prompt and the repository.
+- A page object is a **`BasePage` subclass** with a class-level `path`; the constructor also
+  accepts a path (`BasePage(web, "/login")` for a quick anonymous page), but the subclass form
+  is the working pattern for real pages.
+- **Encapsulate the page's logic as methods**: closing a cookie banner, a form flow, adding to
+  cart — a repeated scenario becomes a method running its steps through the held runtime
+  (`self.web`, `self.goto()` included). The test reads as domain actions; the sentences live
+  next to the page they belong to, one fixture per page.
+- `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized); `page.goto()` —
+  one action step carrying the full URL (generated once, replayed from the cache like every
+  step); a missing `site.base_url` fails loudly at the call, naming the directive.
+- Scaffold the class and its fixture with the generator — `goga tool pybuggy page generate
+  /login login` writes the subclass skeleton and the fixture under `pages/` (see
+  [page generate](../cli/page-generate.md)); the scenario methods are added by hand inside the
+  generated subclass.
+- Secrets never belong in the base URL (query tokens included) or in anything a page method
+  renders into a sentence — step sentences reach the LLM prompt and the repository.
 
 ## Run modes
 

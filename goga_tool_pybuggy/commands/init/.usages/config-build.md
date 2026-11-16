@@ -50,6 +50,10 @@ The web branch (kind `web` or `both`), asked by pybuggy at the amendment moment:
   browser-step code.
 - `classification_model` — **required**; re-asked when empty. The prompt states the job: this model classifies
   captured steps.
+- `site_base_url` — the base URL of the tested site: an optional free-text **Jinja2 template** (the same engine
+  and context as the api `base_url`); an empty answer writes no `site` group — the bootstrap documents the key
+  as a commented example instead. A non-empty answer writes `site.base_url`, rendered by the web plugin once at
+  pytest configuration; the page objects of the web kind (`BasePage`) resolve their URLs against it.
 - `browser_name` — the browser for web tests: a choice of the five names the runtime accepts
   (`chromium`, `firefox`, `webkit`, `chrome`, `msedge`); default `chromium`. An out-of-list name is rejected at
   the prompt — it would only fail later at test startup.
@@ -77,9 +81,10 @@ records in the file itself (uncomment and fill them when needed):
 
 The remaining web keys are never surveyed either — only the web minimum lands as active keys in `web.yml`, and the
 bootstrap documents every absent web key (models' prompts, attempts, polling, screenshots, probe timeout,
-`cache_root`, the browser subkeys beyond name/headless) as commented default records: each record line carries
-its prettyplay library default, so uncommenting it activates exactly that default (the browser subkeys as
-nested records inside the browser group, at the group's own indentation).
+`cache_root`, the site group when its answer was empty, the browser subkeys beyond name/headless) as commented
+default records: each record line carries its prettyplay library default, so uncommenting it activates exactly
+that default (the site and browser subkeys as nested records inside their groups, at the group's own
+indentation).
 
 ## The contribution
 
@@ -92,8 +97,9 @@ contribution, and the engine commits it. Both tool config files are written by t
   the `pipelines` axis entries — one record with `autonomous: true` per accepted confirm (`api.automate`,
   `api.patch`) — the section is absent when every confirm was declined;
 - the web tool config file `.goga/tools/pybuggy/web.yml` (kind web or both) — the surveyed minimum as active keys
-  (`provider`, `generation_model`, `classification_model`, `browser.name`, `browser.headless`) plus the
-  `strict: false` / `interactive: false` defaults, plus — per an accepted web confirm — the `pipelines` entry
+  (`provider`, `generation_model`, `classification_model`, `site.base_url` when answered non-empty,
+  `browser.name`, `browser.headless`) plus the `strict: false` / `interactive: false` defaults, plus — per an
+  accepted web confirm — the `pipelines` entry
   (`web.automate` with `autonomous: true`; absent when the confirm was declined; the web plugin drops the foreign
   section before its validation); the bootstrap adds the commented examples of the remaining
   keys afterwards;

@@ -61,7 +61,12 @@ def page_login(web: PrettyPlay) -> LoginPage:
     return LoginPage(web)
 ```
 
-The fixture requests the `web` runtime and builds the page; `goto()` opens the full URL — see
+The fixture requests the `web` runtime and builds the page; `goto()` opens the full URL.
+
+The generated subclass is the working form of a page object — it **inherits `BasePage`** and is
+the place to **encapsulate the page's logic as methods** (closing a cookie banner, a form flow)
+added by hand: a method runs its steps through the held runtime (`self.web`, `self.goto()`
+included), so the test reads as domain actions. See
 [Web — Overview](../web/index.md#tested-site-pages-basepage).
 
 ## `--force` semantics

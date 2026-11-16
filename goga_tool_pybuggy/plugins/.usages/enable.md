@@ -145,4 +145,8 @@ zero LLM calls); `--interactive` enables interactive step healing locally; `--br
 runs the suite against a remote Playwright endpoint for that run, overriding `browser.endpoint` of
 the web config (an invalid value fails the run at pytest configuration). Writing web tests means
 authoring step sentences consumed by the `web` fixture (one action per sentence, full URLs); the
-step cache lands next to the test file and is committed to the repository.
+step cache lands next to the test file and is committed to the repository. The tested site's base
+URL is the `site.base_url` directive of the web config — a Jinja2 template rendered once at pytest
+configuration against the environment plus the typed CLI options (the api `base_url` pattern; the
+rendered value is what the http/https validation judges), carried by the runtime and consumed by
+the page objects of the web cell (`BasePage` — see the pybuggy-web usage).

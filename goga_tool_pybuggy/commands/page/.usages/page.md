@@ -74,6 +74,27 @@ def page_login(web: PrettyPlay) -> LoginPage:
     return LoginPage(web)
 ```
 
+The generated subclass is the working form of a page object: it inherits `BasePage`, declares
+its `path`, and is the place to **encapsulate the page's logic as methods** — closing a cookie
+banner, a form flow, adding to cart — added by hand next to the generated skeleton:
+
+```python
+class LoginPage(BasePage):
+    path = "/login"
+
+    def dismiss_cookie_banner(self) -> None:
+        self.goto()
+        with self.web.group("Dismiss the cookie banner"):
+            self.web.step("Close the cookie banner")
+
+        self.web.expect("The cookie banner is gone")
+```
+
+A method runs its steps through the held runtime (`self.web`, `self.goto()` included) — the
+test reads as domain actions, the sentences live next to their page (see the pybuggy-web
+usage). Everything a method renders into a sentence reaches the LLM prompt and the committed
+cache — no secrets in step sentences.
+
 ## --force semantics
 
 - Without `-f` (`force=False`): the handler silently skips an existing module file (no console

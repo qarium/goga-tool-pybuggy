@@ -47,10 +47,11 @@ amendment hook right after the engine survey:
   not interleave the spec fields);
 - the **web branch** (kind `web` or `both`) — the web minimum: the LLM provider (`openai`/`anthropic`, default
   `openai`; the prompt states that the provider's models write and classify the browser-test steps), the
-  generation and classification models (required; each prompt states which job the model does), the browser name
-  (a choice of `chromium`/`firefox`/`webkit`/`chrome`/`msedge`, default `chromium`), and headless (default yes) —
-  then the autonomy confirm `Run the web.automate pipeline unattended (autonomous mode)?` (default no), the web
-  minimum first and autonomy last, the same closing pattern as the api branch.
+  generation and classification models (required; each prompt states which job the model does), the tested-site
+  base URL (optional, a Jinja2 template; an empty answer leaves the key to the commented example record), the
+  browser name (a choice of `chromium`/`firefox`/`webkit`/`chrome`/`msedge`, default `chromium`), and headless
+  (default yes) — then the autonomy confirm `Run the web.automate pipeline unattended (autonomous mode)?`
+  (default no), the web minimum first and autonomy last, the same closing pattern as the api branch.
 
 The api and web question sets never cross; a `both` session asks both branches in order (api first, web after it).
 
