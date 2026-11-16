@@ -1,6 +1,6 @@
 """WebPlugin entity: the pluginator activation of the web test kind — the ``web`` fixture.
 
-Owns the fixed ``web.yml`` key set (``WebConfigKeys``): the file name plus the 20 config keys
+Owns the fixed ``web.yml`` key set (``WebConfigKeys``): the file name plus the 22 config keys
 mirroring the ``PrettyConfig`` field names 1:1 — every config key binds the ``plugin_config_key``
 of its directive option (the standard pluginator loading resolves the values), and the set is
 consumed data-driven by the init survey, the commented-example documentation, and the
@@ -27,6 +27,7 @@ from ..web.pretty import build_pretty_config
 from . import defaults
 from .discovery import LOADER_SECTION, load_fixture_plugins, loader_section_of
 from .loaders import BaseLoader
+from .render import passed_cli_options, render_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +61,11 @@ class WebConfigKeys(str, Enum):
     LLM_REQUEST_ATTEMPTS = "llm_request_attempts"
     REQUEST_MAX_TOKENS = "request_max_tokens"
     SEND_SCREENSHOTS = "send_screenshots"
+    SEND_STRUCTURE = "send_structure"
     GENERATION_APPROVE = "generation_approve"
     PROBE_TIMEOUT = "probe_timeout"
     CACHE_ROOT = "cache_root"
+    SITE = "site"
     BROWSER = "browser"
 
 
@@ -198,9 +201,13 @@ class WebPlugin:
         llm_request_attempts: The LLM request attempt budget directive; default ``3``.
         request_max_tokens: The anthropic completion cap directive; default ``16384``.
         send_screenshots: The screenshot attachment directive; default ``False``.
+        send_structure: The structural element registry attachment directive; default ``True``.
         generation_approve: The compliance gate directive; default ``True``.
         probe_timeout: The probe bound directive; default ``0``.
         cache_root: The step-cache root directive; default ``""``.
+        site: The nested site group directive — the raw section mapping carrying the tested
+            site's ``base_url`` Jinja2 template; default ``{}`` (unset); rendered in
+            ``configure()`` — the api ``base_url`` pattern.
         browser: The nested browser group directive — the raw section mapping; default ``{}``.
         browser_endpoint: The typed ``--browser-endpoint`` CLI value — a remote Playwright endpoint
             overriding the ``browser.endpoint`` directive at the configure-time injection;
@@ -258,6 +265,12 @@ class WebPlugin:
         strict=False,
     )
     send_screenshots = define.option(bool, plugin_config_key=WebConfigKeys.SEND_SCREENSHOTS, strict=False)
+    send_structure = define.option(
+        bool,
+        plugin_config_key=WebConfigKeys.SEND_STRUCTURE,
+        default_from="_default_send_structure",
+        strict=False,
+    )
     generation_approve = define.option(
         bool,
         plugin_config_key=WebConfigKeys.GENERATION_APPROVE,
@@ -266,6 +279,7 @@ class WebPlugin:
     )
     probe_timeout = define.option(float, plugin_config_key=WebConfigKeys.PROBE_TIMEOUT, strict=False)
     cache_root = define.option(str, plugin_config_key=WebConfigKeys.CACHE_ROOT, strict=False)
+    site = define.option(dict, plugin_config_key=WebConfigKeys.SITE, strict=False)
     browser = define.option(dict, plugin_config_key=WebConfigKeys.BROWSER, strict=False)
     browser_endpoint = define.option(
         str,
@@ -283,6 +297,7 @@ class WebPlugin:
     _default_healing_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.HEALING_ATTEMPTS].get_default()
     _default_llm_request_attempts: t.Final = PrettyConfig.model_fields[WebConfigKeys.LLM_REQUEST_ATTEMPTS].get_default()
     _default_request_max_tokens: t.Final = PrettyConfig.model_fields[WebConfigKeys.REQUEST_MAX_TOKENS].get_default()
+    _default_send_structure: t.Final = PrettyConfig.model_fields[WebConfigKeys.SEND_STRUCTURE].get_default()
     _default_generation_approve: t.Final = PrettyConfig.model_fields[WebConfigKeys.GENERATION_APPROVE].get_default()
 
     def __init__(self, *, context: dict, loaders: list[BaseLoader] | None = None) -> None:
@@ -316,9 +331,12 @@ class WebPlugin:
         the non-mapping and the empty rejection), so the option reads below never meet a broken
         reader. The typed ``--browser-endpoint`` is injected into a copy of the resolved browser
         group before validation — the injected value passes the same gate, and the typed empty
-        string forces the local launch. The validation is the composed option values plus the
-        unknown document keys riding along — the library forbid rule names a mistyped key — with
-        a violation wrapped into the clean error naming ``web.yml`` (the pydantic detail chained).
+        string forces the local launch. The site ``base_url`` template renders once against the
+        full environment plus the passed CLI options (the api ``base_url`` pattern) — the
+        rendered URL is what the validation judges. The validation is the composed option values
+        plus the unknown document keys riding along — the library forbid rule names a mistyped
+        key — with a violation wrapped into the clean error naming ``web.yml`` (the pydantic
+        detail chained).
 
         The resolved strict and interactive options re-store from the validated activation plus
         the typed flags — never from the raw parse the options route: a string-typed
@@ -368,6 +386,22 @@ class WebPlugin:
             browser = dict(browser) if isinstance(browser, dict) else {}
             browser["endpoint"] = endpoint_flag
 
+        # A null site group means an empty one — the tested-site address stays unset.
+        site = {} if self.site is None else self.site
+
+        # The site base_url is a Jinja2 template rendered once at configphase — the api base_url
+        # pattern: the full environment plus the CLI options the user actually typed; a plain
+        # URL renders to itself, an unknown variable raises, and the rendered value reaches the
+        # gate below (the library http/https validation judges the rendered URL). A malformed
+        # group shape (a scalar section, a non-string base_url) skips the render and rides into
+        # the validation, which rejects it with its clean error.
+        if isinstance(site, dict) and isinstance(site.get("base_url"), str) and site["base_url"]:
+            context: dict[str, t.Any] = dict(os.environ)
+            context.update(passed_cli_options(self.pytest_config))
+            site = dict(site)
+            site["base_url"] = render_base_url(site["base_url"], context)
+            logger.debug("rendered site base_url", extra={"base_url": site["base_url"]})
+
         try:
             self.activation = PrettyConfig.model_validate(
                 {
@@ -387,9 +421,11 @@ class WebPlugin:
                     WebConfigKeys.LLM_REQUEST_ATTEMPTS: self.llm_request_attempts,
                     WebConfigKeys.REQUEST_MAX_TOKENS: self.request_max_tokens,
                     WebConfigKeys.SEND_SCREENSHOTS: self.send_screenshots,
+                    WebConfigKeys.SEND_STRUCTURE: self.send_structure,
                     WebConfigKeys.GENERATION_APPROVE: self.generation_approve,
                     WebConfigKeys.PROBE_TIMEOUT: self.probe_timeout,
                     WebConfigKeys.CACHE_ROOT: self.cache_root,
+                    WebConfigKeys.SITE: site,
                     WebConfigKeys.BROWSER: browser,
                 }
                 | unknown

@@ -143,6 +143,15 @@ _BROWSER_BLOCK = "\n".join(
     ]
 )
 
+# The commented site record of a fully absent site group — the group with every nested key at its
+# library default (the empty base URL — unset).
+_SITE_BLOCK = "\n".join(
+    [
+        f"{WebConfigKeys.SITE.value}:",
+        *(f"  {key}: {_scalar_text(value)}" for key, value in _WEB_DEFAULTS[WebConfigKeys.SITE.value].items()),
+    ]
+)
+
 
 def write_test_convention(path: Path) -> None:
     """Occupy the consumer's ``conventions`` slot with the packaged pybuggy test convention.
@@ -188,8 +197,8 @@ def _example_record(member: PluginConfigKeys) -> str:
 def _web_example_record(member: WebConfigKeys) -> str:
     """Return the commented example record text of one web config key — the key with its default.
 
-    The browser group resolves to its full nested block; every other key to the one-line
-    ``key: default`` record the user uncomments to activate the default.
+    The browser and site groups resolve to their full nested blocks; every other key to the
+    one-line ``key: default`` record the user uncomments to activate the default.
 
     Args:
         member: The web config key to document.
@@ -199,6 +208,9 @@ def _web_example_record(member: WebConfigKeys) -> str:
     """
     if member is WebConfigKeys.BROWSER:
         return _BROWSER_BLOCK
+
+    if member is WebConfigKeys.SITE:
+        return _SITE_BLOCK
 
     return f"{member.value}: {_scalar_text(_WEB_DEFAULTS[member.value])}"
 

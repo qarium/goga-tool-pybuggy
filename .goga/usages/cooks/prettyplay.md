@@ -10,7 +10,8 @@ UI/E2E tests.
 
 Import in code:
 ```python
-from prettyplay import BrowserConfig, PrettyConfig, PrettyPlay, StepHooks
+from prettyplay import BrowserConfig, PrettyConfig, PrettyPlay, SiteConfig, StepHooks
+from prettyplay.failures import PrettyplayError  # the loud actionable library error
 from playwright.sync_api import Error as PlaywrightError  # the only direct playwright import
 ```
 
@@ -45,6 +46,7 @@ Two consequences pybuggy accounts for:
 |---|---|---|---|
 | `provider` | `Literal['openai','anthropic']` | `'openai'` | LLM provider |
 | `browser` | `BrowserConfig` | chromium/headless | Browser settings (below) |
+| `site` | `SiteConfig` | base_url `''` | Tested-site settings (below) |
 | `model` | `str` | `''` | Shared model override |
 | `generation_model` | `str` | `''` | Model for step-code generation |
 | `classification_model` | `str` | `''` | Model for step classification |
@@ -61,11 +63,16 @@ Two consequences pybuggy accounts for:
 | `llm_request_attempts` | `int` | `3` | Retries of a failed LLM request |
 | `request_max_tokens` | `int` | `16384` | Completion cap of one anthropic request (`max_tokens`); sized so a reasoning model never truncates — thinking blocks spend the budget before the text block, and a cap-truncated response carries no text block (an empty completion); the openai side sends no cap |
 | `send_screenshots` | `bool` | `False` | Attach screenshots to LLM requests |
+| `send_structure` | `bool` | `True` | Attach the structural element registry (interactive elements with verified unique selectors) to LLM requests — the generated code anchors on the markup instead of element text |
 | `generation_approve` | `bool` | `True` | Confirm generated code before caching |
 | `probe_timeout` | `float` | `0` | Locator probe timeout in seconds (0 — page default) |
 
 `BrowserConfig` fields: `name` (`'chromium'`), `screen` (`''`), `headless` (`True`), `endpoint`
-(`''` — remote Playwright endpoint), `accept_dialogs` (`False`), `speed` (`100`), `timeout` (`30`).
+(`''` — remote Playwright endpoint), `accept_dialogs` (`False`), `speed` (`100`), `timeout`
+(`30`), `ignore_https_errors` (`False`).
+
+`SiteConfig` fields: `base_url` (`''`) — the base URL of the tested site; empty means unset; a
+non-empty value must be a valid http/https URL. Env override: `PRETTYPLAY_SITE_BASE_URL`.
 
 ```python
 config = PrettyConfig(
@@ -99,6 +106,10 @@ PrettyPlay(cache_key: str, cache_path: str | None = None, *,
   test's cache key; `False` keeps every file — the persistence mode of the committed-cache
   workflow.
 - Context manager (`with prettyplay as pretty:`) opens and closes the runtime.
+
+Public properties: `cache_key` (the context key, diagnostics) and `site_base_url` (the
+`site.base_url` setting of this test — the base URL of the tested site, empty when unset; the
+page objects of the web cell join their full URLs against it).
 
 Public methods:
 

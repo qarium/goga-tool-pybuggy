@@ -30,10 +30,18 @@ LLM API keys are **never** written to this file — they live only in the enviro
 | `llm_request_attempts` | `int` | `3` | retries of a failed LLM request |
 | `request_max_tokens` | `int` | `16384` | the anthropic completion cap (`max_tokens`) — a reasoning model spends the budget on thinking before the text block, and a cap-truncated response carries no text block at all (an empty completion); raise it for models that think longer; the openai side sends no cap |
 | `send_screenshots` | `bool` | `false` | attach screenshots to LLM requests |
+| `send_structure` | `bool` | `true` | attach the structural element registry (interactive elements with verified unique selectors) to LLM requests — lets the generated code anchor on the markup instead of element text |
 | `generation_approve` | `bool` | `true` | confirm generated code before caching |
 | `probe_timeout` | `float` | `0` | the locator probe timeout, seconds; `0` keeps the page default |
 | `cache_root` | `str` | `""` | the root directory of the step cache; empty selects the per-test default (the test's own module directory) |
+| `site` | mapping | see below | the nested tested-site settings |
 | `browser` | mapping | see below | the nested browser settings |
+
+The `site` section:
+
+| Key | Type | Default | Meaning |
+|-----|------|---------|---------|
+| `site.base_url` | `str` | `""` | the base URL of the tested site — a Jinja2 template (see below) rendered once at pytest configuration; the rendered value must be a valid `http://`/`https://` URL; empty means unset — page objects fail loudly on use; consumed through the web runtime by `BasePage` |
 
 The `browser` section:
 
@@ -46,9 +54,35 @@ The `browser` section:
 | `browser.accept_dialogs` | `bool` | `false` | auto-accept dialogs |
 | `browser.speed` | `int` | `100` | the execution speed in percent |
 | `browser.timeout` | `float` | `30` | the default page timeout, seconds |
+| `browser.ignore_https_errors` | `bool` | `false` | treat HTTPS certificate errors as non-fatal (self-signed and invalid certificates open) — a context parameter, applied in every launch mode |
 
 An omitted key behaves as the library default; unknown keys are a hard error (the
 document is validated strictly).
+
+### `site.base_url` as a Jinja2 template
+
+`site.base_url` renders **once**, eagerly, at pytest configuration against the
+rendering context — the full environment plus the CLI options you actually typed
+(the same engine and context as the api kind's `base_url`): `StrictUndefined` (an
+unknown variable fails the run at configuration, never a silently truncated URL),
+a `match_re` test for conditional assembly, and every whitespace run of the
+rendered value removed (a multi-line YAML scalar renders to one clean URL). A
+plain URL without placeholders renders to itself. The **rendered** value is what
+the `http://`/`https://` validation judges.
+
+```yaml
+site:
+  base_url: "https://{{ STAGE }}.example.com"
+```
+
+```bash
+STAGE=staging pytest tests/            # → https://staging.example.com
+pytest tests/ --env prod               # a typed --env joins the context → https://prod.example.com
+```
+
+The `--env`-style options are your own conftest `pytest_addoption` registrations
+(unregistered options pytest rejects); only the options actually typed on the CLI
+enter the context.
 
 ## The `pipelines` section
 
@@ -86,15 +120,18 @@ required in or above the run directory.
 
 ## The surveyed minimum
 
-`goga tool pybuggy init` (test kind `web` or `both`) asks five questions — `provider`,
-`generation_model` (required), `classification_model` (required), `browser.name`
-(default `chromium`), `browser.headless` (default yes) — and writes exactly those keys
-plus explicit `strict: false` / `interactive: false`:
+`goga tool pybuggy init` (test kind `web` or `both`) asks six questions — `provider`,
+`generation_model` (required), `classification_model` (required), the tested-site
+`base_url` (optional, a Jinja2 template; empty leaves it to the commented example
+record), `browser.name` (default `chromium`), `browser.headless` (default yes) — and
+writes exactly those keys plus explicit `strict: false` / `interactive: false`:
 
 ```yaml
 provider: openai
 generation_model: glm-5.3
 classification_model: glm-5.3
+site:
+  base_url: https://{{ STAGE }}.example.com
 browser:
   name: chromium
   headless: true

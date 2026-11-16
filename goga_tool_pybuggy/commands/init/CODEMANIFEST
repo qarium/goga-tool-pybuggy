@@ -472,14 +472,19 @@ Annotations: |
        purpose: this model writes the browser-step code.
     3. Ask classification_model as a required input (re-asked when empty) — the prompt states
        the purpose: this model classifies captured steps.
-    4. Ask browser_name as a choice of the five runtime-accepted names — chromium|firefox|webkit|
+    4. Ask site_base_url as an optional free-text Jinja2 template (empty default, the empty
+       answer meaning unset) — the tested site's base URL the page objects of the web kind
+       resolve against; the plugin renders the template once at run start (the api base_url
+       pattern).
+    5. Ask browser_name as a choice of the five runtime-accepted names — chromium|firefox|webkit|
        chrome|msedge (default chromium); an out-of-matrix name is rejected at the prompt, never
        written to web.yml.
-    5. Ask headless as a confirm (default yes).
+    6. Ask headless as a confirm (default yes).
 
     Requirements:
     - The minimum only — the remaining `WebConfigKeys` arrive as commented examples in web.yml.
-    - The answers shape feeds `build_web_config_data`.
+    - The answers shape feeds `build_web_config_data`; an empty site_base_url answer feeds it as
+      the empty string (the payload builder then writes no site group).
     - The browser choice mirrors the runtime's accepted browser matrix exactly — the single
       constant a browser-name change ever touches.
 
@@ -542,10 +547,13 @@ Annotations: |
     Algorithm:
     1. Map the surveyed minimum into active keys: provider, generation_model, classification_model,
        browser.name, browser.headless.
-    2. Add the active defaults: strict false, interactive false.
-    3. Read `autonomous`; a true answer appends the pipelines entry of the web.automate axis with
+    2. Read site_base_url; a non-empty stripped answer adds the site group — site.base_url with
+       the answered template — before the browser group; an empty or absent answer writes no site
+       group (the bootstrap's commented example record documents it instead).
+    3. Add the active defaults: strict false, interactive false.
+    4. Read `autonomous`; a true answer appends the pipelines entry of the web.automate axis with
        autonomous true — last key of the payload; an absent, None, or false answer adds no entry.
-    4. Return the payload.
+    5. Return the payload.
 
     Requirements:
     - The payload satisfies the web config schema — every config key is a `WebConfigKeys` member;
@@ -692,9 +700,11 @@ Annotations: |
     1. No-op (return an empty list) when the file is absent or holds no mapping.
     2. Walk the `WebConfigKeys` members in declaration order; a member absent as an active key whose
        record marker is not already in the file text accumulates its default record — every scalar
-       as the one-line ``key: default`` record, the browser group as its full nested block.
+       as the one-line ``key: default`` record, the site and browser groups as their full nested
+       blocks.
     3. Pin the accumulated records, in walk order, before the next active key via the
-       before-comment — the browser section is the terminal anchor.
+       before-comment — the browser section is the terminal anchor (site precedes browser in the
+       walk order, so its block pins before the always-active browser group).
     4. Document the absent nested keys of the browser group the same way: their default records pin
        above the group's last active nested key, at the group's emitted indentation (the
        probe-measured comment token column), so an uncommented nested line lands inside the
@@ -711,7 +721,7 @@ Annotations: |
       re-renders the records.
     - An uncommented record is a valid active key applying exactly that default — the scalar texts
       are type-faithful (booleans, numbers, null, empty strings as '' quotes) and the nested
-      browser records sit at the group's own indentation.
+      site and browser records sit at the group's own indentation.
 
     Constraints:
     - Do not create the file when absent — only document an existing web config.

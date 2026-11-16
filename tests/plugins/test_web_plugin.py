@@ -40,6 +40,8 @@ class _FakePytestConfig:
         strict_mode: bool = False,
         interactive: bool = False,
         browser_endpoint: str | None = None,
+        invocation_args: tuple[str, ...] = (),
+        cli_options: dict[str, Any] | None = None,
     ) -> None:
         self._options = {
             "strict_mode": strict_mode,
@@ -47,6 +49,10 @@ class _FakePytestConfig:
             "browser_endpoint": browser_endpoint,
         }
         self.lines: list[tuple[str, str]] = []
+        # The rendering-context surface of a real pytest config: the raw typed tokens and the
+        # resolved option namespace `passed_cli_options` reads the typed names from.
+        self.invocation_params = SimpleNamespace(args=list(invocation_args))
+        self.option = SimpleNamespace(**self._options, **(cli_options or {}))
 
     def getoption(self, name: str, default: Any = None) -> Any:
         """Serve the typed flag by dest name, accepting the ``--flag`` form too.
@@ -255,7 +261,7 @@ class TestWebPluginContract:
         assert plugin.meta.config_file == ".goga/tools/pybuggy/web.yml"
 
     def test_web_plugin_declares_the_web_options(self):
-        """Twenty one options: the 20 config directives bound to their config keys, plus the endpoint.
+        """Twenty three options: the 22 config directives bound to their config keys, plus the endpoint.
 
         Every directive option carries its own ``web.yml`` key as the ``plugin_config_key`` — the
         standard pluginator loading resolves the value; the endpoint option stays CLI-only.
@@ -285,6 +291,8 @@ class TestWebPluginContract:
             "provider",
             "request_max_tokens",
             "send_screenshots",
+            "send_structure",
+            "site",
             "strict",
         ]
 
@@ -435,6 +443,55 @@ class TestWebPluginConfigure:
         assert "PRETTYPLAY_STRICT" not in os.environ
         assert "PRETTYPLAY_BROWSER_SPEED" not in os.environ
         assert os.environ["PYBUGGY_UNRELATED"] == "keep"
+
+    def test_configure_renders_site_base_url_template_against_env(self, monkeypatch: pytest.MonkeyPatch):
+        """The site base_url template renders once against the environment — the api pattern."""
+        monkeypatch.setenv("STAGE", "staging")
+
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={**VALID_DOCUMENT, "site": {"base_url": "https://{{ STAGE }}.example.com"}},
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.site.base_url == "https://staging.example.com"
+
+    def test_configure_site_base_url_template_reads_typed_cli_options(self, monkeypatch: pytest.MonkeyPatch):
+        """A typed CLI option joins the rendering context; untyped ones never leak in."""
+        monkeypatch.delenv("STAGE", raising=False)
+
+        plugin = _configured_plugin(
+            monkeypatch,
+            document={**VALID_DOCUMENT, "site": {"base_url": "https://{{ env }}.example.com"}},
+            config=_FakePytestConfig(invocation_args=("--env", "dev"), cli_options={"env": "dev"}),
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.site.base_url == "https://dev.example.com"
+
+    def test_configure_site_base_url_plain_url_renders_to_itself(self, monkeypatch: pytest.MonkeyPatch):
+        """A placeholder-free site base_url stays verbatim through the render."""
+        plugin = _configured_plugin(
+            monkeypatch, document={**VALID_DOCUMENT, "site": {"base_url": "https://example.com"}}
+        )
+
+        assert plugin.activation is not None
+        assert plugin.activation.site.base_url == "https://example.com"
+
+    def test_configure_site_base_url_unknown_variable_fails_configphase(self, monkeypatch: pytest.MonkeyPatch):
+        """An unknown template variable raises at configphase — StrictUndefined, never a silent cut."""
+        from jinja2 import UndefinedError
+
+        with pytest.raises(UndefinedError):
+            _configured_plugin(
+                monkeypatch,
+                document={**VALID_DOCUMENT, "site": {"base_url": "https://{{ missing }}.example.com"}},
+            )
+
+    def test_configure_site_malformed_shape_rides_into_validation(self, monkeypatch: pytest.MonkeyPatch):
+        """A scalar site section skips the render and fails the clean validation error, not an AttributeError."""
+        with pytest.raises(ValueError, match="invalid web config document"):
+            _configured_plugin(monkeypatch, document={**VALID_DOCUMENT, "site": "https://example.com"})
 
     def test_configure_installs_the_event_log_formatter_unconditionally(self, monkeypatch: pytest.MonkeyPatch):
         """``configure`` lands the console formatter on the ``prettyplay`` logger — not allure-gated.

@@ -341,7 +341,9 @@ Annotations: |
     reject, and miss the library defaults of the numeric directives; the directives whose empty
     option fallback would diverge from the library default carry a default_from computed from
     PrettyConfig.model_fields (the model is the single default source). configure composes the
-    resolved option values into the activation — an invalid configuration fails the run at
+    resolved option values into the activation — rendering the site base_url template once
+    against the environment plus the typed CLI options (the api base_url pattern, the shared
+    render engine of render.py) before the gate — and an invalid configuration fails the run at
     configphase, before any collection or browser. The foreign pipelines section of the document
     (the web autonomy axis, read by the tool's own resolver) never rides into the validation — the
     plugin never interprets it.
@@ -359,11 +361,11 @@ Annotations: |
     kind carries no default package.
 
     Algorithm:
-    1. Declare the 20 directive options — one per config member of the cell's `WebConfigKeys`
+    1. Declare the 22 directive options — one per config member of the cell's `WebConfigKeys`
        (FILENAME excluded), each with plugin_config_key bound to its own key and strict=False (the
-       raw routed value reaches the activation gate, which casts and validates); the seven whose empty
+       raw routed value reaches the activation gate, which casts and validates); the eight whose empty
        fallback diverges from the library default (provider, polling_delay, generation_attempts,
-       healing_attempts, llm_request_attempts, request_max_tokens, generation_approve) carry default_from bound to the
+       healing_attempts, llm_request_attempts, request_max_tokens, send_structure, generation_approve) carry default_from bound to the
        model_fields-computed class defaults. Strict and interactive additionally carry the CLI flags
        --strict-mode and --interactive (store_true). Declare the browser endpoint option — a nullable
        value option with the CLI flag --browser-endpoint (store) and no plugin-config key (the nested
@@ -435,6 +437,10 @@ Annotations: |
     "send_screenshots -> bool": |
       Routed screenshot attachment directive value: the web config send_screenshots key → the
       default False. Routed uncast to the activation gate.
+    "send_structure -> bool": |
+      Routed structural element registry attachment directive value: the web config
+      send_structure key → the library default True (default_from — the opt-out default).
+      Routed uncast to the activation gate.
     "generation_approve -> bool": |
       Routed compliance gate directive value: the web config generation_approve key → the library
       default True (default_from — the opt-out default). Routed uncast to the activation gate.
@@ -445,6 +451,12 @@ Annotations: |
       Routed step-cache root directive value: the web config cache_root key → the empty default
       (the fixture then roots the cache at the test file's directory). Routed uncast to the
       activation gate.
+    "site -> dict": |
+      Routed site group directive value — the raw section mapping of the web config site key (the
+      tested site's base_url Jinja2 template); default {} (the activation gate builds the
+      SiteConfig group with the library default — the empty base URL, unset). The template
+      renders once in configure against the environment plus the typed CLI options — the api
+      base_url pattern (see configure).
     "browser -> dict": |
       Routed browser group directive value — the raw section mapping of the web config browser key;
       default {} (the activation gate builds the BrowserConfig group with the library defaults). A
@@ -495,17 +507,26 @@ Annotations: |
          directive carries none or a null one) — the typed value applies verbatim, an empty string
          included (it forces the local launch over a document endpoint); the read document is never
          mutated.
-      7. Validate the composed document — every resolved directive option value, the injected
-         browser group, and the unknown keys — into the activation via PrettyConfig.model_validate:
-         the library model with the library validators, so a structural or a semantic violation (an
-         off-matrix browser name, an invalid endpoint — a typed one included) fails with its clean
-         error at configphase (the pydantic detail chained).
-      8. Re-store the resolved strict and interactive options from the validated activation plus the
+      7. Render the site base_url template once — the api base_url pattern: a non-empty string
+         base_url of a mapping site group renders through the internal render_base_url routine of
+         render.py (Jinja2; StrictUndefined; the match_re test; whitespace normalized) against the
+         full environment plus the CLI options the user actually typed (the shared passed_cli_options
+         routine of render.py), on a copy of the group; a plain URL renders to itself, an unknown
+         variable raises at configphase, and the rendered value is what the gate below judges. A
+         malformed group shape (a scalar section, a non-string base_url) skips the render and rides
+         into the validation, which rejects it with its clean error.
+      8. Validate the composed document — every resolved directive option value, the rendered site
+         group, the injected browser group, and the unknown keys — into the activation via
+         PrettyConfig.model_validate: the library model with the library validators, so a structural
+         or a semantic violation (an off-matrix browser name, an invalid endpoint — a typed one
+         included, a non-http site base URL — a rendered one included) fails with its clean error
+         at configphase (the pydantic detail chained).
+      9. Re-store the resolved strict and interactive options from the validated activation plus the
          typed flags — never from the raw routed parse: a string-typed "false"/"no" the model coerces
          to false must not surface as true.
-      9. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
+      10. Scrub the PRETTYPLAY_* environment variables of the process (one INFO log naming them) —
          web.yml is the single configuration source; the library's env layer never overrides it.
-      10. Install the prettyplay event log formatter via `install_event_log_formatter`.
+      11. Install the prettyplay event log formatter via `install_event_log_formatter`.
 
       Requirements:
       - Runs once at pytest configphase, before any collection and before any fixture invocation.
@@ -515,8 +536,11 @@ Annotations: |
         order the former web-cell validation routine carried.
       - A typed --browser-endpoint passes the same activation gate: an invalid endpoint fails at
         configphase with the document error, never at a browser start.
-      - The endpoint injection, the pipelines drop, and the unknown-key collection work on copies —
-        the document object the reader supplied is never mutated.
+      - The site base_url renders exactly once at configphase against the environment plus the typed
+        CLI options — the api base_url pattern; an unknown template variable raises there, and the
+        rendered value (never the raw template) reaches the activation.
+      - The endpoint injection, the site render, the pipelines drop, and the unknown-key collection
+        work on copies — the document object the reader supplied is never mutated.
       - The env scrub is permanent for the run and race-free — configphase is single-threaded; the
         variables exist only for the library's env layer.
       - The formatter is installed unconditionally with the plugin active — it is not allure-gated.
@@ -603,16 +627,21 @@ Annotations: |
     - llm_request_attempts — the retries of a failed LLM request key
     - request_max_tokens — the anthropic completion cap key
     - send_screenshots — the attach-screenshots-to-LLM-requests key
+    - send_structure — the attach-the-structural-element-registry-to-LLM-requests key
     - generation_approve — the confirm-generated-code-before-caching key
     - probe_timeout — the locator probe timeout key
     - cache_root — the step cache root key
+    - site — the nested tested-site section key (the site.base_url base URL of the tested site,
+      consumed through the runtime by the web cell's BasePage)
     - browser — the nested browser section key
 
     Requirements:
     - Members map to the lowercase key strings of web.yml; the FILENAME member maps to the file name
       web.yml.
-    - Scalar members are single values; BROWSER is the complex member carrying the nested browser
-      section (documented as commented examples, never surveyed as a scalar).
+    - Scalar members are single values; SITE and BROWSER are the complex members carrying their
+      nested sections (documented as commented example blocks, never surveyed as scalars); SITE
+      precedes BROWSER in the contract order — the documenter pins absent records before the next
+      active key, and the always-active browser group is the terminal anchor.
 
     Constraints:
     - Fixed value set (implement as enum.Enum). Do not add, remove, or rename members or change

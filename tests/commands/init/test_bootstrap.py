@@ -564,13 +564,16 @@ class TestDocumentWebConfigExamples:
 
         documented = document_web_config_examples(web)
 
-        # every absent member except the six active ones, plus the five absent browser subkeys
-        assert len(documented) == 19
+        # every absent member except the six active ones, plus the six absent browser subkeys
+        assert len(documented) == 22
         text = web.read_text(encoding="utf-8")
         assert "# base_url: ''" in text
         assert "# cache_root: ''" in text
+        assert "# send_structure: true" in text
         assert "# screen: ''" in text
         assert "# speed: 100" in text
+        assert "# ignore_https_errors: false" in text
+        assert "# site:\n#   base_url: ''" in text
 
         snapshot = web.read_bytes()
         assert document_web_config_examples(web) == []
@@ -599,6 +602,15 @@ class TestDocumentWebConfigExamples:
 
         defaults = PrettyConfig().model_dump()
         for record in documented:
+            if record.startswith("site:\n"):  # the nested site block — its lines carry the group defaults
+                nested = {
+                    key: yaml.safe_load(value)
+                    for key, _, value in (line.strip().partition(": ") for line in record.splitlines()[1:])
+                }
+
+                assert nested == defaults["site"], record
+                continue
+
             key, _, value = record.partition(": ")
             expected = defaults["browser"][key] if key in defaults["browser"] else defaults[key]
 

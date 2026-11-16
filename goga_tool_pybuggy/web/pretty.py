@@ -12,7 +12,7 @@ test's extra generation instructions.
 import typing as t
 
 import pytest
-from prettyplay import BrowserConfig, PrettyConfig
+from prettyplay import BrowserConfig, PrettyConfig, SiteConfig
 
 
 def build_pretty_config(
@@ -36,13 +36,14 @@ def build_pretty_config(
     fields = config.model_dump()
 
     browser = BrowserConfig(**fields.pop("browser"))
+    site = SiteConfig(**fields.pop("site"))
 
     fields["strict"] = config.strict or strict_flag
     fields["interactive"] = config.interactive or interactive_flag
 
     fields["generation_prompt"] = "\n".join(part for part in (config.generation_prompt, prompt_extra) if part)
 
-    return PrettyConfig(browser=browser, **fields)
+    return PrettyConfig(browser=browser, site=site, **fields)
 
 
 def generation_prompt(text: str) -> t.Callable[..., t.Any]:

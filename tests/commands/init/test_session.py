@@ -55,14 +55,18 @@ _API_ANSWERS = {
     "assert_delay": "",
 }
 
-# The survey_web_config output — the five-key web minimum the payload builder maps.
+# The survey_web_config output — the six-key web minimum the payload builder maps.
 _WEB_ANSWERS = {
     "provider": "openai",
     "generation_model": "g",
     "classification_model": "c",
+    "site_base_url": "",
     "browser_name": "chromium",
     "headless": True,
 }
+
+# The site-ask prompt text of survey_web_config — the optional sixth question.
+_SITE_PROMPT = "Tested-site base URL (Jinja2 template; empty — unset)"
 
 # The block answer view carrying the image inputs — the source of the Dockerfile amendments.
 _IMAGE_ANSWERS = {
@@ -459,29 +463,31 @@ class TestSurveyWebConfig:
     """The web minimum survey — the five asks of the web amendment branch."""
 
     def test_survey_web_config_asks_minimum_in_order(self, monkeypatch):
-        """The explained provider, the two required models, the browser name, then the headless confirm."""
+        """The provider, the two required models, the site base URL, the browser name, then headless."""
         scripted = _ScriptedClick(
             confirms=[True],
             prompts=[
                 ("LLM provider (writes and classifies the browser-test steps)", "openai"),
                 ("Generation model (the LLM writing the browser-step code, required)", "g"),
                 ("Classification model (the LLM classifying captured steps, required)", "c"),
+                (_SITE_PROMPT, "https://{{ STAGE }}.example.com"),
                 ("Browser name", "chromium"),
             ],
         )
         _patch_scripted_click(monkeypatch, scripted)
 
-        assert survey_web_config() == dict(_WEB_ANSWERS)
+        assert survey_web_config() == dict(_WEB_ANSWERS) | {"site_base_url": "https://{{ STAGE }}.example.com"}
         assert [text for text, _default in scripted.prompt_calls] == [
             "LLM provider (writes and classifies the browser-test steps)",
             "Generation model (the LLM writing the browser-step code, required)",
             "Classification model (the LLM classifying captured steps, required)",
+            _SITE_PROMPT,
             "Browser name",
         ]
         assert scripted.confirm_calls == [("Run the browser headless?", True)]
 
     def test_survey_web_config_reasks_empty_models(self, monkeypatch):
-        """Empty model entries re-ask with the (required) prompt suffix."""
+        """Empty model entries re-ask with the (required) prompt suffix; the site ask accepts empty."""
         scripted = _ScriptedClick(
             confirms=[False],
             prompts=[
@@ -490,6 +496,7 @@ class TestSurveyWebConfig:
                 ("Generation model (the LLM writing the browser-step code, required) (required)", "g"),
                 ("Classification model (the LLM classifying captured steps, required)", ""),
                 ("Classification model (the LLM classifying captured steps, required) (required)", "c"),
+                (_SITE_PROMPT, ""),
                 ("Browser name", "firefox"),
             ],
         )
@@ -499,6 +506,7 @@ class TestSurveyWebConfig:
             "provider": "anthropic",
             "generation_model": "g",
             "classification_model": "c",
+            "site_base_url": "",
             "browser_name": "firefox",
             "headless": False,
         }
@@ -513,15 +521,16 @@ class TestSurveyWebConfig:
 
         def _prompt(text: str, default: object = None, **kwargs: object) -> object:
             seen.append((text, default, kwargs.get("type")))
-            # The required asks carry an empty default — answer them, never loop.
-            return required_answers[text] if default in (None, "") else default
+            # The required asks carry an empty default — answer them, never loop; the optional
+            # asks (the site base URL) keep their own default.
+            return required_answers.get(text, default)
 
         monkeypatch.setattr(session_module.click, "prompt", _prompt)
         monkeypatch.setattr(session_module.click, "confirm", lambda *_args, **_kwargs: True)
 
         assert survey_web_config()["browser_name"] == "chromium"
 
-        text, default, choice = seen[3]
+        text, default, choice = seen[4]
         assert (text, default) == ("Browser name", "chromium")
         assert isinstance(choice, click.Choice)
         assert list(choice.choices) == ["chromium", "firefox", "webkit", "chrome", "msedge"]
@@ -552,6 +561,31 @@ class TestBuildWebConfigData:
         ]
         assert set(data) <= {member.value for member in WebConfigKeys}
         assert yaml.safe_load(yaml.safe_dump(data)) == data
+
+    def test_build_web_config_data_non_empty_site_answer_writes_the_site_group(self):
+        """A non-empty site answer writes the site group before the browser group; empty writes none."""
+        data = build_web_config_data(dict(_WEB_ANSWERS) | {"site_base_url": "https://{{ STAGE }}.example.com"})
+
+        assert data["site"] == {"base_url": "https://{{ STAGE }}.example.com"}
+        assert list(data) == [
+            "provider",
+            "generation_model",
+            "classification_model",
+            "site",
+            "browser",
+            "strict",
+            "interactive",
+        ]
+        assert yaml.safe_load(yaml.safe_dump(data)) == data
+
+    def test_build_web_config_data_site_payload_validates_and_maps(self):
+        """The site group of the payload validates as a web config and reaches the runtime settings."""
+        from prettyplay import PrettyConfig
+
+        data = build_web_config_data(dict(_WEB_ANSWERS) | {"site_base_url": "https://staging.example.com"})
+        config = PrettyConfig.model_validate(data)
+
+        assert config.site.base_url == "https://staging.example.com"
 
     def test_build_web_config_data_enabling_answer_emits_the_web_axis(self):
         """An enabling autonomy answer appends the ``pipelines`` entry — the resolver's exact shape."""

@@ -5,7 +5,6 @@ Built on ``pluginator``: provides the function-scope ``api`` fixture and the ``i
 
 import logging
 import os
-import re
 import typing as t
 from enum import Enum
 
@@ -17,7 +16,7 @@ from . import defaults
 from .discovery import LOADER_SECTION, load_fixture_plugins, loader_section_of
 from .envvars import API_TIMEOUT, BASE_URL
 from .loaders import BaseLoader, PackageLoader
-from .render import render_base_url
+from .render import passed_cli_options, render_base_url
 
 logger = logging.getLogger(__name__)
 
@@ -40,36 +39,8 @@ class PluginConfigKeys(str, Enum):
     ASSERT_RESPONSE_CLASS = "assert_response_class"
 
 
-# A typed CLI option token (``--key``, ``-k``, ``--key=value``); captures the option name.
-_PLACEHOLDER_SOURCE_PATTERN = re.compile(r"^--?([A-Za-z_][\w-]*)(?:=(.*))?$")
-
-# Normalized ``--base-url`` flag name, matching the keys of ``_passed_cli_options`` output.
+# Normalized ``--base-url`` flag name, matching the keys of ``passed_cli_options`` output.
 _BASE_URL_CLI_KEY: t.Final[str] = "base_url"
-
-
-def _passed_cli_options(config: t.Any) -> dict[str, t.Any]:
-    """Collect the CLI options the user actually typed, keyed by normalized name.
-
-    Raw ``invocation_params.args`` tokens only — the full ``config.option`` namespace must not leak into templates.
-
-    Args:
-        config: The pytest ``Config`` exposing ``invocation_params.args`` and ``option``.
-
-    Returns:
-        A name -> value mapping of the options the user passed on the CLI.
-    """
-    names: set[str] = set()
-    invocation_params = getattr(config, "invocation_params", None)
-    tokens = getattr(invocation_params, "args", None) or []
-    for token in tokens:
-        match = _PLACEHOLDER_SOURCE_PATTERN.match(str(token))
-        if match:
-            names.add(match.group(1).replace("-", "_"))
-
-    option = config.option
-    return {
-        name: getattr(option, name) for name in names if hasattr(option, name) and getattr(option, name) is not None
-    }
 
 
 @define.plugin("pybuggy-api", config=defaults.API_CONFIG_FILE)
@@ -175,7 +146,7 @@ class ApiPlugin:
 
         Pluginator lifecycle callback at pytest configphase — a missing required ``base_url`` fails before any fixture.
         """
-        cli_options = _passed_cli_options(self.pytest_config)
+        cli_options = passed_cli_options(self.pytest_config)
 
         cli_base_url = cli_options.get(_BASE_URL_CLI_KEY)
         if cli_base_url is not None:

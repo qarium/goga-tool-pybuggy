@@ -238,8 +238,10 @@ def survey_web_config() -> dict[str, object]:
     runtime-accepted ``_BROWSER_NAMES``, so an invalid name never reaches ``web.yml``.
 
     Returns:
-        The five surveyed keys — ``provider``, ``generation_model``, ``classification_model``,
-        ``browser_name``, and ``headless`` — the exact shape :func:`build_web_config_data` maps.
+        The six surveyed keys — ``provider``, ``generation_model``, ``classification_model``,
+        ``site_base_url``, ``browser_name``, and ``headless`` — the exact shape
+        :func:`build_web_config_data` maps. The site base URL is optional: an empty entry
+        leaves the tested-site address to the commented example record of the documenter.
 
     Raises:
         click.Abort: Forwarded unchanged from a cancelled prompt; the mediator drops the
@@ -253,6 +255,9 @@ def survey_web_config() -> dict[str, object]:
         ),
         "generation_model": _required("Generation model (the LLM writing the browser-step code, required)"),
         "classification_model": _required("Classification model (the LLM classifying captured steps, required)"),
+        "site_base_url": click.prompt(
+            "Tested-site base URL (Jinja2 template; empty — unset)", default="", show_default=False
+        ).strip(),
         "browser_name": click.prompt("Browser name", type=click.Choice(list(_BROWSER_NAMES)), default="chromium"),
         "headless": click.confirm("Run the browser headless?", default=True),
     }
@@ -320,21 +325,29 @@ def build_web_config_data(
             or False writes no ``pipelines`` entry.
 
     Returns:
-        The payload carrying the surveyed minimum (the provider, the two models, the browser
-        group), the explicit ``strict`` and ``interactive`` defaults, and — when enabled — the
-        ``pipelines`` entry of the ``web.automate`` axis, last.
+        The payload carrying the surveyed minimum (the provider, the two models, the site group
+        when a non-empty base URL was answered, the browser group), the explicit ``strict`` and
+        ``interactive`` defaults, and — when enabled — the ``pipelines`` entry of the
+        ``web.automate`` axis, last.
     """
     data: dict[str, object] = {
         WebConfigKeys.PROVIDER.value: web_answers["provider"],
         WebConfigKeys.GENERATION_MODEL.value: web_answers["generation_model"],
         WebConfigKeys.CLASSIFICATION_MODEL.value: web_answers["classification_model"],
-        WebConfigKeys.BROWSER.value: {
-            "name": web_answers["browser_name"],
-            "headless": web_answers["headless"],
-        },
-        WebConfigKeys.STRICT.value: False,
-        WebConfigKeys.INTERACTIVE.value: False,
     }
+
+    # The site group rides only on a non-empty answer — an empty one leaves the tested-site
+    # address to the commented example record of the documenter.
+    site_base_url = str(web_answers.get("site_base_url") or "").strip()
+    if site_base_url:
+        data[WebConfigKeys.SITE.value] = {"base_url": site_base_url}
+
+    data[WebConfigKeys.BROWSER.value] = {
+        "name": web_answers["browser_name"],
+        "headless": web_answers["headless"],
+    }
+    data[WebConfigKeys.STRICT.value] = False
+    data[WebConfigKeys.INTERACTIVE.value] = False
 
     if autonomous:
         data["pipelines"] = {"web.automate": {"autonomous": True}}

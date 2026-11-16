@@ -66,7 +66,9 @@ def test_duckduckgo_search(web):
   render as one Allure group.
 - `web.run_on_page(action)` — the escape hatch: run a callable receiving the raw
   Playwright `Page` when a step sentence cannot express the interaction.
-- Steps carry full URLs — no `base_url` templating, no sandbox binding.
+- Steps carry full URLs — no `base_url` templating of sentences, no sandbox binding; the
+  tested site's own base URL is the [`site.base_url`](configuration.md#keys) directive,
+  consumed by `BasePage` (below).
 - One action per sentence; name the target and the action in plain language.
 
 Capture values from a page into variables addressed by name in later sentences:
@@ -99,6 +101,44 @@ def test_checkout(web):
 
     web.expect("The confirmation page shows the order number")
 ```
+
+## Tested-site pages (`BasePage`)
+
+When the suite addresses one site, set its base URL once — the `site.base_url` directive of
+[the web document](configuration.md#keys) (a Jinja2 template rendered at pytest
+configuration) — and bind pages with `BasePage`, the web kind's counterpart of the api kind's
+`Endpoint`: the base URL lives on the `web` runtime, the page adds its path, and `goto()` opens
+the full URL through one ordinary step sentence (generated once, then replayed from the cache
+like every step).
+
+```python
+# conftest.py of the test project — a fixture per page, used instead of web in tests
+import pytest
+from goga_tool_pybuggy.web import BasePage
+
+
+@pytest.fixture(scope="function")
+def page___login(web) -> BasePage:
+    return BasePage(web, "/login")
+```
+
+```python
+# test_login.py — the page fixture replaces the web fixture
+def test_login_form(page___login):
+    page___login.goto()  # web.step("Open https://staging.example.com/login")
+
+    page___login.web.expect("The login form is visible")
+```
+
+- `BasePage(web, path)` — bind one page; the constructor path wins over the class attribute.
+- Subclass and declare the path once — `class LoginPage(BasePage): path = "/login"` — then
+  build it with `LoginPage(web)` in the fixture.
+- `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized; an empty path
+  yields the bare base URL).
+- `page.goto()` — one action step carrying the full URL; a missing `site.base_url` fails
+  loudly at the call, naming the directive.
+- Secrets never belong in the base URL (query tokens included) — step sentences reach the
+  LLM prompt and the repository.
 
 ## Run modes
 

@@ -220,6 +220,12 @@ as well — the web minimum, then the web autonomy confirm:
   the browser-step code.
 - `classification_model` — **required** (empty input is re-asked); the model that
   classifies captured steps.
+- `site_base_url` — the base URL of the tested site: an optional free-text **Jinja2
+  template** (the same engine and context as the api `base_url`); an empty answer
+  writes no `site` group — the bootstrap documents the key as a commented example
+  instead. A non-empty answer writes `site.base_url`, rendered by the web plugin once
+  at pytest configuration; the page objects of the web kind (`BasePage`) resolve
+  their URLs against it.
 - `browser_name` — the browser for web tests: a choice of the five names the runtime
   accepts (`chromium`, `firefox`, `webkit`, `chrome`, `msedge`), default `chromium` —
   an out-of-list name is rejected at the prompt instead of failing later at test
