@@ -26,3 +26,16 @@ def test_cli_registers_diff_on_endpoint_subgroup() -> None:
     endpoint = main.commands["endpoint"]
     assert {"pull", "list", "info", "generate", "diff"} <= set(endpoint.commands)
     assert "init" not in endpoint.commands
+
+
+def test_page_group_registered_with_generate() -> None:
+    """page_generate_cmd is registered on the page subgroup, never on the endpoint subgroup.
+
+    The ``page`` subgroup carries the web-side page-object command per ``main()`` Algorithm steps.
+    """
+    assert "page" in main.commands
+
+    page = main.commands["page"]
+    assert {"generate"} <= set(page.commands)
+
+    assert "page" not in main.commands["endpoint"].commands

@@ -17,6 +17,9 @@ Imports:
   - Types: [generate_cmd]
     Usages: [generate]
     From: goga_tool_pybuggy/commands/generate
+  - Types: [page_generate_cmd]
+    Usages: [page]
+    From: goga_tool_pybuggy/commands/page
   - Types: [diff_cmd]
     Usages: [diff]
     From: goga_tool_pybuggy/commands/diff
@@ -44,13 +47,13 @@ Usages:
 
 Annotations: |
   Use `conventions` for code writing rules and testing.
-  Use `click` for the root group, the endpoint subgroup, command registration, the top-level init command, and the
-  global --env-file option with its eager-callback.
+  Use `click` for the root group, the endpoint and page subgroups, command registration, the top-level init command,
+  and the global --env-file option with its eager-callback.
   Use `python-dotenv` for loading the .env file into os.environ with override=False.
   Use `goga-hooks` for the facade callback contract, the hook signatures, and the failure behavior of registrations.
   Use `goga-onboarding-hooks` for the two onboarding action subscriptions.
   Connected practices describe how consumers use the composed commands, the plugin, the post-install lifecycle
-  hook, and the subscribed hooks: `pull`, `list`, `info`, `generate`, `diff`, `init`, `config-build`, `install`,
+  hook, and the subscribed hooks: `pull`, `list`, `info`, `generate`, `diff`, `page`, `init`, `config-build`, `install`,
   `registration`, `contribution`. The plugin enablement practices — enable and configuration — moved with the
   plugin cell: consumers reach them through goga_tool_pybuggy/plugins directly.
 
@@ -79,7 +82,7 @@ Annotations: |
 "main(env_file: str | None)":
   location: cli.py
   annotations: |
-    Root Click group of the pybuggy CLI; exposes the global --env-file option, the endpoint subgroup with the pull/list/info/generate/diff commands, and the top-level init command.
+    Root Click group of the pybuggy CLI; exposes the global --env-file option, the endpoint subgroup with the pull/list/info/generate/diff commands, the page subgroup with the generate command, and the top-level init command.
 
     `env_file`: value of the global --env-file option injected by click (None when the flag is absent).
 
@@ -91,7 +94,9 @@ Annotations: |
     5. Register `pull_cmd`, `list_cmd`, `info_cmd`, `generate_cmd`, `diff_cmd` on the endpoint subgroup.
     6. Attach the endpoint subgroup to `main`.
     7. Register `init_cmd` on `main` directly (top-level — not under the endpoint subgroup).
-    8. Export `main` via __all__.
+    8. Define the page subgroup via `click` and register `page_generate_cmd` on it.
+    9. Attach the page subgroup to `main`.
+    10. Export `main` via __all__.
 
     Requirements:
     - The global --env-file flag is parsed at the group level, so it MUST precede the subcommand (e.g. pybuggy --env-file ./my.env endpoint pull); placing it after the subcommand is a click usage error.
@@ -222,7 +227,8 @@ Author: Goga
 CreatedAt: 08/07/26
 Description: |
   Package composition root — owns the root CLI group main, assembles the endpoint subgroup
-  (pull/list/info/generate/diff), registers the top-level `init` command, loads the .env environment
-  before any command runs, and subscribes the pybuggy hooks — topic statuses, onboarding participation,
-  and the autonomy workflow amendment — on the goga platform. Also carries the post-install lifecycle
-  hook `install` that provisions the @playwright/cli agent CLI after pip.
+  (pull/list/info/generate/diff) and the page subgroup (generate), registers the top-level `init`
+  command, loads the .env environment before any command runs, and subscribes the pybuggy hooks —
+  topic statuses, onboarding participation, and the autonomy workflow amendment — on the goga platform.
+  Also carries the post-install lifecycle hook `install` that provisions the @playwright/cli agent CLI
+  after pip.

@@ -70,6 +70,7 @@ nav:
       - goga tool pybuggy endpoint info: cli/info.md
       - goga tool pybuggy endpoint generate: cli/generate.md
       - goga tool pybuggy endpoint diff: cli/diff.md
+      - goga tool pybuggy page generate: cli/page-generate.md
   - Configuration: configuration.md
   - Sandbox:
       - Overview: sandbox/index.md

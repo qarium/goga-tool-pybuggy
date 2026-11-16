@@ -1,0 +1,102 @@
+Imports:
+  - Types: [BasePage]
+    Usages: [pybuggy-web]
+    From: goga_tool_pybuggy/web
+
+Usages:
+  conventions: .goga/usages/conventions.md
+  click: .goga/usages/cooks/click.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+  Use `click` for the command wrapper (the positional path/name arguments and the force option) and mapping input errors to ClickException.
+  Use `pybuggy-web` for the `BasePage` contract the generated subclass declares against — the runtime binding form and the class-level path attribute.
+
+  Use relative imports inside the cell.
+  The handler `run_page_generate` is the testable entry point; the Click wrapper `page_generate_cmd` binds the arguments and the force flag and calls `run_page_generate` (CLI tests call `run_page_generate` directly).
+  Write artifacts under the current working directory; tests isolate via tmp_path and a cwd override (see `conventions`).
+  Per-page scaffold artifacts: a page-object module (a `BasePage` subclass with its path attribute plus its pytest fixture, text from the pure routine `render_page_module`) and empty __init__.py package markers on every directory of the module path — created only when missing, never overwritten (the deliberate divergence from the api-side generate: a consumer project may keep re-exports in its pages package markers).
+  The module text is a fixed-shape literal — no formatter runs over it, unlike the api-side modules with generated request models.
+
+---
+
+"run_page_generate(path: Optional[str], name: Optional[str] = None, force: bool = False)":
+  location: page.py
+  annotations: |
+    Handler for the page generate command: scaffold one page-object module under pages/ of the current working directory from a tested-site path.
+
+    `path`: the tested-site page path; must start with "/" and carry at least one non-empty segment — the source of the artifact directories and (without `name`) of the module names.
+    `name`: the optional page name driving the fixture and class names; None derives them from the path segments.
+    `force`: when false, an existing page-object module is skipped silently; when true, it is overwritten — the __init__.py markers stay outside the flag's scope either way.
+
+    Algorithm:
+    1. Validate the input before any disk write: `path` must be non-None, start with "/" and carry at least one non-empty segment (empty segments drop); a given `name` must be non-blank after the strip — a violation raises click.ClickException leaving no pages/ tree behind.
+    2. Derive the names: sanitize every path segment into an identifier segment (every non-word character becomes _; a leading digit is prefixed with _) — the same rule applied to the given `name`; the directories are the sanitized segments minus the last one; the short stem is the sanitized `name` (whole) or the last sanitized segment; the module file is <short>_page.py; the fixture name is page_ plus the sanitized `name` or all sanitized segments joined by _; the class name is the CamelCase of the short stem plus the Page suffix.
+    3. Render the module text via `render_page_module` with the verbatim `path`, the class name and the fixture name.
+    4. Create cwd/pages/<directories> with parents; write an empty __init__.py in every directory of the module path — cwd/pages down to the module directory — only when missing, never overwriting an existing marker regardless of `force`.
+    5. Write the module file when `force` is true or it does not exist; skip silently otherwise. No output on success.
+
+    Requirements:
+    - A rejected input — no leading slash, no non-empty segment, a blank `name` — raises click.ClickException before any write, so no pages/ tree is left behind.
+    - The output tree mirrors the api-side pattern: pages/ at the cwd root, one directory per sanitized path segment (minus the last), the module file named by the stem.
+    - The file stem, the fixture name and the class stem all derive from the one sanitization rule, so a path with non-identifier characters (a dot, a dash) still yields an importable dotted path and valid names.
+    - A leading-digit stem keeps the sanitization underscore through every derived name (the file _<stem>_page.py, the fixture page__<stem>, the class _<Stem>Page).
+    - The generated class declares the verbatim `path` (never the sanitized segments) — the page opens the URL as written.
+    - An existing module is preserved without `force` and overwritten with it; the run is idempotent and silent on both paths.
+    - The __init__.py markers are created only when missing and are never overwritten — even with `force` (a consumer project may keep re-exports in its pages package markers; the deliberate divergence from the api-side generate, where the flag regenerates the markers).
+    - Output root is the current working directory (Path.cwd()); the command reads no config and no spec — the path is the single input.
+
+    Constraints:
+    - Do not compute the module text here — delegate to `render_page_module`.
+    - Do not read the api.yml/web.yml config or any spec — the command needs only the cwd.
+    - Do not emit per-file output when skipping an existing module.
+    - Do not import `BasePage` at runtime — the symbol appears only inside the generated text (the manifest-level import declares the contract reference).
+
+    Use `pybuggy-web` for the `BasePage` contract of the generated subclass.
+
+"render_page_module(path: str, class_name: str, fixture_name: str) -> module: str":
+  location: page.py
+  annotations: |
+    Render the full source text of a page-object module from the derived names. Deterministic — identical input yields an identical module; no out-of-process call runs over the text.
+
+    `path`: the tested-site path carried by the class path attribute, verbatim.
+    `class_name`: the page class name (the CamelCase stem plus Page).
+    `fixture_name`: the pytest fixture name (the page_ prefix plus the stem).
+    `module`: the complete module source text, a fixed-shape literal ready to write to disk.
+
+    Algorithm:
+    1. Assemble the module sections in order: import pytest; the goga_tool_pybuggy.web BasePage import and the prettyplay PrettyPlay import; the class with its path attribute; the function-scoped pytest fixture typed over the runtime, returning the class constructed with it.
+    2. Render the path attribute as a double-quoted string literal — falling back to the escaped single-quoted repr form when the value carries a double quote, so a path with any quote combination stays a valid literal.
+
+    Requirements:
+    - The fixture is decorated with @pytest.fixture(scope="function") and returns <class_name>(web), the web parameter typed as the PrettyPlay runtime.
+    - The class declares the verbatim `path` — never the sanitized segments.
+    - The rendered text compiles as Python for any input path, quotes included.
+
+    Constraints:
+    - Do not write to disk (writing is `run_page_generate`'s responsibility).
+    - Do not sanitize or derive names here — they arrive derived from `run_page_generate`.
+    - Do not run a formatter or any subprocess over the text — the shape never varies, unlike the api-side modules with generated request models.
+
+    Use `pybuggy-web` for the `BasePage` and runtime contract the module references.
+
+"page_generate_cmd(path: str, name: Optional[str], force: bool)":
+  location: page.py
+  annotations: |
+    Click command wrapper for the page generate subcommand; binds the required positional path, the optional positional name, the -f/--force flag, and delegates to `run_page_generate`.
+
+    `path`: the tested-site page path, bound from the required PATH argument.
+    `name`: the optional page name, bound from the NAME argument; absent binds None.
+    `force`: the overwrite flag, bound from -f/--force.
+
+    Requirements:
+    - The -f/--force help names the page-object module and states the create-only marker rule: the markers are created only when missing, never overwritten.
+
+    Use `click` for the command wrapper, the two positional arguments and the option binding.
+
+---
+
+Author: Goga
+CreatedAt: 16/11/26
+Description: |
+  page generate command handler — scaffolds a pages/ page-object module per tested-site path: a BasePage subclass with its path attribute plus its function-scoped pytest fixture, with empty __init__.py package markers on the module path, under the current working directory.

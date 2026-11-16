@@ -133,6 +133,9 @@ def test_login_form(page___login):
 - `BasePage(web, path)` — bind one page; the constructor path wins over the class attribute.
 - Subclass and declare the path once — `class LoginPage(BasePage): path = "/login"` — then
   build it with `LoginPage(web)` in the fixture.
+- Scaffold the module with the generator — `goga tool pybuggy page generate /login login`
+  writes the subclass and its fixture under `pages/` (see
+  [page generate](../cli/page-generate.md)).
 - `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized; an empty path
   yields the bare base URL).
 - `page.goto()` — one action step carrying the full URL; a missing `site.base_url` fails
