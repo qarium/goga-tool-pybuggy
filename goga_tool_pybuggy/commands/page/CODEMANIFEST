@@ -10,12 +10,12 @@ Usages:
 Annotations: |
   Use `conventions` for code writing rules and testing.
   Use `click` for the command wrapper (the positional path/name arguments and the force option) and mapping input errors to ClickException.
-  Use `pybuggy-web` for the `BasePage` contract the generated subclass declares against — the runtime binding form and the class-level path attribute.
+  Use `pybuggy-web` for the `BasePage` contract the generated subclass declares against — the runtime binding form and the construction-time address.
 
   Use relative imports inside the cell.
   The handler `run_page_generate` is the testable entry point; the Click wrapper `page_generate_cmd` binds the arguments and the force flag and calls `run_page_generate` (CLI tests call `run_page_generate` directly).
   Write artifacts under the current working directory; tests isolate via tmp_path and a cwd override (see `conventions`).
-  Per-page scaffold artifacts: a page-object module (a `BasePage` subclass with its path attribute plus its pytest fixture, text from the pure routine `render_page_module`) and empty __init__.py package markers on every directory of the module path — created only when missing, never overwritten (the deliberate divergence from the api-side generate: a consumer project may keep re-exports in its pages package markers).
+  Per-page scaffold artifacts: a page-object module (a `BasePage` behavior stub plus its pytest fixture binding the address at construction, text from the pure routine `render_page_module`) and empty __init__.py package markers on every directory of the module path — created only when missing, never overwritten (the deliberate divergence from the api-side generate: a consumer project may keep re-exports in its pages package markers).
   The module text is a fixed-shape literal — no formatter runs over it, unlike the api-side modules with generated request models.
 
 ---
@@ -41,7 +41,7 @@ Annotations: |
     - The output tree mirrors the api-side pattern: pages/ at the cwd root, one directory per sanitized path segment (minus the last), the module file named by the stem.
     - The file stem, the fixture name and the class stem all derive from the one sanitization rule, so a path with non-identifier characters (a dot, a dash) still yields an importable dotted path and valid names.
     - A leading-digit stem keeps the sanitization underscore through every derived name (the file _<stem>_page.py, the fixture page__<stem>, the class _<Stem>Page).
-    - The generated class declares the verbatim `path` (never the sanitized segments) — the page opens the URL as written.
+    - The generated fixture constructs the class with the verbatim `path` (never the sanitized segments) — the page opens the URL as written; the class itself carries no address.
     - An existing module is preserved without `force` and overwritten with it; the run is idempotent and silent on both paths.
     - The __init__.py markers are created only when missing and are never overwritten — even with `force` (a consumer project may keep re-exports in its pages package markers; the deliberate divergence from the api-side generate, where the flag regenerates the markers).
     - Output root is the current working directory (Path.cwd()); the command reads no config and no spec — the path is the single input.
@@ -59,18 +59,18 @@ Annotations: |
   annotations: |
     Render the full source text of a page-object module from the derived names. Deterministic — identical input yields an identical module; no out-of-process call runs over the text.
 
-    `path`: the tested-site path carried by the class path attribute, verbatim.
+    `path`: the tested-site path carried by the fixture construction line, verbatim.
     `class_name`: the page class name (the CamelCase stem plus Page).
     `fixture_name`: the pytest fixture name (the page_ prefix plus the stem).
     `module`: the complete module source text, a fixed-shape literal ready to write to disk.
 
     Algorithm:
-    1. Assemble the module sections in order: import pytest; the goga_tool_pybuggy.web BasePage import and the prettyplay PrettyPlay import; the class with its path attribute; the function-scoped pytest fixture typed over the runtime, returning the class constructed with it.
-    2. Render the path attribute as a double-quoted string literal — falling back to the escaped single-quoted repr form when the value carries a double quote, so a path with any quote combination stays a valid literal.
+    1. Assemble the module sections in order: import pytest; the goga_tool_pybuggy.web BasePage import and the prettyplay PrettyPlay import; the class — a behavior stub (pass) carrying no address; the function-scoped pytest fixture typed over the runtime, constructing the class with the runtime and the path.
+    2. Render the path literal as a double-quoted string — falling back to the escaped single-quoted repr form when the value carries a double quote, so a path with any quote combination stays a valid literal.
 
     Requirements:
-    - The fixture is decorated with @pytest.fixture(scope="function") and returns <class_name>(web), the web parameter typed as the PrettyPlay runtime.
-    - The class declares the verbatim `path` — never the sanitized segments.
+    - The fixture is decorated with @pytest.fixture(scope="function") and returns <class_name>(web, <path>), the web parameter typed as the PrettyPlay runtime.
+    - The fixture carries the verbatim `path` — never the sanitized segments; the class stays address-free.
     - The rendered text compiles as Python for any input path, quotes included.
 
     Constraints:
@@ -99,4 +99,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 16/11/26
 Description: |
-  page generate command handler — scaffolds a pages/ page-object module per tested-site path: a BasePage subclass with its path attribute plus its function-scoped pytest fixture, with empty __init__.py package markers on the module path, under the current working directory.
+  page generate command handler — scaffolds a pages/ page-object module per tested-site path: a BasePage behavior stub plus its function-scoped pytest fixture binding the address at construction, with empty __init__.py package markers on the module path, under the current working directory.

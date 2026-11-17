@@ -22,19 +22,18 @@ class BasePage:
         web: the web runtime of the current test — the ``site.base_url`` source and the step
             executor of the navigation; held as the public ``web`` attribute the way Endpoint
             holds its api.
-        path: the page path resolved against the site base URL; empty falls back to the
-            ``path`` class attribute of the subclass (``""`` — the site root).
+        path: the page path resolved against the site base URL; ``""`` — the site root. The
+            address arrives at construction (the fixture binds it) — a subclass declares
+            behavior, never a path.
 
     Raises:
         PrettyplayError: ``url`` or the activation call runs while the site base URL is unset —
             the ``site.base_url`` directive of ``web.yml`` is missing or empty.
     """
 
-    path: str = ""
-
-    def __init__(self, web: PrettyPlay, path: str = "") -> None:
+    def __init__(self, web: PrettyPlay, path: str) -> None:
         self.web = web
-        self.path = path or type(self).path
+        self.path = path
 
     @property
     def url(self) -> str:

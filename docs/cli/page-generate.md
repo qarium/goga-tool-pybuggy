@@ -53,14 +53,15 @@ from prettyplay import PrettyPlay
 
 
 class LoginPage(BasePage):
-    path = "/login"
+    pass
 
 
 @pytest.fixture(scope="function")
 def page_login(web: PrettyPlay) -> LoginPage:
-    return LoginPage(web)
+    return LoginPage(web, "/login")
 ```
 
+The class carries behavior only — **the address lives in the fixture**, bound at construction.
 The fixture requests the `web` runtime and builds the page; the activation call — `page_login()`
 — opens the full URL and returns the page.
 

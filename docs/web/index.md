@@ -106,9 +106,9 @@ def test_checkout(web):
 
 When the suite addresses one site, set its base URL once — the `site.base_url` directive of
 [the web document](configuration.md#keys) (a Jinja2 template rendered at pytest
-configuration) — and model pages as classes: a page object **inherits `BasePage`**, declares
-its `path`, and encapsulates the page's logic as methods — the web counterpart of the api
-kind's `Endpoint`, but with behavior.
+configuration) — and model pages as classes: a page object **inherits `BasePage`**, carries
+its address at construction (never in the class), and encapsulates the page's logic as
+methods — the web counterpart of the api kind's `Endpoint`, but with behavior.
 
 ```python
 # pages/login_page.py — inheritance + encapsulated logic
@@ -118,8 +118,6 @@ from goga_tool_pybuggy.web import BasePage
 
 
 class LoginPage(BasePage):
-    path = "/login"
-
     def dismiss_cookie_banner(self) -> None:
         """Dismiss the cookie banner that covers the form on every visit."""
         self()
@@ -131,7 +129,7 @@ class LoginPage(BasePage):
 
 @pytest.fixture(scope="function")
 def page_login(web) -> LoginPage:
-    return LoginPage(web)
+    return LoginPage(web, "/login")   # the address lives here — never in the class
 ```
 
 ```python
@@ -142,9 +140,9 @@ def test_login_form(page_login):
         page.expect("The login form is visible")
 ```
 
-- A page object is a **`BasePage` subclass** with a class-level `path`; the constructor also
-  accepts a path (`BasePage(web, "/login")` for a quick anonymous page), but the subclass form
-  is the working pattern for real pages.
+- A page object is a **`BasePage` subclass** carrying behavior only — the **address never
+  lives in the class**: it arrives as the required constructor argument, the per-page fixture
+  binding it (`LoginPage(web, "/login")`).
 - **The page performs its characteristic action on call** — `page_login()` opens the page (one
   action step carrying the full URL, composed from `site.base_url`) and returns the page, the
   pattern of the api kind's `Endpoint`; `with page_login() as page:` scopes the work on the

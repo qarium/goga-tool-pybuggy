@@ -66,22 +66,21 @@ from prettyplay import PrettyPlay
 
 
 class LoginPage(BasePage):
-    path = "/login"
+    pass
 
 
 @pytest.fixture(scope="function")
 def page_login(web: PrettyPlay) -> LoginPage:
-    return LoginPage(web)
+    return LoginPage(web, "/login")
 ```
 
-The generated subclass is the working form of a page object: it inherits `BasePage`, declares
-its `path`, and is the place to **encapsulate the page's logic as methods** — closing a cookie
-banner, a form flow, adding to cart — added by hand next to the generated skeleton:
+The class carries behavior only — the address lives in the fixture, bound at construction. The
+generated subclass is the working form of a page object: it inherits `BasePage` and is the place
+to **encapsulate the page's logic as methods** — closing a cookie banner, a form flow, adding to
+cart — added by hand next to the generated skeleton:
 
 ```python
 class LoginPage(BasePage):
-    path = "/login"
-
     def dismiss_cookie_banner(self) -> None:
         self()
         with self.group("Dismiss the cookie banner"):

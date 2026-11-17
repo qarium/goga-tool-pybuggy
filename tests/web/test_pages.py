@@ -45,12 +45,13 @@ class TestBasePageContract:
         assert "BasePage" in web_module.__all__
 
     def test_constructor_signature_matches_contract(self):
-        """`web` stays positional; `path` is optional with the empty default."""
+        """`web` and `path` are positional; the path is required — no class fallback."""
         parameters = list(inspect.signature(BasePage.__init__).parameters.values())[1:]
 
         assert [parameter.name for parameter in parameters] == ["web", "path"]
         assert parameters[0].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
-        assert parameters[1].default == ""
+        assert parameters[1].kind is inspect.Parameter.POSITIONAL_OR_KEYWORD
+        assert parameters[1].default is inspect.Parameter.empty
 
     def test_surface_matches_contract(self):
         """`url` is a property; the step proxies, the call and the context manager are callable."""
@@ -63,9 +64,10 @@ class TestBasePageContract:
         """The named navigation method is gone — the activation call owns the navigation."""
         assert not hasattr(BasePage, "goto")
 
-    def test_class_path_attribute_defaults_empty(self):
-        """The declared default path is the empty string — the site root page."""
-        assert BasePage.path == ""
+    def test_path_class_attribute_is_gone(self):
+        """No class-level path — the address arrives at construction only."""
+        assert "path" not in BasePage.__dict__
+        assert not hasattr(BasePage, "path")
 
 
 class TestBasePageUrl:
@@ -95,39 +97,35 @@ class TestBasePageUrl:
     )
     def test_empty_path_yields_the_bare_base_url(self, base, expected):
         """No path — the site root without a dangling trailing slash."""
-        assert BasePage(FakeWeb(base)).url == expected
+        assert BasePage(FakeWeb(base), "").url == expected
 
     def test_unset_base_url_fails_loudly_naming_the_directive(self):
         """A missing `site.base_url` is the loud actionable failure naming web.yml."""
         with pytest.raises(PrettyplayError) as excinfo:
-            _ = BasePage(FakeWeb()).url
+            _ = BasePage(FakeWeb(), "").url
 
         assert "site.base_url" in str(excinfo.value)
         assert "web.yml" in str(excinfo.value)
 
 
 class TestBasePageSubclassing:
-    """Logic tests: the subclass pattern — the class attribute path."""
+    """Logic tests: the subclass pattern — behavior classes, the address at construction."""
 
-    def test_subclass_path_attribute_is_used_without_a_constructor_path(self):
+    def test_subclass_constructs_with_its_path(self):
         class LoginPage(BasePage):
-            path = "/login"
+            pass
 
-        assert LoginPage(FakeWeb("https://example.com")).url == "https://example.com/login"
+        assert LoginPage(FakeWeb("https://example.com"), "/login").url == "https://example.com/login"
 
-    def test_constructor_path_overrides_the_subclass_attribute(self):
-        class LoginPage(BasePage):
-            path = "/login"
-
-        page = LoginPage(FakeWeb("https://example.com"), "/logout")
-
-        assert page.url == "https://example.com/logout"
-        assert page.path == "/logout"
+    def test_path_is_required_at_construction(self):
+        """No class-attribute fallback: constructing without a path fails loudly."""
+        with pytest.raises(TypeError):
+            BasePage(FakeWeb("https://example.com"))
 
     def test_subclass_inherits_the_runtime_attribute(self):
         web = FakeWeb("https://example.com")
 
-        page = BasePage(web)
+        page = BasePage(web, "/login")
 
         assert page.web is web
 
@@ -142,13 +140,13 @@ class TestBasePageCall:
         assert page() is page
         assert web.steps == [("Open https://example.com/login", None, None, None)]
 
-    def test_call_of_a_subclass_uses_the_class_path(self):
+    def test_call_of_a_subclass_uses_its_constructed_path(self):
         web = FakeWeb("https://example.com")
 
         class LoginPage(BasePage):
-            path = "/login"
+            pass
 
-        LoginPage(web)()
+        LoginPage(web, "/login")()
 
         assert web.steps == [("Open https://example.com/login", None, None, None)]
 
@@ -191,7 +189,7 @@ class TestBasePageContextManager:
 
     def test_exit_returns_none(self):
         """A falsy exit return keeps the block exception propagating."""
-        page = BasePage(FakeWeb("https://example.com"))
+        page = BasePage(FakeWeb("https://example.com"), "")
 
         with page():
             pass
@@ -204,7 +202,7 @@ class TestBasePageStepProxies:
 
     def test_step_delegates_with_the_keyword_arguments(self):
         web = FakeWeb("https://example.com")
-        page = BasePage(web)
+        page = BasePage(web, "")
 
         page.step("Заполнить поле «INN»", tries=3, delay=0.5, vars={"id": "42"})
 
@@ -212,7 +210,7 @@ class TestBasePageStepProxies:
 
     def test_expect_delegates_with_the_keyword_arguments(self):
         web = FakeWeb("https://example.com")
-        page = BasePage(web)
+        page = BasePage(web, "")
 
         page.expect("Поле содержит значение", tries=2)
 
@@ -220,7 +218,7 @@ class TestBasePageStepProxies:
 
     def test_group_delegates_and_returns_the_group(self):
         web = FakeWeb("https://example.com")
-        page = BasePage(web)
+        page = BasePage(web, "")
 
         group = page.group("Dismiss the cookie banner", speed=50)
 
@@ -231,14 +229,12 @@ class TestBasePageStepProxies:
         """The page's own scenarios drive the runtime through the same proxied surface."""
 
         class LoginPage(BasePage):
-            path = "/login"
-
             def dismiss_cookie_banner(self) -> None:
                 self.step("Close the cookie banner")
                 self.expect("The cookie banner is gone")
 
         web = FakeWeb("https://example.com")
-        LoginPage(web).dismiss_cookie_banner()
+        LoginPage(web, "/login").dismiss_cookie_banner()
 
         assert web.steps == [("Close the cookie banner", None, None, None)]
         assert web.expects == [("The cookie banner is gone", None, None, None)]

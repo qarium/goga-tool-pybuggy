@@ -111,12 +111,12 @@ def render_page_module(path: str, class_name: str, fixture_name: str) -> str:
         "\n"
         "\n"
         f"class {class_name}(BasePage):\n"
-        f"    path = {_string_literal(path)}\n"
+        "    pass\n"
         "\n"
         "\n"
         '@pytest.fixture(scope="function")\n'
         f"def {fixture_name}(web: PrettyPlay) -> {class_name}:\n"
-        f"    return {class_name}(web)\n"
+        f"    return {class_name}(web, {_string_literal(path)})\n"
     )
 
 

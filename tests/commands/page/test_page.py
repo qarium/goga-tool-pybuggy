@@ -57,7 +57,7 @@ def test_page_generate_cmd_force_help_names_artifact_set() -> None:
 
 
 def test_render_page_module_login() -> None:
-    """The fixed-shape module: imports, the class with its path attribute, the fixture."""
+    """The fixed-shape module: imports, the behavior-stub class, the fixture binding the path."""
     module = render_page_module("/login", "LoginPage", "page_login")
 
     assert module == (
@@ -68,12 +68,12 @@ def test_render_page_module_login() -> None:
         "\n"
         "\n"
         "class LoginPage(BasePage):\n"
-        '    path = "/login"\n'
+        "    pass\n"
         "\n"
         "\n"
         '@pytest.fixture(scope="function")\n'
         "def page_login(web: PrettyPlay) -> LoginPage:\n"
-        "    return LoginPage(web)\n"
+        '    return LoginPage(web, "/login")\n'
     )
 
 
@@ -104,7 +104,7 @@ def test_run_page_generate_writes_module_and_markers(tmp_path: Path, monkeypatch
     text = module_file.read_text(encoding="utf-8")
     assert "class MocksPage(BasePage):" in text
     assert "def page_admin_api_v1_mocks(" in text
-    assert 'path = "/admin/api/v1/mocks"' in text
+    assert 'return MocksPage(web, "/admin/api/v1/mocks")' in text
 
     # Empty __init__.py markers on every directory of the module path
     for marker in (
@@ -151,7 +151,7 @@ def test_run_page_generate_name_replaces_last_segment_dir(tmp_path: Path, monkey
     text = module.read_text(encoding="utf-8")
     assert "class AuthPage(BasePage):" in text
     assert "def page_auth(" in text
-    assert 'path = "/admin/login"' in text
+    assert 'return AuthPage(web, "/admin/login")' in text
 
 
 def test_run_page_generate_trailing_slash_path_collapses(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -51,8 +51,9 @@ Annotations: |
   hop; the runtime itself stays public for everything else (run_on_page, site_base_url). The
   context manager scopes the work on an opened page under a short local name — the exit closes
   nothing (the runtime lifecycle belongs to the web fixture of the plugins cell) and never
-  suppresses. Test pages are subclasses declaring a class-level path attribute — the working
-  pattern of a real page — and a subclass also encapsulates the page's own scenario logic as
+  suppresses. Test pages are behavior subclasses (an application may stack a semantic base over the
+  page-object base for its opening flow) — the address never lives in the class: it arrives
+  at construction, the per-page fixture binding it. A subclass also encapsulates the page's own scenario logic as
   methods (closing a cookie banner, a form flow) running their step sentences through the
   proxied surface; a per-page fixture constructs the subclass with the runtime, the mirror of
   the api kind's Endpoint(api, path) fixtures.
@@ -159,13 +160,12 @@ Annotations: |
     property, see `prettyplay`) and the step executor of the navigation; held as the public
     `web` attribute the way Endpoint holds its api (run_on_page and everything beyond the step
     surface stay there).
-    `path`: the page path resolved against the site base URL; empty falls back to the `path`
-    class attribute of the subclass — the declaration form class LoginPage(BasePage): path =
-    "/login"; the default class attribute is the empty string (the site root).
+    `path`: the required page path resolved against the site base URL ("" — the site root);
+    there is no class-level fallback — the address arrives at construction and the per-page
+    fixture binds it; a subclass declares behavior, never a path.
 
     Algorithm:
-    1. Hold the runtime; resolve the effective path — the constructor argument wins over the
-       class attribute (an empty argument falls back to it).
+    1. Hold the runtime and the path as given — no resolution, no class-level fallback.
     2. url joins: site.base_url + "/" + path with the joining slashes normalized (a trailing
        slash of the base and a leading slash of the path never duplicate); an empty path yields
        the bare base URL; an unset base URL raises the loud actionable PrettyplayError naming
@@ -207,7 +207,7 @@ Annotations: |
       The bound web runtime — the tested page's step executor and site.base_url source; the
       escape hatch for everything beyond the step surface (run_on_page).
     "path -> str": |
-      The effective page path — the constructor argument or the subclass class attribute.
+      The page path as constructed — the address bound by the per-page fixture.
     "url -> str": |
       The full page URL — the site base URL with this page's path, slashes normalized; raises
       the loud actionable PrettyplayError when the site base URL is unset.
