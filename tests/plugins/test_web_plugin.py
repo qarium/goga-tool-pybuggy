@@ -325,6 +325,86 @@ class TestWebPluginContract:
         assert web_cache_path.__module__ == "goga_tool_pybuggy.plugins.web_plugin"
 
 
+def _make_pages_tree(tmp_path):
+    """Create a one-fixture ``pages/admin/auth_page.py`` tree under tmp_path — a generated page module."""
+    pages = tmp_path / "pages"
+    (pages / "admin").mkdir(parents=True)
+    (pages / "__init__.py").write_text("", encoding="utf-8")
+    (pages / "admin" / "__init__.py").write_text("", encoding="utf-8")
+    (pages / "admin" / "auth_page.py").write_text(
+        "import pytest\n"
+        "\n"
+        "from goga_tool_pybuggy.web import BasePage\n"
+        "from prettyplay import PrettyPlay\n"
+        "\n"
+        "\n"
+        "class AuthPage(BasePage):\n"
+        '    path = "/admin/login"\n'
+        "\n"
+        "\n"
+        '@pytest.fixture(scope="function")\n'
+        "def page_auth(web: PrettyPlay) -> AuthPage:\n"
+        "    return AuthPage(web)\n",
+        encoding="utf-8",
+    )
+
+
+class TestWebPluginDefaultDiscovery:
+    """The ``pages/`` default of the constructor — the mirror of the api plugin's ``api/`` default."""
+
+    def test_init_loaders_none_defaults_to_the_pages_package(self, tmp_path, monkeypatch):
+        """Constructing without explicit loaders discovers the generated ``pages/`` tree."""
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        _make_pages_tree(tmp_path)
+
+        context: dict[str, object] = {}
+        WebPlugin(context=context)
+
+        assert context["pytest_plugins"] == ["pages.admin.auth_page"]
+
+    def test_init_empty_loaders_disable_the_pages_package_default(self, tmp_path, monkeypatch):
+        """An explicit empty loaders list disables the pages default — the ``install(loaders=[])`` form."""
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        _make_pages_tree(tmp_path)
+
+        context: dict[str, object] = {}
+        WebPlugin(context=context, loaders=[])
+
+        assert context["pytest_plugins"] == []
+
+    def test_init_absent_pages_directory_is_silent(self, tmp_path, monkeypatch):
+        """A project without ``pages/`` constructs cleanly — the default loader is required=False."""
+        monkeypatch.chdir(tmp_path)
+
+        context: dict[str, object] = {}
+        WebPlugin(context=context)
+
+        assert context["pytest_plugins"] == []
+
+    def test_init_loader_section_joins_the_pages_default(self, tmp_path, monkeypatch):
+        """The ``loader:`` section of web.yml joins the pages default — both sources land in one list."""
+        monkeypatch.syspath_prepend(tmp_path)
+        monkeypatch.chdir(tmp_path)
+        _make_pages_tree(tmp_path)
+
+        # A second package discovered through the loader section of the document.
+        extra = tmp_path / "helpers"
+        extra.mkdir()
+        (extra / "__init__.py").write_text("", encoding="utf-8")
+        (extra / "steps.py").write_text("import pytest\n\n\n@pytest.fixture\ndef helper():\n    return 1\n")
+
+        document = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        document.parent.mkdir(parents=True)
+        document.write_text("provider: openai\nloader:\n  packages:\n    - helpers\n")
+
+        context: dict[str, object] = {}
+        WebPlugin(context=context)
+
+        assert set(context["pytest_plugins"]) == {"pages.admin.auth_page", "helpers.steps"}
+
+
 class TestWebCachePath:
     """The pure cache-path computation: module stem, class segment, node name."""
 

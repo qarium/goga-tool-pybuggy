@@ -53,11 +53,11 @@ class LoginPage(BasePage):
 
     def dismiss_cookie_banner(self) -> None:
         """Dismiss the cookie banner that covers the form on every visit."""
-        self.goto()
-        with self.web.group("Dismiss the cookie banner"):
-            self.web.step("Close the cookie banner")
+        self()
+        with self.group("Dismiss the cookie banner"):
+            self.step("Close the cookie banner")
 
-        self.web.expect("The cookie banner is gone")
+        self.expect("The cookie banner is gone")
 
 
 @pytest.fixture(scope="function")
@@ -67,26 +67,50 @@ def page_login(web) -> LoginPage:
 
 ```python
 def test_login_form(page_login):
-    page_login.dismiss_cookie_banner()  # the page drives its own steps
-
-    page_login.web.expect("The login form is visible")
+    with page_login() as page:
+        page.dismiss_cookie_banner()
+        page.expect("The login form is visible")
 ```
 
 - A page object is a **`BasePage` subclass** with a class-level `path` — `class LoginPage(BasePage):
   path = "/login"`; the constructor also accepts a path (`BasePage(web, "/login")` for a quick
   anonymous page), but the subclass form is the working pattern for real pages.
+- **The page performs its characteristic action on call** — `page_login()` opens the page (one
+  action step carrying the full URL, composed from `site.base_url`) and returns the page, the
+  pattern of the api kind's `Endpoint`; `with page_login() as page:` scopes the work on the
+  opened page under a short local name — the exit closes nothing (the `web` fixture owns the
+  runtime lifecycle) and never suppresses.
+- **The step surface is proxied onto the page**: `page.step` / `page.expect` / `page.group` —
+  the same sentences and keyword-only parameters as the runtime's, without the `.web` hop; the
+  runtime stays public for everything else (`page.web.run_on_page`,
+  `page.web.site_base_url`).
 - **Encapsulate the page's logic as methods**: closing a cookie banner, a form flow, adding to
-  cart — any repeated scenario becomes a method that runs its steps through the held runtime
-  (`self.web.step` / `self.web.expect` / `self.web.group`, `self.goto()` included). The test
-  reads as domain actions; the sentences live next to the page they belong to, one fixture per
-  page.
-- `page.url` joins the site base URL with the page path (slashes normalized); `page.goto()`
-  executes the "Open <url>" action step — an ordinary step of the cycle (generated once, cached,
-  replayed, healed).
+  cart — any repeated scenario becomes a method running its steps through the same proxied
+  surface (`self.step`, `self()` to re-open). The test reads as domain actions; the sentences
+  live next to the page they belong to, one fixture per page.
+- `page.url` joins the site base URL with the page path (slashes normalized); the activation
+  call is an ordinary step of the cycle (generated once, cached, replayed, healed) — step,
+  expect and group are reserved names, never redefined by a subclass.
 - Scaffold the class and its fixture with `goga tool pybuggy page generate /login login` — it
   writes the `LoginPage` skeleton and the fixture under `pages/`; the scenario methods are added
   by hand inside the generated subclass.
-- A missing `site.base_url` fails loudly at first use (`url`/`goto`), never at construction.
+- The fixtures load **automatically**: `pages/` is the web kind's default fixture package (the
+  mirror of the api kind's `api/`) — the web plugin discovers every module under `pages/` at
+  installation, no imports and no `loader:` section needed; `install(loaders=[])` disables the
+  default.
+- `page generate` is idempotent: an existing module is silently skipped without `-f` (the
+  scenario methods added inside it survive); `__init__.py` markers are created only when missing
+  and never overwritten — even with `-f`.
+- Only the tested site's own pages become page objects: an external page (an origin other than
+  the rendered `site.base_url`) and a query-parameter address open through an ordinary step
+  sentence carrying the full URL — the steps run through any page fixture the test already
+  holds.
+- Environment switch: change `site.base_url` — not the code — and run once without
+  `--strict-mode`: the navigation sentences are composed from the directive at runtime, so their
+  cache regenerates; literal URLs kept in sentences (external pages, URL expectations) are
+  revised by hand.
+- A missing `site.base_url` fails loudly at first use (`url` or the activation call), never at
+  construction.
 - The no-secrets rule covers everything a page method renders into a sentence — the base URL,
   the vars, the literals: real secrets (passwords, tokens, keys) never go into a step sentence —
   it reaches the LLM prompt and the committed cache.

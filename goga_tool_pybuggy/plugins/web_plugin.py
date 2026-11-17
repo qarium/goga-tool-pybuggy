@@ -26,7 +26,7 @@ from ..web.logging_setup import install_event_log_formatter
 from ..web.pretty import build_pretty_config
 from . import defaults
 from .discovery import LOADER_SECTION, load_fixture_plugins, loader_section_of
-from .loaders import BaseLoader
+from .loaders import BaseLoader, PackageLoader
 from .render import passed_cli_options, render_base_url
 
 logger = logging.getLogger(__name__)
@@ -311,14 +311,21 @@ class WebPlugin:
         Args:
             context: Namespace dict the plugin installs into; its ``pytest_plugins`` key is
                 populated here.
-            loaders: Explicit loaders in addition to the ``loader:`` section; none by default —
-                the web kind carries no default package.
+            loaders: Explicit loaders in addition to the ``loader:`` section; ``None`` (the
+                default) discovers the generated ``pages/`` package — the web kind's own default,
+                the mirror of the api plugin's ``api/`` default, so the page-object fixtures of
+                ``page generate`` load without any loader configuration; an explicit empty list
+                disables the default (the ``install(loaders=[])`` form).
         """
         super().__init__()
 
         self.activation: PrettyConfig | None = None
 
-        load_fixture_plugins(context, loaders or [], loader_section_of(self))
+        load_fixture_plugins(
+            context,
+            loaders if loaders is not None else [PackageLoader("pages", required=False)],
+            loader_section_of(self),
+        )
 
     def configure(self) -> None:
         """Assemble the activation from the resolved options and ready the runtime environment.

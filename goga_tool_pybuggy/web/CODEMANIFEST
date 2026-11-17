@@ -43,14 +43,19 @@ Annotations: |
 
   The page-object base: BasePage binds a web runtime and a page path the way the api kind's
   Endpoint binds an Api and a route path — the base URL lives on the runtime
-  (PrettyPlay.site_base_url, see `prettyplay`), the page adds its path, and goto navigates
-  through one ordinary action step sentence carrying the full URL; the navigation participates
-  in the step cycle (cache, generation, healing) like every authored step. Test pages are
-  subclasses declaring a class-level path attribute — the working pattern of a real page — and
-  a subclass also encapsulates the page's own scenario logic as methods (closing a cookie banner,
-  a form flow) running their step sentences through the held web runtime, the page's public attribute;
-  a per-page fixture constructs the subclass with the runtime, the mirror of the api kind's
-  Endpoint(api, path) fixtures.
+  (PrettyPlay.site_base_url, see `prettyplay`), the page adds its path, and the page performs
+  its characteristic action — opening the full URL through one ordinary action step sentence —
+  on call, the Endpoint pattern; the navigation participates in the step cycle (cache,
+  generation, healing) like every authored step. The step surface (action, assertion, group)
+  is proxied onto the page, so tests and page methods alike drive the runtime without the .web
+  hop; the runtime itself stays public for everything else (run_on_page, site_base_url). The
+  context manager scopes the work on an opened page under a short local name — the exit closes
+  nothing (the runtime lifecycle belongs to the web fixture of the plugins cell) and never
+  suppresses. Test pages are subclasses declaring a class-level path attribute — the working
+  pattern of a real page — and a subclass also encapsulates the page's own scenario logic as
+  methods (closing a cookie banner, a form flow) running their step sentences through the
+  proxied surface; a per-page fixture constructs the subclass with the runtime, the mirror of
+  the api kind's Endpoint(api, path) fixtures.
 
   The cell also carries the per-test prompt declaration surface: the `generation_prompt`
   decorator (the pattern of the sandbox services decorator) attaches the
@@ -152,7 +157,8 @@ Annotations: |
 
     `web`: the web runtime of the current test — the site.base_url source (the site_base_url
     property, see `prettyplay`) and the step executor of the navigation; held as the public
-    `web` attribute the way Endpoint holds its api.
+    `web` attribute the way Endpoint holds its api (run_on_page and everything beyond the step
+    surface stay there).
     `path`: the page path resolved against the site base URL; empty falls back to the `path`
     class attribute of the subclass — the declaration form class LoginPage(BasePage): path =
     "/login"; the default class attribute is the empty string (the site root).
@@ -164,37 +170,67 @@ Annotations: |
        slash of the base and a leading slash of the path never duplicate); an empty path yields
        the bare base URL; an unset base URL raises the loud actionable PrettyplayError naming
        the site.base_url directive of web.yml.
-    3. goto executes one action step sentence "Open <url>" through the runtime — an ordinary
-       step of the cycle: generated once, cached, replayed, healed.
+    3. The activation call executes one action step sentence "Open <url>" through the runtime
+       and returns the page itself — the characteristic action on call, the Endpoint pattern;
+       an ordinary step of the cycle: generated once, cached, replayed, healed.
+    4. step, expect and group proxy their sentences to the bound runtime verbatim — the page's
+       own surface for tests and scenario methods alike, the keyword-only parameters passed
+       through unchanged.
+    5. The context manager returns the page from enter; the exit is scoping only — it closes
+       nothing and never suppresses (a falsy return keeps the block exception propagating).
 
     Requirements:
     - The URL join is pure — no I/O, no config reads beyond the runtime property.
-    - goto delegates wholly to web.step — no direct playwright navigation, no page pre-opening
-      (the page opens lazily on the first step, see `prettyplay`).
-    - A missing site.base_url fails loudly at first use (url or goto), never at construction —
-      a BasePage over an unset site works as a plain path holder.
+    - The activation call delegates wholly to the runtime's action step — no direct playwright
+      navigation, no page pre-opening (the page opens lazily on the first step, see
+      `prettyplay`); the call is never overridden — scenario logic lives in named methods.
+    - step, expect and group are reserved names of the page surface — a subclass never
+      redefines them.
+    - A missing site.base_url fails loudly at first use (url or the call), never at
+      construction — a BasePage over an unset site works as a plain path holder.
+    - The runtime lifecycle belongs to the web fixture of the plugins cell — the context
+      manager manages nothing on exit.
 
     Constraints:
     - No new config keys here — the base URL arrives through the validated activation carried
       by the runtime (the plugins cell owns web.yml).
+    - No lifecycle management — no close, no teardown; the with-block is scoping only.
+    - Do not proxy beyond the step surface — run_on_page and the rest of the runtime stay on
+      the `web` attribute.
     - The full URL lands in the step sentence — the no-secrets rule of `prettyplay` covers the
       base URL and the path (no tokens in query strings).
 
-    Use `prettyplay` for the site_base_url property, the step surface, and the no-secrets rule.
+    Use `prettyplay` for the step surface signatures, site_base_url, and the no-secrets rule.
     Use `conventions` for docstrings, type hints, and testing.
   properties:
     "web -> PrettyPlay": |
-      The bound web runtime — the tested page's step executor and site.base_url source.
+      The bound web runtime — the tested page's step executor and site.base_url source; the
+      escape hatch for everything beyond the step surface (run_on_page).
     "path -> str": |
       The effective page path — the constructor argument or the subclass class attribute.
     "url -> str": |
       The full page URL — the site base URL with this page's path, slashes normalized; raises
       the loud actionable PrettyplayError when the site base URL is unset.
   methods:
-    "goto()": |
-      Open this page — one action step sentence carrying the full URL, executed through the
-      bound runtime's step surface; an ordinary step of the cycle (generated once, cached,
-      replayed, healed).
+    "step(text: str, tries: int | None, delay: float | None, vars: dict[str, str] | None)": |
+      Execute one action step sentence through the bound runtime — the sentence and the
+      keyword-only parameters passed through verbatim.
+    "expect(text: str, tries: int | None, delay: float | None, vars: dict[str, str] | None)": |
+      Execute one assertion step sentence through the bound runtime — the same pass-through
+      form as the action proxy.
+    "group(prompt: str, speed: int | None, delay: float | None) -> g: StepGroup": |
+      Open the group authoring block through the bound runtime and yield its group object.
+    "__call__() -> page: BasePage": |
+      Open this page — one action step sentence carrying the full URL — and return the page
+      itself: the activation call of the with-form (with page() as page:), the pattern of the
+      api kind's Endpoint; never overridden — scenario logic lives in named methods.
+    "__enter__() -> page: BasePage": |
+      Enter the page block — the activation call has opened the page; yields this page as the
+      short local name of the block.
+    "__exit__(exc_type: object, exc_value: object, traceback: object)": |
+      Leave the page block — scoping only: closes nothing (the runtime lifecycle belongs to
+      the web fixture of the plugins cell) and never suppresses — the falsy return keeps the
+      block exception propagating.
 
 "AllureStepHooks(play: PrettyPlay)":
   location: allure_hooks.py

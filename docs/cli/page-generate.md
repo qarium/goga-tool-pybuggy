@@ -61,12 +61,13 @@ def page_login(web: PrettyPlay) -> LoginPage:
     return LoginPage(web)
 ```
 
-The fixture requests the `web` runtime and builds the page; `goto()` opens the full URL.
+The fixture requests the `web` runtime and builds the page; the activation call — `page_login()`
+— opens the full URL and returns the page.
 
 The generated subclass is the working form of a page object — it **inherits `BasePage`** and is
 the place to **encapsulate the page's logic as methods** (closing a cookie banner, a form flow)
-added by hand: a method runs its steps through the held runtime (`self.web`, `self.goto()`
-included), so the test reads as domain actions. See
+added by hand: a method runs its steps through the proxied surface (`self.step`,
+`self()` to re-open), so the test reads as domain actions. See
 [Web — Overview](../web/index.md#tested-site-pages-basepage).
 
 ## `--force` semantics
@@ -98,3 +99,6 @@ Every rejection happens before any write — a rejected input leaves no `pages/`
 - Only the current working directory is used: no spec, no `api.yml`, no `web.yml` — the path is
   the single input.
 - The generated module imports `goga_tool_pybuggy.web` and `prettyplay` in the consumer project.
+- The generated fixtures load automatically: `pages/` is the web kind's default fixture package —
+  the web plugin discovers the modules at installation (no imports, no `loader:` section);
+  `install(loaders=[])` disables the default.

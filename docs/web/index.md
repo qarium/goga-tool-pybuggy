@@ -122,11 +122,11 @@ class LoginPage(BasePage):
 
     def dismiss_cookie_banner(self) -> None:
         """Dismiss the cookie banner that covers the form on every visit."""
-        self.goto()
-        with self.web.group("Dismiss the cookie banner"):
-            self.web.step("Close the cookie banner")
+        self()
+        with self.group("Dismiss the cookie banner"):
+            self.step("Close the cookie banner")
 
-        self.web.expect("The cookie banner is gone")
+        self.expect("The cookie banner is gone")
 
 
 @pytest.fixture(scope="function")
@@ -137,25 +137,37 @@ def page_login(web) -> LoginPage:
 ```python
 # test_login.py — the page fixture replaces the web fixture
 def test_login_form(page_login):
-    page_login.dismiss_cookie_banner()  # the page drives its own steps
-
-    page_login.web.expect("The login form is visible")
+    with page_login() as page:
+        page.dismiss_cookie_banner()
+        page.expect("The login form is visible")
 ```
 
 - A page object is a **`BasePage` subclass** with a class-level `path`; the constructor also
   accepts a path (`BasePage(web, "/login")` for a quick anonymous page), but the subclass form
   is the working pattern for real pages.
+- **The page performs its characteristic action on call** — `page_login()` opens the page (one
+  action step carrying the full URL, composed from `site.base_url`) and returns the page, the
+  pattern of the api kind's `Endpoint`; `with page_login() as page:` scopes the work on the
+  opened page under a short local name — the exit closes nothing (the `web` fixture owns the
+  runtime lifecycle) and never suppresses.
+- **The step surface is proxied onto the page** — `page.step` / `page.expect` / `page.group`
+  without the `.web` hop; the runtime stays public for everything else
+  (`page.web.run_on_page`). step/expect/group are reserved names, never redefined by a
+  subclass.
 - **Encapsulate the page's logic as methods**: closing a cookie banner, a form flow, adding to
-  cart — a repeated scenario becomes a method running its steps through the held runtime
-  (`self.web`, `self.goto()` included). The test reads as domain actions; the sentences live
-  next to the page they belong to, one fixture per page.
-- `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized); `page.goto()` —
-  one action step carrying the full URL (generated once, replayed from the cache like every
+  cart — a repeated scenario becomes a method running its steps through the same proxied
+  surface. The test reads as domain actions; the sentences live next to the page they belong
+  to, one fixture per page.
+- `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized); the activation
+  call is an ordinary step of the cycle (generated once, replayed from the cache like every
   step); a missing `site.base_url` fails loudly at the call, naming the directive.
 - Scaffold the class and its fixture with the generator — `goga tool pybuggy page generate
   /login login` writes the subclass skeleton and the fixture under `pages/` (see
   [page generate](../cli/page-generate.md)); the scenario methods are added by hand inside the
   generated subclass.
+- The fixtures load **automatically**: `pages/` is the web kind's default fixture package (the
+  mirror of the api kind's `api/`) — the web plugin discovers every module under `pages/` at
+  installation, no imports, no `loader:` section; `install(loaders=[])` disables the default.
 - Secrets never belong in the base URL (query tokens included) or in anything a page method
   renders into a sentence — step sentences reach the LLM prompt and the repository.
 

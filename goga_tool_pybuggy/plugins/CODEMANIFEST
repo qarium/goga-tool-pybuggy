@@ -67,7 +67,7 @@ Annotations: |
   Constraints:
   - `install` is NOT called at import time; a consumer must call goga_tool_pybuggy.plugins.install() from conftest.py. call_context() then resolves to the conftest namespace through the one-level wrapper, so the hooks and pytest_plugins land there.
   - `ApiPlugin` overrides BasePlugin.__init__ to accept context (and optional loaders) and to register discovered plugins synchronously.
-  - The explicit `install` loaders reach every active plugin's discovery; the api plugin owns its default — PackageLoader('api', required=False) when no explicit loaders arrive — so the generated api/ fixture tree is discovered out of the box. The sandbox and web plugins carry no default package: their discovery runs only over the explicit loaders plus their documents' loader sections. Override with install(loaders=[...]) or a loader section; disable the api package default with install(loaders=[]).
+  - The explicit `install` loaders reach every active plugin's discovery; the api plugin owns its default — PackageLoader('api', required=False) when no explicit loaders arrive — so the generated api/ fixture tree is discovered out of the box, and the web plugin mirrors it with PackageLoader('pages', required=False) — the page-object modules of the page generate command load without any loader configuration. The sandbox plugin carries no default package: its discovery runs only over the explicit loaders plus its document's loader section. Override with install(loaders=[...]) or a loader section; disable the api and pages package defaults with install(loaders=[]).
   - Minimal fixture profile: base_url, headers, timeout, plus the assert-polling / pluggable-class options (assert_timeout/assert_delay/assert_field_class/assert_response_class) — no auth, no cookies.
   - The api fixture is a generator (yield + teardown): after the test it calls api.close() to close the Api (delegating to the underlying resq.Session's public close()).
   - base_url template rendering is eager: it runs once in configure at pytest configphase, so a missing required base_url surfaces there (not on fixture invocation). The api fixture reads self.base_url, which configure overwrote with the rendered value (configure always runs before any fixture invocation).
@@ -357,8 +357,10 @@ Annotations: |
 
     `context`: the namespace dict the plugin installs its hooks into; its pytest_plugins key is
     populated on construction.
-    `loaders`: explicit loaders in addition to the loader section; none by default — the web
-    kind carries no default package.
+    `loaders`: explicit loaders in addition to the loader section; None (the default) discovers
+    the generated pages/ package — the web kind's own default, the mirror of the api plugin's
+    api/ default, so the page-object fixture modules of the page generate command load without
+    any loader configuration; an explicit empty list disables the default.
 
     Algorithm:
     1. Declare the 22 directive options — one per config member of the cell's `WebConfigKeys`
@@ -373,8 +375,9 @@ Annotations: |
        reaches the browser group through the configure-time injection).
     2. Read the loader section of the document through the guarded loader_section_of read of
        discovery.py — an unparsable document defers to the configure-time gate — and run the
-       shared load_fixture_plugins of discovery.py with the explicit loaders (none by default —
-       the web kind carries no default package) into the context.
+       shared load_fixture_plugins of discovery.py with the explicit loaders (None — the pages/
+       package default via the loaders-cell PackageLoader, the mirror of the api plugin's api/
+       default; an explicit empty list disables it) into the context.
 
     Use `pluginator` for the @define.plugin contract, define.option, the option resolution chain,
     fixtures as plugin-class methods, and the configure() lifecycle.

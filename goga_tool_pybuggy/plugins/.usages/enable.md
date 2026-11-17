@@ -74,16 +74,18 @@ source for the option, never an activation source for the plugin).
       return Endpoint(api, "/orders", method="GET")
   ```
   pytest resolves `api` automatically; no extra wiring is needed in tests.
-- **Recursive generated-fixture loading** — the api plugin owns the discovery default: when `install()` receives no
-  explicit `loaders`, the api plugin adds `[PackageLoader("api", required=False)]` itself, so every generated
-  `api/<spec>/<id>/api.py` module is discovered and loaded through the recursive `pytest_plugins`
-  list, out of the box.
+- **Recursive generated-fixture loading** — the api and web plugins own their discovery defaults: when `install()`
+  receives no explicit `loaders`, the api plugin adds `[PackageLoader("api", required=False)]` itself (every
+  generated `api/<spec>/<id>/api.py` module) and the web plugin adds `[PackageLoader("pages", required=False)]`
+  (every generated `pages/**` page-object module of `page generate`), so both fixture trees are discovered and
+  loaded through the recursive `pytest_plugins` list, out of the box.
 
 ## Overriding discovery
 
 Pass an explicit `loaders` to `install()` to change the discovered trees, or add a `loader` section to a tool
 document to do it declaratively. The explicit `loaders` reach every active plugin's discovery (api, sandbox, web
-alike); the api plugin applies its own `api/` default only when no explicit loaders arrive. The same `loader`
+alike); the api and web plugins apply their own `api/` and `pages/` defaults only when no explicit loaders arrive.
+The same `loader`
 section is accepted by every tool document — `api.yml`, `sandbox.yml`, and `web.yml` — so external fixture
 packages can be wired into any test kind through the config, without touching the conftest:
 

@@ -83,14 +83,14 @@ class LoginPage(BasePage):
     path = "/login"
 
     def dismiss_cookie_banner(self) -> None:
-        self.goto()
-        with self.web.group("Dismiss the cookie banner"):
-            self.web.step("Close the cookie banner")
+        self()
+        with self.group("Dismiss the cookie banner"):
+            self.step("Close the cookie banner")
 
-        self.web.expect("The cookie banner is gone")
+        self.expect("The cookie banner is gone")
 ```
 
-A method runs its steps through the held runtime (`self.web`, `self.goto()` included) — the
+A method runs its steps through the proxied surface (`self.step`, `self()` to re-open) — the
 test reads as domain actions, the sentences live next to their page (see the pybuggy-web
 usage). Everything a method renders into a sentence reaches the LLM prompt and the committed
 cache — no secrets in step sentences.
@@ -120,3 +120,6 @@ cache — no secrets in step sentences.
   the path is the single input.
 - The generated module imports `goga_tool_pybuggy.web` (`BasePage`) and `prettyplay`
   (`PrettyPlay`) in the consumer project, not inside pybuggy itself.
+- The generated fixtures load automatically: `pages/` is the web kind's default fixture package
+  (the mirror of the api kind's `api/`) — the web plugin discovers the modules at installation;
+  `install(loaders=[])` disables the default.

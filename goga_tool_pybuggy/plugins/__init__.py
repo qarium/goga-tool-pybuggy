@@ -30,9 +30,10 @@ def install(**kwargs: object) -> None:
     activation source).
 
     The explicit ``loaders`` join every active plugin's own fixture discovery: the api plugin
-    defaults to the generated ``api/`` package tree when none arrive (``install(loaders=[])``
-    disables that default), and the sandbox and web plugins discover what the explicit loaders
-    plus their documents' ``loader:`` sections name — a project wires external fixture packages
+    defaults to the generated ``api/`` package tree and the web plugin to the generated
+    ``pages/`` package tree when none arrive (``install(loaders=[])`` disables both defaults),
+    and the sandbox plugin discovers what the explicit loaders
+    plus its document's ``loader:`` section name — a project wires external fixture packages
     in through the config, without touching the conftest. The sandbox document
     ``.goga/tools/pybuggy/sandbox.yml`` gates the sandbox plugin by presence only: with the
     document the ``SandboxPlugin`` joins the same installation call and owns the product
