@@ -156,7 +156,8 @@ def test_login_form(page_login):
   cart — a repeated scenario becomes a method running its steps through the same proxied
   surface. The test reads as domain actions; the sentences live next to the page they belong
   to, one fixture per page.
-- `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized); the activation
+- `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized; an empty or `/`
+  path keeps the declared base verbatim — its trailing slash is significant); the activation
   call is an ordinary step of the cycle (generated once, replayed from the cache like every
   step); a missing `site.base_url` fails loudly at the call, naming the directive.
 - Scaffold the class and its fixture with the generator — `goga tool pybuggy page generate
@@ -183,23 +184,32 @@ document. CI should always run web suites with `--strict-mode`.
 
 ## Step cache
 
-The step cache lands next to the test file and is committed to the repository — replay
-(and strict runs) needs no LLM:
+The step cache is committed to the repository — replay (and strict runs) needs no LLM. Steps
+address two ways, decided automatically by where the call comes from: an inline step of a test
+lands in the test's own cache; a step sentence executed from a named method of a page class
+(the activation call included) lands in the page's **shared** cache — one entry per sentence
+for every test using that page:
 
 ```
 tests/test_search.py
-tests/test_search/test_duckduckgo_search/   # the per-test cache
+tests/cache/test_search/test_duckduckgo_search/   # the per-test cache — inline steps of the test
+pages/cache/login_page/3f2a….py                   # the page's shared cache — method sentences
 ```
 
-The address is class-aware: a test inside `class TestLogin` gets
-`tests/test_login/TestLogin/<test_name>`. A parametrized test gets a directory per parameter
-case — the address carries the node name with its `[<param_id>]` suffix
-(`tests/test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII escape of a non-latin
-id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and unsafe characters
-and spaces flatten to dashes. Cache files are never deleted
+The cache root is the run's rootdir (or the explicit `cache_root` directive); the per-test
+address is the test module's path under it with a `cache` segment above the module stem,
+class-aware: a test inside `class TestLogin` gets
+`tests/cache/test_login/TestLogin/<test_name>`. A parametrized test gets a directory per
+parameter case — the address carries the node name with its `[<param_id>]` suffix
+(`tests/cache/test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII escape of a
+non-latin id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and unsafe
+characters and spaces flatten to dashes. The page's shared cache lives under the same `cache`
+segment at the page module's path — never
+put an `__init__.py` inside a page's cache directory (it would shadow the page module). Cache
+files are never deleted
 automatically — a run that fails mid-test keeps the cached steps it never reached. Do not
 edit cache files by hand — delete a step's file to force its regeneration on the next
-non-strict run.
+non-strict run (deleting a page-scope file affects every test of that page).
 
 ## Reporting
 

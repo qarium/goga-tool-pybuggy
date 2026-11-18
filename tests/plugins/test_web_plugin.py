@@ -34,7 +34,7 @@ class _FakePytestConfig:
         lines: The ``(name, line)`` pairs every ``addinivalue_line`` call registered.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0913 — the double mirrors the real config surface it fakes
         self,
         *,
         strict_mode: bool = False,
@@ -42,6 +42,7 @@ class _FakePytestConfig:
         browser_endpoint: str | None = None,
         invocation_args: tuple[str, ...] = (),
         cli_options: dict[str, Any] | None = None,
+        rootpath: Path | None = None,
     ) -> None:
         self._options = {
             "strict_mode": strict_mode,
@@ -53,6 +54,8 @@ class _FakePytestConfig:
         # resolved option namespace `passed_cli_options` reads the typed names from.
         self.invocation_params = SimpleNamespace(args=list(invocation_args))
         self.option = SimpleNamespace(**self._options, **(cli_options or {}))
+        # The cache-root default of the web fixture reads the run's rootdir (None — unset).
+        self.rootpath = rootpath
 
     def getoption(self, name: str, default: Any = None) -> Any:
         """Serve the typed flag by dest name, accepting the ``--flag`` form too.
@@ -216,7 +219,11 @@ def _wire_recording_prettyplay(monkeypatch: pytest.MonkeyPatch) -> list[_Recordi
 
 
 def _request_for(
-    path: str, name: str, originalname: str | None = None, markers: list[pytest.Mark] | None = None
+    path: str,
+    name: str,
+    originalname: str | None = None,
+    markers: list[pytest.Mark] | None = None,
+    root: str = "/proj",
 ) -> SimpleNamespace:
     """Build a request double whose node carries the addressing attributes of a test item.
 
@@ -226,9 +233,10 @@ def _request_for(
         originalname: The parametrize-agnostic name; ``None`` omits the attribute.
         markers: The marks of the test item in collection order (bottom decorator first);
             ``None`` serves the empty list.
+        root: The rootdir of the run the request's config carries — the cache-root default.
 
     Returns:
-        The request double the fixture reads ``node`` from.
+        The request double the fixture reads ``node`` and ``config.rootpath`` from.
     """
     node: dict[str, Any] = {
         "path": Path(path),
@@ -239,7 +247,7 @@ def _request_for(
     if originalname is not None:
         node["originalname"] = originalname
 
-    return SimpleNamespace(node=SimpleNamespace(**node))
+    return SimpleNamespace(node=SimpleNamespace(**node), config=_FakePytestConfig(rootpath=Path(root)))
 
 
 class TestWebPluginContract:
@@ -406,15 +414,16 @@ class TestWebPluginDefaultDiscovery:
 
 
 class TestWebCachePath:
-    """The pure cache-path computation: module stem, class segment, node name."""
+    """The pure cache-path computation: the module path relative to the root, class, node name."""
 
     def test_web_cache_path_shapes(self):
-        """Plain items render ``<stem>/<name>``; class items insert the class; the parametrize
-        suffix addresses — one directory per parameter case."""
+        """The module's path relative to the root heads the address; class items insert the
+        class; the parametrize suffix addresses — one directory per parameter case."""
 
         class TestLogin:
             pass
 
+        root = Path("/proj")
         plain = SimpleNamespace(
             path=Path("/proj/tests/test_search.py"),
             name="test_duckduckgo_search",
@@ -427,30 +436,43 @@ class TestWebCachePath:
             path=Path("/proj/tests/test_mod.py"), name="test_foo[x-1]", originalname="test_foo"
         )
 
-        assert web_cache_path(plain) == "test_search/test_duckduckgo_search"
-        assert web_cache_path(grouped) == "test_login/TestLogin/test_foo"
-        assert web_cache_path(parametrized) == "test_mod/test_foo[x-1]"
+        assert web_cache_path(plain, root) == "tests/cache/test_search/test_duckduckgo_search"
+        assert web_cache_path(grouped, root) == "tests/cache/test_login/TestLogin/test_foo"
+        assert web_cache_path(parametrized, root) == "tests/cache/test_mod/test_foo[x-1]"
+
+    def test_web_cache_path_module_directly_under_the_root_keeps_the_legacy_shape(self):
+        """A module right in the root addresses ``cache/<stem>/<name>`` — the legacy module-dir shape."""
+        item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo")
+
+        assert web_cache_path(item, Path("/proj/tests")) == "cache/test_mod/test_foo"
+
+    def test_web_cache_path_of_a_module_outside_the_root_raises(self):
+        """A module outside the root is the caller's fallback signal."""
+        item = SimpleNamespace(path=Path("/elsewhere/tests/test_mod.py"), name="test_foo")
+
+        with pytest.raises(ValueError, match="is not in the subpath"):
+            web_cache_path(item, Path("/proj"))
 
     def test_web_cache_path_sanitizes_unsafe_segment_characters(self):
         """Path-unsafe id characters flatten to dashes — the tail stays one directory."""
         item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[a/b\\c:d]")
 
-        assert web_cache_path(item) == "test_mod/test_foo[a-b-c-d]"
+        assert web_cache_path(item, Path("/proj")) == "tests/cache/test_mod/test_foo[a-b-c-d]"
 
     def test_web_cache_path_decodes_the_pytest_ascii_escape(self):
         """A non-latin id restored from pytest's ``\\u`` escape keeps a readable directory."""
         escaped = "test_edit[\\u0438\\u043c\\u044f \\u0438 \\u043e\\u0442\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e]"
         item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name=escaped)
 
-        assert web_cache_path(item) == "test_mod/test_edit[имя-и-отчество]"
+        assert web_cache_path(item, Path("/proj")) == "tests/cache/test_mod/test_edit[имя-и-отчество]"
 
     def test_web_cache_path_flattens_whitespace_runs_and_keeps_plain_names(self):
         """Space runs flatten to single dashes; an escaping-disabled run keeps the real letters."""
         spaced = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[a  b]")
         native = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[имя и отчество]")
 
-        assert web_cache_path(spaced) == "test_mod/test_foo[a-b]"
-        assert web_cache_path(native) == "test_mod/test_foo[имя-и-отчество]"
+        assert web_cache_path(spaced, Path("/proj")) == "tests/cache/test_mod/test_foo[a-b]"
+        assert web_cache_path(native, Path("/proj")) == "tests/cache/test_mod/test_foo[имя-и-отчество]"
 
 
 class TestWebPluginOptions:
@@ -954,9 +976,9 @@ class TestWebPluginWebFixture:
 
         assert runtime is made[0]
         assert made[0].cache_key == "test_a"
-        assert made[0].cache_path == "test_a/test_a"
+        assert made[0].cache_path == "tests/test_a/test_a"  # the module path relative to the rootdir
         assert made[0].cleanup is False
-        assert made[0].config.cache_root == str(Path("/proj/tests").resolve())
+        assert made[0].config.cache_root == str(Path("/proj"))  # the rootdir — one shared root
         assert made[0].config.browser.name == "chrome"
         assert made[0].added_hooks == []
         assert made[0].entered
@@ -977,7 +999,7 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].cache_key == "test_a[x-1]"
-        assert made[0].cache_path == "test_a/test_a[x-1]"
+        assert made[0].cache_path == "tests/test_a/test_a[x-1]"
 
     def test_web_fixture_carries_the_typed_endpoint(self, monkeypatch: pytest.MonkeyPatch):
         """The typed endpoint flows through the activation into the runtime config unchanged."""
@@ -1068,8 +1090,11 @@ class TestWebPluginWebFixture:
         assert len(made[0].added_hooks) == 1
         assert isinstance(made[0].added_hooks[0], AllureStepHooks)
 
-    def test_web_fixture_resolves_outside_project_root(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
-        """The cache root derives from the item's own file — never from the cwd."""
+    def test_web_fixture_falls_back_for_a_module_outside_the_root(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """A test module outside the rootdir keeps the legacy address — the module's own
+        directory as the root, the module stem as the path head; never the cwd."""
         monkeypatch.setattr(allure_hooks_module, "allure", None)
         monkeypatch.chdir(tmp_path)
         plugin = _configured_plugin(monkeypatch)
@@ -1080,6 +1105,20 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].config.cache_root == str(Path("/elsewhere/tests").resolve())
+        assert made[0].cache_path == "test_a/test_a"
+
+    def test_web_fixture_never_reads_the_cwd_for_the_root(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        """The default root is the rootdir of the run — the cwd of the moment never enters it."""
+        monkeypatch.setattr(allure_hooks_module, "allure", None)
+        monkeypatch.chdir(tmp_path)
+        plugin = _configured_plugin(monkeypatch)
+        made = _wire_recording_prettyplay(monkeypatch)
+        request = _request_for("/proj/tests/test_a.py", "test_a", "test_a")
+
+        generator = WebPlugin.web.__wrapped__(plugin, request)
+        next(generator)
+
+        assert made[0].config.cache_root == str(Path("/proj"))
 
     def test_web_fixture_collects_prompt_extras_in_written_order(self, monkeypatch: pytest.MonkeyPatch):
         """The marker texts apply in written order (top decorator first), joined by one newline."""

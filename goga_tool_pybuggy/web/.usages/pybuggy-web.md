@@ -87,7 +87,19 @@ def test_login_form(page_login):
   cart — any repeated scenario becomes a method running its steps through the same proxied
   surface (`self.step`, `self()` to re-open). The test reads as domain actions; the sentences
   live next to the page they belong to, one fixture per page.
-- `page.url` joins the site base URL with the page path (slashes normalized); the activation
+- **Method sentences are the page's shared vocabulary**: a step executed from a named method of
+  the page class (the activation call included) addresses the page's **shared cache** — one
+  cached entry per sentence for every test using the page (the first test generates it, every
+  other test replays it with no LLM call). A step called inline from a test (`page.step(...)` in
+  the test body) stays the test's own per-test entry. The boundary is automatic — no path is
+  ever passed by hand — so make it a deliberate choice: a method is a reusable sentence, an
+  inline step is private. Word method sentences against the live DOM (position, role, visible
+  text), never against the data of the moment that generated them, unless that data is
+  guaranteed in every state the method runs from.
+- `page.url` joins the site base URL with the page path (slashes normalized); a path without a
+  non-empty segment (`""` or `"/"`) yields the declared base URL **verbatim** — a trailing
+  slash in `site.base_url` is significant (servers may answer 404 to the slashed-off form);
+  the activation
   call is an ordinary step of the cycle (generated once, cached, replayed, healed) — step,
   expect and group are reserved names, never redefined by a subclass.
 - Scaffold the class and its fixture with `goga tool pybuggy page generate /login login` — it
@@ -234,22 +246,30 @@ Both mode flags force the mode on; they never switch off a mode enabled in the w
 
 ## Step cache
 
-The step cache lands next to the test file and is committed to the repository — replay (and strict
-runs) needs no LLM:
+The step cache is committed to the repository — replay (and strict runs) needs no LLM. Steps
+address two ways, decided automatically by where the call comes from:
 
 ```
 tests/test_search.py
-tests/test_search/test_duckduckgo_search/   # the per-test cache
+tests/cache/test_search/test_duckduckgo_search/   # the per-test cache — inline steps of the test
+pages/cache/login_page/3f2a….py                   # the page's shared cache — method sentences + activation
 ```
 
-The address is class-aware: a test inside `class TestLogin` gets `test_login/TestLogin/<test_name>`.
-A parametrized test gets a directory per parameter case — the address carries the node name with
-its `[<param_id>]` suffix (`test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII
-escape of a non-latin id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and
-unsafe characters and spaces flatten to dashes. Cache files
-are never deleted automatically — the runtime runs in the persistence mode, so a run that fails
-mid-test keeps the cached steps it never reached. Do not edit cache files by hand — delete a step's
-file to force its regeneration on the next non-strict run.
+The cache root is the run's rootdir (or the explicit `cache_root` directive); the per-test
+address is the test module's path under it with a `cache` segment above the module stem,
+class-aware: a test inside `class TestLogin` gets
+`tests/cache/test_login/TestLogin/<test_name>`. A parametrized test gets a directory per
+parameter case — the address carries the node name with its `[<param_id>]` suffix
+(`cache/test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII escape of a non-latin
+id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and unsafe characters and
+spaces flatten to dashes. The page's shared cache lives under the same `cache` segment at the
+page module's path (`pages/` + the module's dotted path as directories, `cache` above the
+module's own name) — one entry per sentence shared by every test of the
+page. **Never put an `__init__.py` inside a page's cache directory** — a marked directory would
+shadow the page module and break its import. Cache files are never deleted automatically — the
+runtime runs in the persistence mode, so a run that fails mid-test keeps the cached steps it
+never reached. Do not edit cache files by hand — delete a step's file to force its regeneration
+on the next non-strict run (deleting a page-scope file affects every test of that page).
 
 ## Reporting
 

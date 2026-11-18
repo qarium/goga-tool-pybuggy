@@ -56,7 +56,13 @@ Annotations: |
   at construction, the per-page fixture binding it. A subclass also encapsulates the page's own scenario logic as
   methods (closing a cookie banner, a form flow) running their step sentences through the
   proxied surface; a per-page fixture constructs the subclass with the runtime, the mirror of
-  the api kind's Endpoint(api, path) fixtures.
+  the api kind's Endpoint(api, path) fixtures. The proxied surface is also the boundary of the
+  page's shared step vocabulary: a sentence executed from a named method of the page class (the
+  activation call included) carries the page's cache scope — the page module's path — so one
+  sentence of one page is one shared cache entry for every test using that page, while an inline
+  call from a test stays the test's own per-test entry; the discrimination is automatic (the
+  caller frame of the proxy is a bound method of this very page or it is not), no path is ever
+  passed by hand (see `prettyplay` for the scope addressing).
 
   The cell also carries the per-test prompt declaration surface: the `generation_prompt`
   decorator (the pattern of the sandbox services decorator) attaches the
@@ -167,15 +173,24 @@ Annotations: |
     Algorithm:
     1. Hold the runtime and the path as given — no resolution, no class-level fallback.
     2. url joins: site.base_url + "/" + path with the joining slashes normalized (a trailing
-       slash of the base and a leading slash of the path never duplicate); an empty path yields
-       the bare base URL; an unset base URL raises the loud actionable PrettyplayError naming
-       the site.base_url directive of web.yml.
-    3. The activation call executes one action step sentence "Open <url>" through the runtime
-       and returns the page itself — the characteristic action on call, the Endpoint pattern;
-       an ordinary step of the cycle: generated once, cached, replayed, healed.
+       slash of the base and a leading slash of the path never duplicate); a path without a
+       non-empty segment ("" or "/") yields the declared base URL verbatim — its trailing
+       slash is significant, servers may answer 404 to the slashed-off form, so the page
+       never rewrites the declared base; an unset base URL raises the loud actionable
+       PrettyplayError naming the site.base_url directive of web.yml.
+    3. The activation call executes one action step sentence "Open <url>" through the page's own
+       step proxy and returns the page itself — the characteristic action on call, the Endpoint
+       pattern; an ordinary step of the cycle — generated once, cached, replayed, healed — and a
+       page-scoped one: the opening sentence is the shared entry of every test of this page.
     4. step, expect and group proxy their sentences to the bound runtime verbatim — the page's
        own surface for tests and scenario methods alike, the keyword-only parameters passed
-       through unchanged.
+       through unchanged — attaching the page's cache scope (the page module's path under a
+       `cache` segment) exactly
+       when the proxy call originates from the page's own code: a bound method of this very
+       instance, the activation call, or a helper nested inside the page's own source files; an
+       inline call from a test attaches no scope and addresses the step under the test's cache
+       key (the frame walk never crosses a source file that is neither the page class's nor the
+       base module's, and a foreign `self` — a test-class method — never matches).
     5. The context manager returns the page from enter; the exit is scoping only — it closes
        nothing and never suppresses (a falsy return keeps the block exception propagating).
 
@@ -186,6 +201,10 @@ Annotations: |
       `prettyplay`); the call is never overridden — scenario logic lives in named methods.
     - step, expect and group are reserved names of the page surface — a subclass never
       redefines them.
+    - The page's cache scope is derived, never declared — the concrete class's module path
+      (`type(page).__module__`, dots as separators); a subclass in another module is its own
+      vocabulary. The scope rides the runtime's integrator-level `_scope` keyword (see
+      `prettyplay`) and is validated there.
     - A missing site.base_url fails loudly at first use (url or the call), never at
       construction — a BasePage over an unset site works as a plain path holder.
     - The runtime lifecycle belongs to the web fixture of the plugins cell — the context

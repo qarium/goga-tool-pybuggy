@@ -13,6 +13,7 @@ import re
 import typing as t
 import warnings
 from enum import Enum
+from pathlib import Path
 
 import pytest
 from pluginator import CommandLine, define
@@ -130,20 +131,32 @@ def _readable_node_name(name: str) -> str:
         return name
 
 
-def web_cache_path(item: pytest.Item) -> str:
+def web_cache_path(item: pytest.Item, root: Path) -> str:
     """Compute the per-test step-cache path from the requesting test item.
 
     Args:
         item: The pytest item of the requesting test.
+        root: The cache root the path is relative to — the rootdir or the explicit
+            ``cache_root`` directive of ``web.yml``; the test module's own directory
+            in the legacy fallback of a module outside the root.
 
     Returns:
-        The posix-relative subdirectory inside the cache root —
-        ``<module_stem>/<ClassName>/<test_name>`` with a class, ``<module_stem>/<test_name>``
-        without; ``<test_name>`` is the item's node name with pytest's ASCII escape of a
-        non-latin id decoded back, so a parametrized test addresses
-        ``<test_name>[<param_id>]`` — one readable directory per parameter case.
+        The posix-relative subdirectory inside the cache root — the test module's path
+        relative to the root (every directory, a ``cache`` segment, then the stem),
+        then ``<ClassName>`` with a class; ``<test_name>`` is the item's node name with
+        pytest's ASCII escape of a non-latin id decoded back, so a parametrized test
+        addresses ``<test_name>[<param_id>]`` — one readable directory per parameter
+        case. The module-relative head keeps the physical layout of the legacy
+        module-directory root — ``<root>/<module_path…>/cache/<test_name>`` — while the
+        root turns shared: the page-scope directories of the pages' own step vocabulary
+        live beside it.
+
+    Raises:
+        ValueError: The test module lives outside ``root`` — the caller falls back to
+            the legacy address with the module's own directory as the root.
     """
-    segments = [item.path.stem]
+    segments = list(item.path.relative_to(root).with_suffix("").parts)
+    segments.insert(-1, "cache")  # the generated directories of one module directory — under one roof
 
     cls = getattr(item, "cls", None)
     if cls is not None:
@@ -451,13 +464,20 @@ class WebPlugin:
     def web(self, request: pytest.FixtureRequest) -> t.Iterator[PrettyPlay]:
         """Build the per-test prettyplay runtime and close it after the test.
 
-        The cache address derives from the requesting item itself — the root is the activation's
-        ``cache_root`` when set, otherwise the absolute directory of the test's own module file
-        (never the cwd); the path and the key are both the item's own name — parametrize-aware,
-        one cache directory per parameter case. The item's
-        ``pybuggy_generation_prompt`` marker texts join (written order, top decorator first) into
-        the generation prompt of exactly this test. Cleanup is disabled: the persistence mode of
-        the committed-cache workflow keeps every cached file of the test's key.
+        The cache root is the activation's ``cache_root`` when set, otherwise the pytest
+        rootdir of the run — one shared root for every test of the project, so the
+        page-scope directories of the pages' own step vocabulary (the shared cache of
+        page-class methods, see ``BasePage``) address identically from every test. The
+        per-test path is the test module's path relative to that root plus the class and
+        the item's own name, under a ``cache`` segment above the module stem —
+        parametrize-aware, one cache directory per parameter case, the generated
+        directories of one module directory under one roof. A test module outside the
+        root falls back to the legacy address: the module's own directory as the root and
+        the module stem as the path head (page-scope sharing degrades for such tests).
+        The item's ``pybuggy_generation_prompt`` marker texts join (written order, top
+        decorator first) into the generation prompt of exactly this test. Cleanup is
+        disabled: the persistence mode of the committed-cache workflow keeps every cached
+        file of the test's key.
 
         Args:
             request: The fixture request of the test being set up.
@@ -468,7 +488,13 @@ class WebPlugin:
         activation = self._require_activation()
 
         item = request.node
-        root = activation.cache_root or str(item.path.parent.resolve())
+        root = Path(activation.cache_root) if activation.cache_root else request.config.rootpath
+        try:
+            path = web_cache_path(item, root)
+        except ValueError:
+            # the test module lives outside the root — the legacy per-module address
+            root = item.path.parent.resolve()
+            path = web_cache_path(item, root)
 
         texts = [marker.kwargs.get("text", "") for marker in item.iter_markers("pybuggy_generation_prompt")]
         extras = "\n".join(text for text in reversed(texts) if text)
@@ -476,9 +502,9 @@ class WebPlugin:
         config = build_pretty_config(activation, self.strict, self.interactive, prompt_extra=extras)
 
         if not activation.cache_root:
-            config = config.model_copy(update={"cache_root": root})
+            config = config.model_copy(update={"cache_root": str(root)})
 
-        runtime = PrettyPlay(item.name, web_cache_path(item), cleanup=False, config=config)
+        runtime = PrettyPlay(item.name, path, cleanup=False, config=config)
 
         if allure_hooks.allure is not None:
             runtime.add_hooks(AllureStepHooks(runtime))

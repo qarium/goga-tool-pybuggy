@@ -90,7 +90,9 @@ Annotations: |
   the web config document (the plugins-cell default path — the platform tool-config path named by the
   FILENAME member of the cell's own `WebConfigKeys`) — with the document the `WebPlugin`
   joins the same installation call and owns the web test kind: the web fixture (a per-test
-  prettyplay runtime with the step cache next to the test file), the plugin options of every web.yml
+  prettyplay runtime with the step cache rooted at the run's rootdir — the per-test files in a
+  `cache` subdirectory beside the test module, the page-scope shared cache of the pages' own
+  methods under a `cache` segment beside the page modules), the plugin options of every web.yml
   directive (the standard pluginator loading) with the --strict-mode, --interactive, and
   --browser-endpoint CLI flags, Allure step reporting, the prettyplay event log formatter, and
   the pybuggy_generation_prompt marker registration (the carrier of the per-test
@@ -452,7 +454,7 @@ Annotations: |
       Routed uncast to the activation gate.
     "cache_root -> str": |
       Routed step-cache root directive value: the web config cache_root key → the empty default
-      (the fixture then roots the cache at the test file's directory). Routed uncast to the
+      (the fixture then roots the cache at the run's rootdir). Routed uncast to the
       activation gate.
     "site -> dict": |
       Routed site group directive value — the raw section mapping of the web config site key (the
@@ -562,10 +564,16 @@ Annotations: |
 
       Algorithm:
       1. Compute the cache address: the root is the activation cache_root when set, otherwise the
-         absolute directory of the requesting test's own module file (from the item — never the
-         cwd); the per-test path is the internal web_cache_path of request.node; the cache key is the item's
-         name — both parametrize-aware, so a parametrized test addresses one directory per
-         parameter case.
+         pytest rootdir of the run (request.config.rootpath — never the cwd); the per-test path is
+         the internal web_cache_path of request.node against that root — the test module's path
+         relative to the root with a `cache` segment above the module stem, plus the class and
+         the item's names; a test module outside the root
+         falls back to the legacy address (the module's own directory as the root, the module stem
+         as the path head); the cache key is the item's name — both parametrize-aware, so a
+         parametrized test addresses one directory per parameter case. One shared root is what
+         makes the page-object shared vocabulary work: the page-scope cache directories of the
+         pages' own step sentences (see the web cell's BasePage) address identically from every
+         test.
       2. Collect the per-test prompt extras: read the requesting item's
          pybuggy_generation_prompt markers and take each marker's text kwarg. The natural
          collection order of the stacked markers is last-applied-first (the bottom decorator's
@@ -584,9 +592,11 @@ Annotations: |
 
       Requirements:
       - A --strict-mode run makes zero LLM calls — a cache miss fails the test.
-      - The step cache lands next to the test file and is committable; the addressing never depends
-        on the cwd — tests running outside the project root resolve their paths from the item
-        itself.
+      - The step cache is committable; the default root is the run's rootdir with the module's
+        path relative to it — the per-test files land physically where they always were for a
+        standard layout (next to the test module), while the root stays one shared directory for
+        the whole project; the addressing never depends on the cwd — tests running outside the
+        project root fall back to their module's own directory.
       - The marked prompt extras affect only the requesting test's runtime — the activation and
         the options are never mutated; a test without the decorator builds exactly the config it
         built before.
