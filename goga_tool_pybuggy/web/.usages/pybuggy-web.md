@@ -29,6 +29,15 @@ def test_duckduckgo_search(web):
 
 - `web.step(sentence)` — an action step: generated once, then replayed from the cache.
 - `web.expect(sentence)` — an assertion step: polled until it holds or the polling budget ends.
+- **Transient elements verify inside their triggering sentence.** A toast / notification banner
+  that appears on an action and auto-disappears seconds later is checked (or read) in the very
+  sentence that triggers it — `web.step('Click the "Save" button — the "Changes saved" toast
+  appears in the top-left corner')`, a toast-borne value through a `{% var %}` capture placed in
+  that same sentence. On the generating run each sentence's code is produced by an LLM round
+  (tens of seconds) immediately before the sentence executes, so a separate expectation sentence
+  only starts generating after the trigger already ran — by the time its check executes the
+  transient element is long gone and the polling can never observe it. The sentence is the unit of generation: wrapping
+  the two in a group or a page-object method does not help — fold the check into the triggering sentence.
 - Steps carry full URLs — no sentence templating, no sandbox binding; the tested site's own base
   URL is the `site.base_url` directive of the web config, consumed by `BasePage` (below).
 - One action per step sentence; name the target and the action in plain language: the target is
