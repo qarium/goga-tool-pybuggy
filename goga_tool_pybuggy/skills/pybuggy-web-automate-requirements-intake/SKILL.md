@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-intake
-description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined, reads the web runtime facts, and asks the target pages, auth method, and the browser endpoint (config or user-provided) for exploration and runs
+description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined, reads the web runtime facts (the site address is the site.base_url directive of web.yml — a value or a Jinja2 template, never asked from the user), asks only the template's render arguments (env/CLI) when it has variables, the target pages (paths relative to the base URL or full URLs), auth method, and the browser endpoint (config or user-provided) for exploration and runs
 ---
 
 # Pybuggy Web Topic Requirements — Intake
@@ -49,19 +49,37 @@ description: Intake and formalization of the tested web topic's description — 
 
 1. Прочитай документ `.goga/tools/pybuggy/web.yml` в целевом проекте (от текущего рабочего каталога,
    без поиска вверх). Запиши **дословно** активные ключи `provider`, `generation_model` — LLM-факты
-   генерации шагов; `browser.endpoint` (если задан) — кандидат ответа «Из конфига» в вопросе 3.
+   генерации шагов; `site.base_url` — адрес тестируемого сайта (значение или Jinja2-шаблон;
+   источник — только конфиг, у пользователя base_url не запрашивается) — отсутствует/пустой —
+   **STOP**: попроси пользователя задать его в web.yml (`goga tool pybuggy init` kind `web`/`both`
+   или вручную) и повторить; `browser.endpoint` (если задан) — кандидат ответа «Из
+   конфига» в вопросе 4.
    Документа нет — **STOP**: попроси пользователя запустить `goga tool pybuggy init` (kind `web` или `both`) и повторить.
 
 2. Спроси через AskUserQuestion (один вопрос за сообщение, 2–4 варианта):
 
-   1. **Целевые страницы** — какие URL тестируем (полные URL; пользователь вводит или подтверждает
-      предложенные из описания топика). Уточни, какое это окружение: прод / stage / feature-деплой ветки —
-      все URL должны принадлежать одному окружению.
-   2. **Способ авторизации** на сайте — **«Без авторизации»** | **«Форма логина»** (укажи URL формы —
+   1. **Аргументы рендера base_url** — только когда `site.base_url` в конфиге — шаблон с
+      переменными (простой URL — вопрос не задаётся, аргументов нет): какими аргументами шаблон
+      рендерится в адрес окружения топика. Эти аргументы — префикс/суффикс каждой записанной
+      команды прогона, из них же складывается адрес исследования.
+      Варианты:
+       - «Env-переменные» — имена и значения для окружения топика (значения — компоненты адреса
+         сайта, не секреты; команда прогона получает префикс `ENV_NAME=значение pytest …`);
+       - «CLI-опции» — имена и значения (команда прогона получает суффикс `--имя=значение`;
+         каждая опция требует регистрации `pytest_addoption` в `conftest.py` — pytest отвергает
+         незарегистрированные опции; факт фиксируется в артефакте);
+       - «Не нужны» — переменные шаблона уже заданы в окружении.
+   2. **Целевые страницы** — какие страницы тестируем: путями относительно base_url (`/catalog`,
+      `/login` — пользователь вводит или подтверждает предложенные из описания топика) или полными
+      URL (внешние страницы — чужой origin). Уточни, какое это окружение: прод / stage /
+      feature-деплой ветки — все страницы обязаны принадлежать одному окружению: пути рендерятся
+      от base_url, полные URL внутренних страниц — тот же origin; чужой origin — только внешняя
+      страница (явно помечается).
+   3. **Способ авторизации** на сайте — **«Без авторизации»** | **«Форма логина»** (укажи URL формы —
       или она будет найдена исследованием) | **«SSO/внешний провайдер»** | **«Тестовые креденшалы есть»**.
       Для вариантов с входом уточни источник креденшалов: имена env-переменных или «введу при
       исследовании». **Значения секретов не запрашивай и не записывай.**
-   3. **Эндпоинт браузера для написания тестов** — к какому браузеру подключаться при исследовании страниц
+   4. **Эндпоинт браузера для написания тестов** — к какому браузеру подключаться при исследовании страниц
       и прогонах тестов. Адрес браузера, не тестируемого сайта.
       Варианты: 
        - «Из конфига» — `browser.endpoint` (предлагается только при заданном)
@@ -113,6 +131,18 @@ Fill in every section. Empty sections are forbidden.
 
 [Дословно из .goga/tools/pybuggy/web.yml: provider, generation_model — LLM-факты генерации шагов]
 
+## Base URL
+
+[Дословно из web.yml: `site.base_url: <значение/шаблон>`; вид: простой URL | шаблон с
+переменными `<имена>`; адрес окружения топика после рендера: `<полный URL>`]
+
+## Run Arguments
+
+[не нужны (простой URL или переменные шаблона уже в окружении) | env: `<имя=значение>` (для
+окружения топика; префикс команд прогона `ENV_NAME=… pytest …`) | CLI: `--<имя>=<значение>`
+(суффикс команд прогона; требуют регистрации `pytest_addoption` в conftest.py) | и env, и CLI —
+перечисли оба]
+
 ## Browser Endpoint
 
 [«из конфига» (`browser.endpoint: <значение>`) | `<ws(s)://… | http(s)://…>` от пользователя;
@@ -120,9 +150,11 @@ Fill in every section. Empty sections are forbidden.
 
 ## Target Pages
 
-| # | URL (как назван пользователем) | Что пользователь говорит о странице | Роль в топике |
-|---|--------------------------------|-------------------------------------|---------------|
-| 1 | https://…                      | […]                                 | […]           |
+| # | Адрес (как назван пользователем: путь относительно base_url `/…` | полный URL) | Что пользователь говорит о странице | Роль в топике |
+|---|-----------------------------------------------------------------------------|-------------------------------------|---------------|
+| 1 | /catalog                                                                    | […]                                 | […]           |
+
+[Полные URL чужого origin — только внешние страницы, помечай «внешняя» в колонке «Роль в топике».]
 
 ## Auth
 

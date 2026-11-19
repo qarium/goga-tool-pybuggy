@@ -38,7 +38,7 @@ cell-level `.usages/`.
    `.goga/usages/cooks/<key>.md`. Подключение — строка `<key>: .goga/usages/cooks/<key>.md`
    в `Usages` + строка ``Use `<key>` for <назначение>`` в `Annotations`.
 2. **Body** — рутины ячейки **дословно** из [ROUTINES_REPORT]: сигнатура
-   `test_<name>(web: PrettyPlay)`, `location`, аннотация.
+   сигнатура (фикстуры-страницы `page_<name>` либо `web: PrettyPlay`), `location`, аннотация.
 3. **Footer** — `Author: Goga`, `CreatedAt: <день/месяц/год>`, `Description: <зачем ячейка>`.
 
 ### Step 3. Validate against the DSL (до записи)

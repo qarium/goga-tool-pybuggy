@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-explore
-description: Live page exploration via playwright-cli — attaches to the browser from Browser Endpoint ([INTAKE_REPORT]) in a named session, builds per-page dossiers (final URLs, key elements with visible names, forms and validations, navigation map, observable states, console/network findings including API endpoints; no locators/selectors — test addressing is by visible names), handles auth without recording secrets, and produces [EXPLORE_REPORT]
+description: Live page exploration via playwright-cli — attaches to the browser from Browser Endpoint ([INTAKE_REPORT]) in a named session, resolves the topic environment's base URL (rendering the Jinja2 template with the recorded run arguments when needed) and composes full target URLs from the base URL and the page paths, builds per-page dossiers (page addresses — paths relative to the base URL plus final URLs after redirects, key elements with visible names, forms and validations, navigation map, observable states, console/network findings including API endpoints; no locators/selectors — test addressing is by visible names), handles auth without recording secrets, and produces [EXPLORE_REPORT]
 ---
 
 # Pybuggy Web Topic Requirements — Explore
@@ -8,7 +8,8 @@ description: Live page exploration via playwright-cli — attaches to the browse
 ## Identity
 
 Ты — исследователь страниц. Ты открываешь целевые страницы живого сайта через playwright-cli и собираешь
-по каждой странице фактическое досье: итоговый URL, назначение, ключевые элементы с видимыми именами,
+по каждой странице фактическое досье: адрес страницы (путь относительно base_url / полный URL внешней),
+итоговый URL после редиректов, назначение, ключевые элементы с видимыми именами,
 формы с валидациями, карту навигации, наблюдаемые состояния, ошибки консоли и сети (включая API-эндпоинты
 страницы). Досье — единственный источник фактов о страницах для всех следующих шагов.
 
@@ -54,7 +55,15 @@ elaborate — здесь они не «исправляются». Секрет�
 2. **Эндпоинт браузера**: секция Browser Endpoint из [INTAKE_REPORT] обязана содержать адрес
    («из конфига» или от пользователя) — исследование **подключается к нему** через `attach`
    (bootstrap — п.5 ниже). Секции нет / без адреса — **STOP** (верни в intake).
-3. **Целевые URL**: возьми таблицу Target Pages из [INTAKE_REPORT]. Пусто — **STOP**: вернись в intake.
+3. **Base URL и целевые адреса**: возьми секции Base URL (директива `site.base_url` web.yml —
+   факт конфига), Run Arguments и таблицу Target Pages из [INTAKE_REPORT]. Секции Base URL /
+   Target Pages пусты — **STOP**: вернись в intake.
+   - **Рендер base_url**: простой URL — как есть; Jinja2-шаблон — подставь значения аргументов из
+     Run Arguments (env и CLI вместе) и получи адрес окружения топика. Шаблон не рендерится
+     (неизвестная переменная, нет значений) — **STOP**: вернись в intake за значениями.
+   - **Сборка полных URL**: каждой целевой странице — полный адрес: путь `/…` присоединяется к
+     base_url (один слэш на стыке), полный URL берётся как есть. Путь с пустым сегментом (`/`)
+     означает сам base_url. Итог собранной таблицы зафиксируй — исследуются только полные URL.
 4. **Скилл-референс**: попытайся загрузить `playwright-cli` через Skill tool (если недоступен — продолжай
    по встроенному словарю).
 5. **Bootstrap сессии** — предвыполненные команды до первого `goto`, одним вызовом Bash
@@ -109,7 +118,10 @@ Pre-flight (Шаг 0) → сессия подключена (`attach`), перв
 
 Для каждого URL из Target Pages (полное досье — на каждую, без исключений):
 
-1. **Переход**: `goto <URL>` — запиши **итоговый URL** (после редиректов) и title из статуса страницы.
+1. **Переход**: `goto <полный URL из собранной таблицы>` — запиши **итоговый URL** (после
+   редиректов), title из статуса страницы и **адрес страницы**: путь относительно base_url
+   (страница топика; итоговый URL после редиректа перечитай как путь) или полный URL (внешняя
+   страница).
 2. **Структура**: `snapshot --depth=4` — определи назначение страницы и ключевые регионы.
 3. **Заголовки**:
    `--raw eval "JSON.stringify([...document.querySelectorAll('h1,h2,h3')].slice(0,20).map(h => h.tagName + ': ' + h.textContent.trim().slice(0,120)))"`.
@@ -172,6 +184,9 @@ STOP if:
 
 - playwright-cli недоступен;
 - `.goga/tools/pybuggy/web.yml` отсутствует;
+- `site.base_url` отсутствует в web.yml (intake не зафиксировал его — попроси пользователя
+  задать директиву в web.yml: `goga tool pybuggy init` kind web/both или вручную);
+- шаблон base_url не рендерится значениями из Run Arguments (и пользователь не дополнил их);
 - адрес из Browser Endpoint недоступен для attach, и пользователь не предложил другой адрес;
 - сайт недостижим после повторной попытки (и пользователь не пояснил, как поступить);
 - все целевые страницы за авторизацией, креденшалы не предоставлены;
@@ -191,7 +206,8 @@ Fill in every section. Empty sections are forbidden.
 
 ### PAGE-1: <краткое имя>
 
-- **URL:** <итоговый после редиректов> (введён: <оригинал>)
+- **Адрес:** <путь относительно base_url (`/…`) — страница топика | полный URL — внешняя страница>;
+  итоговый URL: <полный, после редиректов> (введён: <собранный полный URL>)
 - **Title:** <title>
 - **Назначение:** <1–2 предложения — что это за страница>
 - **Ключевые элементы:**
@@ -201,7 +217,8 @@ Fill in every section. Empty sections are forbidden.
   | […]                   | […]        | e12 |
 
 - **Формы:** по каждой: action, method; поля `name / type / required / валидации (placeholder, pattern, maxLength)`
-- **Навигация:** `действие (клик по <элементу>) → <URL назначения>` — по каждому переходу
+- **Навигация:** `действие (клик по <элементу>) → <итоговый URL>` (для страниц сайта — и путь
+  относительно base_url) — по каждому переходу
 - **Наблюдаемые состояния:** пустое / ошибка (тексты валидации дословно) / загрузка / всплывающие баннеры-toasts (дословный текст, событие появления, исчезают через N с) — как выглядят и как воспроизвести
 - **Сеть и консоль:** ошибки консоли; падённые запросы (метод URL → статус); API-эндпоинты страницы (метод + путь)
 - **Расхождения с ожиданиями пользователя:** <утверждение из [INTAKE_REPORT] ↔ наблюдение; или `none`>

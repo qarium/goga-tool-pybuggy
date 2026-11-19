@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-testcases-review
-description: Verification of the materialized web cells `tests/web/<cell>/CODEMANIFEST` — semantic REQ coverage (REQ ids are not stored in the manifests; the review re-derives coverage from requirements §3 against Routine Purpose/Steps), step-sentence quality (one action, unambiguous target by visible name — no locators/selectors/testids, full URLs, concrete expectations, no secrets, the group criterion), parameterization linearity, DSL structure and usage resolution — fixes the manifests with user approval
+description: Verification of the materialized web cells `tests/web/<cell>/CODEMANIFEST` — semantic REQ coverage (REQ ids are not stored in the manifests; the review re-derives coverage from requirements §3 against Routine Purpose/Steps), step-sentence quality (one action, unambiguous target by visible name — no locators/selectors/testids, site pages addressed as paths relative to the base URL with external pages by full URLs, concrete expectations, no secrets, the group criterion), parameterization linearity, DSL structure and usage resolution — fixes the manifests with user approval
 ---
 # Pybuggy Web Topic Testcases — Review
 
@@ -27,7 +27,8 @@ DSL**. Критерий успеха: каждый REQ требований то
 
 **Предложение шага — это инструкция для LLM-генерации Playwright-кода.** Расплывчатое предложение
 («нажать нужную кнопку», «заполнить правильными данными») — гарантированно плохая генерация;
-конкретное (кнопка «Найти», поле «Email», полный URL, дословный ожидаемый текст) — стабильный шаг.
+конкретное (кнопка «Найти», поле «Email», адрес страницы — путь `/catalog` относительно base_url
+или полный URL внешней, дословный ожидаемый текст) — стабильный шаг.
 Качество предложений — вторая семантическая ось ревью.
 
 CODEMANIFEST — утверждённый пользователем контракт: правки только через находку с одобрением;
@@ -44,7 +45,7 @@ CODEMANIFEST — утверждённый пользователем контр�
 
 - `tests/web/<cell>/CODEMANIFEST` — ячейки топика (новые и затронутые слиянием).
 - **Upstream** для трассируемости: путь, напечатанный `goga history path -f requirements.md` —
-  §1 (Target environment, Browser endpoint), §2 (страницы/URL), §3 (реестр REQ), §4 (auth).
+  §1 (Base URL, Target environment, Browser endpoint), §2 (страницы/адреса), §3 (реестр REQ), §4 (auth).
 
 ---
 
@@ -73,8 +74,11 @@ CODEMANIFEST — утверждённый пользователем контр�
    дословно) — расхождение **High**; каждый cell-specific ключ резолвится существующим файлом
    `.goga/usages/cooks/<key>.md` — нерезолвящийся **High** (висячая бэктик-ссылка); для каждого
    cell-specific ключа в `Annotations` есть строка ``Use `<key>` for …`` — отсутствие **Medium**.
-3. **Body**: только Routine — `methods`/`properties`/Entities — **Critical**; сигнатура
-   `test_<name>(web: PrettyPlay)` без выхода; `location: test_<name>.py`; `snake_case`; имя
+3. **Body**: только Routine — `methods`/`properties`/Entities — **Critical**; сигнатура —
+   фикстуры-страницы `test_<name>(page_<name>)` (несколько — `test_<name>(entry_page,
+   page_<name>)`) либо `web: PrettyPlay` у рутин без page-объекта, без выхода; каждая фикстура
+   сигнатуры резолвится (page-фикстура — модулем `pages/<…>_page.py`); `location: test_<name>.py`;
+   `snake_case`; имя
    сигнатуры = `location`-стем = имя yaml-ключа — рассинхрон **High**.
 4. **Аннотация**: строгая структура Purpose → `Precondition:` → `Data:` → `Prompt:` → `Steps:` →
    `Use …`, секции разделены пустыми строками, опциональные секции опущены при пустоте — нарушение
@@ -112,10 +116,12 @@ CODEMANIFEST — утверждённый пользователем контр�
    (LLM не найдёт элемент стабильно). Локатор/селектор/testid (CSS, XPath, data-атрибут) в
    предложении вместо видимого имени — **High** (запрет линейки: адресация элементов — видимыми
    именами, локаторы в аннотации не попадают).
-3. **URL полные** и принадлежат Target environment §1 (соответствуют страницам §2) — сокращение
-   или чужой домен **High**.
-4. **Ожидания — отдельные предложения-проверки** (в будущем `web.expect`) и конкретны: дословный
-   текст в кавычках / полный URL / наблюдаемое состояние. «Результаты отображаются корректно» —
+3. **Адресация страниц**: страницы топика — путями относительно Base URL §1 (совпадают со
+   страницами §2); внешняя страница — полный URL чужого origin с пометкой «внешняя». Адресация
+   вне модели Base URL (голый host без схемы, путь не из §2, чужой домен без пометки) — **High**.
+4. **Ожидания — отдельные предложения-проверки** (в будущем `page.expect`) и конкретны: дословный
+   текст в кавычках / адрес (путь относительно Base URL или полный URL) / наблюдаемое состояние.
+   «Результаты отображаются корректно» —
    **High**; ожидание внутри действия («нажать и убедиться») — **High**.
 5. **Секреты** в предложениях/`Data:`/`Prompt:` — **Critical**; вход описан поведенчески
    («Выполнить вход как тестовый пользователь `<роль>`», значения из env/usage-файла) — нарушение
@@ -140,7 +146,9 @@ CODEMANIFEST — утверждённый пользователем контр�
 
 ### Phase 5. Routine Assembly Quality
 
-1. **Precondition**: буллет `` `web` `` присутствует — отсутствие **High**; предусловия
+1. **Precondition**: буллет каждой фикстуры сигнатуры — `` `page_<name>` `` (фикстура-страница,
+   с модулем/назначением) либо `` `web` `` у рутин без page-объекта; фикстура без буллета или
+   буллет фикстуры вне сигнатуры — **High**; предусловия
    поведенческие; закрытая по §4 страница — вход в предусловиях или предложением-группой —
    отсутствие **High**.
 2. **Data:** — только внутренние данные теста (захваты, варианты); конкретные значения шагов
@@ -154,6 +162,11 @@ CODEMANIFEST — утверждённый пользователем контр�
    строка, без секретов) — нематериализуемый буллет **Medium**.
 4. **Use …**: только специфичные для рутины ключи; базовые (`pybuggy-web`, `conventions`) не
    дублируются — дубль **Medium**; каждый ключ подключён в Header ячейки — отсутствие **High**.
+   ``Use `page-<name>` … — метод `<method>`` ` резолвируется полностью: ключ — существующим
+   файлом `.goga/usages/cooks/page-<name>.md`, метод — существующим методом модуля `pages/**`
+   страницы (фантом — **High**); предложение-цель метода обязано быть без параметризации —
+   маркеры `{% var %}` / `{{ … }}` или меняющиеся литералы **High**; метод page-объекта без
+   ссылки из рутин — **Medium** (мёртвый код страницы).
 5. **Purpose** — поведенческое утверждение (что и зачем проверяет), не заголовок-дубликат имени —
    тавтология **Medium**.
 
@@ -220,7 +233,8 @@ updated / unchanged.
 4. Восстановлено ли покрытие по смыслу: каждый REQ §3 ↔ Routine (включая error-REQ), висячие
    рутины выявлены?
 5. Проверено ли качество предложений шагов (одно действие, однозначный адресат видимым именем —
-   без локаторов/селекторов/testid, полные URL,
+   без локаторов/селекторов/testid, адресация страниц топика путями относительно Base URL
+   (внешние — полным URL),
    конкретные отдельные ожидания, секреты, критерий группы, линейность параметризации, захваты)?
 6. Проверена ли сборка рутин (`web`-буллет, auth-предусловия, `Prompt:`-уместность, `Use …`,
    Purpose↔Steps) и ячейки (merge сохранил существующие рутины, коллизии)?

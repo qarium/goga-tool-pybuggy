@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements
-description: Requirements elicitation pipeline for browser UI testing of a topic — the orchestrator interviews the user, explores the live pages via playwright-cli, reconciles the claims with the observations, and stores the artifact at the path printed by `goga history path -f requirements.md`
+description: Requirements elicitation pipeline for browser UI testing of a topic — the orchestrator interviews the user (the site address comes from the config — the site.base_url template; only its render arguments are asked, and only when the template has variables; the target pages as paths relative to the base URL or full URLs), explores the live pages via playwright-cli, reconciles the claims with the observations, and stores the artifact at the path printed by `goga history path -f requirements.md`
 ---
 
 # Pybuggy Web Topic Requirements
@@ -11,7 +11,7 @@ description: Requirements elicitation pipeline for browser UI testing of a topic
 
 ## Mission
 
-Создать артефакт «Детальные требования топика» и сохранить его по пути, напечатанному `goga history path -f requirements.md`. Артефакт фиксирует: точный объём тестирования, страницы топика с их итоговыми URL, функциональные требования (основное поведение и поведение ошибок как контракт), предусловия, авторизацию и факты веб-рантайма.
+Создать артефакт «Детальные требования топика» и сохранить его по пути, напечатанному `goga history path -f requirements.md`. Артефакт фиксирует: точный объём тестирования, base_url тестируемого сайта — дословно из web.yml (значение или Jinja2-шаблон) + аргументы его рендера для прогона, страницы топика (пути относительно base_url, итоговые URL, привязанные page-объекты `page_<name>`/`<Name>Page`), функциональные требования (основное поведение и поведение ошибок как контракт), предусловия, авторизацию и факты веб-рантайма.
 
 ## Pipeline
 
@@ -41,10 +41,21 @@ description: Requirements elicitation pipeline for browser UI testing of a topic
 - WAIT: каждое расхождение между словами пользователя и наблюдением исследования — отдельный вопрос пользователю
 - STOP if: критическая неоднозначность в предусловиях блокирует описание поведения топика
 
-### Step 4. Report
+### Step 4. Pages (WAIT)
+
+- Invoke: `goga-tool-pybuggy-web-automate-requirements-pages`
+- Reads: [INTAKE_REPORT], [EXPLORE_REPORT], [ELABORATION_REPORT]
+- Output: [PAGES_REPORT] + page-объекты `pages/**` (фикстура `page_<name>`, класс `<Name>Page`)
+  по каждой подтверждённой странице — через `goga tool pybuggy page generate`, если ещё не
+  сгенерированы
+- WAIT: согласование имён page-объектов с пользователем
+- STOP if: `site.base_url` не задан; CLI `goga tool pybuggy page generate` недоступен; пользователь
+  не утверждает имена после итераций
+
+### Step 5. Report
 
 - Invoke: `goga-tool-pybuggy-web-automate-requirements-report`
-- Reads: [INTAKE_REPORT], [EXPLORE_REPORT], [ELABORATION_REPORT]
+- Reads: [INTAKE_REPORT], [EXPLORE_REPORT], [ELABORATION_REPORT], [PAGES_REPORT]
 - Output: [TOPIC_SPEC] — сохраняется по пути, напечатанному `goga history path -f requirements.md`
 
 ## Output Rule
@@ -73,6 +84,8 @@ description: Requirements elicitation pipeline for browser UI testing of a topic
 - копировать факты веб-рантайма из `.goga/tools/pybuggy/web.yml` в артефакт дословно — нижестоящие пайплайны и каждая записанная команда прогона (`pytest tests/web/... `) полагаются на них
 - переносить в артефакт детали досье каждой страницы и дословную команду attach — ревью требований опирается на них и при неясных/спорных фактах открывает браузер заново этой командой
 - фиксировать эндпоинт браузера написания тестов (Browser Endpoint: «из конфига» / адрес пользователя) в intake и переносить его в артефакт — он определяет attach исследования и суффикс `--browser-endpoint` команд прогона
-- записывать целевые URL дословно (итоговые, после редиректов) — шаги веб-тестов несут полные URL, смена окружения означает смену предложений шагов
+- брать base_url только из конфига (`site.base_url` web.yml — значение или Jinja2-шаблон, в артефакт дословно; у пользователя base_url не запрашивается) и уточнять при необходимости аргументы его рендера для прогона (env/CLI с значениями окружения топика) — они задают адрес окружения топика и префикс/суффикс аргументов каждой записанной команды прогона
+- адресовать страницы топика путями относительно base_url (`/catalog`); внешние страницы — полными URL с пометкой «внешняя»; итоговые URL (после редиректов) фиксировать дословно — смена окружения теперь смена `site.base_url`, а не адресации страниц
+- привязывать каждую подтверждённую страницу топика к page-объекту (стадия pages: `goga tool pybuggy page generate <path> <name>` — фикстура `page_<name>`, класс `<Name>Page`, модуль `pages/**`; существующий модуль не перезаписывается); внешние страницы (иной origin), query-адреса и корневая страница — литеральная навигация: полный URL в предложении шага
 - хранить финальный артефакт по пути, напечатанному `goga history path -f requirements.md` (каталог истории текущего топика)
 - задавать пользователю открытые вопросы с вариантами ответов

@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-review
-description: Verification of the web test requirements artifact `goga history path -f requirements.md` — requirement quality (checkable browser-observable behavior with a concrete outcome, no vague predicates, no locators/selectors outside §4 auth), internal consistency (environment, auth, roles, pages), realness of web runtime facts and the usage registry against the disk, and targeted live re-verification via the saved exploration command (§1) when a fact is unclear or disputed; no `goga schema` (cells and routines do not exist yet at this stage)
+description: Verification of the web test requirements artifact `goga history path -f requirements.md` — requirement quality (checkable browser-observable behavior with a concrete outcome, no vague predicates, no locators/selectors outside §4 auth), internal consistency (base URL with its render arguments, page paths vs the base URL, page-object bindings vs `pages/**` on disk, auth, roles, pages), realness of web runtime facts and the usage registry against the disk, and targeted live re-verification via the saved exploration command (§1) when a fact is unclear or disputed; no `goga schema` (cells and routines do not exist yet at this stage)
 ---
 # Pybuggy Web Topic Requirements — Review
 
@@ -24,7 +24,8 @@ requirements.md`, — вывод пайплайна `goga-tool-pybuggy-web-autom
 
 **Требования должны действительно требовать.** Каждое `REQ-<N>` — поведение «условие → наблюдаемая
 реакция страницы» с конкретикой, достаточной для будущих шагов-предложений: дословные тексты,
-полные URL, видимые элементы. Расплывчатое ожидание («работает корректно»), ожидание, непроверяемое
+конкретные адреса страниц (путь относительно Base URL или полный URL), видимые элементы. Расплывчатое
+ожидание («работает корректно»), ожидание, непроверяемое
 через браузер, поведение без опоры на факты артефакта — находки. Формат (секции, идентификаторы) —
 фон: его нарушение находкой является, но ревью к нему не сводится.
 
@@ -57,9 +58,10 @@ Upstream-артефакта нет: это голова цепочки топи�
    - `goga-tool-pybuggy-web-cookbook` — что нужно стадии `testcases`: рутины строятся из §2/§3/§4,
      ожидания §3 станут `web.expect`-предложениями.
 3. Собери ground truth с диска (без `goga schema`):
-   - `.goga/tools/pybuggy/web.yml` — активные `provider`, `generation_model`, `browser.endpoint`
-     (если задан) — дословно;
+   - `.goga/tools/pybuggy/web.yml` — активные `provider`, `generation_model`, `site.base_url`
+     (если задан — значение/шаблон дословно), `browser.endpoint` (если задан) — дословно;
    - скан `.goga/usages/` целевого проекта — реестр для сверки §8;
+   - скан `pages/**` — существующие page-объекты (модуль/фикстура/класс) для сверки привязок §2;
    - наличие `tests/web/**` — факт для §9 (пусто — ожидаемо для первого топика, не находка);
    - §2 «детали страниц» и §1 «команда повторного исследования» — записанная фактическая база
      досье: сверка формулировок REQ с деталями §2 идёт по ним; живая перепроверка (фаза 5) — для
@@ -96,7 +98,8 @@ Upstream-артефакта нет: это голова цепочки топи�
 
 **Конкретность** (потребитель — генерация `web.expect` из этих формулировок):
 
-5. Наблюдаемые названы конкретно: тексты реакций дословно (в кавычках), URL полные, элементы по
+5. Наблюдаемые названы конкретно: тексты реакций дословно (в кавычках), адреса страниц конкретны
+   (путь относительно Base URL или полный URL), элементы по
    видимым именам. Слова-паразиты в ожиданиях — «корректно», «правильно», «успешно»,
    «актуальные данные», «в приемлемом виде» — **High**: из такого ожидания не строится
    стабильная проверка. Локаторы/селекторы (CSS, XPath, testid, атрибуты-адресации) вне
@@ -119,28 +122,41 @@ Upstream-артефакта нет: это голова цепочки топи�
 
 ### Phase 4. Consistency and Realness
 
-1. **Окружение**: каждый URL §2 — тот же origin (scheme+host+port), что и §1 Target environment.
-   Чужой домен / смешение окружений — **High** (шаги тестов понесут полные URL одного окружения).
-2. **Полные URL**: без base-шаблонизации и сокращений (`/catalog` без домена) — нарушение **High**.
-3. **Web runtime факты**: §1 и §4 повторяют `provider`, `generation_model` из web.yml **дословно**
+1. **Base URL**: §1/§4 несут `site.base_url` web.yml **дословно** (значение или Jinja2-шаблон;
+   источник — только конфиг, вариант «от пользователя» недопустим) — расхождение или ручной
+   адрес вместо конфига — **High**; шаблон покрыт аргументами рендера:
+   каждая переменная шаблона имеет аргумент (env/CLI) в §1 — переменная без аргумента **High**
+   (неизвестная переменная валит прогон на старте); адрес окружения топика после рендера
+   присутствует — отсутствие **Medium**; CLI-опция-аргумент сопровождается пометкой о
+   регистрации `pytest_addoption` в `conftest.py` — отсутствие **Medium**.
+2. **Окружение**: итоговые URL §2 — тот же origin (scheme+host+port), что и отрендеренный
+   Base URL §1; страницы топика адресованы путями `/…` относительно Base URL. Полный URL
+   чужого домена без пометки «внешняя» / смешение окружений — **High**.
+3. **Адресация страниц**: внутренние страницы — путями относительно Base URL (`/catalog`) либо
+   полными URL того же origin; адресация вне модели Base URL (голый host без схемы,
+   query-относительный адрес внутренней страницы) — **High**.
+4. **Web runtime факты**: §1 и §4 повторяют `provider`, `generation_model` из web.yml **дословно**
    — расхождение **High**.
-4. **Browser endpoint**: «из конфига» ↔ `browser.endpoint` действительно задан в web.yml
+5. **Browser endpoint**: «из конфига» ↔ `browser.endpoint` действительно задан в web.yml
    (несоответствие — **High**); адрес от пользователя — валидная форма `ws(s)://` / `http(s)://`
    (иная — **High**); это адрес **браузера**, не тестируемого сайта (перепутано — **High**: ломает
    суффиксы `--browser-endpoint` записанных команд прогона).
-5. **§1 ↔ §4**: повторяющиеся факты (runtime, endpoint, environment) совпадают дословно —
+6. **§1 ↔ §4**: повторяющиеся факты (runtime, endpoint, base URL, environment) совпадают дословно —
    расхождение **High**.
-6. **Auth**: механизм §4 согласован с описанием закрытых страниц §2/§3; источник креденшалов —
+7. **Auth**: механизм §4 согласован с описанием закрытых страниц §2/§3; источник креденшалов —
    только env-имена или «пользователь»; **значения секретов где-либо в артефакте — Critical**.
-7. **Страницы**: каждая PAGE-<N> задействована в §3/§5 — страница без роли **Medium**; сценарий
-   ссылается на существующую PAGE/URL — фантом **High**.
-8. **§8 ↔ диск**: каждый ключ таблицы соответствует существующему файлу `.goga/usages/**`
+8. **Страницы**: каждая PAGE-<N> задействована в §3/§5 — страница без роли **Medium**; сценарий
+   ссылается на существующую PAGE/адрес — фантом **High**; привязка page-объекта §2 (фикстура
+   `page_<name>`, класс `<Name>Page`, модуль `pages/**`) существует на диске — фантом **High**
+   (простой скан `pages/**`); «литеральная» навигация помечена причиной (внешний origin /
+   query-адрес / корневая страница) — непомеченная **Medium**.
+9. **§8 ↔ диск**: каждый ключ таблицы соответствует существующему файлу `.goga/usages/**`
    (ключ без файла — **High**, висячая ссылка для testcases; несовпадение path — **Medium**);
    файл в `.goga/usages/` вне реестра — **Medium** (неполный реестр); пустой `.goga/usages/` без
    пометки «no usages» — **High**.
-9. **§9**: при пустом `tests/web/**` — явная пометка «no coverage» (без неё — **High**);
-   упомянутые существующие Routine/файлы существуют на диске (простой скан файлов; `goga schema`
-   не запускать) — фантом **High**.
+10. **§9**: при пустом `tests/web/**` — явная пометка «no coverage» (без неё — **High**);
+    упомянутые существующие Routine/файлы существуют на диске (простой скан файлов; `goga schema`
+    не запускать) — фантом **High**.
 
 ### Phase 5. Live Re-verification (по необходимости)
 
@@ -220,9 +236,11 @@ updated / unchanged.
 4. Проверена ли структура (§1–§9, идентификаторы REQ/PAGE, отсутствие кода)?
 5. Проверена ли **проверяемость** каждого REQ (условие → наблюдаемая через браузер реакция,
    измеримые acceptance criteria, error-контракты с конкретикой)?
-6. Проверена ли **конкретность** (дословные тексты, полные URL, отсутствие слов-паразитов и
+6. Проверена ли **конкретность** (дословные тексты, конкретные адреса страниц (путь относительно
+   Base URL / полный URL), отсутствие слов-паразитов и
    локаторов вне §4 Auth) и **обоснованность** (опора на §2/§4/§6, атомарность, роли)?
-7. Проверена ли согласованность (единый origin окружения, §1↔§4, auth, задействованность страниц)
+7. Проверена ли согласованность (Base URL и его аргументы рендера, пути §2 ↔ Base URL, единый
+   origin итоговых URL, §1↔§4, auth, задействованность страниц)
    и реальность (web runtime факты, §8/§9 ↔ диск, секреты)?
 8. Проведена ли живая перепроверка неясных/спорных фактов и замечаний о UI (фаза 5, по команде
    повторного исследования из §1); зафиксированы ли наблюдения как Evidence и обновлены ли

@@ -29,7 +29,9 @@ description: Dispatch wrapper around goga-plan for web testing mode — compiles
    добавить strict;
 4. **ни одна** команда/чекбокс плана не содержит `--strict-mode` — строгий режим на первом прогоне
    означает гарантированный cache-miss без генерации;
-5. план предписывает сохранить кеш шагов (`tests/web/<cell>/cache/test_<name>/`) — не удалять, не чистить,
+5. план предписывает сохранить кеш шагов (`tests/web/<cell>/cache/test_<name>/test_<name>/`,
+   параметризованный кейс — `…/test_<name>[<param_id>]/`; общий кеш страниц
+   `pages/cache/<page>/`) — не удалять, не чистить,
    не гитигнорить; кеш коммитится в репозиторий;
 6. **каждая** Task плана несёт CRITICAL-инструкцию о падающих тестах: если тест падает и failure
    не чинится — оставить тест падающим и перейти к следующей задаче, не блокируя сборку; скип-тесты
@@ -42,7 +44,7 @@ description: Dispatch wrapper around goga-plan for web testing mode — compiles
 ralphex (`task.txt`, STEP 2 VALIDATE): *"Run the test and lint commands specified in the plan"*. ralphex
 запускает тесты **только** когда план явно перечисляет команды `pytest` в `## Validation Commands` и
 даёт исполняемые чекбоксы в Task. Для веб-тестов это критичнее, чем для API: без прогона не только
-нет проверки — **нет самих шагов**: предложения `web.step(...)` превращаются в Playwright-код только
+нет проверки — **нет самих шагов**: предложения (`page.step(...)`/`web.step(...)`) превращаются в Playwright-код только
 при первом прогоне (LLM), и кеш шагов не появляется. Стандартный `goga-plan` нацелен на
 продакшен-код и не закладывает pytest-валидацию в план → тесты записываются, но никогда не
 исполняются и не кешируются. Эта dispatch-обёртка принудительно внедряет pytest (без strict) в план.
@@ -51,17 +53,21 @@ ralphex (`task.txt`, STEP 2 VALIDATE): *"Run the test and lint commands specifie
 
 - **Mode: TESTING.** Deliverable — тестовый код (`test_*.py`), не продакшен-код. CODEMANIFEST
   веб-ячеек — контракт read-only и источник истины.
-- **Runtime:** фикстура `web` (PrettyPlay): `web.step`/`web.expect`/`web.group`, захваты переменных,
+- **Runtime:** фикстуры-страницы `page_<name>` (активация `with page_<name>() as page:`,
+  поверхность `page.step`/`page.expect`/`page.group`), захваты переменных,
   пер-тестовые `@generation_prompt`-декораторы (материализация секции `Prompt:` аннотации),
   кеш рядом с тестом, режимы `--strict-mode`/`--interactive`/`--browser-endpoint`. Загрузи
   `goga-tool-pybuggy-web-usage` и `goga-tool-pybuggy-web-cookbook`.
-- **Шаги-предложения:** один шаг = одно действие; полные URL; ожидания — отдельными `web.expect`;
+- **Шаги-предложения:** один шаг = одно действие; адрес страницы тестируемого сайта — путь
+  относительно base_url (`/catalog`, из §2 требований; полный URL — только внешняя страница);
+  ожидания — отдельными `page.expect`;
   секреты запрещены (вход — «Выполнить вход как тестовый пользователь `<роль>`»).
 - **Линейная параметризация:** варианты одной Routine (объявленные в её `Data:`/`Steps:`) различаются
   только значениями — тело теста линейно, шаги и проверки общие для всех вариантов.
 - **TDM inverted:** отдельного «implementation code» нет — файлы тестов и есть реализация.
 - **Генерация шагов:** первый прогон каждого теста генерирует Playwright-код предложений через LLM
-  и пишет кеш в `tests/web/<cell>/cache/test_<name>/`; кеш коммитится. Первый прогон — без
+  и пишет кеш в `tests/web/<cell>/cache/test_<name>/test_<name>/` (предложения методов
+  страниц — общий кеш `pages/cache/<page>/`); кеш коммитится. Первый прогон — без
   `--strict-mode`; повторные/CI — со `--strict-mode`.
 - **Исполнимая форма адреса Browser endpoint:** адрес из §1 требований вписывай в команды в форме,
   исполнимой в текущем окружении: адрес loopback (`127.0.0.1`/`localhost`) внутри Docker-контейнера
@@ -87,19 +93,22 @@ Arguments: `$ARGUMENTS`
 1. Проверь, что путь, напечатанный `goga history path -f design.md`, существует, как в `goga-plan`;
    отсутствует → stop и попроси пользователя сначала запустить стадию дизайна.
 2. Загрузи контекст через **Skill tool**: `goga-tool-pybuggy-web-usage`, `goga-tool-pybuggy-web-cookbook`,
-   `goga-cell`, `goga-cell-python`. Прочитай целевое окружение топика из пути, напечатанного
-   `goga history path -f requirements.md` (§1/§4) — предложения шагов в задачах несут полные URL
-   записанного окружения.
+   `goga-cell`, `goga-cell-python`. Прочитай Base URL и целевое окружение топика из пути, напечатанного
+   `goga history path -f requirements.md` (§1/§4) — страницы топика в задачах адресуются путями
+   относительно base_url (внешние — полными URL); смена окружения — смена `site.base_url`,
+   не предложений шагов.
 3. Вызови `goga-plan` через **Skill tool**, передав payload режима веб-тестирования (маркерная фраза:
    "Pybuggy web testing mode: compile a plan to GENERATE and RUN browser UI tests from CODEMANIFEST
-   web-cells; deliverable is `test_*.py` using the `web` fixture with step sentences;
+   web-cells; deliverable is `test_*.py` using page-object fixtures (`page_<name>`; the `web`
+   fixture only for routines without a page object) with step sentences;
    `pytest tests/web/ -q` MUST be in Validation Commands and as executable Task checkboxes —
    WITHOUT `--strict-mode` (the first run generates the Playwright steps via the LLM and writes the
    step cache next to the test; the cache is committed); every generating Task carries the browser
    connection line — `--browser-endpoint <address>` in the executable form of the Browser endpoint
    (requirements §1; a 'browser from web.yml config' note when no flag) — and an explicit CRITICAL
    prohibition of `--strict-mode` in the Task text; every generating Task references the Routine
-   `location` from the CODEMANIFEST; one action per step sentence, full URLs only; CRITICAL in EVERY
+   `location` from the CODEMANIFEST; one action per step sentence, site pages addressed as paths
+   relative to the base URL with external pages by full URLs; CRITICAL in EVERY
    Task: on unfixable test failure — abandon the fix, leave the test failing, and proceed to the next
    task; do NOT skip/xfail tests; if the LLM fails to generate a step, keep the sentence and the
    failing test and record the fact — never rewrite or delete step sentences to make generation
@@ -127,11 +136,13 @@ Arguments: `$ARGUMENTS`
    CRITICAL-запрет `--strict-mode`** — отсутствуют, добавь.
 5. Каждая Task, генерирующая `test_*.py`, ссылается на поле `location` из CODEMANIFEST
    соответствующей веб-ячейки.
-6. **Инструкция о кеше** присутствует в плане: каталоги `tests/web/<cell>/cache/test_<name>/` создаются
+6. **Инструкция о кеше** присутствует в плане: каталоги
+   `tests/web/<cell>/cache/test_<name>/test_<name>/` (и общие `pages/cache/<page>/`) создаются
    первым прогоном; не удалять, не чистить, не гитигнорить; после прогона убедиться, что кеш-файлы
    появились. Отсутствует — добавь.
-7. **URL-сверка:** URL в задачах ↔ целевое окружение из `goga history path -f requirements.md`
-   (§1/§2) — полные URL записанного окружения.
+7. **Сверка адресов:** адреса страниц в задачах ↔ §2 требований (пути относительно base_url);
+   Base URL ↔ §1; внешние страницы — полные URL чужого origin с пометкой «внешняя»; команды
+   прогона несут аргументы рендера base_url (env/CLI) из §1, если заданы.
 8. **CRITICAL failing-test policy в каждой Task** (+ веб-дополнение: неудачная генерация шага —
    предложение и падающий тест остаются; предложения не переформулируются ради генерации). Проверь
    отсутствие `pytest.skip`/skip-маркеров/`xfail` где-либо в плане.

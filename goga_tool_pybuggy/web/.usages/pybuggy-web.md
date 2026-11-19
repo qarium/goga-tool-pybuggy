@@ -34,6 +34,32 @@ def test_duckduckgo_search(web):
 - One action per step sentence; name the target and the action in plain language: the target is
   addressed by its visible name (label, text) — never by CSS/XPath selectors or testids.
 
+### Step parameters (keyword-only)
+
+`step` and `expect` (and the page-object proxies `page.step` / `page.expect`) take three
+keyword-only parameters:
+
+- `tries=N` — the total number of executions of the step's code, the first execution included.
+  `None` (default) — the settle mode: on a pollable failure the same code re-executes after
+  `polling_delay` while time remains inside `polling_timeout` (web.yml). The settle window
+  starts at the **first execution**, never at the first failure; the step's internal auto-waits
+  count inside it, and the first execution may consume the whole window (no repetitions follow).
+  Non-pollable failures (locator ambiguity, Python-level errors of the step code) never
+  re-execute — they propagate.
+- `delay=S` — a quiet pause before the step, seconds (non-negative, fractional allowed).
+- `vars={...}` — call-local string inputs of this one step; every value must be a string.
+  A separate namespace from captures: `{{ name }}` reads a captured memory value,
+  `{{ vars.name }}` reads a call input — call inputs never establish memory.
+
+A sentence is always a plain string literal: `{{ … }}` and `{{ vars.… }}` are prettyplay
+markers reaching the engine verbatim, and a Python value enters a sentence only through
+`vars=`:
+
+```python
+page.expect("Ячейка строки {{ driver_id }} показывает {{ vars.expected_telephone }}",
+            vars={"expected_telephone": expected_telephone})
+```
+
 ## Tested-site pages (`BasePage`)
 
 When the suite addresses one site, set its base URL once — the `site.base_url` directive of the
@@ -52,7 +78,6 @@ from goga_tool_pybuggy.web import BasePage
 class LoginPage(BasePage):
     def dismiss_cookie_banner(self) -> None:
         """Dismiss the cookie banner that covers the form on every visit."""
-        self()
         with self.group("Dismiss the cookie banner"):
             self.step("Close the cookie banner")
 
@@ -80,9 +105,9 @@ def test_login_form(page_login):
   opened page under a short local name — the exit closes nothing (the `web` fixture owns the
   runtime lifecycle) and never suppresses.
 - **The step surface is proxied onto the page**: `page.step` / `page.expect` / `page.group` —
-  the same sentences and keyword-only parameters as the runtime's, without the `.web` hop; the
-  runtime stays public for everything else (`page.web.run_on_page`,
-  `page.web.site_base_url`).
+  the same sentences and keyword-only parameters (`tries`/`delay`/`vars`) as the runtime's,
+  without the `.web` hop; the runtime stays public for everything else
+  (`page.web.run_on_page`, `page.web.site_base_url` — the rendered site base of this run).
 - **Encapsulate the page's logic as methods**: closing a cookie banner, a form flow, adding to
   cart — any repeated scenario becomes a method running its steps through the same proxied
   surface (`self.step`, `self()` to re-open). The test reads as domain actions; the sentences
@@ -116,6 +141,15 @@ def test_login_form(page_login):
   the rendered `site.base_url`) and a query-parameter address open through an ordinary step
   sentence carrying the full URL — the steps run through any page fixture the test already
   holds.
+- **The entry-page pattern (auth)**: the site's login flow lives in the entry page object, never
+  in every test. The sanctioned overrides: `url` — return `self.web.site_base_url` verbatim when
+  the page is the site root (the trailing slash is significant); `__call__` — chain pre-navigation
+  work into the activation (`self.server_auth()` setting extra HTTP headers via `run_on_page`
+  from env-cred variables — secrets never reach sentences) and call `super().__call__()`; the
+  app-level login form / city selection — named methods (`app_auth()`, `select_town()`) the test
+  calls after the activation. `step` / `expect` / `group` stay reserved — a subclass never
+  redefines them; anything else (raw Playwright pre-auth, dialog arming) goes through
+  `run_on_page`.
 - Environment switch: change `site.base_url` — not the code — and run once without
   `--strict-mode`: the navigation sentences are composed from the directive at runtime, so their
   cache regenerates; literal URLs kept in sentences (external pages, URL expectations) are
@@ -154,11 +188,15 @@ def test_open_third_video(web):
 - `{% var <name> %}` inside a step sentence captures a value from the page into a variable —
   place the marker inline at the point of the sentence where the value belongs.
 - `{{ <name> }}` in any later sentence — a step or an expectation — interpolates the captured
-  value.
+  value; `{{ vars.<name> }}` interpolates a call-local input of this step (the `vars=` parameter)
+  — a separate namespace: `{{ <name> }}` reads memory, `{{ vars.<name> }}` reads the call inputs,
+  and call inputs never establish memory.
 - Capture only a value the test cannot know at write time — dynamic page data (the title of the
   third video, a generated order number). A value known in advance — a URL, a typed text, an
   expected literal — stays inline in the sentence; capturing it is noise. A captured var lives
   inside its own test only (one session per test, nothing carries between tests).
+- The `{{ … }}` marker is part of the sentence text — sentences are plain string literals, and
+  a Python value rides the `vars=` parameter as `{{ vars.… }}` (see Step parameters).
 - Everything captured — and every step sentence — reaches the LLM provider prompt and the
   repository: **never put secrets in step sentences** (no passwords, tokens, keys, personal data).
 
@@ -191,6 +229,27 @@ def test_checkout(web):
 - `speed` (0–100, between-step pace) and `delay` (entry pause, seconds) optionally pace the
   block.
 - The group prompt follows the same no-secrets rule as step sentences.
+
+## Raw Playwright escape hatch (`run_on_page`)
+
+`web.run_on_page(action)` (or `page.web.run_on_page(action)` from a page object) executes the
+callable wholly inside the driver worker thread with the **genuine sync Playwright `Page`** —
+the stateful actions excluded from generated code (auth headers, dialog handlers, downloads,
+uploads, exact waits) are the author's explicit tools here:
+
+```python
+def test_delete_confirm(page_drivers):
+    with page_drivers() as page:
+        page.web.run_on_page(lambda pw: pw.on("dialog", lambda dialog: dialog.accept()))
+        page.step("Click the Delete button of the first row")
+```
+
+- The callable runs sequentially with every step; whatever it raises propagates to the caller
+  as-is; a call back into the test object from inside is rejected loudly.
+- Returns plain data only — Playwright objects never cross back to the calling thread.
+- Requires an open page: the page opens lazily on the first step — run a step (or activate a
+  page object) first; before that the call fails with the loud "no test page yet" error.
+- The same no-secrets rule: credentials come from env inside the callable, never from sentences.
 
 ## Per-test extra instructions
 
@@ -234,7 +293,10 @@ def test_order_form(web): ...
 - `pytest tests/` — normal runs: a cache miss triggers one LLM generation round, then the step is cached.
 - `pytest tests/ --strict-mode` — replay-only: zero LLM calls; a cache miss fails the test. CI should
   always run web suites with `--strict-mode`.
-- `pytest tests/ --interactive` — interactive step healing on failures.
+- `pytest tests/ --interactive` — interactive step healing on failures: when a step fails on a
+  non-strict run, the steering dialog opens — review the failed code and the page state, steer
+  the regeneration (adjust the instruction, approve or edit the code); the healed code lands in
+  the step cache, and the next runs replay it with no dialog.
 - `pytest tests/ --browser-endpoint ws://grid.example:3000` — run against a remote Playwright
   endpoint for this run only: the flag overrides `browser.endpoint` of the web config, and a typed
   empty string forces the local launch. `ws://`/`wss://` address a Playwright server,
@@ -242,6 +304,21 @@ def test_order_form(web): ...
   pytest configuration.
 
 Both mode flags force the mode on; they never switch off a mode enabled in the web config.
+
+## Terminal failures and verdicts
+
+Every library failure is a structured `PrettyplayError`. The terminal ones a test author meets:
+
+- `ProductDefectError` — the step's expectation is genuinely broken in the product: neither
+  replay nor regeneration helps, the test fails loudly (the triage signal of a service bug).
+- `IncurableStepError` — the step never generated successfully, or the diagnosis verdict says
+  regeneration cannot help.
+- A **recoverable** verdict — a later step failed because an earlier action never actually moved
+  the page to the expected state — regenerates the affected steps forward (group healing on
+  non-strict runs); a diagnosed product defect still fails the test loudly.
+
+In `--strict-mode` nothing regenerates: a cache miss or a failing step fails the test as-is —
+that is exactly what CI replay checks.
 
 ## Step cache
 
@@ -277,7 +354,14 @@ on the next non-strict run (deleting a page-scope file affects every test of tha
 
 When allure-pytest is installed, every step renders as an Allure step (groups as nested steps) and a
 failed step attaches `screenshot.png` to the report; without the package the integration stays
-inactive and the tests run exactly the same. Attachments reach the report only when the run passes
+inactive and the tests run exactly the same.
+
+Author-initiated screenshots: `web.get_screenshot()` returns full-page PNG bytes,
+`web.save_screenshot(filepath)` writes them to a file — the decision to capture belongs to the
+author (nothing is captured automatically outside the failure hooks above); both require an open
+page and fail loudly before the first step.
+
+Attachments reach the report only when the run passes
 `--alluredir` (`pytest tests/web/ -q --alluredir=allure-results --clean-alluredir`, then `allure
 serve allure-results`) — the project convention keeps the flag out of addopts (a CI concern), and
 without it allure-pytest writes no result files: steps and failure screenshots go nowhere silently.
