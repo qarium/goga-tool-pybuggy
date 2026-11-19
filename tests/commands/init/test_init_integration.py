@@ -52,9 +52,10 @@ _EXPECTED_CONFIRMS = [
 
 # Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter
 # (the kind choice keeps its api default, the FROM prompt its newest-python-family default, the
-# amend-moment scalar and git prompts their empty skip defaults).
+# amend-moment scalar and git prompts their empty skip defaults). The language question is never
+# asked — the section is skipped, and the unscripted choice prompt (no default) would fail the
+# scripted TTY outright if it ever returned.
 _PROMPT_ANSWERS = {
-    "Language": "python",
     "Test kind (api — API tests over specs, web — browser UI tests, both)": "api",
     "Built image name": "pybuggy-smoke:latest",
     "Base URL (Jinja2 template, required)": "https://{{ HOST }}/api",
@@ -130,6 +131,8 @@ class TestSessionSmoke:
         captured = capsys.readouterr()
         assert code == 0
         assert [text for text, _answer in tty.confirms] == _EXPECTED_CONFIRMS
+        # The language question is never asked — the section is skipped, python arrives as the amendment.
+        assert "Language" not in {text for text, _default, _returned in tty.prompts}
         assert "created .goga/tools/pybuggy/api.yml (tool: pybuggy)" in captured.out
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
@@ -241,7 +244,6 @@ class TestSessionSmokeWebKind:
                 "Run the web.automate pipeline unattended (autonomous mode)?": False,
             },
             prompts={
-                "Language": "python",
                 "Test kind (api — API tests over specs, web — browser UI tests, both)": "web",
                 "Built image name": "pybuggy-web-smoke:latest",
                 "Generation model (the LLM writing the browser-step code, required)": "glm-5.3",
@@ -265,6 +267,7 @@ class TestSessionSmokeWebKind:
             "Run the browser headless?",
             "Run the web.automate pipeline unattended (autonomous mode)?",
         ]
+        assert "Language" not in {text for text, _default, _returned in tty.prompts}
 
         # The web branch writes only web.yml — the api branch (base_url, specs, its autonomy)
         # never asks; the declined web confirm writes no pipelines entry.
@@ -328,7 +331,6 @@ class TestSessionSmokeWebKind:
                 "Run the web.automate pipeline unattended (autonomous mode)?": True,
             },
             prompts={
-                "Language": "python",
                 "Test kind (api — API tests over specs, web — browser UI tests, both)": "web",
                 "Built image name": "pybuggy-web-smoke:latest",
                 "Generation model (the LLM writing the browser-step code, required)": "glm-5.3",

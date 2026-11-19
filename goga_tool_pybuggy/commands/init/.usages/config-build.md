@@ -21,7 +21,7 @@ Unconditional records of the declarative block (asked by the engine):
 - `base_image` — the FROM of the always-created Dockerfile. The prompt embeds the goga-python family hints of the
   running goga minor line (`qarium/goga-python-3.10` … `qarium/goga-python-3.14`, each tagged with the minor line);
   the newest member is the default. The pybuggy test runtime is pytest, so the python family serves every pybuggy
-  project regardless of the surveyed language.
+  project — the language is fixed `python` (the engine's language question is skipped, never surveyed).
 - `image` — the built-image name. Default `{project}:latest` from the git origin; a required input when no origin
   is configured.
 
@@ -103,6 +103,8 @@ contribution, and the engine commits it. Both tool config files are written by t
   (`web.automate` with `autonomous: true`; absent when the confirm was declined; the web plugin drops the foreign
   section before its validation); the bootstrap adds the commented examples of the remaining
   keys afterwards;
+- the `language: python` amendment — the fixed project language: the engine's language question is skipped, so the
+  amendment is the single source of the `language` field the generated `.goga/config.yml` requires;
 - the `build.review.skip: true` amendment — the tool's declared intent in the session answer space. The engine's
   config mapper does not carry the flag into the generated `.goga/config.yml`; the `pybuggy init` bootstrap
   enforces it afterwards (`ensure_review_skip`). A native `goga init -t pybuggy` session runs no bootstrap and

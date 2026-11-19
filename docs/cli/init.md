@@ -53,7 +53,7 @@ command propagates them without wrapping.
 
 `pybuggy init` and a native `goga init -t pybuggy` run the **same** engine session
 (`goga.onboarding`, goga ≥ 2.0.1) with pybuggy invited: the engine asks the core goga
-questions — the language, the optional codemanifest / build-agent / pipeline sections,
+questions — the optional codemanifest / build-agent / pipeline sections,
 the tools, the usages records — and then the pybuggy block under a heading with the
 tool name. The block is **kind-aware**: its first record asks the test kind — `api`,
 `web`, or `both` (default `api`) — and gates every downstream survey on it. The
@@ -64,8 +64,11 @@ options, the specs, the autonomy confirms; the web branch: the web minimum — s
 [Interactive tool-config survey](#interactive-tool-config-survey) below). The api and
 web question sets never cross.
 
-Two core sections are skipped by pybuggy:
+Three core sections are skipped by pybuggy:
 
+- the **language choice** — the pybuggy test runtime is pytest: the language question
+  never appears, and the fixed `python` lands in `.goga/config.yml` through the session
+  amendments;
 - the **base convention** — the pybuggy session never offers the goga
   base-convention download; the `conventions` slot is the bootstrap's delivery;
 - the **docker image decision** — the engine's "Create Dockerfile?" confirm never
@@ -95,7 +98,8 @@ Through the session pybuggy delivers its tool config files —
 `.goga/tools/pybuggy/api.yml` when the kind is api or both, and
 `.goga/tools/pybuggy/web.yml` when the kind is web or both — and buffers the config
 amendments — the tool's
-declared intent in the session answer space: `build.review.skip: true` (the engine's
+declared intent in the session answer space: the fixed `language: python` (the language
+question is skipped — the amendment is the single source of the field), `build.review.skip: true` (the engine's
 config mapper does not carry that flag into the generated `.goga/config.yml`; the
 bootstrap enforces it afterwards), the Dockerfile pair (the fixed `.goga/Dockerfile`
 path plus the answered FROM — the engine's generator writes the Dockerfile from

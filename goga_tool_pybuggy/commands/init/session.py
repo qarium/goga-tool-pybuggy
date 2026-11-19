@@ -65,8 +65,8 @@ _WEB_AUTONOMY_AXES: tuple[str, ...] = ("web.automate",)
 
 # The goga-python image family in age order — the base-image hints the pybuggy block offers.
 # The pybuggy test runtime is pytest, so the python family serves every pybuggy project
-# regardless of the surveyed language; the runtime minor tag completes each name (the
-# platform's per-language hint table is not part of its public facade — a package constant,
+# (the language is fixed python — never surveyed); the runtime minor tag completes each name
+# (the platform's per-language hint table is not part of its public facade — a package constant,
 # drifting visibly when a new family member ships).
 _BASE_IMAGE_NAMES: tuple[str, ...] = (
     "qarium/goga-python-3.10",
@@ -376,8 +376,10 @@ def _pybuggy_version_axis() -> str:
 def build_config_amendments(answers: dict[str, object]) -> dict[str, object]:
     """Return the tool's declared-intent answer amendments derived from the block answers.
 
-    Fixed entries — ``build.review.skip`` true (consumer enforcement is the bootstrap's
-    ``ensure_review_skip``) and the ``tools`` record pinning pybuggy to the installed
+    Fixed entries — ``language`` python (the pybuggy test runtime is pytest; the language
+    question is skipped, so the amendment records the project language the generator
+    requires), ``build.review.skip`` true (consumer enforcement is the bootstrap's
+    ``ensure_review_skip``), and the ``tools`` record pinning pybuggy to the installed
     major.minor x-range — a quoted string value, e.g. ``"2.0.x"`` (merged over any user-collected
     tools, so pybuggy is always recorded). The
     Dockerfile pair — the fixed path plus the answered base image (the generator writes the
@@ -390,7 +392,7 @@ def build_config_amendments(answers: dict[str, object]) -> dict[str, object]:
         The amendment mapping — path → value pairs the platform merges into the answer
         space before generation.
     """
-    amendments: dict[str, object] = {"build.review.skip": True}
+    amendments: dict[str, object] = {"language": "python", "build.review.skip": True}
 
     base_image = answers.get("base_image")
     if base_image:
@@ -537,7 +539,9 @@ def run_session() -> int:
 def declare_pybuggy_session(context: object) -> None:
     """Declare the pybuggy question block in the session (participation moment one).
 
-    No-op unless invited; the ``convention`` skip keeps the conventions slot for the pybuggy
+    No-op unless invited; the ``language`` skip removes the engine's language choice (the
+    pybuggy test runtime is pytest — the fixed python language arrives through the
+    amendments), the ``convention`` skip keeps the conventions slot for the pybuggy
     test convention, and the ``docker_image`` skip removes the engine's Dockerfile gate —
     the block asks the base image and the built-image name itself, and the Dockerfile is
     always created through the amendments.
@@ -551,6 +555,7 @@ def declare_pybuggy_session(context: object) -> None:
     for item in pybuggy_questions():
         context.declare(item)
 
+    context.skip("language")
     context.skip("convention")
     context.skip("docker_image")
 

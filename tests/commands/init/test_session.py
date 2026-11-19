@@ -793,18 +793,20 @@ class TestBuildConfigData:
 
 
 class TestBuildConfigAmendments:
-    """The declared-intent amendments — review skip, the Dockerfile pair, the pybuggy tools record."""
+    """The declared-intent amendments — the fixed language, review skip, the Dockerfile pair, the tools record."""
 
     @pytest.fixture
     def pinned_version_axis(self, monkeypatch):
         """Pin the installed-version read so the pybuggy tools record is deterministic."""
         monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
 
-    def test_build_config_amendments_carry_all_five_entries(self, pinned_version_axis):
-        """The amendments deliver the review skip, the Dockerfile pair, the image name, and the tools record."""
+    def test_build_config_amendments_carry_all_six_entries(self, pinned_version_axis):
+        """The amendments deliver the fixed language, the review skip, the Dockerfile pair, the image name, and the
+        tools record."""
         amendments = build_config_amendments(dict(_IMAGE_ANSWERS))
 
         assert amendments == {
+            "language": "python",
             "build.review.skip": True,
             "docker_image.dockerfile": ".goga/Dockerfile",
             "docker_image.base_image": "qarium/goga-python-3.13:2.0",
@@ -812,6 +814,7 @@ class TestBuildConfigAmendments:
             "tools": {"pybuggy": "2.0.x"},
         }
         assert list(amendments) == [
+            "language",
             "build.review.skip",
             "docker_image.dockerfile",
             "docker_image.base_image",
@@ -825,6 +828,7 @@ class TestBuildConfigAmendments:
 
         assert "docker_image.dockerfile" not in amendments
         assert "docker_image.base_image" not in amendments
+        assert amendments["language"] == "python"
         assert amendments["docker_image.image"] == "shop-api:latest"
         assert amendments["tools"] == {"pybuggy": "2.0.x"}
 
@@ -839,6 +843,7 @@ class TestBuildConfigAmendments:
         amendments = build_config_amendments({})
 
         assert amendments["tools"] == {"pybuggy": "latest"}
+        assert amendments["language"] == "python"
         assert "docker_image.dockerfile" not in amendments
 
     def test_amendments_merge_pybuggy_into_user_collected_tools(self, pinned_version_axis):
@@ -854,19 +859,20 @@ class TestBuildConfigAmendments:
         snapshot = answers.snapshot()
         assert snapshot["tools"] == {"other": "1.x", "pybuggy": "2.0.x"}
         assert snapshot["build"] == {"review": {"skip": True}}
+        assert snapshot["language"] == "python"
 
 
 class TestDeclarePybuggySession:
     """Participation moment one — the declaration hook against a recorder context."""
 
-    def test_declare_pybuggy_session_declares_block_and_skips_two_sections(self, declaration_recorder):
-        """An invited context receives every block item in survey order and the two section skips."""
+    def test_declare_pybuggy_session_declares_block_and_skips_three_sections(self, declaration_recorder):
+        """An invited context receives every block item in survey order and the three section skips."""
         context = declaration_recorder(invited=True)
 
         declare_pybuggy_session(context)
 
         assert [item.id for item in context.declared] == [item.id for item in pybuggy_questions()]
-        assert context.skips == ["convention", "docker_image"]
+        assert context.skips == ["language", "convention", "docker_image"]
 
 
 class TestAmendPybuggyConfig:

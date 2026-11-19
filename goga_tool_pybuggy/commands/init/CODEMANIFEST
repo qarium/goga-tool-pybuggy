@@ -44,10 +44,11 @@ Annotations: |
 
   Order of actions: resolve the mode, apply the bare guard, run the scaffold engine in template and upgrade modes,
   run the onboarding session, close with the pybuggy bootstrap. The session is engine-owned: the core questions and
-  the pybuggy block are surveyed by the engine, two core sections are skipped (the pybuggy session never offers the
-  goga base-convention download — the `conventions` slot is the bootstrap's delivery; and the engine's Dockerfile
-  gate never appears — a pybuggy project always carries a Dockerfile, the block asks the base image and the
-  built-image name itself, and the amendments deliver the fixed path). The additional specs, the api autonomy
+  the pybuggy block are surveyed by the engine, three core sections are skipped (the language choice never appears —
+  the pybuggy test runtime is pytest, the fixed python language arrives through the amendments; the pybuggy session
+  never offers the goga base-convention download — the `conventions` slot is the bootstrap's delivery; and the
+  engine's Dockerfile gate never appears — a pybuggy project always carries a Dockerfile, the block asks the base
+  image and the built-image name itself, and the amendments deliver the fixed path). The additional specs, the api autonomy
   confirms, the web minimum, and the web autonomy confirm are surveyed by the tool itself at the amendment
   moment — each branch's own survey first, its autonomy confirms after it — a confirm-gated
   repeated group is beyond the declarative engine records. The tool config file and the config amendments are
@@ -270,17 +271,19 @@ Annotations: |
   location: session.py
   annotations: |
     Declaration moment of the participation contract: declare the pybuggy question block on the session context so the
-    engine surveys it after the core questions, under a heading with the tool identity, and skip two core sections —
-    the base convention and the docker image decision.
+    engine surveys it after the core questions, under a heading with the tool identity, and skip three core sections —
+    the language choice, the base convention, and the docker image decision.
 
     `context`: the declaration surface delivered by the platform.
 
     Algorithm:
     1. Return immediately when the session did not invite this tool.
     2. Declare every item of `pybuggy_questions` on the context.
-    3. Skip the core convention section — a pybuggy session never offers the goga base-convention download; the
+    3. Skip the core language section — the pybuggy test runtime is pytest: the language question never appears, and
+       the fixed python language arrives through the `build_config_amendments` amendments.
+    4. Skip the core convention section — a pybuggy session never offers the goga base-convention download; the
        `conventions` slot is delivered by the bootstrap with the packaged pybuggy test convention.
-    4. Skip the core docker_image section — the engine's "Create Dockerfile?" gate never appears: the block asks the
+    5. Skip the core docker_image section — the engine's "Create Dockerfile?" gate never appears: the block asks the
        base image and the built-image name itself, and the amendments always deliver the Dockerfile.
 
     Requirements:
@@ -579,16 +582,21 @@ Annotations: |
     `amendments`: the amendment paths and values, in amend order.
 
     Algorithm:
-    1. Amend build.review.skip to true — the review pass is skipped in pybuggy-initialized projects.
-    2. Amend the Dockerfile pair from the answered image inputs: the fixed .goga/Dockerfile path and the answered
+    1. Amend language to the fixed python — the pybuggy test runtime is pytest; the language question is skipped, so
+       the amendment records the project language the generator requires.
+    2. Amend build.review.skip to true — the review pass is skipped in pybuggy-initialized projects.
+    3. Amend the Dockerfile pair from the answered image inputs: the fixed .goga/Dockerfile path and the answered
        base_image (the generator writes the Dockerfile from exactly this pair); the answered image name lands as
        docker_image.image.
-    3. Amend tools with the pybuggy record pinned to the installed major.minor x-range — a quoted string value
+    4. Amend tools with the pybuggy record pinned to the installed major.minor x-range — a quoted string value
        (e.g. "2.0.x") the engine serializes with quotes so the YAML scalar stays textual — the platform merge folds
        it into any user-collected tools, so pybuggy is always recorded; a metadata-less run records latest.
 
     Requirements:
     - The amendments are path→value pairs the platform merges into the answer space before generation.
+    - The language amendment is unconditional — the skipped language question leaves it the single source of the
+      recorded language; a dropped contribution leaves the missing language to the engine's clean generation error
+      (the session fails) instead of a silently pybuggy-less project.
     - The Dockerfile always exists after a pybuggy session — the pair is delivered whenever the block answered the
       base image (its default guarantees the answer).
     - The build.review.skip amendment is the tool's declared intent in the session answer space: the engine

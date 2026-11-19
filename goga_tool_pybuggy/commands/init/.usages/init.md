@@ -55,8 +55,10 @@ amendment hook right after the engine survey:
 
 The api and web question sets never cross; a `both` session asks both branches in order (api first, web after it).
 
-The session skips two core sections:
+The session skips three core sections:
 
+- the **language choice** — the pybuggy test runtime is pytest: the language question never appears, and the fixed
+  `python` lands in `.goga/config.yml` through the session amendments (see below);
 - the **base convention** — a pybuggy session never offers the goga language-convention download, because the engine
   would land it in `.goga/usages/conventions.md` first and the bootstrap's skip-if-exists gate would keep the wrong
   convention. The `conventions` slot is the bootstrap's delivery and always carries the packaged pybuggy test
@@ -83,6 +85,8 @@ and its tool config files — `.goga/tools/pybuggy/api.yml` when the kind is api
 existing `config.yml` by hand. It also buffers the config amendments — the tool's declared intent in the session
 answer space:
 
+- `language: python` — the fixed project language: the language question is skipped, so the amendment is the single
+  source of the `language` field the generated `.goga/config.yml` requires;
 - `build.review.skip: true` — the engine's config mapper does not carry that flag into the generated
   `.goga/config.yml`; the `pybuggy init` bootstrap enforces it afterwards (`ensure_review_skip`);
 - the Dockerfile pair — the fixed `.goga/Dockerfile` path plus the answered FROM (the engine's generator writes the
