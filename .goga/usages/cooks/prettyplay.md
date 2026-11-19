@@ -77,7 +77,8 @@ non-empty value must be a valid http/https URL. Env override: `PRETTYPLAY_SITE_B
 ```python
 config = PrettyConfig(
     browser=BrowserConfig(name="chrome", headless=False, screen="fullscreen"),
-    strict=strict, interactive=interactive,
+    strict=strict,
+    interactive=interactive,
     provider="anthropic",
     generation_model="glm-5.3",
     generation_attempts=2,

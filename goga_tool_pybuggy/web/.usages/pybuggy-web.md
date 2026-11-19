@@ -61,7 +61,7 @@ class LoginPage(BasePage):
 
 @pytest.fixture(scope="function")
 def page_login(web) -> LoginPage:
-    return LoginPage(web, "/login")   # the address lives here — never in the class
+    return LoginPage(web, "/login")  # the address lives here — never in the class
 ```
 
 ```python
@@ -218,8 +218,7 @@ def test_checkout(web):
 ```python
 @generation_prompt("The country dropdown is a native <select> — use select_option.")
 @generation_prompt("Dates render as DD.MM.YYYY.")
-def test_order_form(web):
-    ...
+def test_order_form(web): ...
 ```
 
 - Validation is early: a non-string, empty, or whitespace-only text raises `ValueError` at

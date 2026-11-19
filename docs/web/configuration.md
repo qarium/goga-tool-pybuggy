@@ -151,7 +151,9 @@ instructions with the `generation_prompt` decorator — imported from the packag
 from goga_tool_pybuggy import generation_prompt
 
 
-@generation_prompt("A cookie banner (#onetrust) covers the page on every navigation — dismiss it before any interaction.")
+@generation_prompt(
+    "A cookie banner (#onetrust) covers the page on every navigation — dismiss it before any interaction."
+)
 def test_checkout(web):
     web.step("Open https://shop.example.com/checkout")
 ```

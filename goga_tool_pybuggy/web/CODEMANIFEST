@@ -156,7 +156,7 @@ Annotations: |
     Use `conventions` for docstrings, type hints, and testing.
     Use `prettyplay` for the generation_prompt semantics and the no-secrets rule.
 
-"BasePage(web: PrettyPlay, path: str = \"\")":
+"BasePage(web: PrettyPlay, path: str)":
   location: pages.py
   annotations: |
     The page-object base of the web test kind: one tested-site page — the web runtime plus a
@@ -185,12 +185,12 @@ Annotations: |
     4. step, expect and group proxy their sentences to the bound runtime verbatim — the page's
        own surface for tests and scenario methods alike, the keyword-only parameters passed
        through unchanged — attaching the page's cache scope (the page module's path under a
-       `cache` segment) exactly
+       cache segment) exactly
        when the proxy call originates from the page's own code: a bound method of this very
        instance, the activation call, or a helper nested inside the page's own source files; an
        inline call from a test attaches no scope and addresses the step under the test's cache
        key (the frame walk never crosses a source file that is neither the page class's nor the
-       base module's, and a foreign `self` — a test-class method — never matches).
+       base module's, and a foreign self — a test-class method — never matches).
     5. The context manager returns the page from enter; the exit is scoping only — it closes
        nothing and never suppresses (a falsy return keeps the block exception propagating).
 
@@ -202,8 +202,8 @@ Annotations: |
     - step, expect and group are reserved names of the page surface — a subclass never
       redefines them.
     - The page's cache scope is derived, never declared — the concrete class's module path
-      (`type(page).__module__`, dots as separators); a subclass in another module is its own
-      vocabulary. The scope rides the runtime's integrator-level `_scope` keyword (see
+      (type(page).__module__, dots as separators); a subclass in another module is its own
+      vocabulary. The scope rides the runtime's integrator-level _scope keyword (see
       `prettyplay`) and is validated there.
     - A missing site.base_url fails loudly at first use (url or the call), never at
       construction — a BasePage over an unset site works as a plain path holder.
@@ -231,13 +231,13 @@ Annotations: |
       The full page URL — the site base URL with this page's path, slashes normalized; raises
       the loud actionable PrettyplayError when the site base URL is unset.
   methods:
-    "step(text: str, tries: int | None, delay: float | None, vars: dict[str, str] | None)": |
+    "step(text: str, tries: int | None = None, delay: float | None = None, vars: dict[str, str] | None = None)": |
       Execute one action step sentence through the bound runtime — the sentence and the
       keyword-only parameters passed through verbatim.
-    "expect(text: str, tries: int | None, delay: float | None, vars: dict[str, str] | None)": |
+    "expect(text: str, tries: int | None = None, delay: float | None = None, vars: dict[str, str] | None = None)": |
       Execute one assertion step sentence through the bound runtime — the same pass-through
       form as the action proxy.
-    "group(prompt: str, speed: int | None, delay: float | None) -> g: StepGroup": |
+    "group(prompt: str, speed: int | None = None, delay: float | None = None) -> g: StepGroup": |
       Open the group authoring block through the bound runtime and yield its group object.
     "__call__() -> page: BasePage": |
       Open this page — one action step sentence carrying the full URL — and return the page

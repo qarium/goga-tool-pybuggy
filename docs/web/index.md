@@ -129,7 +129,7 @@ class LoginPage(BasePage):
 
 @pytest.fixture(scope="function")
 def page_login(web) -> LoginPage:
-    return LoginPage(web, "/login")   # the address lives here — never in the class
+    return LoginPage(web, "/login")  # the address lives here — never in the class
 ```
 
 ```python

@@ -357,7 +357,7 @@ class TestBasePageScopeDetection:
 
         parts = LoginPage.__module__.split(".")
 
-        assert _page_scope(LoginPage) == "/".join(parts[:-1] + ["cache", parts[-1]])
+        assert _page_scope(LoginPage) == "/".join([*parts[:-1], "cache", parts[-1]])
 
     def test_a_subclass_in_another_module_gets_its_own_scope(self):
         """The scope follows the concrete class — a subclass is its own vocabulary."""

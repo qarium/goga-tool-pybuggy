@@ -164,9 +164,7 @@ def test_run_page_generate_trailing_slash_path_collapses(tmp_path: Path, monkeyp
 
 
 @pytest.mark.parametrize("path", ["login", "", "/"])
-def test_run_page_generate_rejects_invalid_path(
-    path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_run_page_generate_rejects_invalid_path(path: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """A path without a leading slash or without a non-empty segment fails and writes nothing."""
     monkeypatch.chdir(tmp_path)
 

@@ -139,7 +139,7 @@ api to the sandbox — a bound test uses the sandbox address.
 The same `plugins.install()` call also installs the pybuggy web plugin: when the test repository
 holds the web config document at `.goga/tools/pybuggy/web.yml`, the plugin provides the `web`
 fixture — a per-test browser runtime for step-sentence tests (each step sentence becomes Playwright
-code once, cached next to the test file and replayed without any LLM involvement). The web plugin
+code once, cached and replayed without any LLM involvement). The web plugin
 validates the document at configphase; an invalid document fails the run before any collection.
 Without the document nothing changes — no fixture exists, and a test requesting it fails with
 pytest's standard "fixture 'web' not found". Run web suites with `--strict-mode` in CI (replay-only,
@@ -147,7 +147,9 @@ zero LLM calls); `--interactive` enables interactive step healing locally; `--br
 runs the suite against a remote Playwright endpoint for that run, overriding `browser.endpoint` of
 the web config (an invalid value fails the run at pytest configuration). Writing web tests means
 authoring step sentences consumed by the `web` fixture (one action per sentence, full URLs); the
-step cache lands next to the test file and is committed to the repository. The tested site's base
+step cache is rooted at the run's rootdir (or the explicit `cache_root` directive) — the per-test
+files under a `cache` segment beside the test module's path, the page-scope shared cache of the
+pages' own methods beside the page modules — and is committed to the repository. The tested site's base
 URL is the `site.base_url` directive of the web config — a Jinja2 template rendered once at pytest
 configuration against the environment plus the typed CLI options (the api `base_url` pattern; the
 rendered value is what the http/https validation judges), carried by the runtime and consumed by

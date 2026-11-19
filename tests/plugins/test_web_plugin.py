@@ -976,7 +976,7 @@ class TestWebPluginWebFixture:
 
         assert runtime is made[0]
         assert made[0].cache_key == "test_a"
-        assert made[0].cache_path == "tests/test_a/test_a"  # the module path relative to the rootdir
+        assert made[0].cache_path == "tests/cache/test_a/test_a"  # module path under the rootdir, cache above the stem
         assert made[0].cleanup is False
         assert made[0].config.cache_root == str(Path("/proj"))  # the rootdir — one shared root
         assert made[0].config.browser.name == "chrome"
@@ -999,7 +999,7 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].cache_key == "test_a[x-1]"
-        assert made[0].cache_path == "tests/test_a/test_a[x-1]"
+        assert made[0].cache_path == "tests/cache/test_a/test_a[x-1]"
 
     def test_web_fixture_carries_the_typed_endpoint(self, monkeypatch: pytest.MonkeyPatch):
         """The typed endpoint flows through the activation into the runtime config unchanged."""
@@ -1094,7 +1094,7 @@ class TestWebPluginWebFixture:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
         """A test module outside the rootdir keeps the legacy address — the module's own
-        directory as the root, the module stem as the path head; never the cwd."""
+        directory as the root, the cache segment above the module stem; never the cwd."""
         monkeypatch.setattr(allure_hooks_module, "allure", None)
         monkeypatch.chdir(tmp_path)
         plugin = _configured_plugin(monkeypatch)
@@ -1105,7 +1105,7 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].config.cache_root == str(Path("/elsewhere/tests").resolve())
-        assert made[0].cache_path == "test_a/test_a"
+        assert made[0].cache_path == "cache/test_a/test_a"
 
     def test_web_fixture_never_reads_the_cwd_for_the_root(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         """The default root is the rootdir of the run — the cwd of the moment never enters it."""
