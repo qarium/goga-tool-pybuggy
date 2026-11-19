@@ -104,7 +104,7 @@ description: Assemble the final "Detailed web topic requirements" artifact and s
 
 […]
 
-Примечание: кеш шагов материализованных тестов живёт в `tests/web/<cell>/test_<name>/` и
+Примечание: кеш шагов материализованных тестов живёт в `tests/web/<cell>/cache/test_<name>/` и
 коммитится в репозиторий. Элементы страниц описываются видимыми именами/текстами — локаторы,
 селекторы и testid в артефакт не попадают (кроме механизма входа §4 Auth).
 

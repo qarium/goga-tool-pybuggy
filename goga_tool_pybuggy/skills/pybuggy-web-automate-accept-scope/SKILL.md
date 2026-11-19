@@ -22,7 +22,7 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 2. `tests/web/<cell>/CODEMANIFEST` — все ячейки топика. Источник истины о составе — CODEMANIFEST
    на диске (фактическое состояние).
 3. Сгенерированные `test_<name>.py` — по `location` каждой Routine.
-4. **Кеши шагов**: `tests/web/<cell>/test_<name>/` на каждый тест (создаются первым, генерирующим
+4. **Кеши шагов**: `tests/web/<cell>/cache/test_<name>/` на каждый тест (создаются первым, генерирующим
    прогоном на `goga build`); зафиксируй наличие/отсутствие и наполненность каждого.
 5. `conftest.py` в корне — проверь наличие (загрузка `.env` + pybuggy-плагин с веб-фикстурой).
 6. Документ `.goga/tools/pybuggy/web.yml` — факт активации веб-рантайма.
@@ -87,7 +87,7 @@ Fill in every section. Empty sections are prohibited.
 
 ## Trace: Routine → test file
 
-[Таблица: Routine test_<name> | tests/web/<cell>/test_<name>.py | кеш test_<name>/ | Статус (materialized / not)]
+[Таблица: Routine test_<name> | tests/web/<cell>/test_<name>.py | кеш cache/test_<name>/ | Статус (materialized / not)]
 
 ## Run command
 
