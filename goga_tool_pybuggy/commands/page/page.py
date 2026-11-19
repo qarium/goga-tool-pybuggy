@@ -40,7 +40,7 @@ def _string_literal(text: str) -> str:
     Returns:
         The literal text — double-quoted when the value carries no double quote; the
         single-quoted ``repr`` form otherwise, so a value with any quote combination stays
-        a valid literal (the path attribute keeps the path verbatim either way).
+        a valid literal (the fixture construction line keeps the path verbatim either way).
     """
     if '"' not in text:
         return f'"{text}"'
@@ -94,7 +94,7 @@ def render_page_module(path: str, class_name: str, fixture_name: str) -> str:
     request models).
 
     Args:
-        path: The tested-site path carried by the class ``path`` attribute, verbatim.
+        path: The tested-site path carried by the fixture construction line, verbatim.
         class_name: The page class name (CamelCase stem plus ``Page``).
         fixture_name: The pytest fixture name (``page_`` prefix plus the stem).
 

@@ -264,8 +264,11 @@ id decodes back to the letters (`имя и отчество` → `имя-и-от
 spaces flatten to dashes. The page's shared cache lives under the same `cache` segment at the
 page module's path (`pages/` + the module's dotted path as directories, `cache` above the
 module's own name) — one entry per sentence shared by every test of the
-page. **Never put an `__init__.py` inside a page's cache directory** — a marked directory would
-shadow the page module and break its import. Cache files are never deleted automatically — the
+page. **Never put an `__init__.py` inside a page's cache directory** — the fixture discovery
+walks `pages/` by `__init__.py` markers and imports every module of a marked directory at
+startup: a marked cache directory feeds the generated step files to that import sweep (they
+are not fixture modules; an import-time failure of any of them fails the whole run). Cache
+files are never deleted automatically — the
 runtime runs in the persistence mode, so a run that fails mid-test keeps the cached steps it
 never reached. Do not edit cache files by hand — delete a step's file to force its regeneration
 on the next non-strict run (deleting a page-scope file affects every test of that page).

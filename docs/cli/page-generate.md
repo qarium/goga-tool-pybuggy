@@ -1,8 +1,8 @@
 # CLI — `goga tool pybuggy page generate`
 
-Scaffolds a page-object module for the web test kind: a `BasePage` subclass carrying its `path`
-attribute plus its function-scoped pytest fixture, under `pages/` of the current working
-directory — the web counterpart of [endpoint generate](generate.md).
+Scaffolds a page-object module for the web test kind: a `BasePage` subclass plus its
+function-scoped pytest fixture binding the page's address at construction, under `pages/` of the
+current working directory — the web counterpart of [endpoint generate](generate.md).
 
 ```bash
 goga tool pybuggy page generate /admin/api/v1/mocks
@@ -32,7 +32,8 @@ Directories come from the path segments minus the last one; the module file is
 `<stem>_page.py` where the stem is the given `name` (whole) or the last path segment. Every
 segment and the name are sanitized to a Python identifier segment (non-word characters become
 `_`, a leading digit is prefixed with `_`) — every directory of the tree is importable and the
-derived names never disagree. The class `path` attribute always carries the verbatim input path.
+derived names never disagree. The generated fixture constructs the class with the verbatim input
+path — never the sanitized segments.
 
 | Invocation | Module file | Fixture | Class |
 |------------|-------------|---------|-------|
@@ -89,7 +90,7 @@ added by hand: a method runs its steps through the proxied surface (`self.step`,
 | path without a non-empty segment (`/`, `//`) | `path carries no non-empty segment: ...` |
 | trailing slash (`/login/`) | empty segments drop — behaves exactly as `/login` |
 | blank name (`"   "`) | `name must not be blank` |
-| non-word characters (`/v1.0/settings`, name `my-page`) | sanitized (`v1_0/`, `MyPagePage`, `page_my_page`); the class `path` attribute keeps the verbatim path |
+| non-word characters (`/v1.0/settings`, name `my-page`) | sanitized (`v1_0/`, `MyPagePage`, `page_my_page`); the fixture construction line keeps the verbatim path |
 | leading digit (name `2fa`) | the underscore survives everywhere: `_2fa_page.py`, `page__2fa`, `_2faPage` |
 | a path containing a quote | the literal renders escaped — the module always compiles |
 

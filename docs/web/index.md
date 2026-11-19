@@ -205,7 +205,8 @@ parameter case — the address carries the node name with its `[<param_id>]` suf
 non-latin id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and unsafe
 characters and spaces flatten to dashes. The page's shared cache lives under the same `cache`
 segment at the page module's path — never
-put an `__init__.py` inside a page's cache directory (it would shadow the page module). Cache
+put an `__init__.py` inside a page's cache directory (the fixture discovery imports every
+module of a marked directory at startup — the generated step files would join that sweep). Cache
 files are never deleted
 automatically — a run that fails mid-test keeps the cached steps it never reached. Do not
 edit cache files by hand — delete a step's file to force its regeneration on the next

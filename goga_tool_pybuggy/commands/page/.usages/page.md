@@ -3,9 +3,9 @@
 ## Subject domain
 
 The cell `goga_tool_pybuggy/commands/page` provides scaffolding for the web test kind: it generates
-a `pages/` page-object module per tested-site path — a `BasePage` subclass carrying its `path`
-attribute plus its function-scoped pytest fixture — and empty `__init__.py` package markers on
-every directory along the module path.
+a `pages/` page-object module per tested-site path — a `BasePage` subclass plus its function-scoped
+pytest fixture binding the page's address at construction — and empty `__init__.py` package markers
+on every directory along the module path.
 Consumers: CLI registration (`page_generate_cmd`) and tests (`run_page_generate` directly; the
 pure renderer `render_page_module` directly for text checks).
 
@@ -51,8 +51,8 @@ Every path segment and the name are sanitized to a Python identifier segment by 
 character outside the word-character class becomes `_`, and a leading digit is prefixed with `_`
 (`/v1.0/settings` → the directory `v1_0`; the name `my-page` → the stem `my_page`). A leading-digit
 stem keeps the underscore through every derived name (the file `_2fa_page.py`, the fixture
-`page__2fa`, the class `_2faPage`). The class `path` attribute always carries the verbatim input
-path — never the sanitized segments.
+`page__2fa`, the class `_2faPage`). The generated fixture constructs the class with the verbatim
+input path — never the sanitized segments.
 
 ## Contents of the page module
 
