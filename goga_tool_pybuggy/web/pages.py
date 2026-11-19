@@ -39,13 +39,13 @@ def _page_scope(page_class: type[BasePage]) -> str:
 
     Returns:
         The module path with the dots of the dotted name as separators and a
-        ``cache`` segment above the module's own name — ``pages.admin.auth_page``
-        becomes ``pages/admin/cache/auth_page``, the subdirectory of the cache
-        root holding the page's shared steps; the ``cache`` parent keeps the
+        ``.cache`` segment above the module's own name — ``pages.admin.auth_page``
+        becomes ``pages/admin/.cache/auth_page``, the subdirectory of the cache
+        root holding the page's shared steps; the ``.cache`` parent keeps the
         generated directories of one module directory under one roof.
     """
     segments = page_class.__module__.split(".")
-    segments.insert(-1, "cache")
+    segments.insert(-1, ".cache")
 
     return "/".join(segments)
 

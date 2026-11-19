@@ -22,9 +22,9 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 2. `tests/web/<cell>/CODEMANIFEST` — все ячейки топика. Источник истины о составе — CODEMANIFEST
    на диске (фактическое состояние).
 3. Сгенерированные `test_<name>.py` — по `location` каждой Routine.
-4. **Кеши шагов**: `tests/web/<cell>/cache/test_<name>/test_<name>/` на каждый тест
+4. **Кеши шагов**: `tests/web/<cell>/.cache/test_<name>/test_<name>/` на каждый тест
    (параметризованный кейс — `…/test_<name>[<param_id>]/`) и общий кеш каждой используемой
-   страницы `pages/cache/<page>/` (создаются первым, генерирующим
+   страницы `pages/.cache/<page>/` (создаются первым, генерирующим
    прогоном на `goga build`); зафиксируй наличие/отсутствие и наполненность каждого.
 5. **Page-объекты**: модули `pages/**` страниц топика (§2 — привязки `page_<name>` / литеральная
    навигация) — наличие модулей и заявленных методов (контракт — usage-файлы
@@ -44,7 +44,7 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 2. Построй трассу Routine → `test_<name>.py`: каждая Routine из CODEMANIFEST обязана иметь
    материализованный тест-файл.
 3. К каждой Routine — статус кеша шагов: каталог существует и не пуст / отсутствует; для страниц,
-   чьи фикстуры/методы использует рутина, — статус общего кеша `pages/cache/<page>/`.
+   чьи фикстуры/методы использует рутина, — статус общего кеша `pages/.cache/<page>/`.
 
 ### Step 3. Determine the run command
 
@@ -97,7 +97,7 @@ Fill in every section. Empty sections are prohibited.
 ## Trace: Routine → test file
 
 [Таблица: Routine test_<name> | tests/web/<cell>/test_<name>.py | кеш
-cache/test_<name>/test_<name>/ | кеш страницы pages/cache/<page>/ | Статус (materialized / not)]
+.cache/test_<name>/test_<name>/ | кеш страницы pages/.cache/<page>/ | Статус (materialized / not)]
 
 ## Run command
 

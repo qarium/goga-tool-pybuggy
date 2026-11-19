@@ -81,7 +81,7 @@ session-time registry of the testcases stage, checked mechanically at assembly a
 with `PAGE-<N>` page identifiers.
 Web specifics: steps carry **full URLs** (no base_url templating); the **first** run of each test — the
 `ralphex-build` stage, via the executable Task checkboxes of the plan — generates the Playwright steps via
-the LLM and writes the step cache (`tests/web/<cell>/test_<name>/`); repeated runs and acceptance replay
+the LLM and writes the step cache (`tests/web/<cell>/.cache/test_<name>/test_<name>/`); repeated runs and acceptance replay
 from the cache with `--strict-mode` (zero LLM calls). Page exploration at the requirements stage goes
 through `playwright-cli`. Requires the web runtime document `.goga/tools/pybuggy/web.yml`
 (`goga tool pybuggy init`, kind web/both).

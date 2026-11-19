@@ -185,7 +185,7 @@ Annotations: |
     4. step, expect and group proxy their sentences to the bound runtime verbatim — the page's
        own surface for tests and scenario methods alike, the keyword-only parameters passed
        through unchanged — attaching the page's cache scope (the page module's path under a
-       cache segment) exactly
+       .cache segment) exactly
        when the proxy call originates from the page's own code: a bound method of this very
        instance, the activation call, or a helper nested inside the page's own source files; an
        inline call from a test attaches no scope and addresses the step under the test's cache

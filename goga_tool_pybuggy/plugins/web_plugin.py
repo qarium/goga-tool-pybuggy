@@ -147,7 +147,7 @@ def web_cache_path(item: pytest.Item, root: Path) -> str:
         pytest's ASCII escape of a non-latin id decoded back, so a parametrized test
         addresses ``<test_name>[<param_id>]`` — one readable directory per parameter
         case. The module-relative head keeps the physical layout of the legacy
-        module-directory root — ``<root>/<module_path…>/cache/<test_name>`` — while the
+        module-directory root — ``<root>/<module_path…>/.cache/<test_name>`` — while the
         root turns shared: the page-scope directories of the pages' own step vocabulary
         live beside it.
 
@@ -156,7 +156,7 @@ def web_cache_path(item: pytest.Item, root: Path) -> str:
             the legacy address with the module's own directory as the root.
     """
     segments = list(item.path.relative_to(root).with_suffix("").parts)
-    segments.insert(-1, "cache")  # the generated directories of one module directory — under one roof
+    segments.insert(-1, ".cache")  # the generated directories of one module directory — under one roof
 
     cls = getattr(item, "cls", None)
     if cls is not None:

@@ -436,15 +436,15 @@ class TestWebCachePath:
             path=Path("/proj/tests/test_mod.py"), name="test_foo[x-1]", originalname="test_foo"
         )
 
-        assert web_cache_path(plain, root) == "tests/cache/test_search/test_duckduckgo_search"
-        assert web_cache_path(grouped, root) == "tests/cache/test_login/TestLogin/test_foo"
-        assert web_cache_path(parametrized, root) == "tests/cache/test_mod/test_foo[x-1]"
+        assert web_cache_path(plain, root) == "tests/.cache/test_search/test_duckduckgo_search"
+        assert web_cache_path(grouped, root) == "tests/.cache/test_login/TestLogin/test_foo"
+        assert web_cache_path(parametrized, root) == "tests/.cache/test_mod/test_foo[x-1]"
 
     def test_web_cache_path_module_directly_under_the_root_keeps_the_legacy_shape(self):
-        """A module right in the root addresses ``cache/<stem>/<name>`` — the legacy module-dir shape."""
+        """A module right in the root addresses ``.cache/<stem>/<name>`` — the legacy module-dir shape."""
         item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo")
 
-        assert web_cache_path(item, Path("/proj/tests")) == "cache/test_mod/test_foo"
+        assert web_cache_path(item, Path("/proj/tests")) == ".cache/test_mod/test_foo"
 
     def test_web_cache_path_of_a_module_outside_the_root_raises(self):
         """A module outside the root is the caller's fallback signal."""
@@ -457,22 +457,22 @@ class TestWebCachePath:
         """Path-unsafe id characters flatten to dashes — the tail stays one directory."""
         item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[a/b\\c:d]")
 
-        assert web_cache_path(item, Path("/proj")) == "tests/cache/test_mod/test_foo[a-b-c-d]"
+        assert web_cache_path(item, Path("/proj")) == "tests/.cache/test_mod/test_foo[a-b-c-d]"
 
     def test_web_cache_path_decodes_the_pytest_ascii_escape(self):
         """A non-latin id restored from pytest's ``\\u`` escape keeps a readable directory."""
         escaped = "test_edit[\\u0438\\u043c\\u044f \\u0438 \\u043e\\u0442\\u0447\\u0435\\u0441\\u0442\\u0432\\u043e]"
         item = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name=escaped)
 
-        assert web_cache_path(item, Path("/proj")) == "tests/cache/test_mod/test_edit[имя-и-отчество]"
+        assert web_cache_path(item, Path("/proj")) == "tests/.cache/test_mod/test_edit[имя-и-отчество]"
 
     def test_web_cache_path_flattens_whitespace_runs_and_keeps_plain_names(self):
         """Space runs flatten to single dashes; an escaping-disabled run keeps the real letters."""
         spaced = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[a  b]")
         native = SimpleNamespace(path=Path("/proj/tests/test_mod.py"), name="test_foo[имя и отчество]")
 
-        assert web_cache_path(spaced, Path("/proj")) == "tests/cache/test_mod/test_foo[a-b]"
-        assert web_cache_path(native, Path("/proj")) == "tests/cache/test_mod/test_foo[имя-и-отчество]"
+        assert web_cache_path(spaced, Path("/proj")) == "tests/.cache/test_mod/test_foo[a-b]"
+        assert web_cache_path(native, Path("/proj")) == "tests/.cache/test_mod/test_foo[имя-и-отчество]"
 
 
 class TestWebPluginOptions:
@@ -976,7 +976,7 @@ class TestWebPluginWebFixture:
 
         assert runtime is made[0]
         assert made[0].cache_key == "test_a"
-        assert made[0].cache_path == "tests/cache/test_a/test_a"  # module path under the rootdir, cache above the stem
+        assert made[0].cache_path == "tests/.cache/test_a/test_a"  # module path under the rootdir, cache above the stem
         assert made[0].cleanup is False
         assert made[0].config.cache_root == str(Path("/proj"))  # the rootdir — one shared root
         assert made[0].config.browser.name == "chrome"
@@ -999,7 +999,7 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].cache_key == "test_a[x-1]"
-        assert made[0].cache_path == "tests/cache/test_a/test_a[x-1]"
+        assert made[0].cache_path == "tests/.cache/test_a/test_a[x-1]"
 
     def test_web_fixture_carries_the_typed_endpoint(self, monkeypatch: pytest.MonkeyPatch):
         """The typed endpoint flows through the activation into the runtime config unchanged."""
@@ -1105,7 +1105,7 @@ class TestWebPluginWebFixture:
         next(generator)
 
         assert made[0].config.cache_root == str(Path("/elsewhere/tests").resolve())
-        assert made[0].cache_path == "cache/test_a/test_a"
+        assert made[0].cache_path == ".cache/test_a/test_a"
 
     def test_web_fixture_never_reads_the_cwd_for_the_root(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         """The default root is the rootdir of the run — the cwd of the moment never enters it."""

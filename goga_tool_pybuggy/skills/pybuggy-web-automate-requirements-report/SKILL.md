@@ -132,8 +132,8 @@ description: Assemble the final "Detailed web topic requirements" artifact (the 
 […]
 
 Примечание: кеш шагов материализованных тестов живёт в
-`tests/web/<cell>/cache/test_<name>/test_<name>/` (параметризованный кейс —
-`…/test_<name>[<param_id>]/`; предложения методов страниц — общий кеш `pages/cache/<page>/`) и
+`tests/web/<cell>/.cache/test_<name>/test_<name>/` (параметризованный кейс —
+`…/test_<name>[<param_id>]/`; предложения методов страниц — общий кеш `pages/.cache/<page>/`) и
 коммитится в репозиторий. Элементы страниц описываются видимыми именами/текстами — локаторы,
 селекторы и testid в артефакт не попадают (кроме механизма входа §4 Auth).
 

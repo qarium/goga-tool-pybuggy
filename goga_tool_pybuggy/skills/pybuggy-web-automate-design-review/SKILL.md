@@ -61,8 +61,8 @@ description: Verify the web test design doc `goga history path -f design.md` —
    имеют) — искажение **High**; предписание иного механизма — **High**.
 5. **Генерация и кеш:** дизайн фиксирует — первый прогон теста генерирует Playwright-код
    предложений через LLM (провайдер/модель из `web.yml`) и пишет кеш в
-   `tests/web/<cell>/cache/test_<name>/test_<name>/` (параметризованный кейс —
-   `…/test_<name>[<param_id>]/`; предложения методов страниц — общий кеш `pages/cache/<page>/`);
+   `tests/web/<cell>/.cache/test_<name>/test_<name>/` (параметризованный кейс —
+   `…/test_<name>[<param_id>]/`; предложения методов страниц — общий кеш `pages/.cache/<page>/`);
    кеш коммитится в репозиторий; первый прогон — **без**
    `--strict-mode`; повторные прогоны и CI — со `--strict-mode`. Отсутствие или искажение —
    **High**; предписание strict на первом прогоне — **Critical** (гарантированный cache-miss без

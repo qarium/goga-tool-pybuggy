@@ -33,7 +33,7 @@ LLM API keys are **never** written to this file — they live only in the enviro
 | `send_structure` | `bool` | `true` | attach the structural element registry (interactive elements with verified unique selectors) to LLM requests — lets the generated code anchor on the markup instead of element text |
 | `generation_approve` | `bool` | `true` | confirm generated code before caching |
 | `probe_timeout` | `float` | `0` | the locator probe timeout, seconds; `0` keeps the page default |
-| `cache_root` | `str` | `""` | the root directory of the step cache; empty selects the run's rootdir — per-test files land in a `cache` subdirectory beside the test module, the pages' shared step cache under a `cache` segment at the page module's path |
+| `cache_root` | `str` | `""` | the root directory of the step cache; empty selects the run's rootdir — per-test files land in a `.cache` subdirectory beside the test module, the pages' shared step cache under a `.cache` segment at the page module's path |
 | `site` | mapping | see below | the nested tested-site settings |
 | `browser` | mapping | see below | the nested browser settings |
 

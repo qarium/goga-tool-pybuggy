@@ -350,14 +350,14 @@ class TestBasePageScopeDetection:
         assert web.groups == [("Блок прямо из теста", None, None, None)]
 
     def test_the_scope_is_the_page_module_path_under_cache(self):
-        """The scope value mirrors the page module's dotted path as directories under ``cache``."""
+        """The scope value mirrors the page module's dotted path as directories under ``.cache``."""
 
         class LoginPage(BasePage):
             pass
 
         parts = LoginPage.__module__.split(".")
 
-        assert _page_scope(LoginPage) == "/".join([*parts[:-1], "cache", parts[-1]])
+        assert _page_scope(LoginPage) == "/".join([*parts[:-1], ".cache", parts[-1]])
 
     def test_a_subclass_in_another_module_gets_its_own_scope(self):
         """The scope follows the concrete class — a subclass is its own vocabulary."""
@@ -365,4 +365,4 @@ class TestBasePageScopeDetection:
             "AuthPage", (BasePage,), {"__module__": "pages_extra.admin.auth_page"}
         )
 
-        assert _page_scope(AuthPage) == "pages_extra/admin/cache/auth_page"
+        assert _page_scope(AuthPage) == "pages_extra/admin/.cache/auth_page"

@@ -327,19 +327,19 @@ address two ways, decided automatically by where the call comes from:
 
 ```
 tests/test_search.py
-tests/cache/test_search/test_duckduckgo_search/   # the per-test cache — inline steps of the test
-pages/cache/login_page/3f2a….py                   # the page's shared cache — method sentences + activation
+tests/.cache/test_search/test_duckduckgo_search/  # the per-test cache — inline steps of the test
+pages/.cache/login_page/3f2a….py                  # the page's shared cache — method sentences + activation
 ```
 
 The cache root is the run's rootdir (or the explicit `cache_root` directive); the per-test
-address is the test module's path under it with a `cache` segment above the module stem,
+address is the test module's path under it with a `.cache` segment above the module stem,
 class-aware: a test inside `class TestLogin` gets
-`tests/cache/test_login/TestLogin/<test_name>`. A parametrized test gets a directory per
+`tests/.cache/test_login/TestLogin/<test_name>`. A parametrized test gets a directory per
 parameter case — the address carries the node name with its `[<param_id>]` suffix
-(`cache/test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII escape of a non-latin
+(`.cache/test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII escape of a non-latin
 id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and unsafe characters and
-spaces flatten to dashes. The page's shared cache lives under the same `cache` segment at the
-page module's path (`pages/` + the module's dotted path as directories, `cache` above the
+spaces flatten to dashes. The page's shared cache lives under the same `.cache` segment at the
+page module's path (`pages/` + the module's dotted path as directories, `.cache` above the
 module's own name) — one entry per sentence shared by every test of the
 page. **Never put an `__init__.py` inside a page's cache directory** — the fixture discovery
 walks `pages/` by `__init__.py` markers and imports every module of a marked directory at

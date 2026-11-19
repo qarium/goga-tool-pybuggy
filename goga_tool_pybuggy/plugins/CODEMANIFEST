@@ -91,8 +91,8 @@ Annotations: |
   FILENAME member of the cell's own `WebConfigKeys`) — with the document the `WebPlugin`
   joins the same installation call and owns the web test kind: the web fixture (a per-test
   prettyplay runtime with the step cache rooted at the run's rootdir — the per-test files in a
-  cache subdirectory beside the test module, the page-scope shared cache of the pages' own
-  methods under a cache segment beside the page modules), the plugin options of every web.yml
+  .cache subdirectory beside the test module, the page-scope shared cache of the pages' own
+  methods under a .cache segment beside the page modules), the plugin options of every web.yml
   directive (the standard pluginator loading) with the --strict-mode, --interactive, and
   --browser-endpoint CLI flags, Allure step reporting, the prettyplay event log formatter, and
   the pybuggy_generation_prompt marker registration (the carrier of the per-test
@@ -566,7 +566,7 @@ Annotations: |
       1. Compute the cache address: the root is the activation cache_root when set, otherwise the
          pytest rootdir of the run (request.config.rootpath — never the cwd); the per-test path is
          the internal web_cache_path of request.node against that root — the test module's path
-         relative to the root with a cache segment above the module stem, plus the class and
+         relative to the root with a .cache segment above the module stem, plus the class and
          the item's names; a test module outside the root
          falls back to the legacy address (the module's own directory as the root, the module stem
          as the path head); the cache key is the item's name — both parametrize-aware, so a
