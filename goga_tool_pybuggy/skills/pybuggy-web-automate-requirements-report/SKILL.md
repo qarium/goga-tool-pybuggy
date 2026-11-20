@@ -18,7 +18,10 @@ description: Assemble the final "Detailed web topic requirements" artifact (the 
    реестр покрытия фазы routines design. Правила:
     - нумеруй последовательно внутри §3, начиная с 1, без пропусков и дублей;
     - порядок нумерации по подразделам: "Main behavior" → "Error behavior (contract)" →
-      "Acceptance criteria" → "Constraints and boundaries";
+      "Acceptance criteria" → "Constraints and boundaries"; подраздел "Error behavior (contract)"
+      опускается целиком, когда негативных фактов нет (решение elaborate/пользователя — негативное
+      покрытие в UI-тестах редкий кейс, его отсутствие — норма), нумерация продолжается по
+      оставшимся подразделам;
     - идентификаторы вводятся только в §3 — §4 (предусловия) и §5 (роли) остаются текстовыми.
 4. Назначь каждой странице §2 стабильный идентификатор `PAGE-<N>` (порядок — как в [EXPLORE_REPORT]);
    на него ссылаются рутины (стартовые адреса) и границы ячеек. Адрес страницы в §2 — путь
@@ -144,7 +147,8 @@ description: Assemble the final "Detailed web topic requirements" artifact (the 
 
 - **Main behavior:**
     - `REQ-1` — [Сценарий/правило: условие → ожидаемое поведение страницы]
-- **Error behavior (contract):**
+- **Error behavior (contract):** [опционально — только наблюдённые/названные пользователем ошибки;
+  негативных фактов нет — подраздел опускается целиком]
     - `REQ-<N>` — [Условие ошибки → ожидаемая реакция: текст валидации / пустое состояние / 404]
 - **Acceptance criteria:**
     - `REQ-<N>` — [Критерий]
