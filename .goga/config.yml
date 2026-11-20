@@ -3,7 +3,7 @@ image: qarium/goga-tool-pybuggy:latest
 dockerfile: .goga/Dockerfile
 
 
-.base-ref: &base-ref 3.0.x
+.base-ref: &base-ref release/3.0.0
 
 .claude-env: &claude-env
   ANTHROPIC_MODEL: opus
@@ -13,20 +13,20 @@ build:
   agent: claude
   env:
     <<: *claude-env
-    ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.1"
+    ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3"
   review:
     agent: claude
     base_ref: *base-ref
     max_iterations: 5
     env:
       <<: *claude-env
-      ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3[1m]"
+      ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3"
 
 pipeline:
   agent: claude
   env:
     <<: *claude-env
-    ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3[1m]"
+    ANTHROPIC_DEFAULT_OPUS_MODEL: "glm-5.3"
 
 topics:
   base_ref: *base-ref
@@ -44,7 +44,7 @@ usages:
   github:
     goga:
       git: git@github.com:qarium/goga.git
-      ref: 2.0.x
+      ref: 2.1.x
       root: goga
 
 codemanifest:

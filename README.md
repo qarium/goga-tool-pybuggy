@@ -9,7 +9,11 @@ suite; **Sandbox** — session-scoped isolated service testing: when
 starts the instance under test plus mocked dependencies (postgresql, kafka, vault, http,
 redis) in containers on first use, wires them into the service env, applies the declared
 goose-format SQL migrations once per session, and lets a test bind its api to the sandbox
-explicitly via `endpoint.bind(sandbox)` (requires a docker-compatible container runtime).
+explicitly via `endpoint.bind(sandbox)` (requires a docker-compatible container runtime);
+**Web** — browser UI tests written as plain step sentences: when
+`.goga/tools/pybuggy/web.yml` is present, the `web` pytest fixture turns each sentence
+(`web.step("Open https://…")`) into Playwright code through an LLM once, caches it next
+to the test, and replays it LLM-free (`--strict-mode` for CI).
 The package contains a pytest plugin and a CLI.
 
 **Documentation**: <https://qarium.github.io/goga-tool-pybuggy/>

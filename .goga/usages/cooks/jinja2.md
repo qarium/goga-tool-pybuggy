@@ -2,7 +2,7 @@
 
 ## Domain
 
-`jinja2` renders the `base_url` of cell `goga_tool_pybuggy/plugin`. The plugin renders the `base_url` template through `jinja2.Environment(undefined=StrictUndefined)` with a registered custom test `match_re`. The Jinja mode gives the consumer conditional logic and regex checks directly in the URL template — with no precomputation of variables in `conftest`.
+`jinja2` renders the `base_url` of cell `goga_tool_pybuggy.plugins`. The plugin renders the `base_url` template through `jinja2.Environment(undefined=StrictUndefined)` with a registered custom test `match_re`. The Jinja mode gives the consumer conditional logic and regex checks directly in the URL template — with no precomputation of variables in `conftest`.
 
 The render runs in the `configure()` lifecycle hook (once, during the pytest configphase); the plugin stores the resulting value back into the `base_url` option.
 
@@ -39,7 +39,7 @@ Jinja2 ships no built-in regex filter/test. pybuggy registers a custom **test**,
 A variable:
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 base_url: "http://{{ env }}.svc.example/api"
 ```
 

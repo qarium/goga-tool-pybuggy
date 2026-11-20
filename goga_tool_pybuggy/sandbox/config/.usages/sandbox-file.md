@@ -248,6 +248,10 @@ Applied in a fixed order after all services are up and before the instance start
 
 ## Preconditions and constraints
 
+- A `loader` top-level section is foreign to the sandbox model — the validator tolerates it and
+  never interprets it. It names external fixture packages/modules (`packages`/`modules`) wired
+  into the run at install time by the pytest plugins; the sandbox model validates
+  `instance`, `services`, and `data` only.
 - An invalid document (unknown kind, unknown service reference, missing or unknown entry key,
   malformed placeholder or declaration, kafka entry without topics, topics on a non-kafka
   entry, migrations on a non-postgresql entry, `password` or `db` on a non-redis entry, redis

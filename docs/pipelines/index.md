@@ -8,11 +8,15 @@ classifies each cause with you, and drives the fixes to a reviewed, passing stat
 When you want existing tests changed on your own request, the third line,
 `PybuggyApiPatch`, carries the change: it collects your intents, analyzes their
 impact, and drives the change to committed, accepted tests.
+For browser UI tests, the `PybuggyWebAutomate` pipeline mirrors the automate
+flow for the web: it explores the live pages, derives the requirements, and
+drives the same chain to committed, accepted UI tests.
 
 ## Launch
 
 ```bash
-goga pipeline pybuggy:api.automate   # create the tests
+goga pipeline pybuggy:api.automate   # create the API tests
+goga pipeline pybuggy:web.automate   # create the web UI tests
 goga pipeline pybuggy:api.fix        # repair them when they break
 goga pipeline pybuggy:api.patch      # change existing tests
 ```
@@ -27,6 +31,10 @@ artifact it produces lives in the topic's history directory
 
 - [The `api.automate` pipeline](api-automate.md) — the stage chain, the artifacts it
   produces, and how the test code gets built.
+- [The `web.automate` pipeline](web-automate.md) — the browser-UI counterpart: live page
+  exploration via playwright-cli, step-sentence tests through the `web` fixture, and the
+  LLM step generation that happens on the first (building) test run; supports unattended
+  runs from the testcase review onward.
 - [The `api.fix` pipeline](api-fix.md) — the repair cycle for failing suites: failure
   collection, cause classification, the fix plan, and the review verdict.
 - [The `api.patch` pipeline](api-patch.md) — the change cycle for existing tests:

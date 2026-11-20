@@ -1,6 +1,5 @@
 Imports:
   - Types:
-      - allow_failure
       - waiting_for
       - date_to_timestamp
       - url_is_valid
@@ -124,6 +123,17 @@ Annotations: |
       `item`: the data-source context.
       `ok`: True when the final result is positive.
 
+"allow_failure(f: Callable) -> wrapped: Callable":
+  location: base.py
+  annotations: |
+    The utils failure-tolerance decorator, re-exported through the matchers facade (bound in base.py,
+    listed in __init__.py __all__). BaseMatcher._matches saves its report under it, so a failing
+    report save never breaks the matcher run. The declaration mirrors the utils contract; see
+    `helpers` for the full decorator behavior.
+
+    `f`: the callable to wrap.
+    `wrapped`: a signature-preserving wrapper that never raises.
+
 "BaseMatcher::RaisedExceptionMatcher(expected_value: tuple[tuple[type[Exception], ...], Exception | None], *, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
   location: error.py
   annotations: |
@@ -246,35 +256,6 @@ Annotations: |
     1. Wrap a scalar expected_value into a single-element list.
     Algorithm (_assert):
     2. Walk the dict descending into each key in order; fail on the first missing key; otherwise pass.
-
-"BaseMatcher::BaseValueMatcher(...args, ...kwargs)":
-  location: value.py
-  annotations: |
-    Internal abstract base for the value matchers. Introduces the any / in_array constructor modifiers and
-    forwards the remaining arguments to BaseMatcher. Not exported through the facade.
-
-    any: short-circuit modifier — pass as soon as one element satisfies the check (allowed with in_array only).
-    in_array: treat the value under test as a collection and assert per element.
-
-    Algorithm:
-    1. Pop any and in_array from the constructor (default False).
-    2. When any is set without in_array, raise ValueError.
-    3. Forward the remaining arguments to BaseMatcher.
-
-    Requirements:
-    - any may be combined with in_array only; any other combination raises ValueError.
-
-    The _assert hook stays abstract — concrete value matchers implement the per-element check.
-
-"BaseValueMatcher::BaseSetValueMatcher(expected_value: Any, ...kwargs)":
-  location: value.py
-  annotations: |
-    Internal abstract base for the set-theory value matchers (subset, intersect, disjoint). Requires `expected_value`
-    to be iterable and re-validates the current value's iterability on each assertion. Not exported through the facade.
-
-    Algorithm:
-    1. Raise ValueError when `expected_value` is not iterable.
-    2. Forward to BaseValueMatcher.
 
 "BaseMatcher::ValueContainsMatcher(expected_value: Any, *, any: bool = False, in_array: bool = False, proofs: int | None = None, timeout: int | None = None, delay: int | float | None = None)":
   location: value.py

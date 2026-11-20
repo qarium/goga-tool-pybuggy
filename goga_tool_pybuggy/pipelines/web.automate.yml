@@ -1,0 +1,88 @@
+name: PybuggyWebAutomate
+description: "Pybuggy web-test automate lifecycle"
+---
+
+- name: create-requirements
+  title: "Create requirements"
+  communication: true
+  prompt: |
+    Constraints:
+      - Don't open pages or explore the site until the user names what to test
+      - The pipeline runs inside Docker. Timing: this applies only at the explore step, when
+        bootstrapping the browser session — after the intake step has recorded the Browser
+        Endpoint answer in [INTAKE_REPORT]; do not attach at stage start. Attach to that address
+        (a ws(s):// address takes --endpoint= instead of --cdp=). Two cases:
+          1) remote address — no rewriting, attach as is:
+            PLAYWRIGHT_MCP_OUTPUT_DIR="$(goga history path 2>/dev/null)/playwright" \
+              playwright-cli -s=pybuggy-explore attach --cdp="<адрес>"
+          2) loopback address (127.0.0.1 / localhost — a browser on the Docker host; same when the
+          address already says host.docker.internal) — rewrite it to reach the host from the
+          container, then attach:
+            ADDR="<адрес>"
+            ADDR="${ADDR//127.0.0.1/host.docker.internal}"
+            ADDR="${ADDR//localhost/host.docker.internal}"
+            IP="$(getent hosts host.docker.internal 2>/dev/null | awk '{print $1; exit}')"
+            ADDR="${ADDR/host.docker.internal/${IP:-host.docker.internal}}"
+            PLAYWRIGHT_MCP_OUTPUT_DIR="$(goga history path 2>/dev/null)/playwright" \
+              playwright-cli -s=pybuggy-explore attach --cdp="$ADDR"
+  skills:
+    - goga-tool-pybuggy-web-automate-requirements
+
+- name: requirements-review
+  title: "Review requirements"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-requirements-review
+
+- name: create-testcases
+  title: "Design and create testcases"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-testcases
+
+- name: testcases-review
+  title: "Review cells CODEMANIFESTs"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-testcases-review
+
+- name: code-design
+  title: "Design test code"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-design
+
+- name: design-review
+  title: "Review test design"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-design-review
+
+- name: coding-plan
+  title: "Create coding plan"
+  communication: true
+  prompt: |
+    Extract rules from the convention and add them to the plan as mandatory rules.
+  skills:
+    - goga-tool-pybuggy-web-automate-plan
+
+- name: plan-review
+  title: "Review coding plan"
+  communication: true
+  skills:
+    - goga-tool-pybuggy-web-automate-plan-review
+
+- name: commit-changes
+  title: "Commit changes"
+  communication: true
+  prompt: |
+    Commit all added and modified files.
+
+- name: accept-result
+  title: "Accept test results"
+  communication: true
+  trigger: manual
+  prompt: |
+    Commit changes after fixes
+  skills:
+    - goga-tool-pybuggy-web-automate-accept

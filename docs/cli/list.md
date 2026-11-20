@@ -70,7 +70,7 @@ endpoint's `diff` verdict by construction.
 
 ## Behavior
 
-- The config is loaded from the fixed path `.goga/tools/pybuggy/config.yml`.
+- The config is loaded from the fixed path `.goga/tools/pybuggy/api.yml`.
 - The command is read-only — it does not modify specs, the config, or artifacts. The artifact tree
   is read only in the status mode; the plain mode touches no artifact file.
 - Removed-side discovery scans the whole `api/<spec>/` tree of each listed spec in every status-mode

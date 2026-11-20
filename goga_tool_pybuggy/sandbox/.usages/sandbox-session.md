@@ -14,9 +14,9 @@ enables pybuggy installs the sandbox plugin — nothing else is enabled:
 
 ```python
 # conftest.py
-from goga_tool_pybuggy import plugin
+from goga_tool_pybuggy import plugins
 
-plugin.install()
+plugins.install()
 ```
 
 With the document present, the product `sandbox` fixture exists; the sandbox starts lazily, on

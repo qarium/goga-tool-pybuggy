@@ -20,39 +20,46 @@ Annotations: |
   key translation.
 
   The cell owns the autonomous-run contribution: when the running pipeline is one of the
-  qualifying identities — pybuggy:api.automate or pybuggy:api.patch (the installer's
-  namespaced forms of the package's pipeline conventions, delivered as PipelineIdentity
-  names) — and autonomy is enabled for its axis in the tool config, it contributes that
-  pipeline's auto-approval window and build stage; every other run stays silent. Autonomy
-  ends at commit-changes — the acceptance stage stays interactive. The windows, axes, and
-  build entries are compile-time constants of the package — one `PipelineContribution`
-  record per qualifying pipeline. Use relative imports inside the cell.
+  qualifying identities — pybuggy:api.automate, pybuggy:api.patch, or pybuggy:web.automate
+  (the installer's namespaced forms of the package's pipeline conventions, delivered as
+  PipelineIdentity names) — and autonomy is enabled for its axis in the tool config, it
+  contributes that pipeline's auto-approval window and build stage; every other run stays
+  silent. Autonomy ends at commit-changes — the acceptance stage stays interactive. The
+  windows, axes, config files, and build entries are compile-time constants of the package —
+  one `PipelineContribution` record per qualifying pipeline. Use relative imports inside the
+  cell.
 
 ---
 
-"PipelineContribution(identity: str, axis: str, window: list[str], build_artifact: str)":
+"PipelineContribution(identity: str, axis: str, config_file: str, window: list[str], build_artifact: str)":
   location: contributions.py
   annotations: |
     Compile-time record of one pipeline's autonomy contribution — the run identity it
-    qualifies, its tool-config axis key, its auto-approval window, and the topic artifact
-    its build stage runs on.
+    qualifies, its tool-config axis key, the config file the axis lives in, its
+    auto-approval window, and the topic artifact its build stage runs on.
 
     `identity`: the qualifying run identity — the installer-namespaced pipeline name the
     platform delivers (e.g. pybuggy:api.patch).
     `axis`: the tool-config pipelines-axis key of the pipeline (e.g. api.patch).
+    `config_file`: the tool-config file the axis lives in — api.yml or web.yml, the kind's
+    own document.
     `window`: the ordered stage names that carry the auto-approval directive.
     `build_artifact`: the topic artifact the build stage builds (e.g. workplan.md).
 
     Requirements:
     - pydantic model with kw_only=True; pure data carrier with no behavior.
-    - The package defines exactly two records — the normative contribution table:
-      1. automate — identity pybuggy:api.automate, axis api.automate, window
-         review-testcases, create-testcases, code-design, design-review, coding-plan,
+    - The package defines exactly three records — the normative contribution table:
+      1. automate — identity pybuggy:api.automate, axis api.automate, config_file api.yml,
+         window review-testcases, create-testcases, code-design, design-review, coding-plan,
          plan-review, commit-changes — build artifact plan.md
-      2. patch — identity pybuggy:api.patch, axis api.patch, window
+      2. patch — identity pybuggy:api.patch, axis api.patch, config_file api.yml, window
          review-impact, apply-manifests, code-design, design-review, coding-plan,
          plan-review, commit-changes — build artifact workplan.md
-    - Both windows end at commit-changes; the build stage positions after the final window
+      3. web automate — identity pybuggy:web.automate, axis web.automate, config_file
+         web.yml, window testcases-review, code-design, design-review, coding-plan,
+         plan-review, commit-changes — build artifact plan.md
+    - The api lines carry their axis in api.yml, the web line in web.yml — never crossed.
+    - Every window ends at commit-changes; the build stage positions after the final window
       stage.
 
     Use `conventions` for the pydantic model rules.
@@ -62,6 +69,8 @@ Annotations: |
       delivers.
     "axis -> str": |
       The pipelines-axis key of the pipeline in the tool config.
+    "config_file -> str": |
+      The tool-config file the axis lives in — api.yml or web.yml.
     "window -> list[str]": |
       The ordered stage names that carry the auto-approval directive.
     "build_artifact -> str": |
@@ -81,7 +90,8 @@ Annotations: |
     2. Resolve the `PipelineContribution` record whose identity equals the discovered
        name among the package's compile-time records; when none matches, return without
        contributing — a silent no-op.
-    3. Resolve autonomy for the record's axis via `resolve_autonomy`.
+    3. Resolve autonomy for the record's axis in the record's config file via
+       `resolve_autonomy`.
     4. When autonomy is disabled, return without contributing — a silent no-op.
     5. When autonomy is enabled, build the contribution via `build_autonomous_workflow`
        over the record and buffer it through `context`.

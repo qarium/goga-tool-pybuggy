@@ -1,13 +1,15 @@
 # Configuration
 
-pybuggy reads a single YAML file — `.goga/tools/pybuggy/config.yml` — from a **fixed
+pybuggy reads a single YAML file — `.goga/tools/pybuggy/api.yml` — from a **fixed
 path** relative to the project root. There is no `--config` option; every command loads
 the config itself. (The sandbox capability reads a separate, fixed-path document —
 `.goga/tools/pybuggy/sandbox.yml` under the pybuggy tools home — described in
 [the sandbox document](sandbox/configuration.md); it is not part of this file. The sandbox service entries carry
 their own vocabulary — `kind`, `image`, `probe`, kafka `topics`, the optional,
 postgresql-only `migrations` block, and the redis `password`/`db` pair — covered there,
-not here.)
+not here. The web test kind likewise reads its own fixed-path document —
+`.goga/tools/pybuggy/web.yml`, described in [the web document](web/configuration.md) —
+and it is not part of this file either.)
 
 The file carries four concerns: the **plugin options** (feed the `api` fixture), the
 **`specs`** section (what the CLI commands operate on), the optional **`loader`**
@@ -41,6 +43,11 @@ default. **`base_url` is the exception** — when you actually type `--base-url`
 wins over the config file and `BASE_URL`. The flag governs the tests that do not bind
 their api to the sandbox; a test that binds (`endpoint.bind(sandbox)`) takes the sandbox
 address and ignores it.
+
+The api plugin activates only when this file exists — a project without it (a web-only
+or sandbox-only project) registers no api plugin and needs no `base_url` at all. When
+the plugin is active and `base_url` resolves from no source, the run fails at
+`pytest_configure` (the required-option error).
 
 ### `base_url` as a Jinja2 template
 
@@ -118,12 +125,15 @@ specs:
 
 ## The `pipelines` section
 
-Optional per-pipeline autonomy switches, keyed by pipeline name:
+Optional per-pipeline autonomy switches, keyed by pipeline name. The axis lives in the
+kind's own document: the api lines (`api.automate`, `api.patch`) in this file, the web
+line (`web.automate`) in [`web.yml`](web/configuration.md):
 
 ```yaml
-pipelines:
-  api.automate:
-    autonomous: true
+# .goga/tools/pybuggy/api.yml          # .goga/tools/pybuggy/web.yml
+pipelines:                             pipelines:
+  api.automate:                          web.automate:
+    autonomous: true                       autonomous: true
 ```
 
 - The dict key (`api.automate`) names the pipeline; each entry carries exactly one
@@ -132,9 +142,13 @@ pipelines:
 - An absent file, an absent `pipelines` section, an absent name, and
   `autonomous: false` all mean **disabled** (the default interactive run).
 - Entries for pipeline names the tool does not implement are ignored.
-- `autonomous: true` makes a running `api.automate` or `api.patch` pipeline run
-  unattended — see [Automate — Autonomous runs](pipelines/api-automate.md#autonomous-runs)
-  and [Patch — Autonomous runs](pipelines/api-patch.md#autonomous-runs).
+- The files never substitute for each other: a `web.automate` entry is read from
+  `web.yml` only, an `api.*` entry from `api.yml` only.
+- `autonomous: true` makes a running `api.automate`, `api.patch`, or `web.automate`
+  pipeline run unattended — see
+  [Automate — Autonomous runs](pipelines/api-automate.md#autonomous-runs),
+  [Patch — Autonomous runs](pipelines/api-patch.md#autonomous-runs), and
+  [web.automate — Автономные прогоны](pipelines/web-automate.md#автономные-прогоны).
 
 ## The `loader` section
 
@@ -150,7 +164,7 @@ loader:
     - my_plugin.conftest
 ```
 
-Details: [Plugin — loaders](plugin/loaders.md).
+Details: [Plugin — loaders](plugins/loaders.md).
 
 ## Loading
 

@@ -119,15 +119,15 @@ reorders the automate or fix lines:
 
 | Artifact               | Status                    |
 |------------------------|---------------------------|
-| `intent.md`            | `pybuggy.patch.intended`  |
-| `impact.md`            | `pybuggy.patch.analyzed`  |
-| `apply.md`             | `pybuggy.patch.applied`   |
-| `rework.md`            | `pybuggy.patch.designed`  |
-| `workplan.md`          | `pybuggy.patch.planned`   |
-| `completed/workplan.md`| `pybuggy.patch.done`      |
+| `intent.md`            | `pybuggy.api.patch.intended`  |
+| `impact.md`            | `pybuggy.api.patch.analyzed`  |
+| `apply.md`             | `pybuggy.api.patch.applied`   |
+| `rework.md`            | `pybuggy.api.patch.designed`  |
+| `workplan.md`          | `pybuggy.api.patch.planned`   |
+| `completed/workplan.md`| `pybuggy.api.patch.done`      |
 
 A topic mid-patch therefore shows one maximal status per line — e.g.
-`[pybuggy.patch.planned] [pybuggy.automate.done]`. Read the scale with
+`[pybuggy.api.patch.planned] [pybuggy.api.automate.done]`. Read the scale with
 `goga history status`; see
 [api.automate — Topic status](api-automate.md#topic-status) for the scale itself.
 
@@ -138,7 +138,7 @@ pipeline through the `pipelines` section of the tool config — set it by hand o
 the `api.patch` autonomy confirm of [`pybuggy init`](../cli/init.md):
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 pipelines:
   api.patch:
     autonomous: true
@@ -160,8 +160,8 @@ Everything outside the window stays with you: the intent-shaping stages
 part of the contribution — it keeps its manual trigger, so accepting the results (the
 full-suite run and the failure triage) remains an interactive step.
 
-The contribution is a silent no-op for every pipeline outside the automate and patch
-lines — the window shape is carried per pipeline record — and for every disabled
+The contribution is a silent no-op for every pipeline outside the automate, patch, and
+web-automate lines — the window shape is carried per pipeline record — and for every disabled
 state: an absent file, an absent
 `pipelines` section, an absent `api.patch` entry, and `autonomous: false` all mean a
 normal interactive run. Autonomy never disables silently on a malformed config: a

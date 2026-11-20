@@ -59,6 +59,7 @@ nav:
   - Pipelines:
       - Overview: pipelines/index.md
       - api.automate: pipelines/api-automate.md
+      - web.automate: pipelines/web-automate.md
       - api.fix: pipelines/api-fix.md
       - api.patch: pipelines/api-patch.md
       - Workflows: pipelines/workflows.md
@@ -69,15 +70,19 @@ nav:
       - goga tool pybuggy endpoint info: cli/info.md
       - goga tool pybuggy endpoint generate: cli/generate.md
       - goga tool pybuggy endpoint diff: cli/diff.md
+      - goga tool pybuggy page generate: cli/page-generate.md
   - Configuration: configuration.md
   - Sandbox:
       - Overview: sandbox/index.md
       - Python API: sandbox/api.md
       - Configuration: sandbox/configuration.md
+  - Web:
+      - Overview: web/index.md
+      - Configuration: web/configuration.md
   - Matchers:
       - Overview & assert_that: matchers/index.md
       - Assertions: matchers/asserts.md
       - Matcher Catalog: matchers/matchers.md
-  - Pytest Plugin:
-      - Enable & Fixtures: plugin/index.md
-      - Loaders: plugin/loaders.md
+  - Pytest Plugins:
+      - Enable & Fixtures: plugins/index.md
+      - Loaders: plugins/loaders.md

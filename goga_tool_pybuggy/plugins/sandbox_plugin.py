@@ -1,0 +1,166 @@
+"""SandboxPlugin entity: the fixture-driven pytest activation of the sandbox."""
+
+import logging
+import typing as t
+
+import pytest
+from pluginator import define
+from yaml import YAMLError
+
+from ..sandbox import Sandbox
+from ..sandbox.config import SandboxConfig, validate_sandbox_config
+from . import defaults
+from .discovery import load_fixture_plugins, loader_section_of
+from .loaders import BaseLoader
+
+logger = logging.getLogger(__name__)
+
+_MARKER_HELP = "pybuggy_services: per-test sandbox data presets (applied by the pybuggy sandbox)"
+
+# The pluginator registration name; the session fixture resolves the plugin instance by it.
+_PLUGIN_NAME = "pybuggy-sandbox"
+
+
+@define.plugin(_PLUGIN_NAME, config=defaults.SANDBOX_CONFIG_FILE)
+class SandboxPlugin:
+    """Pluginator plugin exposing the product-owned ``sandbox`` fixtures.
+
+    The sandbox document is the plugin's config: pluginator reads
+    ``.goga/tools/pybuggy/sandbox.yml`` into ``plugin_config``, and ``configure()`` validates
+    it into the activation — an invalid document fails the run at configphase, before any
+    collection or container. Zero options; the installation entry constructs the plugin only
+    when the document is present. The document's ``loader:`` section — the external
+    packages/modules a project wires in (e.g. a shared presets package with fixtures over
+    ``sandbox``) — feeds the shared fixture discovery at construction (`discovery`), the one
+    install-time step besides the activation.
+
+    Attributes:
+        plugin_config: Anchor declaration; ``BasePlugin`` supplies the parsed document dict.
+        activation: The validated sandbox configuration; set by ``configure``.
+    """
+
+    plugin_config: dict
+
+    def __init__(self, *, context: dict, loaders: list[BaseLoader] | None = None) -> None:
+        """Initialize the plugin and synchronously register the configured fixture plugins.
+
+        The ``loader:`` section of the sandbox document joins the explicit ``loaders`` in the
+        shared discovery; it runs synchronously here — pytest reads ``pytest_plugins`` once the
+        conftest import finishes — and an unparsable document defers to the configure-time gate
+        (no discovery, the run fails at configphase with the clean error).
+
+        Args:
+            context: Namespace dict the plugin installs into; its ``pytest_plugins`` key is
+                populated here.
+            loaders: Explicit loaders in addition to the ``loader:`` section; none by default —
+                the sandbox kind carries no default package.
+        """
+        super().__init__()
+
+        self.activation: SandboxConfig | None = None
+
+        load_fixture_plugins(context, loaders or [], loader_section_of(self))
+
+    def configure(self) -> None:
+        """Register the ``pybuggy_services`` marker and validate the document into the activation.
+
+        Pluginator lifecycle callback at pytest configphase, before collection — registering
+        the marker here keeps applying it in test modules warning-free, and an invalid
+        document fails the run before any container starts.
+
+        Raises:
+            ValueError: The document is unparsable, empty, or invalid; the message names the
+                document location and the offending entry.
+        """
+        self.pytest_config.addinivalue_line("markers", _MARKER_HELP)
+
+        try:
+            document = self.plugin_config
+        except YAMLError as exc:
+            raise ValueError(f"{self.meta.config_file}: unparsable document: {exc}") from exc
+
+        if not document:
+            raise ValueError(
+                f"{self.meta.config_file}: the document is empty — a sandbox document must carry the instance entry"
+            )
+
+        self.activation = validate_sandbox_config(document, self.meta.config_file)
+
+        logger.info(
+            "sandbox plugin armed",
+            extra={"image": self.activation.instance.image, "services": list(self.activation.services)},
+        )
+
+    @pytest.fixture(scope="session")
+    @staticmethod
+    def sandbox(request: pytest.FixtureRequest) -> t.Iterator[Sandbox]:
+        """The session sandbox — started lazily on first use, stopped on finalization.
+
+        A staticmethod on purpose: pytest 9.1 deprecates scoped fixtures defined as
+        instance methods, and under ``filterwarnings = error`` an instance method fails
+        every sandbox test at setup. The owning plugin instance — the one carrying the
+        activation ``configure`` validated — is resolved from the plugin manager by the
+        registration name.
+
+        Args:
+            request: The fixture request of the first test touching the sandbox.
+
+        Yields:
+            The running sandbox — the same object for the whole session.
+
+        Raises:
+            RuntimeError: The plugin instance is not registered — ``install()`` did not run.
+        """
+        plugin = request.config.pluginmanager.get_plugin(_PLUGIN_NAME)
+
+        if not isinstance(plugin, SandboxPlugin):
+            raise RuntimeError(f"the {_PLUGIN_NAME} plugin is not registered — install() did not run")
+
+        sandbox = Sandbox(plugin._require_activation())
+        sandbox.start()
+
+        logger.info("sandbox session started", extra={"base_url": sandbox.base_url})
+
+        yield sandbox
+
+        sandbox.stop()
+
+    @pytest.fixture(autouse=True)
+    def _sandbox_test_batch(self, request: pytest.FixtureRequest) -> None:
+        """Give the next sandbox test a fresh baseline and its marked presets.
+
+        Inert for tests that do not use the sandbox — the fixturenames guard keeps the
+        globally-autouse registration harmless for the rest of the suite.
+
+        Args:
+            request: The fixture request of the test being set up.
+        """
+        if "sandbox" not in request.fixturenames:
+            return
+
+        sandbox = request.getfixturevalue("sandbox")
+
+        sandbox.clear()
+        sandbox.new_test_batch()
+
+        enqueued = 0
+
+        for marker in request.node.iter_markers("pybuggy_services"):
+            enqueued += sandbox.enqueue_presets(marker.kwargs.get("presets", {}))
+
+        logger.debug("presets enqueued", extra={"node": request.node.name, "operations": enqueued})
+
+    def _require_activation(self) -> SandboxConfig:
+        """The validated activation the session fixture starts the sandbox from.
+
+        Returns:
+            The configuration built by ``configure``.
+
+        Raises:
+            RuntimeError: ``configure`` has not run — the fixtures only work on a configured
+                plugin.
+        """
+        if self.activation is None:
+            raise RuntimeError("the sandbox plugin is not configured — configure() did not run")
+
+        return self.activation

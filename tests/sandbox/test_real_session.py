@@ -2,7 +2,7 @@
 
 The unit suites drive the plugin fixtures on hand-rolled request doubles; this module runs
 one real pytest session in a scratch consumer repository instead: a conftest that stubs the
-container seams, installs the plugins through ``plugin.install()``, and a test module mixing a
+container seams, installs the plugins through ``plugins.install()``, and a test module mixing a
 sandbox-free ``api`` test with sandbox tests. The run verifies the integration points only a
 real session exercises — the product ``sandbox`` fixture registered from the plugin (an
 unknown fixture would fail the run), the marker registered pre-collection (an unknown mark
@@ -110,9 +110,9 @@ sandbox_module.ServiceContainer = lambda instance_config: StubService()
 sandbox_module.check_runtime = lambda: record("runtime-check")
 sandbox_module.Network = StubNetwork
 
-from goga_tool_pybuggy import plugin  # noqa: E402
+from goga_tool_pybuggy import plugins  # noqa: E402
 
-plugin.install()
+plugins.install()
 """
 
 TESTS = """\
@@ -228,6 +228,11 @@ def test_installed_plugin_runs_a_real_pytest_session(tmp_path: pathlib.Path):
     document = tmp_path / ".goga" / "tools" / "pybuggy" / "sandbox.yml"
     document.parent.mkdir(parents=True)
     document.write_text(DOCUMENT, encoding="utf-8")
+
+    # The api activation document — keyless: its presence opens the api gate, the value
+    # arrives from the BASE_URL env of the subprocess.
+    api_document = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
+    api_document.write_text("# activation document; base_url arrives from BASE_URL\n", encoding="utf-8")
 
     (tmp_path / "conftest.py").write_text(CONFTEST, encoding="utf-8")
     (tmp_path / "test_sample.py").write_text(TESTS, encoding="utf-8")

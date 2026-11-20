@@ -181,6 +181,16 @@ class TestValidateSandboxConfigLogic:
         ):
             validate_written()
 
+    def test_load_tolerates_the_loader_section(self, sandbox_yaml):
+        """The ``loader:`` fixture-discovery section of the plugins cell passes the top-level
+        gate — read at install time by the sandbox plugin, never by the validator."""
+        sandbox_yaml(
+            "instance:\n  image: my-service:latest\n  port: 8080\n  env: {}\n"
+            "loader:\n  modules:\n    - bank_sandbox_presets\n"
+        )
+
+        assert validate_written().instance.image == "my-service:latest"
+
     def test_load_fails_on_kafka_entry_without_topics(self, sandbox_yaml):
         """Scenario 6: a kafka entry without topics fails at load time — nothing starts."""
         sandbox_yaml(

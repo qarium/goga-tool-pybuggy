@@ -19,8 +19,8 @@ Annotations: |
   Use `asserts` for `Expect`/`AssertField`/`AssertConfig`; `ResponseWrapper` builds an `Expect` lazily from an `AssertConfig`, and the `Endpoint` call routine assembles that `AssertConfig` from its own expected_status and schemas_dir plus the assert-polling / pluggable-class options read off the `Api`.
   Sync-only. `Api` is a composition over resq.Session (not a subclass): auth/headers/cookies live on `Api` and are injected into each request.
   `Api` owns the resq adapter: it builds one cached resq.Session per adapter name (the default adapter uses the composed session) and routes each request to the session matching the effective adapter. Only adapter="requests" (sync) is supported in the sync runtime; adapter="httpx" is async in resq (verbs return coroutines, wrapper is AsyncResponse) and is rejected by the adapter validation. `Endpoint` may carry a per-endpoint adapter override (None falls back to the `Api` default); the override is opt-in via the default.
-  The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expect`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from goga_tool_pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expect` are re-exported from `asserts` for type-hinting; `AssertConfig`, `CombineAuth`/`AuthWrapper` and the search contexts stay internal to the cell.
-  Call-level auth on an `Endpoint` call accepts an AuthBase, an `Auth` protocol object (auth(request)), or a plain callable, and is combined with the stored `Api` auth via `CombineAuth`/`AuthWrapper`.
+  The facade (__init__.py __all__) exposes `Api`, `Endpoint`, `ResponseWrapper`, `Expect`, `AssertField`, `Auth`. Generated fixtures import Api and Endpoint from goga_tool_pybuggy.api — __init__.py must re-export both. `Auth` is exported so consumers can type-check per-call authenticators; `AssertField`/`Expect` are re-exported from `asserts` for type-hinting; `AssertConfig`, the internal auth pair (CombineAuth/AuthWrapper of auth.py), and the search contexts stay off the facade — internal types carry no contract declarations.
+  Call-level auth on an `Endpoint` call accepts an AuthBase, an `Auth` protocol object (auth(request)), or a plain callable, and is combined with the stored `Api` auth through the internal auth pair of auth.py (CombineAuth chains, AuthWrapper adapts a callable) — described in the Endpoint._call algorithm.
 
   Use relative imports inside the cell.
 
@@ -183,7 +183,7 @@ Annotations: |
 
       Algorithm:
       1. Copy kwargs; pop the optional call-level auth and use_autocheck (defaulting to this `Endpoint`'s use_autocheck) out of the copy — never mutate the caller's dict.
-      2. Resolve call-level auth: when given, combine it with the stored api.auth via `CombineAuth`/`AuthWrapper` (an AuthBase is added directly; an `Auth`-protocol object or a plain callable is wrapped); raise on an unsupported auth type. When no call-level auth is given, leave kwargs untouched so the stored api.auth applies.
+      2. Resolve call-level auth: when given, combine it with the stored api.auth through the internal auth pair of auth.py — a CombineAuth chain where an AuthBase is added directly and an `Auth`-protocol object or a plain callable is wrapped in an AuthWrapper; raise on an unsupported auth type. When no call-level auth is given, leave kwargs untouched so the stored api.auth applies.
       3. Inject this `Endpoint`'s adapter (override or None) into the kwargs copy so Api.request routes to the matching cached session (None falls back to the `Api` default).
       4. Issue the request via api.request with the method, url_path, and the remaining kwargs.
       5. Assemble an `AssertConfig` from this `Endpoint`'s expected_status, schemas_dir, and the assert-polling / pluggable-class options read off api (assert_timeout/assert_delay/assert_field_class/assert_response_class).
@@ -223,39 +223,6 @@ Annotations: |
     "__exit__(exc_type: object, exc_val: object, exc_tb: object)": |
       Exit the context without suppression — exceptions propagate; no report is produced.
 
-"CombineAuth()":
-  location: auth.py
-  annotations: |
-    requests AuthBase that chains multiple auths and applies each to the PreparedRequest in registration order. Built by Endpoint._call to merge the stored `Api` auth with a call-level auth.
-
-    Use `conventions` for type hints and relative imports.
-  methods:
-    "add_auth(auth: AuthBase) -> chain: CombineAuth": |
-      Append an auth to the chain.
-
-      `auth`: an AuthBase — a plain requests auth, an `AuthWrapper`, or another `CombineAuth`.
-      `chain`: this `CombineAuth`, for chaining.
-    "__call__(request: PreparedRequest) -> signed: PreparedRequest": |
-      Apply every auth in the chain to the request, in registration order.
-
-      `request`: the PreparedRequest being signed.
-      `signed`: the signed PreparedRequest.
-
-"AuthWrapper(func: Callable[[PreparedRequest], PreparedRequest | None])":
-  location: auth.py
-  annotations: |
-    requests AuthBase adapter that delegates to a plain callable, letting non-AuthBase callables participate in a `CombineAuth` chain. Endpoint._call wraps the bound auth method of an `Auth` protocol object (or a plain callable) in an AuthWrapper before adding it to the chain.
-
-    `func`: a callable taking a PreparedRequest and returning it (or None) — typically the bound auth method of an `Auth` protocol object.
-
-    Use `conventions` for type hints and relative imports.
-  methods:
-    "__call__(request: PreparedRequest) -> signed: PreparedRequest": |
-      Invoke the wrapped callable on the request and return its result.
-
-      `request`: the PreparedRequest being signed.
-      `signed`: the signed PreparedRequest.
-
 "Auth()":
   location: auth.py
   annotations: |
@@ -278,4 +245,4 @@ Annotations: |
 Author: Goga
 CreatedAt: 13/07/26
 Description: |
-  Runtime cell for executing HTTP requests from generated fixtures: Api (composition over resq.Session), callable Endpoint, ResponseWrapper context manager, Expect response-level checks with lazy auto-validation, and CombineAuth/AuthWrapper for call-level combined authentication.
+  Runtime cell for executing HTTP requests from generated fixtures: Api (composition over resq.Session), callable Endpoint, ResponseWrapper context manager, and Expect response-level checks with lazy auto-validation. Call-level combined authentication (CombineAuth/AuthWrapper) is an internal mechanism of auth.py, described in Endpoint._call.

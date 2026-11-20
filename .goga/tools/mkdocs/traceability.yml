@@ -22,7 +22,7 @@ docs/pipelines/workflows.md:
 docs/cli/init.md:
   - goga_tool_pybuggy/commands/init
   - goga_tool_pybuggy/config
-  - goga_tool_pybuggy/plugin
+  - goga_tool_pybuggy/plugins
 docs/cli/pull.md:
   - goga_tool_pybuggy/commands/pull
   - goga_tool_pybuggy/config
@@ -48,15 +48,15 @@ docs/cli/diff.md:
   - goga_tool_pybuggy/output
 docs/configuration.md:
   - goga_tool_pybuggy/config
-  - goga_tool_pybuggy/plugin
+  - goga_tool_pybuggy/plugins
 docs/sandbox/index.md:
   - goga_tool_pybuggy/sandbox
-  - goga_tool_pybuggy/plugin
+  - goga_tool_pybuggy/plugins
   - goga_tool_pybuggy/sandbox/engines
 docs/sandbox/api.md:
   - goga_tool_pybuggy/sandbox
   - goga_tool_pybuggy/sandbox/data
-  - goga_tool_pybuggy/plugin
+  - goga_tool_pybuggy/plugins
   - goga_tool_pybuggy/api
 docs/sandbox/configuration.md:
   - goga_tool_pybuggy/sandbox/config
@@ -69,10 +69,10 @@ docs/matchers/asserts.md:
   - goga_tool_pybuggy/matchcrest
 docs/matchers/matchers.md:
   - goga_tool_pybuggy/matchcrest/matchers
-docs/plugin/index.md:
-  - goga_tool_pybuggy/plugin
+docs/plugins/index.md:
+  - goga_tool_pybuggy/plugins
   - goga_tool_pybuggy/api
   - goga_tool_pybuggy/commands/init
   - goga_tool_pybuggy
-docs/plugin/loaders.md:
-  - goga_tool_pybuggy/plugin/loaders
+docs/plugins/loaders.md:
+  - goga_tool_pybuggy/plugins/loaders

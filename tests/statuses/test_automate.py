@@ -32,10 +32,15 @@ class TestRegisterAutomateStatusesBehavior:
         register_automate_statuses(recorder_context)
 
         assert recorder_context.calls == [
-            ("automate.done", "completed/plan.md", "done", None),
-            ("automate.coding-planned", "plan.md", "planned", "pybuggy.automate.done"),
-            ("automate.code-designed", "design.md", "designed", "pybuggy.automate.coding-planned"),
-            ("automate.arch-prepared", "arch.md", "designed", "pybuggy.automate.code-designed"),
-            ("automate.testcases-designed", "testcases.md", "backlog", "pybuggy.automate.arch-prepared"),
-            ("automate.requirements-created", "requirements.md", "defined", "pybuggy.automate.testcases-designed"),
+            ("api.automate.done", "completed/plan.md", "done", None),
+            ("api.automate.coding-planned", "plan.md", "planned", "pybuggy.api.automate.done"),
+            ("api.automate.code-designed", "design.md", "designed", "pybuggy.api.automate.coding-planned"),
+            ("api.automate.arch-prepared", "arch.md", "designed", "pybuggy.api.automate.code-designed"),
+            ("api.automate.testcases-designed", "testcases.md", "backlog", "pybuggy.api.automate.arch-prepared"),
+            (
+                "api.automate.requirements-created",
+                "requirements.md",
+                "defined",
+                "pybuggy.api.automate.testcases-designed",
+            ),
         ]

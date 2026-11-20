@@ -1,0 +1,72 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+
+Annotations: |
+  Use `conventions` for code writing rules and testing.
+
+  pybuggy post-install lifecycle cell. The goga platform (goga install — single
+  goga install pybuggy, bulk over the project tools, and the --local <path>:pybuggy form)
+  imports the package facade after a successful pip and calls its `install` slot — this
+  cell's `install`. The hook provisions the agent CLI of the web.automate page
+  exploration: the npm package @playwright/cli and its global skills step. Browser
+  binaries are NOT installed here — they stay an image concern (the playwright install
+  step in the Dockerfile).
+
+  npm absent from PATH is a warning skip, not an error — pybuggy also installs into
+  api/sandbox-only environments without node. A present-but-failing command raises, and
+  the platform turns the raise into a failed install (exit 1).
+
+  Use relative imports inside the cell.
+
+---
+
+"install(user: str | None = None)":
+  location: lifecycle.py
+  annotations: |
+    The pybuggy post-install hook: install the @playwright/cli package globally via npm, then
+    run its global skills step so the web.automate exploration skills exist. Called by goga
+    install after a successful pip — not called by users or test suites.
+
+    `user`: the initiating user delivered by the platform (SUDO_USER when the install runs
+    under sudo, else the current OS user); None when invoked by hand without the argument.
+
+    Algorithm:
+    1. Resolve npm on PATH (shutil.which). Absent → one WARNING log (extra: requirement)
+       and a quiet successful return.
+    2. Run [<npm>, "install", "-g", "@playwright/cli"] as the current process user; failure
+       raises RuntimeError carrying npm's stderr.
+    3. Resolve the playwright-cli executable: PATH first; when not on PATH derive it from
+       the npm prefix -g query (<prefix>/bin/playwright-cli, existence-checked) — the npm
+       global bin directory may sit outside the process PATH, and the sudo branch requires
+       an absolute path (sudo resets PATH through secure_path); unresolvable → RuntimeError.
+    4. Compose the skills argv [<cli>, "install", "--skills", "--global"]; when `user` is
+       set AND differs from the current user (getpass.getuser()) wrap it as
+       ["sudo", "-H", "-u", <user>, <cli>, ...] so the global skills land in the
+       initiating user's HOME; otherwise run it directly.
+    5. Run the skills argv; failure raises RuntimeError carrying the stderr.
+
+    Requirements:
+    - The `user` parameter is declared keyword-capable with a default — the platform
+      introspects the signature and injects the initiating user by name; it must never
+      become positional-only or **kwargs (both silently stop the injection).
+    - The npm step always runs as the current process user — never under sudo -u;
+      rights are the caller's responsibility.
+    - Logging only — no print, no logging configuration (see `conventions`).
+    - Exposed on the ROOT facade via __all__ — the platform imports it from the package root.
+
+    Constraints:
+    - npm absent is a skip, never an error; a present-but-failing command is an error,
+      never a skip.
+    - Do not run playwright install — browser binaries belong to the image.
+    - No skip-if-present and no version pinning — npm resolves the package on every run.
+    - POSIX resolution only (<prefix>/bin); Windows is out of scope.
+
+---
+
+Author: Goga
+CreatedAt: 03/11/26
+Description: |
+  pybuggy post-install lifecycle cell — the install(user) hook the goga platform calls from
+  the package facade after a successful pip: installs the @playwright/cli agent CLI globally
+  and runs its global skills step (the page-exploration CLI of the web.automate pipeline).
+  npm absent is a quiet warning skip; a failing command raises.

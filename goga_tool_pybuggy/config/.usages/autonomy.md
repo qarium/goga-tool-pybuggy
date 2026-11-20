@@ -2,17 +2,20 @@
 
 ## Domain
 
-Cell `goga_tool_pybuggy/config` resolves the `pipelines` axis of `.goga/tools/pybuggy/config.yml`: which pipeline names run unattended. Target audience: workflow-amendment consumers that gate their contribution on the autonomy flag.
+Cell `goga_tool_pybuggy/config` resolves the `pipelines` axis of the pybuggy tool configs — `.goga/tools/pybuggy/api.yml` for the api lines, `.goga/tools/pybuggy/web.yml` for the web line: which pipeline names run unattended. Target audience: workflow-amendment consumers that gate their contribution on the autonomy flag.
 
 ## The config axis
 
 ```yaml
-pipelines:
-  api.automate:
-    autonomous: true
+# api.yml                      # web.yml
+pipelines:                     pipelines:
+  api.automate:                  web.automate:
+    autonomous: true               autonomous: true
 ```
 
 - The key axis is per pipeline name; an entry carries exactly one boolean member `autonomous`.
+- The axis lives in the kind's own file — an `api.*` entry is read from `api.yml`, a
+  `web.automate` entry from `web.yml`; the files never substitute for each other.
 - Absent file, absent `pipelines` section, absent name, and `autonomous: false` all mean disabled.
 
 ## Resolve autonomy for the running pipeline
@@ -20,7 +23,8 @@ pipelines:
 ```python
 from goga_tool_pybuggy.config import resolve_autonomy
 
-enabled = resolve_autonomy("api.automate")  # bool
+enabled = resolve_autonomy("api.automate", "api.yml")  # bool
+enabled = resolve_autonomy("web.automate", "web.yml")  # bool
 ```
 
 - The whole axis is validated on every call; a structural violation (a non-mapping file root, a non-mapping `pipelines` or entry, a record not matching the entry shape) raises a clean error naming pybuggy — call it from the amendment moment so the failure surfaces as the platform's clean stop.
