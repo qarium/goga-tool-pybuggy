@@ -3,10 +3,16 @@ docs/index.md:
 docs/getting-started.md:
   - goga_tool_pybuggy
   - goga_tool_pybuggy/commands/init
+  - goga_tool_pybuggy/lifecycle
 docs/pipelines/index.md:
   - goga_tool_pybuggy
 docs/pipelines/api-automate.md:
   - goga_tool_pybuggy
+  - goga_tool_pybuggy/autonomous
+  - goga_tool_pybuggy/statuses
+docs/pipelines/web-automate.md:
+  - goga_tool_pybuggy
+  - goga_tool_pybuggy/web
   - goga_tool_pybuggy/autonomous
   - goga_tool_pybuggy/statuses
 docs/pipelines/api-patch.md:
@@ -46,6 +52,10 @@ docs/cli/diff.md:
   - goga_tool_pybuggy/config
   - goga_tool_pybuggy/spec
   - goga_tool_pybuggy/output
+docs/cli/page-generate.md:
+  - goga_tool_pybuggy/commands/page
+  - goga_tool_pybuggy/web
+  - goga_tool_pybuggy/plugins
 docs/configuration.md:
   - goga_tool_pybuggy/config
   - goga_tool_pybuggy/plugins
@@ -62,6 +72,15 @@ docs/sandbox/configuration.md:
   - goga_tool_pybuggy/sandbox/config
   - goga_tool_pybuggy/sandbox/migrations
   - goga_tool_pybuggy/sandbox/engines
+docs/web/index.md:
+  - goga_tool_pybuggy/web
+  - goga_tool_pybuggy/plugins
+docs/web/steps.md:
+  - goga_tool_pybuggy/web
+  - goga_tool_pybuggy/plugins
+docs/web/configuration.md:
+  - goga_tool_pybuggy/web
+  - goga_tool_pybuggy/config
 docs/matchers/index.md:
   - goga_tool_pybuggy/matchcrest
 docs/matchers/asserts.md:
@@ -69,6 +88,7 @@ docs/matchers/asserts.md:
   - goga_tool_pybuggy/matchcrest
 docs/matchers/matchers.md:
   - goga_tool_pybuggy/matchcrest/matchers
+  - goga_tool_pybuggy/matchcrest/utils
 docs/plugins/index.md:
   - goga_tool_pybuggy/plugins
   - goga_tool_pybuggy/api
@@ -76,3 +96,4 @@ docs/plugins/index.md:
   - goga_tool_pybuggy
 docs/plugins/loaders.md:
   - goga_tool_pybuggy/plugins/loaders
+  - goga_tool_pybuggy/plugins

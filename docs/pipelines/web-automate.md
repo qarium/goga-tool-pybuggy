@@ -1,175 +1,187 @@
-# Цикл `web.automate`
+# The `web.automate` lifecycle
 
-> Черновик (русский); будет переведён.
+The `PybuggyWebAutomate` pipeline automates browser UI-test creation end to end: from the
+user interview and live page exploration to materialized, generated, and accepted tests.
+Each stage is a goga skill; the stages exchange only topic artifacts (a clean context per
+stage). The durable traceability chain is `Routine` → `test_*.py`: CODEMANIFESTs carry no
+REQ identifiers — requirement coverage is checked by the testcases stage's session registry
+(a mechanical reconciliation against §3 at assembly). Page identifiers `PAGE-<N>` link
+requirements and cells.
 
-Пайплайн `PybuggyWebAutomate` — сквозная автоматизация браузерных UI-тестов: от интервью с
-пользователем и исследования живых страниц до материализованных, сгенерированных и принятых тестов.
-Каждая стадия — скилл goga; стадии обмениваются только артефактами топика (чистый контекст на
-стадию). Долговечная цепочка трассируемости — `Routine` → `test_*.py`: CODEMANIFEST не несут
-REQ-идентификаторов, покрытие требований проверяется сессионным реестром стейджа testcases
-(механическая сверка против §3 при сборке). Идентификаторы страниц `PAGE-<N>` связывают требования
-и ячейки.
-
-Тесты пишутся «предложениями шагов» через фикстуру `web` (см. [Web / Overview](../web/index.md)):
-первый прогон превращает каждое предложение в Playwright-код с помощью LLM и кеширует его рядом
-с тестом; кеш коммитится в репозиторий, и повторные прогоны идут без LLM.
+Tests are written as **step sentences** through the `web` fixture (see
+[Web / Overview](../web/index.md)): the first run turns every sentence into Playwright code
+with an LLM and caches it next to the test; the cache is committed to the repository, and
+every later run replays it with no LLM.
 
 ```bash
 goga pipeline pybuggy:web.automate
 ```
 
-## Стадии
+## Stages
 
-| # | Стадия | Назначение | Артефакт |
-|---|--------|------------|----------|
-| 1 | create-requirements | Интервью (что тестируем, какие страницы), исследование страниц через playwright-cli, сверка расхождений, сбор требований | `requirements.md` |
-| 2 | requirements-review | Ревью требований (заглушка — будет наполнено) | — |
-| 3 | create-testcases | Мега-стейдж: рутины (тест-кейс = Routine, аппрув каждой пользователем) → раскладка по клеткам → сборка и материализация CODEMANIFEST | `tests/web/<cell>/CODEMANIFEST` |
-| 4 | testcases-review | Ревью материализованных CODEMANIFEST (заглушка) | — |
-| 5 | code-design | Дизайн-документ материализации веб-тестов (обёртка `goga-design`) | `design.md` |
-| 6 | design-review | Ревью дизайна (заглушка) | — |
-| 7 | coding-plan | ralphex-план: в каждой задаче — исполняемый чекбокс запуска теста **без** `--strict-mode` | `plan.md` |
-| 8 | plan-review | Ревью плана (заглушка) | — |
-| 9 | commit-changes | Коммит тестов и кешей шагов | git-коммит |
-| 10 | accept-result | Приёмка: консистентность цепочки, строгий прогон, триаж падений, баги | `bugs.md` + [ACCEPT_REPORT] |
+| #  | Stage                  | Purpose                                                                                                       | Artifact                       |
+|----|------------------------|---------------------------------------------------------------------------------------------------------------|--------------------------------|
+| 1  | `create-requirements`  | Interview (what to test, which pages), page exploration via playwright-cli, discrepancy reconciliation, requirements assembly | `requirements.md`             |
+| 2  | `requirements-review`  | Requirements review: quality and consistency of requirements, realness of runtime facts and the usage registry, targeted live re-verification | —                              |
+| 3  | `create-testcases`     | Mega-stage: routines (a test case = a Routine, each approved by the user) → cell distribution → CODEMANIFEST assembly and materialization | `tests/web/<cell>/CODEMANIFEST` |
+| 4  | `testcases-review`     | Review of the materialized CODEMANIFESTs: semantic REQ coverage, step-sentence quality, DSL structure — fixes applied with user approval | —                              |
+| 5  | `code-design`          | Design document of web-test materialization (a `goga-design` wrapper)                                          | `design.md`                    |
+| 6  | `design-review`        | Design review extended with web-specific checks (step-sentence mechanics, generating first run, committed cache) | —                              |
+| 7  | `coding-plan`          | ralphex plan: every task carries an executable checkbox that runs the test **without** `--strict-mode`          | `plan.md`                      |
+| 8  | `plan-review`          | Plan review: guarantees the generating run stays non-strict, the browser connection line, the cache-preservation policy | —                              |
+| 9  | `commit-changes`       | Commit the tests and step caches                                                                               | git commit                     |
+| 10 | `accept-result`        | Acceptance: chain consistency, strict run, failure triage, bugs                                                | `bugs.md` + [ACCEPT_REPORT]    |
 
-Полный поток: **requirements → testcases (рутины → клетки → материализация) → design → plan →
-ralphex build → accept**.
+The full flow: **requirements → testcases (routines → cells → materialization) → design →
+plan → ralphex build → accept**.
 
-> **Сборка тестов:** стадии дизайна производят только документы. После `plan-review`
-> тестовый код собирается командой `goga build <путь-к-plan.md>` — [goga](https://github.com/qarium/goga)
-> исполняет ralphex-план: по задачам пишет каждый `test_*.py` и прогоняет чекбоксы задач —
-> **первый, генерирующий прогон** (Playwright-шаги создаёт LLM, кеш пишется рядом с тестом).
-> Отдельной стадии build в пайплайне нет: команда запускается вручную — или добавляется
-> автоматически в автономном режиме (см. [Автономные прогоны](#автономные-прогоны)).
+> **Building the tests:** the design stages produce documents only. After `plan-review`
+> approves the plan, the test code is built with `goga build <path-to-plan.md>` —
+> [goga](https://github.com/qarium/goga) executes the ralphex plan: it writes each
+> `test_*.py` from the plan's Tasks and runs the task checkboxes — the **first, generating
+> run** (the LLM writes the Playwright steps, the cache lands next to the test). There is
+> no separate build stage in the pipeline: the command runs by hand — or is added
+> automatically on [autonomous runs](#autonomous-runs).
 
-## Мега-стейдж testcases
+## The testcases mega-stage
 
-Пять шагов одной сессии, все промежуточные результаты — в контексте диалога:
+Five steps of one session, every intermediate result staying in the dialogue context:
 
-1. **Intake** — валидация requirements.md (§2 страницы, §3 `REQ-<N>`), загрузка его в контекст
-   дословно и весь goga-контекст: DSL `goga-cell`, правила Python, веб-cookbook, базовый блок
-   Header (через `goga-codemanifest-base`), референс веб-рантайма.
-2. **Tools** — инструментальные потребности тестов (дата-подготовка через API, моки бэкенда,
-   usage-файл креденшалов); согласование с пользователем (WAIT), создание
+1. **Intake** — validate `requirements.md` (§2 pages, §3 `REQ-<N>`), load it into the
+   context verbatim along with the whole goga context: the `goga-cell` DSL, the Python
+   rules, the web cookbook, the base Header block (via `goga-codemanifest-base`), the web
+   runtime reference.
+2. **Tools** — the tool needs of the tests (data setup via API, backend mocks, a
+   credentials usage file); agree with the user (WAIT), create
    `.goga/usages/cooks/<key>.md`.
-3. **Routines design** — рутины сразу целиком, без промежуточного кейс-слоя: имя, Purpose,
-   Precondition, Data (параметризация по критерию линейности), Steps-предложения (будущие
-   `web.step`/`web.expect`), Use. Каждая рутина утверждается пользователем (WAIT).
-4. **Cell map** — раскладка готовых рутин по клеткам (предлагается вариант; WAIT).
-5. **Assembly** — сборка полного CODEMANIFEST каждой клетки (Header: базовый блок + cell-specific
-   usages; Body: рутины; Footer), валидация DSL до записи, запись в `tests/web/<cell>/`
-   (существующие ячейки — merge, не перезапись) и гейты: `goga lint`, `goga schema tests/`,
-   REQ-покрытие.
+3. **Routines design** — the routines in one pass, without an intermediate case layer:
+   name, Purpose, Precondition, Data (parameterization by the linearity criterion), Steps
+   sentences (the future `web.step`/`web.expect`), Use. Every routine is approved by the
+   user (WAIT).
+4. **Cell map** — distribute the ready routines across cells (a variant is proposed;
+   WAIT).
+5. **Assembly** — assemble the complete CODEMANIFEST of every cell (Header: base block +
+   cell-specific usages; Body: routines; Footer), validate against the DSL before writing,
+   write into `tests/web/<cell>/` (existing cells merge, never overwrite), and run the
+   gates: `goga lint`, `goga schema tests/`, REQ coverage.
 
-**REQ-политика:** идентификаторы `REQ-<N>` живут только в requirements.md §3; в CODEMANIFEST их
-нет. Покрытие — сессионный реестр (Coverage в отчёте фазы routines design): при сборке
-механически проверяется `покрытые ∪ исключённые = реестр §3` (без пропусков, дублей, пересечений)
-и наличие каждой рутины реестра по имени в материализованных манифестах. Связь
-«требование → рутина» нигде не персистится.
+**REQ policy:** `REQ-<N>` identifiers live in `requirements.md` §3 only; the CODEMANIFESTs
+carry none. Coverage is the session registry (the Coverage section of the routines-design
+report): at assembly it is mechanically checked that `covered ∪ excluded = the §3 registry`
+(no gaps, duplicates, or intersections) and that every routine of the registry is present
+by name in the materialized manifests. The requirement → routine link is never persisted
+anywhere.
 
-## Артефакты
+## Artifacts
 
-Все артефакты топика адресуются командой `goga history path -f <артефакт>` и живут в
-`.goga/history/<год>/<топик>/`:
+Every topic artifact is addressed with `goga history path -f <artifact>` and lives under
+`.goga/history/<year>/<topic>/`:
 
-- **requirements.md** — требования: окружение и Browser endpoint (§1), досье страниц
-  (§2 `PAGE-<N>`), функциональные требования (§3 `REQ-<N>`), авторизация и среда (§4), реестр
-  usages (§8), существующее покрытие (§9).
-- **design.md** — дизайн материализации тестов из CODEMANIFEST веб-ячеек.
-- **plan.md** — ralphex-план с исполняемыми чекбоксами прогона в каждой генерирующей задаче.
-- **bugs.md** — баг-рекорды сервиса, найденные приёмкой.
-- **tests/web/<cell>/** — материализованные ячейки: `CODEMANIFEST`, `test_<name>.py` и кеш шагов
-  `test_<name>/` (коммитится).
+- **requirements.md** — the requirements: environment and the Browser endpoint (§1), the
+  page dossiers (§2 `PAGE-<N>`), functional requirements (§3 `REQ-<N>`), authorization and
+  environment (§4), the usage registry (§8), existing coverage (§9).
+- **design.md** — the design of test materialization from the web cells' CODEMANIFESTs.
+- **plan.md** — the ralphex plan with executable run checkboxes in every generating task.
+- **bugs.md** — service bug records found at acceptance.
+- **tests/web/<cell>/** — the materialized cells: `CODEMANIFEST`, `test_<name>.py`, and the
+  step cache `test_<name>/` (committed).
 
-## Статусная модель
+## Status model
 
-Каждый артефакт цепочки (кроме `bugs.md` и материализации в целевом проекте — это записи истории,
-не статусы) отмечает статус на шкале топиков goga: пакет регистрирует один статус
-`pybuggy.*` на артефакт, и web-топик сообщает о достигнутой стадии под собственным именем:
+Every artifact of the chain (except `bugs.md` and the materialization in the target
+project — those are history records, not statuses) marks a status on the topic's goga
+status scale: the package registers one `pybuggy.*` status per artifact, and the web topic
+reports the reached stage under its own name:
 
-| Артефакт           | Статус                                       |
-|--------------------|----------------------------------------------|
-| `requirements.md`  | `pybuggy.web.automate.requirements-created`  |
-| `design.md`        | `pybuggy.web.automate.designed`              |
-| `plan.md`          | `pybuggy.web.automate.planned`               |
-| `completed/plan.md`| `pybuggy.web.automate.done`                  |
+| Artifact            | Status                                       |
+|---------------------|----------------------------------------------|
+| `requirements.md`   | `pybuggy.web.automate.requirements-created`  |
+| `design.md`         | `pybuggy.web.automate.designed`              |
+| `plan.md`           | `pybuggy.web.automate.planned`               |
+| `completed/plan.md` | `pybuggy.web.automate.done`                  |
 
-Каждый статус якорится выше встроенного двойника (`web.automate.done` выше встроенного `done`).
-У web-линии нет статусов для testcases/arch: веб-пайплайн не пишет эти артефакты — кейсы живут
-рутинами в целевом проекте. Артефакты web-линии совпадают по именам с api-линией
-`pybuggy.api.automate.*`, и обе применяются независимо — топик может нести несколько статусов сразу.
-Читай шкалу командой `goga history status`; фильтруй топики по имени статуса —
-`goga history status -s <name>`.
+Every status is anchored above its built-in twin (`web.automate.done` above the built-in
+`done`). The web line carries no statuses for testcases/arch: the web pipeline writes no
+such artifacts — its cases live as Routines in the target project. The web line's artifact
+names match the `pybuggy.api.automate.*` line, and the two apply independently — one topic
+can carry several statuses at once. Read the scale with `goga history status`; filter
+topics by status name — `goga history status -s <name>`.
 
-## Исследование страниц
+## Page exploration
 
-Стадия create-requirements исследует реальные страницы живого сайта через `playwright-cli`
-(npm-пакет `@playwright/cli`) в именованной сессии `-s=pybuggy-explore`. Браузер никогда не
-запускается локально: intake спрашивает **эндпоинт браузера для написания тестов** — «из конфига»
-(`browser.endpoint` из web.yml) или адрес от пользователя (`ws(s)://…` Playwright server /
-`http(s)://…` CDP; адрес браузера, не тестируемого сайта) — и исследование подключается к нему
-через `attach`. Введённый адрес применяется и к прогонам: команды прогона несут
-`--browser-endpoint <адрес>`. Констрейнт пайплайна задаёт готовую bootstrap-команду: loopback-адрес
-(`127.0.0.1`/`localhost` — браузер на хосте Docker) переписывается в `host.docker.internal`
-и резолвится в IP хоста (`getent`, Linux); удалённый адрес — attach как есть. Артефакты сессии
-(скриншоты/трейсы) складываются в `<история топика>/playwright/` (`PLAYWRIGHT_MCP_OUTPUT_DIR`).
+The create-requirements stage explores the live site's real pages with `playwright-cli`
+(the npm package `@playwright/cli`) in the named session `-s=pybuggy-explore`. The browser
+is never launched locally: the intake asks for the **browser endpoint for writing tests** —
+"from the config" (`browser.endpoint` of `web.yml`) or an address from the user
+(`ws(s)://…` a Playwright server / `http(s)://…` CDP; the browser's address, not the tested
+site's) — and the exploration connects to it via `attach`. The entered address applies to
+the runs too: run commands carry `--browser-endpoint <address>`. The pipeline's constraint
+supplies a ready bootstrap command: a loopback address (`127.0.0.1`/`localhost` — the
+browser on the Docker host) is rewritten to `host.docker.internal` and resolved to the
+host's IP (`getent`, Linux); a remote address is attached as-is. The session's artifacts
+(screenshots/traces) land in `<topic history>/playwright/`
+(`PLAYWRIGHT_MCP_OUTPUT_DIR`).
 
-По каждой странице собирается досье: итоговый URL после редиректов, назначение, ключевые элементы
-со стабильными локаторами (`generate-locator`), формы с валидациями, карта навигации, наблюдаемые
-состояния, ошибки консоли и сети (включая API-эндпоинты страницы). Целевые страницы исследуются
-все; обход смежных страниц ограничен бюджетом (глубина обхода, взаимодействия на страницу, запас
-смежных URL); исчерпание бюджета — не ошибка: непройденное фиксируется в отчёте.
+Every page gets a dossier: the final URL after redirects, its purpose, key elements with
+stable locators (`generate-locator`), forms with validations, the navigation map,
+observable states, console and network errors (the page's API endpoints included). Target
+pages are all explored; the walk over adjacent pages is bounded by a budget (crawl depth,
+interactions per page, an adjacent-URL allowance); an exhausted budget is not an error:
+the unvisited remainder is recorded in the report.
 
-Вход на закрытые страницы выполняется в сессии с тестовыми креденшалами; состояние авторизации
-сохраняется (`state-save`). **Секреты никогда не записываются** в отчёты и артефакты — только
-механизм входа и источник креденшалов (env-имена).
+Entry to closed pages happens in the session with test credentials; the authorization
+state is saved (`state-save`). **Secrets are never written** into reports or artifacts —
+only the login mechanism and the credentials source (env names).
 
-Каждое расхождение «заявка пользователя ↔ наблюдение» — отдельный вопрос пользователю до
-фиксации требований.
+Every user-request ↔ observation discrepancy becomes a separate question to the user
+before the requirements are fixed.
 
-## Генерация шагов
+## Step generation
 
-Ключевая механика пайплайна. Предложения шагов из аннотаций Routine материализуются в
-`test_*.py` как `web.step(...)` / `web.expect(...)`:
+The pipeline's core mechanic. Step sentences from Routine annotations materialize into
+`test_*.py` as `web.step(...)` / `web.expect(...)`:
 
-- **первый** прогон теста — на стадии ralphex-build, чекбоксами задач плана — генерирует
-  Playwright-код каждого предложения через LLM (провайдер и модель — из
-  `.goga/tools/pybuggy/web.yml`) и пишет кеш шагов в `tests/web/<cell>/test_<name>/`;
-  кеш **коммитится** в репозиторий вместе с тестом (стадия commit-changes);
-- первый прогон обязан идти **без** `--strict-mode` — строгий режим не делает LLM-вызовов, и новый
-  шаг в нём падает cache-miss'ом;
-- повторные прогоны и CI — со `--strict-mode`: реплей из кеша, 0 LLM-вызовов;
-- приёмка (accept-result) гоняет сюиту в строгом режиме; cache-miss лечится одним не-strict
-  прогоном для догенерации;
-- кеш не редактируется руками — для регенерации шага его кеш-файл удаляется, и следующий
-  не-strict прогон пересоздаёт его.
+- the **first** run of a test — at the ralphex-build stage, through the plan's task
+  checkboxes — generates every sentence's Playwright code via an LLM (the provider and
+  model come from `.goga/tools/pybuggy/web.yml`) and writes the step cache into
+  `tests/web/<cell>/test_<name>/`; the cache is **committed** to the repository together
+  with the test (the commit-changes stage);
+- the first run must go **without** `--strict-mode` — the strict mode makes no LLM calls,
+  and a new step fails there with a cache miss;
+- repeated runs and CI go with `--strict-mode`: replay from the cache, zero LLM calls;
+- acceptance (accept-result) runs the suite in strict mode; a cache miss is healed by one
+  non-strict run that regenerates the missing steps;
+- the cache is never edited by hand — to regenerate a step, delete its cache file, and the
+  next non-strict run recreates it.
 
-Шаги несут **полные URL** записанного окружения (никакой base_url-шаблонизации): смена окружения
-означает смену предложений шагов. **Секреты в предложениях запрещены** — всё предложение попадает
-в промпт провайдера и в репозиторий; вход описывается поведенчески («Выполнить вход как тестовый
-пользователь `<роль>`»), значения берутся из env/usage-файлов.
+Steps carry the **full URLs** of the recorded environment (no base_url templating): an
+environment switch means new step sentences. **Secrets are forbidden in sentences** — the
+whole sentence reaches the provider prompt and the repository; login is described
+behaviorally ("Log in as the test user `<role>`"), values come from env/usage files.
 
-## Окружение
+## Environment
 
-Предусловия пайплайна:
+The pipeline's preconditions:
 
-- веб-вид инициализирован: `.goga/tools/pybuggy/web.yml` существует —
-  `goga tool pybuggy init` с kind `web` или `both` (см. [Web / Configuration](../web/configuration.md));
-- внешний браузер: эндпоинт задаётся конфигом (`browser.endpoint`) или вводится в intake; браузер
-  хоста поднимается с remote debugging (например, Chrome:
-  `--remote-debugging-port=9222 --user-data-dir=<каталог>`). Браузерные бинарники
-  (`playwright install --with-deps <browser>`) нужны только для локальных запусков рантайма вне
-  эндпоинта — пайплайн их не использует;
-- `playwright-cli` для исследования страниц: ставится автоматически post-install хуком pybuggy
-  при `goga install` (в образе нужен node/npm на PATH); недоступен — пайплайн останавливается;
-- LLM-ключ провайдера в env/`.env` — нужен для генерирующего первого прогона (догенерации).
+- the web kind initialized: `.goga/tools/pybuggy/web.yml` exists — `goga tool pybuggy
+  init` with kind `web` or `both` (see [Web / Configuration](../web/configuration.md));
+- an external browser: the endpoint comes from the config (`browser.endpoint`) or the
+  intake; a host browser runs with remote debugging (Chrome, for example:
+  `--remote-debugging-port=9222 --user-data-dir=<dir>`). Browser binaries
+  (`playwright install --with-deps <browser>`) are needed only for local runtime launches
+  outside an endpoint — the pipeline never uses them;
+- `playwright-cli` for page exploration: installed automatically by the pybuggy
+  post-install hook at `goga install` (node/npm on PATH required in the image); when
+  unavailable, the pipeline stops;
+- an LLM provider key in env/`.env` — required by the generating first run
+  (regeneration).
 
-## Автономные прогоны
+## Autonomous runs
 
-Пайплайн умеет работать без присутствия человека начиная с ревью материализованных ячеек.
-Автономность включается per-pipeline в секции `pipelines` **веб-конфига** — руками или
-конфирмом автономности команды [`pybuggy init`](../cli/init.md) (веб-ветка сессии):
+The pipeline can run unattended starting from the review of the materialized cells.
+Autonomy is enabled per pipeline in the `pipelines` section of the **web config** — by
+hand or through the autonomy confirmation of the [`pybuggy init`](../cli/init.md) command
+(the session's web branch):
 
 ```yaml
 # .goga/tools/pybuggy/web.yml
@@ -178,45 +190,51 @@ pipelines:
     autonomous: true
 ```
 
-Ось web-линейки живёт в `web.yml` — собственном документе веб-кинда (плагин игнорирует
-секцию `pipelines`, её читает резолвер автономности); оси api-линеек остаются в `api.yml`.
+The web line's axis lives in `web.yml` — the web kind's own document (the plugin ignores
+the `pipelines` section; the autonomy resolver reads it); the api lines' axes stay in
+`api.yml`.
 
-С включённой записью pybuggy контрибьютирует фиксированный workflow-документ
-(механизм [Workflows](workflows.md)) в каждый прогон `web.automate`:
+With the entry enabled, pybuggy contributes a fixed workflow document (the
+[Workflows](workflows.md) mechanism) to every `web.automate` run:
 
-- Окно автоподтверждения из шести стадий `testcases-review` → `commit-changes` (стадии 4–9
-  таблицы выше): каждая стадия окна подтверждается автоматически — коммуникационные стадии
-  больше не ждут ревью.
-- Стадия `build`, добавляемая после `commit-changes`: тот же шаг `goga build`, что и в
-  заметке «Сборка тестов» выше, по `plan.md` топика с таймаутом 8 часов и очисткой
-  scratch-дерева `.ralphex` после — тесты собираются и коммитятся без ручной сборки.
+- The auto-approval window of six stages `testcases-review` → `commit-changes` (stages
+  4–9 of the table above): every window stage is approved automatically — the
+  communication stages no longer wait for review.
+- The `build` stage added after `commit-changes`: the same `goga build` step as in the
+  "Building the tests" note above, over the topic's `plan.md` with an eight-hour timeout
+  and a scratch-tree (`.ralphex`) cleanup afterwards — the tests are built and committed
+  with no manual build.
 
-Всё вне окна остаётся за человеком: стадии формирования требований и рутин
-(`create-requirements` … `create-testcases`) идут интерактивно, а `accept-result` никогда
-не входит в контрибуцию — триггер остаётся ручным, приёмка (строгий прогон и триаж падений)
-остаётся интерактивным шагом.
+Everything outside the window stays with the human: the requirement- and routine-forming
+stages (`create-requirements` … `create-testcases`) run interactively, and `accept-result`
+is never part of the contribution — the trigger stays manual; acceptance (the strict run
+and the failure triage) remains an interactive step.
 
-Специфика web-линейки для автономного `build` — это **первый, генерирующий прогон**: ключ
-LLM-провайдера обязан быть в env прогона (без него генерация шагов невозможна), а
-`--strict-mode` нигде в плане быть не должно (гарантия обёртки `coding-plan`).
+The web line's specifics for the autonomous `build` is that **first, generating run**: the
+LLM provider key must be in the run's env (without it step generation is impossible), and
+`--strict-mode` must appear nowhere in the plan (the `coding-plan` wrapper's guarantee).
 
-Контрибуция — тихий no-op для всех пайплайнов вне трёх автономных линеек (automate, patch,
-web-automate — форма окна задаётся per-pipeline записью) и для любого выключенного
-состояния: отсутствующий файл, отсутствующая секция `pipelines`, отсутствующая запись
-`web.automate` и `autonomous: false` — всё это обычный интерактивный прогон. Автономность
-никогда не отключается молча на битой структуре: структурное нарушение секции (корень или
-значение `pipelines` — не мэппинг, запись не вида ровно `autonomous: <boolean>`)
-останавливает команду чистой ошибкой с именем pybuggy, вся контрибуция отбрасывается.
+The contribution is a silent no-op for every pipeline outside the three autonomous lines
+(automate, patch, web-automate — the window's shape comes from the per-pipeline record)
+and for every disabled state: a missing file, a missing `pipelines` section, a missing
+`web.automate` entry, and `autonomous: false` are all an ordinary interactive run.
+Autonomy is never silently disabled on a broken structure: a structural violation of the
+section (a non-mapping `pipelines` root or value, an entry other than exactly
+`autonomous: <boolean>`) stops the command with a clean error naming pybuggy, and the
+whole contribution is discarded.
 
-Authored-workflow проекта выигрывает по слоту у контрибуции — файл
-`.goga/workflows/pybuggy:web.automate.yml` может вернуть интерактивность любой стадии окна
-или вытеснить запись `build`.
+A project's authored workflow wins per slot over the contribution — the file
+`.goga/workflows/pybuggy:web.automate.yml` can re-enable interaction for any window stage
+or displace the `build` entry.
 
-## Связь с остальным
+## Relation to the rest
 
-- [Web / Overview](../web/index.md) — фикстура `web`, предложения шагов, кеш, режимы прогонов.
-- [Web / Configuration](../web/configuration.md) — ключи `web.yml` (браузер, провайдер, модели).
-- [Workflows](workflows.md) — переопределение/расширение пайплайна файлом
-  `.goga/workflows/pybuggy:web.automate.yml`.
-- Линейка `api.*` ([api.automate](api-automate.md), [api.fix](api-fix.md), [api.patch](api-patch.md)) —
-  те же принципы работы с контекстом для API-тестов; web-линейка их зеркалирует.
+- [Web / Overview](../web/index.md) — the `web` fixture, step sentences, the cache, run
+  modes.
+- [Web / Configuration](../web/configuration.md) — the `web.yml` keys (browser, provider,
+  models).
+- [Workflows](workflows.md) — overriding/extending the pipeline with the
+  `.goga/workflows/pybuggy:web.automate.yml` file.
+- The `api.*` line ([api.automate](api-automate.md), [api.fix](api-fix.md),
+  [api.patch](api-patch.md)) — the same context-handling principles for API tests; the
+  web line mirrors them.

@@ -6,7 +6,7 @@ site_description: >-
 site_url: https://qarium.github.io/goga-tool-pybuggy/
 repo_url: https://github.com/qarium/goga-tool-pybuggy
 repo_name: qarium/goga-tool-pybuggy
-edit_uri: edit/2.0.x/docs/
+edit_uri: edit/3.0.x/docs/
 
 theme:
   name: material
@@ -78,6 +78,7 @@ nav:
       - Configuration: sandbox/configuration.md
   - Web:
       - Overview: web/index.md
+      - Steps: web/steps.md
       - Configuration: web/configuration.md
   - Matchers:
       - Overview & assert_that: matchers/index.md

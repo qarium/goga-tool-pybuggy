@@ -136,7 +136,7 @@ never part of the contribution — it keeps its manual trigger, so accepting the
 
 The contribution is a silent no-op for every pipeline outside the automate, patch, and
 web-automate lines (the web line's switch lives in `web.yml` — see
-[web.automate — Автономные прогоны](web-automate.md#автономные-прогоны)) — the window
+[web.automate — Автономные прогоны](web-automate.md#autonomous-runs)) — the window
 shape is carried per pipeline record — and for every disabled
 state: an absent file, an absent
 `pipelines` section, an absent `api.automate` entry, and `autonomous: false` all mean a

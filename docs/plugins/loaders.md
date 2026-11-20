@@ -42,6 +42,10 @@ ModuleLoader.from_config("my_plugin.conftest").load(modules)
 
 ## The `loader` config section
 
+The section is accepted by **every tool document** — `api.yml`, `sandbox.yml`, and
+`web.yml` — so external fixture packages can be wired into any test kind through the
+config, without touching the conftest:
+
 ```yaml
 loader:
   packages:
@@ -56,9 +60,15 @@ loader:
   `__init__.py`).
 - `modules` — single dotted module files.
 - Each item is a `str` (required defaults to True) or a mapping `{name, required}`.
-- Both lists default to empty when the section is absent; `install()` then falls back
-  to its built-in default `[PackageLoader("api", required=False)]` — the `api/` tree is
-  discovered out of the box.
+- Both lists default to empty when the section is absent; explicit loaders (from the
+  section or a `loaders=` argument) reach **every active plugin's** discovery — api,
+  sandbox, and web alike.
+- Without explicit loaders the api and web plugins apply their own defaults: the api
+  plugin adds `[PackageLoader("api", required=False)]` (every generated
+  `api/<spec>/<id>/api.py` module), the web plugin adds
+  `[PackageLoader("pages", required=False)]` (every `page generate` page-object module
+  under `pages/`) — both fixture trees are discovered out of the box;
+  `install(loaders=[])` disables discovery entirely.
 
 ## Preconditions and side effects
 

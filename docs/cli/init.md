@@ -241,7 +241,7 @@ as well — the web minimum, then the web autonomy confirm:
   (autonomous mode)?` — default No. A Yes is the one way the session writes the web
   line's `pipelines` entry — into `web.yml` (the web plugin ignores the section; the
   autonomy resolver reads it — see
-  [web.automate — Автономные прогоны](../pipelines/web-automate.md#автономные-прогоны)):
+  [web.automate — Автономные прогоны](../pipelines/web-automate.md#autonomous-runs)):
 
   ```yaml
   pipelines:

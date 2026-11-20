@@ -97,7 +97,7 @@ pipelines:
 The web plugin never interprets it: `configure()` drops the section from the document
 copy before the validation, so it cannot fail the run. It is read by the tool's own
 autonomy resolver — an enabling entry makes a running `web.automate` pipeline run
-unattended ([web.automate — Автономные прогоны](../pipelines/web-automate.md#автономные-прогоны)).
+unattended ([web.automate — Автономные прогоны](../pipelines/web-automate.md#autonomous-runs)).
 The `pybuggy init` web confirm (`Run the web.automate pipeline unattended (autonomous
 mode)?`) writes it; a declined confirm writes nothing.
 
@@ -174,5 +174,7 @@ def test_checkout(web):
 ## Related
 
 - [Web — Overview](index.md) — activation, writing tests, run modes, the step cache.
+- [Steps](steps.md) — the step parameters, captured variables, groups, raw Playwright, and
+  the failure verdicts.
 - [CLI — init](../cli/init.md) — the kind-aware onboarding session and the web bootstrap.
 - [Pytest Plugins](../plugins/index.md) — the `web` fixture and the `--strict-mode` / `--interactive` / `--browser-endpoint` flags.

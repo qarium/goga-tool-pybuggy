@@ -79,7 +79,7 @@ added by hand: a method runs its steps through the proxied surface (`self.step`,
 - With `-f`: the module file regenerates over an existing one.
 - `__init__.py` markers are created only when missing and are **never overwritten — even with
   `-f`**: a consumer project may keep re-exports in its `pages/` package markers. This is the
-  deliberate difference from [endpoint generate](generate.md#force-semantics), whose flag
+  deliberate difference from [endpoint generate](generate.md#-force-semantics), whose flag
   regenerates the markers.
 
 ## Special cases

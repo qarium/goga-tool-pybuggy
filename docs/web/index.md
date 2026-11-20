@@ -7,9 +7,11 @@ with **zero LLM calls**. When a `web.yml` document is present, the built-in `web
 fixture becomes available. Without the document nothing web-related is registered — a
 test requesting the fixture fails with pytest's standard `fixture 'web' not found`.
 
-The web kind has two surfaces: the [web document](configuration.md) — `.goga/tools/pybuggy/web.yml`,
-the fixed-path settings file written by `goga tool pybuggy init` (test kind `web` or
-`both`) — and this page: activation, writing tests, run modes, and the step cache.
+The web kind's documentation has three pages: this one — activation, writing tests, run
+modes, and the step cache; [Steps](steps.md) — the step parameters, captured variables,
+groups, the raw-Playwright escape hatch, and the failure verdicts; and the
+[web document](configuration.md) — `.goga/tools/pybuggy/web.yml`, the fixed-path settings
+file written by `goga tool pybuggy init` (test kind `web` or `both`).
 
 ## Activation
 
@@ -62,45 +64,28 @@ def test_duckduckgo_search(web):
 - `web.step(sentence)` — an **action step**: generated once, then replayed from the cache.
 - `web.expect(sentence)` — an **assertion step**: polled until it holds or the polling
   budget ends.
+- Both take the keyword-only `tries` / `delay` / `vars` parameters — repeats, a pre-step
+  pause, and call-local inputs (see [Step parameters](steps.md#step-parameters)).
 - `web.group(sentence)` — a coherent mini-scenario: the steps inside share one goal and
-  render as one Allure group.
+  render as one Allure group (see [Groups](steps.md#groups)).
 - `web.run_on_page(action)` — the escape hatch: run a callable receiving the raw
-  Playwright `Page` when a step sentence cannot express the interaction.
+  Playwright `Page` when a step sentence cannot express the interaction (see
+  [Raw Playwright](steps.md#raw-playwright-escape-hatch-run_on_page)).
 - Steps carry full URLs — no `base_url` templating of sentences, no sandbox binding; the
   tested site's own base URL is the [`site.base_url`](configuration.md#keys) directive,
   consumed by `BasePage` (below).
 - One action per sentence; name the target and the action in plain language.
-
-Capture values from a page into variables addressed by name in later sentences:
-
-```python
-def test_open_third_video(web):
-    web.step("Open https://video.example.com/feed")
-    web.step("Save the title of the third video in {% var video_title %}")
-    web.step("Open the video '{{ video_title }}'")
-
-    web.expect("The opened video page shows the text '{{ video_title }}'")
-```
-
-- `{% var <name> %}` inside a step sentence captures a value from the page into a variable;
-  `{{ <name> }}` in any later sentence — a step or an expectation — interpolates it.
-- Capture only dynamic page data the test cannot know at write time; a value known in advance
-  (a URL, a typed text, an expected literal) stays inline in the sentence.
+- **Transient elements verify inside their triggering sentence** — a toast that appears on
+  an action and auto-disappears is checked in the very sentence that triggers it: each
+  sentence's code is generated immediately before it runs, so a separate expectation
+  starts generating only after the trigger already ran (see
+  [Transient elements](steps.md#transient-elements)).
+- Capture values from a page into variables addressed by name in later sentences —
+  `{% var <name> %}` captures, `{{ <name> }}` interpolates (see
+  [Capture vars](steps.md#capture-vars-from-a-page)).
 - Everything captured — and every step sentence — reaches the LLM provider prompt and the
   repository: **never put secrets in step sentences** (no passwords, tokens, keys,
   personal data).
-
-Coherent mini-scenarios group under a shared goal:
-
-```python
-def test_checkout(web):
-    with web.group("Fill and submit the checkout form"):
-        web.step("Open https://shop.example.com/checkout")
-        web.step("Fill the email field with test@example.com")
-        web.step("Click the submit button")
-
-    web.expect("The confirmation page shows the order number")
-```
 
 ## Tested-site pages (`BasePage`)
 
@@ -156,6 +141,16 @@ def test_login_form(page_login):
   cart — a repeated scenario becomes a method running its steps through the same proxied
   surface. The test reads as domain actions; the sentences live next to the page they belong
   to, one fixture per page.
+- **Method sentences are the page's shared vocabulary**: a step executed from a named method
+  of the page class (the activation call included) addresses the page's **shared cache** —
+  one cached entry per sentence for every test using the page (the first test generates it,
+  every other test replays it with no LLM call). A step called inline from a test
+  (`page.step(...)` in the test body) stays the test's own per-test entry. The boundary is
+  automatic — no path is ever passed by hand — so make it a deliberate choice: a method is a
+  reusable sentence, an inline step is private. Word method sentences against the live DOM
+  (position, role, visible text), never against the data of the moment that generated them,
+  unless that data is guaranteed in every state the method runs from (see
+  [Step cache](#step-cache)).
 - `page.url` — the joined URL (`<site.base_url>/<path>`, slashes normalized; an empty or `/`
   path keeps the declared base verbatim — its trailing slash is significant); the activation
   call is an ordinary step of the cycle (generated once, replayed from the cache like every
@@ -167,8 +162,36 @@ def test_login_form(page_login):
 - The fixtures load **automatically**: `pages/` is the web kind's default fixture package (the
   mirror of the api kind's `api/`) — the web plugin discovers every module under `pages/` at
   installation, no imports, no `loader:` section; `install(loaders=[])` disables the default.
+- **The entry-page pattern (auth)**: the site's login flow lives in the entry page object,
+  never in every test. The sanctioned overrides: `url` — return `self.web.site_base_url`
+  verbatim when the page is the site root (the trailing slash is significant); `__call__` —
+  chain pre-navigation work into the activation (`self.server_auth()` setting extra HTTP
+  headers via `run_on_page` from env-cred variables — secrets never reach sentences) and
+  call `super().__call__()`; the app-level login form / city selection — named methods
+  (`app_auth()`, `select_town()`) the test calls after the activation. `step` / `expect` /
+  `group` stay reserved — a subclass never redefines them; anything else (raw Playwright
+  pre-auth, dialog arming) goes through
+  [`run_on_page`](steps.md#raw-playwright-escape-hatch-run_on_page).
+- **Environment switch**: change `site.base_url` — not the code — and run once without
+  `--strict-mode`: the navigation sentences are composed from the directive at runtime, so
+  their cache regenerates; literal URLs kept in sentences (external pages, URL expectations)
+  are revised by hand.
 - Secrets never belong in the base URL (query tokens included) or in anything a page method
   renders into a sentence — step sentences reach the LLM prompt and the repository.
+
+## One session per test
+
+The `web` fixture is function-scoped: each test composes its own runtime — a Playwright
+driver, a browser, one isolated context with a single page — and closes it after the test.
+Nothing is shared between tests: cookies, localStorage, and auth state never carry over from
+one test into another.
+
+- With `browser.endpoint` set, the runtime connects to that browser for the test (`ws://` —
+  a Playwright server, `http://` — CDP) and opens a fresh isolated context inside it; the
+  external browser process keeps running between tests. Without an endpoint the browser is
+  launched per test and closed with it.
+- Cross-test state must be produced inside the test itself: logging in is part of the test's
+  own steps (a login group / a precondition), never a shared setup between tests.
 
 ## Run modes
 
@@ -217,5 +240,18 @@ non-strict run (deleting a page-scope file affects every test of that page).
 When [allure-pytest](https://pypi.org/project/allure-pytest/) is installed, every step
 renders as an Allure step (groups as `[group]` steps) and a failed step attaches
 `screenshot.png` to the report; without the package the integration stays inactive and
-the tests run exactly the same. Web-test runs render the prettyplay log events in the
+the tests run exactly the same. Attachments reach the report only when the run passes
+`--alluredir` (`pytest tests/web/ -q --alluredir=allure-results --clean-alluredir`, then
+`allure serve allure-results`) — the project convention keeps the flag out of addopts
+(a CI concern), and without it allure-pytest writes no result files: steps and failure
+screenshots go nowhere silently. Web-test runs render the prettyplay log events in the
 console, human-readable without payload duplication.
+
+Author-initiated screenshots: `web.get_screenshot()` returns full-page PNG bytes and
+`web.save_screenshot(filepath)` writes them to a file — the decision to capture belongs to
+the author (nothing is captured automatically outside the failure hooks above); both require
+an open page and fail loudly before the first step.
+
+Every library failure is a structured `PrettyplayError` — the terminal ones a test author
+meets (`ProductDefectError`, `IncurableStepError`, the `recoverable` healing verdict) are
+covered in [Terminal failures and verdicts](steps.md#terminal-failures-and-verdicts).

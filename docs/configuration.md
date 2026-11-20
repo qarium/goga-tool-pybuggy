@@ -148,7 +148,7 @@ pipelines:                             pipelines:
   pipeline run unattended — see
   [Automate — Autonomous runs](pipelines/api-automate.md#autonomous-runs),
   [Patch — Autonomous runs](pipelines/api-patch.md#autonomous-runs), and
-  [web.automate — Автономные прогоны](pipelines/web-automate.md#автономные-прогоны).
+  [web.automate — Автономные прогоны](pipelines/web-automate.md#autonomous-runs).
 
 ## The `loader` section
 

@@ -57,7 +57,7 @@ five names the runtime accepts — `chromium`, `firefox`, `webkit`, `chrome`, `m
 default `chromium`), and the headless confirm (default yes) — then its own autonomy
 confirm, **"Run the web.automate pipeline unattended (autonomous mode)?"** (default No;
 a Yes writes the entry into `web.yml` — see
-[web.automate — Автономные прогоны](pipelines/web-automate.md#автономные-прогоны)).
+[web.automate — Автономные прогоны](pipelines/web-automate.md#autonomous-runs)).
 Whatever you
 answer to the core tools question, pybuggy is always recorded in `.goga/config.yml`.
 The session writes `.goga/config.yml`, the Dockerfile, and the tool config of the
