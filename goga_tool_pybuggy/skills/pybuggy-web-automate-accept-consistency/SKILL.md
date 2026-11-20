@@ -7,24 +7,24 @@ description: Pre-run consistency check of the web test chain — Routine → tes
 
 ## Identity
 
-Ты проверяешь консистентность веб-тестовой цепочки до прогона: трассируемость Routine → тест,
-соответствие предложений шагов аннотациям Routine, адресацию страниц (page addressing
-compliance), наличие кеша шагов и отсутствие маскировки падений.
+You verify the consistency of the web test chain before the run: Routine → test traceability,
+step sentences matching the Routine annotations, page addressing compliance, step-cache
+presence, and no skip masking of failures.
 
 ## Core Principle
 
-- CODEMANIFEST — read-only контракт.
-- Все находки чинятся правкой `test_*.py` (или возвратом к пайплайну testcases) и только
-  с одобрения пользователя.
-- Каждая находка — с точной локализацией и конкретным предлагаемым исправлением.
-- Правь только тест-файлы `tests/web/**` и (по решению о догенерации) кеш шагов;
-  CODEMANIFEST и requirements.md не правь — они upstream.
-- Заполни каждую секцию отчёта; пустые секции запрещены.
+- The CODEMANIFEST is a read-only contract.
+- Every finding is fixed by editing `test_*.py` (or by returning to the testcases pipeline),
+  and only with the user's approval.
+- Every finding carries a precise location and a concrete suggested fix.
+- Edit only the test files `tests/web/**` and (by the re-generation decision) the step cache;
+  do not edit CODEMANIFEST and requirements.md — they are upstream.
+- Fill in every section of the report; empty sections are forbidden.
 
 STOP:
 
-- тест-файлы не материализованы (у Routine нет `test_*.py`);
-- кеш шагов отсутствует у всех тестов (сначала — `goga build`).
+- test files are not materialized (a Routine has no `test_*.py`);
+- the step cache is missing for every test (run `goga build` first).
 
 ---
 
@@ -32,87 +32,91 @@ STOP:
 
 ### Step 1. Load context
 
-1. [ACCEPT_SCOPE] — трасса Routine → `test_*.py`, статусы кешей, команда прогона.
-2. Через **Skill tool**: `goga-cell`, `goga-tool-pybuggy-web-cookbook`, `goga-tool-pybuggy-web-usage`,
+1. [ACCEPT_SCOPE] — the Routine → `test_*.py` trace, cache statuses, the run command.
+2. Via the **Skill tool**: `goga-cell`, `goga-tool-pybuggy-web-cookbook`, `goga-tool-pybuggy-web-usage`,
    `goga-cell-python`.
-3. Путь, напечатанный `goga history path -f requirements.md` — §1 Base URL / Target environment,
-   §2 страницы с адресами (пути/URL) — база сверки адресации (REQ-связь в тестах не хранится —
-   §3 не используется).
+3. The path printed by `goga history path -f requirements.md` — §1 Base URL / Target environment,
+   §2 pages with addresses (paths/URLs) — the baseline for the addressing check (no REQ linkage
+   is stored in the tests — §3 is not used).
 
 ### Step 2. Routine ↔ test-file
 
-1. Для каждой Routine из CODEMANIFEST ячеек — существует ли `test_<name>.py` по её `location`?
-2. Для каждого `test_*.py` в `tests/web/` — есть ли породившая Routine (висячий тест-файл = находка).
-3. Сигнатура теста: фикстуры совпадают с сигнатурой Routine — фикстуры-страницы
-   `page_<name>` (pytest резолвит по именам; каждая существует в `pages/<…>_page.py`);
-   посторонняя фикстура в сигнатуре — находка; имя `test_<name>`
-   совпадает с Routine.
+1. For every Routine from the cells' CODEMANIFESTs — does `test_<name>.py` exist at its `location`?
+2. For every `test_*.py` in `tests/web/` — is there a Routine that produced it (a dangling test
+   file = a finding).
+3. Test signature: the fixtures match the Routine signature — page fixtures
+   `page_<name>` (pytest resolves them by name; each one exists in `pages/<…>_page.py`);
+   an extraneous fixture in the signature is a finding; the `test_<name>`
+   name matches the Routine.
 
 ### Step 3. Step sentences ↔ Routine annotation
 
-Для каждого теста сверь предложения шагов (`page.step`/`page.expect`/`page.group` — поверхность
-активированной страницы) с аннотацией его
+For every test, compare the step sentences (`page.step`/`page.expect`/`page.group` — the surface
+of the activated page) with the annotation of its
 Routine (`Steps:`):
 
-1. Каждый пункт `Steps:` аннотации отражён предложением (напрямую или внутри группы) либо
-   вызовом метода page-объекта (предложение-цель со ссылкой ``Use `page-<name>` — метод``);
-   навигационное пункт — активацией `with page_<name>() as page:`.
-2. Лишних предложений нет (нет действий вне аннотации).
-3. Действия — `page.step`, проверки — `page.expect` (перепутано = находка; исключение —
-   транзитные тосты/баннеры с временем жизни из §2 деталей: их подтверждение живёт в
-   предложении-действии-триггере — это не перепутывание, см. cookbook).
-4. Одно действие на предложение (скомбинированные «открыть и заполнить» = находка).
+1. Every `Steps:` item of the annotation is reflected by a sentence (directly or inside a group)
+   or by a page-object method call (a goal sentence with the reference ``Use `page-<name>` — method``);
+   a navigation item — by the activation `with page_<name>() as page:`.
+2. There are no extra sentences (no actions outside the annotation).
+3. Actions are `page.step`, checks are `page.expect` (mixed up = a finding; the exception is
+   transient toasts/banners with a lifetime from the §2 details: their acknowledgment lives in
+   the trigger action sentence — this is not a mix-up, see the cookbook).
+4. One action per sentence (a combined "open and fill" = a finding).
 
 ### Step 4. Generation prompts ↔ `Prompt:`
 
-Для каждого теста сверь декораторы `@generation_prompt("…")` (импорт
-`from goga_tool_pybuggy import generation_prompt`) с секцией `Prompt:` аннотации его Routine:
+For every test, compare the `@generation_prompt("…")` decorators (the import
+`from goga_tool_pybuggy import generation_prompt`) with the `Prompt:` section of the annotation
+of its Routine:
 
-1. Каждый буллет `Prompt:` отражён декоратором с тем же текстом.
-2. Лишних декораторов нет (тест от Routine без `Prompt:` декораторов не имеет).
-3. Порядок декораторов = порядок буллетов аннотации.
+1. Every `Prompt:` bullet is reflected by a decorator with the same text.
+2. There are no extra decorators (a test of a Routine without `Prompt:` has no decorators).
+3. The order of the decorators = the order of the annotation bullets.
 
 ### Step 5. Page addressing compliance
 
-Сверь адреса в предложениях шагов с Base URL §1 и страницами §2 требований:
+Compare the addresses in the step sentences with the Base URL of §1 and the pages of §2 of the
+requirements:
 
-1. Страницы топика — путями относительно base_url (как в §2).
-2. Внешние страницы — полными URL чужого origin с пометкой «внешняя».
+1. Topic pages — as paths relative to base_url (as in §2).
+2. External pages — as full URLs of a foreign origin with the "external" mark.
 
-Находки:
+Findings:
 
-- голый host без схемы;
-- путь не из §2;
-- чужой домен без пометки.
+- a bare host without a scheme;
+- a path not from §2;
+- a foreign domain without the mark.
 
 ### Step 6. Step cache
 
-1. Для каждого теста каталог `tests/web/<cell>/.cache/test_<name>/test_<name>/` существует и не пуст
-   (кеш создан генерирующим прогоном на build; параметризованный кейс —
+1. For every test, the directory `tests/web/<cell>/.cache/test_<name>/test_<name>/` exists and is
+   not empty (the cache is created by the generating run at build; a parameterized case —
    `…/test_<name>[<param_id>]/`).
-2. Для каждой страницы, чьи фикстуры/методы используют тесты (секции `Use page-<name>`), общий
-   кеш `pages/.cache/<page>/` существует и не пуст — отсутствующий/пустой кеш страницы — находка:
-   первый strict-прогон упадёт cache-miss'ом на активацию/методы страницы.
-3. Отсутствующий/пустой кеш — находка: тест упадёт в strict-режиме cache-miss'ом; решение —
-   догенерация не-strict прогоном (после подтверждения пользователя) или дефект материализации.
-4. Полное отсутствие кешей у всех тестов — STOP: `goga build` не исполнялся; сначала прогони его
-   по плану топика (первый, генерирующий прогон).
+2. For every page whose fixtures/methods the tests use (`Use page-<name>` sections), the shared
+   cache `pages/.cache/<page>/` exists and is not empty — a missing/empty page cache is a finding:
+   the first strict run will fail with a cache-miss on the page activation/methods.
+3. A missing/empty cache is a finding: the test will fail with a cache-miss in strict mode; the
+   resolution is re-generation via a non-strict run (after the user's confirmation) or a
+   materialization defect.
+4. A complete absence of caches for every test is a STOP: `goga build` was not executed; run it
+   first according to the topic's plan (the first, generating run).
 
 ### Step 7. Skip masking
 
-По каждому `test_*.py`: нет `pytest.skip`, skip-маркеров, `xfail`, закомментированных тестов —
-маскировка = находка Critical.
+For every `test_*.py`: no `pytest.skip`, skip markers, `xfail`, commented-out tests —
+masking = a Critical finding.
 
 ### Step 8. Findings and decisions (WAIT)
 
-1. Собери все находки до показа; сорт по серьёзности Critical → High → Medium.
-2. Показывай по одной: Seriousness / Area / Location (тест, Routine, предложение) / Issue / Evidence /
-   **Suggested fix** (конкретная правка).
-3. AskUserQuestion на каждую (2–4 варианта): **Apply suggested fix** / **Propose alternative** /
-   **Skip**. Счётчик: «Находка 3 из 12».
-4. Правки — только в `test_*.py` и (по решению о догенерации) кеш шагов; CODEMANIFEST и
-   requirements.md не правь (см. Core Principle). Предложение шага меняется только
-   с явного подтверждения (источник — аннотация Routine).
+1. Collect all findings before showing them; sort by Seriousness Critical → High → Medium.
+2. Show them one at a time: Seriousness / Area / Location (test, Routine, sentence) / Issue /
+   Evidence / **Suggested fix** (a concrete edit).
+3. AskUserQuestion for each one (2–4 options): **Apply suggested fix** / **Propose alternative** /
+   **Skip**. Counter: "Finding 3 of 12".
+4. Edits — only in `test_*.py` and (by the re-generation decision) the step cache; do not edit
+   CODEMANIFEST and requirements.md (see Core Principle). A step sentence changes only with
+   explicit confirmation (the source is the Routine annotation).
 
 ---
 
@@ -125,38 +129,40 @@ Fill in every section.
 
 ## Routine ↔ test-file
 
-[Таблица: Routine | test_<name>.py | Статус (ok / отсутствует / висячий файл)]
+[Table: Routine | test_<name>.py | Status (ok / missing / dangling file)]
 
 ## Step sentences ↔ Routine annotation
 
-[Таблица: Тест | Routine | Статус (полное соответствие / чего не хватает / что лишнее)]
+[Table: Test | Routine | Status (full match / what is missing / what is extra)]
 
 ## Generation prompts ↔ `Prompt:`
 
-[Таблица: Тест | Буллеты `Prompt:` / декораторы | Статус (совпадают / нет декоратора / лишний декоратор / порядок)]
+[Table: Test | `Prompt:` bullets / decorators | Status (match / missing decorator / extra
+decorator / order)]
 
 ## Page addressing compliance
 
-[Таблица: Тест | Предложение с адресом | Статус (ок — путь из §2 / внешний полный URL / путь не
-из §2 / чужой origin без пометки)]
+[Table: Test | Sentence with an address | Status (ok — a path from §2 / an external full URL /
+a path not from §2 / a foreign origin without the mark)]
 
 ## Step cache
 
-[Таблица: Тест | Каталог кеша | Статус (есть и не пуст / отсутствует / пуст)]
+[Table: Test | Cache directory | Status (present and non-empty / missing / empty)]
 
 ## Skip masking
 
-[Тесты с маскировкой или `none`]
+[Tests with masking or `none`]
 
 ## Findings
 
-[Список находок: Seriousness / Location / Issue / Suggested fix. Напиши `none`, если ничего]
+[List of findings: Seriousness / Location / Issue / Suggested fix. Write `none` if there is
+nothing]
 
 ## Applied fixes
 
-[Применённые правки тест-файлов + догенерации кеша. Напиши `none`, если ничего]
+[Applied test-file edits + cache re-generations. Write `none` if there is nothing]
 
 ## Overall
 
-[Цепочка консистентна / имеет N открытых находок — влияние на прогон]
+[The chain is consistent / has N open findings — the impact on the run]
 ```

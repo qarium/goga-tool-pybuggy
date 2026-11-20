@@ -7,205 +7,214 @@ description: Assemble the final "Detailed web topic requirements" artifact (the 
 
 ## Identity
 
-Ты синтезируешь финальный артефакт [TOPIC_SPEC] из выводов всех предыдущих шагов и сохраняешь его в файл.
+You synthesize the final [TOPIC_SPEC] artifact from the conclusions of all previous steps and save it to a file.
 
 ## Constraints
 
-- Включай только проверенные факты — из досье [EXPLORE_REPORT] и решения пользователя из
-  [ELABORATION_REPORT]. Не выдумывай.
-- Локаторы/селекторы (CSS, XPath, testid, атрибуты-адресации) в артефакт не переносятся:
-  страницы §2 и требования §3 называют элементы видимыми именами и текстами — адресация в шагах
-  тестов идёт видимыми именами. Единственное исключение — механизм входа в §4 Auth
-  («сабмит `<кнопка/локатор>`»).
-- **Значений секретов в артефакте нет и не должно быть.**
-- Каждая секция артефакта заполнена; пустые секции запрещены.
+- Include only verified facts — from the [EXPLORE_REPORT] dossier and the user's decision from
+  [ELABORATION_REPORT]. Do not invent anything.
+- Locators/selectors (CSS, XPath, testid, addressing attributes) are not carried into the artifact:
+  the §2 pages and the §3 requirements name elements by their visible names and texts — test steps
+  address elements by visible names. The only exception is the login mechanism in §4 Auth
+  ("submit `<button/locator>`").
+- **There are no secret values in the artifact, and there must be none.**
+- Every section of the artifact is filled in; empty sections are forbidden.
 
 ## Algorithm
 
-1. Собери выводы всех предыдущих шагов: [INTAKE_REPORT], [EXPLORE_REPORT], [ELABORATION_REPORT],
+1. Gather the conclusions of all previous steps: [INTAKE_REPORT], [EXPLORE_REPORT], [ELABORATION_REPORT],
    [PAGES_REPORT].
-2. Синтезируй их в единый артефакт [TOPIC_SPEC].
-3. Назначь каждому требованию §3 стабильный идентификатор `REQ-<N>` — на него ссылается сессионный
-   реестр покрытия фазы routines design. Правила:
-    - нумеруй последовательно внутри §3, начиная с 1, без пропусков и дублей;
-    - порядок нумерации по подразделам: "Main behavior" → "Error behavior (contract)" →
-      "Acceptance criteria" → "Constraints and boundaries"; подраздел "Error behavior (contract)"
-      опускается целиком, когда негативных фактов нет (решение elaborate/пользователя — негативное
-      покрытие в UI-тестах редкий кейс, его отсутствие — норма), нумерация продолжается по
-      оставшимся подразделам;
-    - идентификаторы вводятся только в §3 — §4 (предусловия) и §5 (роли) остаются текстовыми.
-4. Назначь каждой странице §2 стабильный идентификатор `PAGE-<N>` (порядок — как в [EXPLORE_REPORT]);
-   на него ссылаются рутины (стартовые адреса) и границы ячеек. Правила:
-    - адрес страницы в §2 — путь относительно Base URL (`/…`, страница топика) или полный URL
-      (внешняя страница), итоговый URL — после редиректов; оба из досье [EXPLORE_REPORT];
-    - привязку page-объекта (фикстура `page_<name>`, класс `<Name>Page`, модуль `pages/**`) и
-      литеральную навигацию перенеси из [PAGES_REPORT] (таблицы Page Objects и Literal Navigation);
-    - под таблицей §2 — подраздел деталей на каждую страницу (переносится из досье [EXPLORE_REPORT]);
-    - детали §2 — записанная фактическая база: ревью требований сверяет по ней REQ, повторное
-      исследование обновляет её.
-5. Включай только проверенные факты — из досье [EXPLORE_REPORT] и решения пользователя из
-   [ELABORATION_REPORT] (инварианты — в блоке Constraints).
-6. Скопируй факты веб-рантайма из [INTAKE_REPORT] в §1 ("Web runtime") и §4 — **дословно**
-   (provider, generation model — LLM-факты генерации шагов). Нижестоящие пайплайны читают их отсюда.
-7. Скопируй base_url из [INTAKE_REPORT] (секции Base URL — директива `site.base_url` web.yml —
-   и Run Arguments) в §1 ("Base URL") и §4 — дословно:
-    - значение или Jinja2-шаблон;
-    - аргументы рендера: env `<имя=значение>` / CLI `--<имя>=<значение>` с значениями окружения
-      топика; CLI-опции требуют регистрации `pytest_addoption` в `conftest.py`;
-    - адрес окружения топика после рендера.
+2. Synthesize them into a single [TOPIC_SPEC] artifact.
+3. Assign every §3 requirement a stable identifier `REQ-<N>` — the session coverage registry of the
+   routines design phase references it. Rules:
+    - number sequentially within §3, starting at 1, with no gaps or duplicates;
+    - numbering follows the subsection order: "Main behavior" → "Error behavior (contract)" →
+      "Acceptance criteria" → "Constraints and boundaries"; omit the "Error behavior (contract)"
+      subsection entirely when there are no negative facts (per the elaborate/user decision —
+      negative coverage is a rare case in UI tests, its absence is the norm), and continue the
+      numbering across the remaining subsections;
+    - identifiers are introduced only in §3 — §4 (preconditions) and §5 (roles) stay textual.
+4. Assign every §2 page a stable identifier `PAGE-<N>` (in the order of [EXPLORE_REPORT]); routines
+   (start addresses) and cell boundaries reference it. Rules:
+    - a page's address in §2 is a path relative to the Base URL (`/…`, a topic page) or a full URL
+      (an external page); the final URL is the one after redirects; take both from the
+      [EXPLORE_REPORT] dossier;
+    - carry over the page-object binding (fixture `page_<name>`, class `<Name>Page`, module
+      `pages/**`) and the literal navigation from [PAGES_REPORT] (the Page Objects and Literal
+      Navigation tables);
+    - below the §2 table — a details subsection for every page (carried over from the
+      [EXPLORE_REPORT] dossier);
+    - the §2 details are the recorded factual base: the requirements review cross-checks REQs
+      against it, and re-exploration updates it.
+5. Include only verified facts — from the [EXPLORE_REPORT] dossier and the user's decision from
+   [ELABORATION_REPORT] (invariants go into the Constraints block).
+6. Copy the web runtime facts from [INTAKE_REPORT] into §1 ("Web runtime") and §4 — **verbatim**
+   (provider, generation model — the LLM facts of step generation). Downstream pipelines read them
+   from there.
+7. Copy base_url from [INTAKE_REPORT] (the Base URL sections — the `site.base_url` directive of
+   web.yml — and Run Arguments) into §1 ("Base URL") and §4 — verbatim:
+    - the value or the Jinja2 template;
+    - the render arguments: env `<name=value>` / CLI `--<name>=<value>` with the topic environment's
+      values; CLI options require registering `pytest_addoption` in `conftest.py`;
+    - the topic environment's address after rendering.
 
-   Правило адресации веб-тестов: страницы топика адресуются **путями относительно Base URL**
-   (внешние страницы — полными URL); смена окружения — смена `site.base_url` (+ один прогон
-   без `--strict-mode` — навигационные шаги регенерируют), адресация страниц не меняется.
-    - Каждая записанная команда прогона — `pytest tests/web/<cell>/ -q` (без `--strict-mode`
-      на первом прогоне) + суффикс Browser Endpoint (см. ниже), если задан, + аргументы рендера
-      Base URL (префикс `ENV_NAME=… pytest …` / суффикс `--имя=значение`).
-    - Скопируй решение Browser Endpoint из [INTAKE_REPORT] в §1 ("Browser endpoint") и §4:
-      адрес от пользователя добавляет в каждую записанную команду прогона суффикс
-      `--browser-endpoint <адрес>`; «из конфига» — без суффикса.
-    - Исследование и прогоны используют один браузер.
-    - Также перенеси из [EXPLORE_REPORT] (секция «Команда повторного подключения») в §1 дословно
-      исполненную команду attach — «команда повторного исследования»: ревью требований исполняет
-      её, когда факт неясен, спорен или касается UI и не проверяется по диску.
-8. Скопируй описание топика из секции "Original Request" [INTAKE_REPORT] в §1 дословно — стадия
-   testcases сопоставляет это описание с досье страниц.
-9. Скопируй механизм авторизации из [INTAKE_REPORT]/[EXPLORE_REPORT] в §4 ("Auth") дословно:
-   механизм (нет / форма `<URL>` поля `<name>` сабмит `<кнопка>` / SSO), источник креденшалов
-   (env `<имена>` / пользователь).
-10. Скопируй реестр usages проекта в §8: просканируй `.goga/usages/` целевого проекта
-    (key | path | role | purpose — справочник доступных активов, без выбора инструментов; выбор —
-    на стадии testcases, шаг tools).
-11. Скопируй статус покрытия из [EXPLORE_REPORT]/[INTAKE_REPORT] в §9: какие страницы уже покрыты
-    существующими тестами `tests/web/**`, какие Routine существуют, действие по каждой —
+   Web test addressing rule: topic pages are addressed by **paths relative to the Base URL**
+   (external pages — by full URLs); switching the environment means switching `site.base_url`
+   (+ one run without `--strict-mode` — the navigation steps regenerate), while the page addressing
+   stays unchanged.
+    - Every recorded run command is `pytest tests/web/<cell>/ -q` (without `--strict-mode` on the
+      first run) + the Browser Endpoint suffix (see below), if one is set, + the Base URL render
+      arguments (`ENV_NAME=… pytest …` prefix / `--name=value` suffix).
+    - Copy the Browser Endpoint decision from [INTAKE_REPORT] into §1 ("Browser endpoint") and §4:
+      an address from the user adds the suffix `--browser-endpoint <address>` to every recorded run
+      command; "from config" — no suffix.
+    - Exploration and runs use the same browser.
+    - Also carry over into §1, verbatim, the executed attach command from [EXPLORE_REPORT] (the
+      "Re-attach command" section) — the "re-exploration command": the requirements review runs it
+      when a fact is unclear, disputed, or concerns the UI and cannot be verified on disk.
+8. Copy the topic description from the "Original Request" section of [INTAKE_REPORT] into §1
+   verbatim — the testcases stage matches this description against the pages dossier.
+9. Copy the authorization mechanism from [INTAKE_REPORT]/[EXPLORE_REPORT] into §4 ("Auth")
+   verbatim: the mechanism (none / form `<URL>` fields `<name>` submit `<button>` / SSO), the
+   credential source (env `<names>` / the user).
+10. Copy the project usages registry into §8: scan `.goga/usages/` of the target project
+    (key | path | role | purpose — a reference inventory of the available assets, with no tool
+    selection; selection happens at the testcases stage, tools step).
+11. Copy the coverage status from [EXPLORE_REPORT]/[INTAKE_REPORT] into §9: which pages existing
+    tests `tests/web/**` already cover, which Routines exist, and the action for each —
     reuse / extend / regenerate.
-12. Проверь перед сохранением: каждая секция заполнена (пустых секций нет); только проверенные
-    факты, без выдумывания; элементы названы видимыми именами/текстами — локаторов/селекторов
-    нет (кроме сабмита механизма входа §4 Auth); значений секретов нет.
-13. Сохрани [TOPIC_SPEC] по пути, напечатанному `goga history path -f requirements.md`
-    (перезаписывай файл при повторных запусках).
+12. Check before saving: every section is filled in (no empty sections); only verified facts,
+    nothing invented; elements are named by visible names/texts — no locators/selectors (except the
+    submit of the §4 Auth login mechanism); no secret values.
+13. Save [TOPIC_SPEC] to the path printed by `goga history path -f requirements.md`
+    (overwrite the file on repeated runs).
 
 ---
 
 ## Output Format
 
-Сохрани результат по пути, напечатанному `goga history path -f requirements.md`. Содержимое файла
-следует формату ниже. Fill in every section.
+Save the result to the path printed by `goga history path -f requirements.md`. The file content
+follows the format below. Fill in every section.
 
 ```md
 ### Detailed web topic requirements: [Topic name]
 
 **1. Context and goal:**
 
-- **Service:** [Краткое описание сайта/сервиса]
-- **Topic description (verbatim):** [Исходный запрос пользователя — из intake "Original Request"]
-- **Topic goal:** [Уточнённая цель]
-- **Web runtime:** [Дословно из .goga/tools/pybuggy/web.yml: provider, generation_model —
-  LLM-факты генерации шагов]
-- **Browser endpoint:** [«из конфига» (`browser.endpoint: <значение>`) | `<ws(s)://… | http(s)://…>`
-  от пользователя; суффикс команд прогона: без флага | `--browser-endpoint <адрес>` —
-  адрес браузера для исследования и прогонов, не тестируемый сайт]
-- **Команда повторного исследования:** [дословная команда attach из досье исследования —
-  ревью требований исполняет её для повторного открытия страниц при неясных/спорных фактах
-  и замечаниях о UI]
-- **Base URL:** [`site.base_url` web.yml, дословно: `<значение/шаблон>`; аргументы рендера:
-  не нужны | env `<имя=значение>` (префикс
-  команд прогона) | CLI `--<имя>=<значение>` (суффикс команд прогона; регистрация
-  `pytest_addoption` в conftest.py) — источник адреса тестируемого сайта; рендерится при старте
-  прогона, неизвестная переменная валит прогон; адрес окружения топика после рендера: `<полный URL>`]
-- **Target environment:** [Окружение топика: прод/stage/feature-деплой; адрес окружения —
-  отрендеренный Base URL. Правило адресации: страницы топика — путями относительно Base URL,
-  внешние страницы — полными URL; смена окружения — смена `site.base_url` (+ один прогон без
-  `--strict-mode`), адресация страниц не меняется; записанные команды прогона —
-  `pytest tests/web/<cell>/ -q` (первый прогон без `--strict-mode`) + суффикс Browser endpoint +
-  аргументы рендера Base URL]
+- **Service:** [A brief description of the site/service]
+- **Topic description (verbatim):** [The user's original request — from the intake "Original Request"]
+- **Topic goal:** [The refined goal]
+- **Web runtime:** [Verbatim from .goga/tools/pybuggy/web.yml: provider, generation_model —
+  the LLM facts of step generation]
+- **Browser endpoint:** ["from config" (`browser.endpoint: <value>`) | `<ws(s)://… | http(s)://…>`
+  from the user; run command suffix: no flag | `--browser-endpoint <address>` — the browser
+  address for exploration and runs, not the site under test]
+- **Re-exploration command:** [the verbatim attach command from the exploration dossier —
+  the requirements review runs it to reopen pages when facts are unclear/disputed or UI remarks
+  arise]
+- **Base URL:** [`site.base_url` of web.yml, verbatim: `<value/template>`; render arguments:
+  not needed | env `<name=value>` (run command prefix) | CLI `--<name>=<value>` (run command
+  suffix; requires registering `pytest_addoption` in conftest.py) — the source of the tested
+  site's address; rendered at run start, an unknown variable fails the run; the topic
+  environment's address after rendering: `<full URL>`]
+- **Target environment:** [The topic environment: prod/stage/feature deploy; the environment
+  address is the rendered Base URL. Addressing rule: topic pages — paths relative to the Base URL,
+  external pages — full URLs; switching the environment means switching `site.base_url` (+ one run
+  without `--strict-mode`), the page addressing stays unchanged; recorded run commands —
+  `pytest tests/web/<cell>/ -q` (first run without `--strict-mode`) + the Browser endpoint suffix +
+  the Base URL render arguments]
 
 **2. Topic pages:**
 
-| PAGE | Адрес (путь `/…` | полный URL) | Итоговый URL | Title | Назначение | Page-объект | Роль в топике |
+| PAGE | Address (path `/…` | full URL) | Final URL | Title | Purpose | Page object | Role in the topic |
 |------|--------------------------------|--------------|-------|------------|-------------|---------------|
 | PAGE-1 | /catalog | https://…/catalog | […] | […] | page_catalog | […] |
 
-[Полный URL в колонке «Адрес» — только внешние страницы (чужой origin), с пометкой «внешняя»
-в «Роль в топике»; внутренние страницы — путями относительно Base URL. Колонка «Page-объект» —
-фикстура `page_<name>` из [PAGES_REPORT] (класс `<Name>Page`, модуль `pages/**`) либо
-«литеральная» — навигация полным URL в предложении шага (внешний origin / query-адрес /
-корневая страница).]
+[A full URL in the "Address" column — external pages only (a foreign origin), marked "external" in
+"Role in the topic"; internal pages — paths relative to the Base URL. The "Page object" column —
+the fixture `page_<name>` from [PAGES_REPORT] (class `<Name>Page`, module `pages/**`) or
+"literal" — navigation by full URL in a step sentence (foreign origin / query address / root
+page).]
 
-Детали страниц (переносятся из досье [EXPLORE_REPORT] — записанная фактическая база для ревью
-и повторного исследования):
+Page details (carried over from the [EXPLORE_REPORT] dossier — the recorded factual base for
+review and re-exploration):
 
-**PAGE-1 — детали**
+**PAGE-1 — details**
 
-- Page-объект: фикстура `page_<name>`, класс `<Name>Page`, модуль `pages/<…>_page.py` |
-  литеральная навигация (полный URL в предложении шага)
-- Ключевые элементы (текстовое описание элементов, например: красная кнопка в левом верхнем углу...): […]
-- Формы и валидации: […] — дословные тексты валидаций
-- Наблюдаемые состояния: пустое / ошибка / загрузка / всплывающие баннеры-toasts (дословный текст, событие появления, исчезают через N с) — как выглядит, дословные тексты
-- API-эндпоинты: [метод + путь]
-- Технические особенности: [pop-up, куки-баннер, редиректы — или `none`]
+- Page object: fixture `page_<name>`, class `<Name>Page`, module `pages/<…>_page.py` | literal
+  navigation (full URL in a step sentence)
+- Key elements (a textual description of the elements, for example: the red button in the top-left
+  corner...): […]
+- Forms and validations: […] — verbatim validation texts
+- Observable states: empty / error / loading / toast banners (verbatim text, the appearance event,
+  disappear after N s) — what it looks like, verbatim texts
+- API endpoints: [method + path]
+- Technical specifics: [pop-up, cookie banner, redirects — or `none`]
 
-**PAGE-2 — детали**
+**PAGE-2 — details**
 
 […]
 
-Примечание: кеш шагов материализованных тестов живёт в
-`tests/web/<cell>/.cache/test_<name>/test_<name>/` (параметризованный кейс —
-`…/test_<name>[<param_id>]/`; предложения методов страниц — общий кеш `pages/.cache/<page>/`) и
-коммитится в репозиторий. Элементы страниц описываются видимыми именами/текстами — локаторы,
-селекторы и testid в артефакт не попадают (кроме механизма входа §4 Auth).
+Note: the step cache of the materialized tests lives in
+`tests/web/<cell>/.cache/test_<name>/test_<name>/` (a parameterized case —
+`…/test_<name>[<param_id>]/`; page-method sentences — the shared cache `pages/.cache/<page>/`) and
+is committed to the repository. Page elements are described by visible names/texts — locators,
+selectors, and testid never get into the artifact (except the §4 Auth login mechanism).
 
 **3. Functional requirements:**
 
-Каждое требование несёт стабильный идентификатор `REQ-<N>` (последовательная нумерация внутри §3
-в порядке подразделов, без пропусков и дублей) — реестр для трассируемости рутин.
+Every requirement carries a stable identifier `REQ-<N>` (sequential numbering within §3 in the
+subsection order, with no gaps or duplicates) — the registry for Routine traceability.
 
 - **Main behavior:**
-    - `REQ-1` — [Сценарий/правило: условие → ожидаемое поведение страницы]
-- **Error behavior (contract):** [опционально — только наблюдённые/названные пользователем ошибки;
-  негативных фактов нет — подраздел опускается целиком]
-    - `REQ-<N>` — [Условие ошибки → ожидаемая реакция: текст валидации / пустое состояние / 404]
+    - `REQ-1` — [Scenario/rule: condition → expected page behavior]
+- **Error behavior (contract):** [optional — only observed/user-named errors; no negative facts —
+  the subsection is omitted entirely]
+    - `REQ-<N>` — [Error condition → expected reaction: validation text / empty state / 404]
 - **Acceptance criteria:**
-    - `REQ-<N>` — [Критерий]
+    - `REQ-<N>` — [Criterion]
 - **Constraints and boundaries:**
-    - `REQ-<N>` — [Что топик не делает]
+    - `REQ-<N>` — [What the topic does not do]
 
 **4. Preconditions and environment:**
 
-- Business preconditions (данные/состояния — как потребность): [...]
-- **Auth:** [механизм: без авторизации | форма `<URL>`, поля `<name>`, сабмит `<кнопка/локатор>` | SSO;
-  источник креденшалов: env `<имена>` / пользователь. Значений секретов НЕТ]
-- Base URL: [повтор пункта §1 — значение/шаблон из web.yml, аргументы рендера, адрес окружения
-  топика после рендера]
-- Target environment: [окружение топика — повтор пункта §1]
-- Web runtime: [дословно из web.yml — повтор пункта §1]
-- Browser endpoint: [повтор пункта §1 — «из конфига» | адрес + суффикс `--browser-endpoint <адрес>`]
+- Business preconditions (data/states — as a need): [...]
+- **Auth:** [mechanism: no authorization | form `<URL>`, fields `<name>`, submit `<button/locator>`
+  | SSO; credential source: env `<names>` / the user. NO secret values]
+- Base URL: [repeat of item §1 — the value/template from web.yml, the render arguments, the topic
+  environment's address after rendering]
+- Target environment: [the topic environment — repeat of item §1]
+- Web runtime: [verbatim from web.yml — repeat of item §1]
+- Browser endpoint: [repeat of item §1 — "from config" | address + the `--browser-endpoint
+  <address>` suffix]
 
 **5. Roles and permissions:**
 
-[Кто может / не может выполнять сценарии (роли, статусы авторизации)]
+[Who can / cannot perform the scenarios (roles, authorization statuses)]
 
 **6. Integration aspects:**
 
-- [API-эндпоинты страниц (метод + путь), внешние скрипты/виджеты, куки-баннеры, pop-up]
+- [Pages' API endpoints (method + path), external scripts/widgets, cookie banners, pop-ups]
 
 **7. Links and resources:**
 
-- [Документация, макеты, ссылки — если есть]
+- [Documentation, mockups, links — if any]
 
 **8. Available project usages:**
 
 | key     | path             | role                                              | purpose                     |
 |---------|------------------|---------------------------------------------------|-----------------------------|
-| `<key>` | [.goga/usages/…] | [runtime reference / data-mocks-utilities / other] | [предметная область — фраза] |
+| `<key>` | [.goga/usages/…] | [runtime reference / data-mocks-utilities / other] | [subject area — a phrase] |
 
-Реестр — результат сканирования `.goga/usages/` целевого проекта. Это **справочник доступных
-активов**, а не выбор инструментов: потребности тестов согласуются с инструментами (существующими
-или новыми) на стадии testcases — там же создаются usage-файлы новых библиотек
-(`.goga/usages/cooks/<key>.md`). Если `.goga/usages/` пуст — напиши "no usages".
+The registry is the result of scanning `.goga/usages/` of the target project. It is a **reference
+inventory of the available assets**, not a tool selection: the test needs are reconciled with the
+tools (existing or new) at the testcases stage — the usage files of new libraries
+(`.goga/usages/cooks/<key>.md`) are created there as well. If `.goga/usages/` is empty — write
+"no usages".
 
 **9. Already covered by tests:**
 
-[Таблица: страница/флоу | статус (not covered / partial / full) | существующие Routine в
-`tests/web/**` (имя → Flow/Positive/Negative) | действие (reuse / extend — достающие / regenerate)].
-Секция **опциональна**: если ничего не покрыто — напиши "no coverage".
+[A table: page/flow | status (not covered / partial / full) | existing Routines in `tests/web/**`
+(name → Flow/Positive/Negative) | action (reuse / extend — filling the gaps / regenerate)]. The
+section is **optional**: if nothing is covered — write "no coverage".
 ```

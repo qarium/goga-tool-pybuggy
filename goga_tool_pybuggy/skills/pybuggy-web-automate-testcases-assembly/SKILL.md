@@ -7,14 +7,14 @@ description: Assembles and materializes the cells — builds each cell's complet
 
 ## Identity
 
-Ты собираешь и материализуешь клетки: из утверждённых рутин и раскладки строишь полный CODEMANIFEST
-каждой ячейки и записываешь его в `tests/web/<cell>/CODEMANIFEST`. После записи — механические
-гейты: `goga lint`, `goga schema` и REQ-покрытие.
+You assemble and materialize cells: from the approved Routines and the cell map you build each cell's
+complete CODEMANIFEST and write it to `tests/web/<cell>/CODEMANIFEST`. After the write — the
+mechanical gates: `goga lint`, `goga schema`, and REQ coverage.
 
 ## Core Principle
 
-Сборка детерминирована: внутренности рутин уже утверждены пользователем (routines design),
-раскладка утверждена (cell map) — здесь не проектируется ничего нового. Создаётся **только** CODEMANIFEST.
+Assembly is deterministic: the Routine internals are already approved by the user (routines design),
+the layout is approved (cell map) — nothing new is designed here. **Only** the CODEMANIFEST is created.
 
 ---
 
@@ -22,67 +22,71 @@ description: Assembles and materializes the cells — builds each cell's complet
 
 ### Step 1. Load context
 
-1. [ROUTINES_REPORT] — утверждённые рутины (полные аннотации) и сессионный реестр покрытия REQ.
-2. [CELL_MAP_REPORT] — ячейки и раскладка Routine → ячейка.
-3. [TESTCASES_INTAKE] — базовый блок Header и requirements.md (§3 — реестр REQ для проверки
-   покрытия).
-4. DSL: `goga-cell` / `goga-cell-python` / `goga-tool-pybuggy-web-cookbook` (загружены intake).
+1. [ROUTINES_REPORT] — approved Routines (full annotations) and the session REQ coverage registry.
+2. [CELL_MAP_REPORT] — cells and the Routine → cell assignment.
+3. [TESTCASES_INTAKE] — the Header base block and requirements.md (§3 — the REQ registry for
+   coverage verification).
+4. DSL: `goga-cell` / `goga-cell-python` / `goga-tool-pybuggy-web-cookbook` (loaded by intake).
 
 ### Step 2. Assemble each cell's CODEMANIFEST
 
-Для каждой ячейки из [CELL_MAP_REPORT]:
+For each cell from [CELL_MAP_REPORT]:
 
-1. **Header** — базовый блок из [TESTCASES_INTAKE] **дословно**; поверх — cell-specific usages:
-   ключи из секций `Use …` рутин ячейки, только с существующими файлами
-   `.goga/usages/cooks/<key>.md`. Подключение — строка `<key>: .goga/usages/cooks/<key>.md`
-   в `Usages` + строка ``Use `<key>` for <назначение>`` в `Annotations`.
-2. **Body** — рутины ячейки **дословно** из [ROUTINES_REPORT]: сигнатура (фикстуры-страницы
-   `page_<name>`), `location`, аннотация.
-3. **Footer** — `Author: Goga`, `CreatedAt: <день/месяц/год>`, `Description: <зачем ячейка>`.
+1. **Header** — the base block from [TESTCASES_INTAKE] **verbatim**; on top of it — cell-specific
+   usages: keys from the `Use …` sections of the cell's Routines, only those with existing
+   `.goga/usages/cooks/<key>.md` files. Attach each key with the line
+   `<key>: .goga/usages/cooks/<key>.md` in `Usages` + the line ``Use `<key>` for <purpose>`` in
+   `Annotations`.
+2. **Body** — the cell's Routines **verbatim** from [ROUTINES_REPORT]: signature (page fixtures
+   `page_<name>`), `location`, annotation.
+3. **Footer** — `Author: Goga`, `CreatedAt: <day/month/year>`, `Description: <cell purpose>`.
 
-### Step 3. Validate against the DSL (до записи)
+### Step 3. Validate against the DSL (before writing)
 
-По каждому CODEMANIFEST (`goga-cell` + `goga-tool-pybuggy-web-cookbook`):
+For each CODEMANIFEST (`goga-cell` + `goga-tool-pybuggy-web-cookbook`):
 
-1. Структура: Header → `---` → Body → `---` → Footer; ключи чувствительны к регистру.
-2. Header: базовый блок идентичен [TESTCASES_INTAKE]; cell-specific ключи резолвятся (файлы есть).
+1. Structure: Header → `---` → Body → `---` → Footer; keys are case-sensitive.
+2. Header: the base block is identical to [TESTCASES_INTAKE]; cell-specific keys resolve (the
+   files exist).
 3. Body:
-   - только Routine (без `methods`/`properties`, без Entities);
-   - сигнатура без выхода;
+   - Routine only (no `methods`/`properties`, no Entities);
+   - signature with no output;
    - `location: test_<name>.py`; snake_case;
-   - аннотация — строгая структура секций с пустыми строками;
-   - бэктик-ссылки (`` `<key>` ``) резолвятся в контексте CODEMANIFEST.
+   - annotation — strict section structure with blank lines;
+   - backtick references (`` `<key>` ``) resolve in the CODEMANIFEST context.
 4. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
-DSL-ошибка — исправь и повтори валидацию; неисправимая — **STOP** (файлов не создавать).
+A DSL error — fix it and repeat the validation; an unfixable one — **STOP** (create no files).
 
 ### Step 4. Write the CODEMANIFESTs
 
-Обрабатывай ячейки в порядке [CELL_MAP_REPORT]:
+Process the cells in [CELL_MAP_REPORT] order:
 
-1. **Новая ячейка** — создай `tests/web/<slug>/CODEMANIFEST` (каталог при необходимости).
-2. **Существующая ячейка** — **сливай, не перезаписывай**:
-   - перед записью сохрани копию существующего файла (для возможного отката);
-   - Body: существующие `test_*` Routine не трогай — добавь только новые рутины; имя из плана уже
-     есть — сохрани существующий вариант, зафиксируй коллизию в отчёте (warning);
-   - Header: слей `Usages` по ключам (базовый блок не меняй; добавь новые cell-specific);
-     в `Annotations` для каждого нового ключа — строка ``Use `<key>` …``;
-   - Footer: сохрани существующие `CreatedAt`/`Description`; `Author: Goga` не меняется.
-3. Никогда не создавай `__init__.py`, тестовый код, cell-level `.usages/` — единственный
-   артефакт — CODEMANIFEST.
+1. **New cell** — create `tests/web/<slug>/CODEMANIFEST` (the directory if necessary).
+2. **Existing cell** — **merge, do not overwrite**:
+   - before writing, save a copy of the existing file (for a possible rollback);
+   - Body: do not touch existing `test_*` Routines — add only the new Routines; a name from the
+     plan already exists — keep the existing variant and record the collision in the report
+     (warning);
+   - Header: merge `Usages` by keys (keep the base block unchanged; add the new cell-specific
+     ones); in `Annotations` — the line ``Use `<key>` …`` for each new key;
+   - Footer: preserve the existing `CreatedAt`/`Description`; `Author: Goga` stays unchanged.
+3. Never create `__init__.py`, test code, or a cell-level `.usages/` — the only artifact is the
+   CODEMANIFEST.
 
 ### Step 5. Mechanical gates
 
-1. `goga lint` — красный → исправь и повтори.
-2. `goga schema tests/` — новые/слитые ячейки присутствуют в выводе.
-3. **REQ-покрытие** (сессионный реестр) — механическая сверка множеств:
-   - реестр требований: все `REQ-<N>` из §3 requirements.md;
-   - из Coverage-таблицы [ROUTINES_REPORT]: покрытые REQ + исключённые (исключение валидно только
-     с зафиксированным решением пользователя);
-   - условие: `покрытые ∪ исключённые = реестр` — без пропусков, дублей и пересечений, и каждая
-     Routine из Coverage найдена по имени в материализованных CODEMANIFEST.
-   Провал → **STOP** (возврат к routines design). Реестр не персистится: связь «требование →
-   рутина» живёт только в сессии; повторный запуск пайплайна строит реестр заново из §3.
+1. `goga lint` — red → fix and rerun.
+2. `goga schema tests/` — the new/merged cells are present in the output.
+3. **REQ coverage** (session registry) — a mechanical set comparison:
+   - requirements registry: all `REQ-<N>` from §3 of requirements.md;
+   - from the Coverage table in [ROUTINES_REPORT]: covered REQs plus excluded ones (an exclusion
+     is valid only with a recorded user decision);
+   - condition: `covered ∪ excluded = registry` — no gaps, duplicates, or overlaps, and every
+     Routine from Coverage is found by name in the materialized CODEMANIFESTs.
+   Failure → **STOP** (return to routines design). The registry is not persisted: the
+   "requirement → Routine" link lives only in the session; a rerun of the pipeline rebuilds the
+   registry from §3.
 
 ### Step 6. Produce the [ASSEMBLY_REPORT]
 
@@ -97,40 +101,40 @@ Fill in every section. Empty sections are forbidden.
 
 ## Cells
 
-| Ячейка | Путь              | Статус (создана / слита: +N Routine, M коллизий) | Usage-ключи |
-|--------|-------------------|--------------------------------------------------|-------------|
-| […]    | tests/web/<slug>/ | […]                                              | […]         |
+| Cell  | Path              | Status (created / merged: +N Routine, M collisions) | Usage keys  |
+|-------|-------------------|-----------------------------------------------------|-------------|
+| […]   | tests/web/<slug>/ | […]                                                 | […]         |
 
 ## Validation
 
-[Результаты `goga lint` / `goga schema tests/`]
+[Results of `goga lint` / `goga schema tests/`]
 
 ## REQ Coverage
 
-| REQ   | Routine(s) | Ячейка  |
+| REQ   | Routine(s) | Cell    |
 |-------|------------|---------|
 | REQ-1 | test_…     | catalog |
 
-[Каждый REQ §3 покрыт; висячих рутин нет.]
+[Every §3 REQ is covered; there are no orphaned Routines.]
 
 ## Warnings
 
-[Коллизии имён Routine, пропущенные cell-specific usages. Напиши `none`, если ничего.]
+[Routine name collisions, skipped cell-specific usages. Write `none` if there are none.]
 ```
 
 ## Invariants
 
 ### NEVER
 
-- писать тестовый код, `__init__.py`, cell-level `.usages/` — единственный создаваемый артефакт —
-  CODEMANIFEST в `tests/web/<slug>/`
-- перезаписывать существующий `tests/web/<slug>/CODEMANIFEST` целиком — только слияние новых Routine
-  с сохранением существующих
-- проектировать новые рутины или менять утверждённые аннотации — они утверждены пользователем
-- создавать файлы при DSL-ошибках (сначала halt)
+- write test code, `__init__.py`, or a cell-level `.usages/` — the only artifact created is the
+  CODEMANIFEST in `tests/web/<slug>/`
+- overwrite an existing `tests/web/<slug>/CODEMANIFEST` wholesale — only merge new Routines while
+  preserving the existing ones
+- design new Routines or change approved annotations — the user has approved them
+- create files on DSL errors (halt first)
 
 ### ALWAYS
 
-- валидировать каждый CODEMANIFEST до записи
-- запускать `goga lint` и `goga schema tests/` после материализации
-- проверять REQ-покрытие по материализованным файлам против §3 requirements.md
+- validate every CODEMANIFEST before writing
+- run `goga lint` and `goga schema tests/` after materialization
+- verify REQ coverage of the materialized files against §3 of requirements.md

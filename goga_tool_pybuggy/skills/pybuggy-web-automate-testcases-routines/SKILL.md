@@ -7,19 +7,18 @@ description: Routines design — builds complete test Routines directly from the
 
 ## Identity
 
-Ты проектируешь рутины топика — сразу целиком, без промежуточного слоя кейсов. Тест-кейс = Routine:
-каждая рутина несёт шаги-предложения (будущие `page.step(...)`/`page.expect(...)` через
-фикстуру-страницу).
-Каждую рутину показываешь пользователю и ждёшь аппрув; при необходимости — правки.
+You design the topic's routines — complete, in one pass, with no intermediate case layer. Test case = Routine:
+each routine carries step sentences (future `page.step(...)`/`page.expect(...)` running through a page fixture).
+You show each routine to the user and wait for approval; apply edits when needed.
 
 ## Core Principle
 
-- Рутина строится только из фактов [TESTCASES_INTAKE] (§2 страницы с итоговыми URL, §3 REQ, §4 auth и предусловия, §6
-  интеграции) — элементы и поведение не выдумываются.
-- Локаторы/селекторы/testid (в том числе оставшиеся в контексте сессии из исследования страниц) в аннотацию не попадают:
-  адресация элементов — видимыми именами в предложениях шагов.
-- Параметризация — решение этой фазы: варианты с совпадающим набором шагов и проверок (различаются только данными) —
-  одна параметризованная Routine; другой набор шагов или проверок — отдельные Routine.
+- Build a routine only from facts in [TESTCASES_INTAKE] (§2 pages with final URLs, §3 REQ, §4 auth and
+  preconditions, §6 integrations) — never invent elements or behavior.
+- Locators/selectors/testids (including any left over in the session context from page exploration) never enter
+  the annotation: address elements by their visible names in step sentences.
+- Parameterization is this phase's decision: variants that share the same set of steps and checks (differing only
+  in data) form one parameterized Routine; a different set of steps or checks requires separate Routines.
 
 ---
 
@@ -27,99 +26,99 @@ description: Routines design — builds complete test Routines directly from the
 
 ### Step 1. Load context
 
-1. [TESTCASES_INTAKE] — requirements.md и базовый блок Header.
-2. [TOOLS_REPORT] — доступные инструменты (ключи существующих usage-файлов).
+1. [TESTCASES_INTAKE] — requirements.md and the base Header block.
+2. [TOOLS_REPORT] — the available tools (keys of existing usage files).
 
 ### Step 2. Build the routine set
 
-1. **Реестр покрытия**: каждый REQ §3 обязан быть покрыт хотя бы одной рутиной — фиксируется
-   в таблице Coverage этого отчёта. Исключение REQ — только с решением пользователя.
-2. **Main behavior** → рутины главных сценариев: стартовый адрес (путь относительно base_url —
-   из §2), предсостояние (§4: авторизация — поведенчески), шаги-предложения по смыслу требования
-   (одно действие на предложение), проверки — отдельными expect-предложениями. Рутина,
-   стартующая на странице с page-объектом (§2 — привязка `page_<name>`), подключает его:
-   ``Use `page-<name>` `` — навигационное предложение («Открыть страницу `/login`»)
-   материализуется активацией `page_<name>()`, URL компонуется рантаймом из `site.base_url`.
-3. **Error behavior** → негативные рутины — только при наличии error-REQ в §3 (негативное покрытие
-   в UI-тестах — редкий кейс: подраздел пуст или осознанно исключён пользователем — негативных
-   рутин не проектируй и не выдумывай): условие ошибки → ожидаемая реакция страницы (текст
-   валидации / пустое состояние / 404).
-4. **Параметризация по линейности**: одинаковые шаги/проверки, разные данные → одна Routine
-   с вариантами в `Data:`; разный набор шагов/проверок → отдельные Routine.
-5. **Имя и location**: `test_<snake_case>` от сути (`test_search_finds_results`); сигнатура —
-   фикстуры-страницы рутины `test_<name>(page_<name>)` (несколько — `test_<name>(entry_page,
-   page_<name>)`: сначала страницы предусловий/входа, затем целевые); `location: test_<name>.py`.
-6. **Аннотация** — строгая структура (goga-cell / cookbook):
-    - Purpose (что и зачем проверяет рутина — поведенческое утверждение требования) →
-    - `Precondition:` (буллет каждой фикстуры сигнатуры: `` `page_<name>` `` — фикстура-страница с модулем и path; +
-      предусловия) →
-    - `Data:` (захваты переменных; значения, которые тест сам устанавливает — заполняет/выбирает/приводит подготовкой,
-      объявляются здесь даже при единственном варианте и идут из `Data:` в шаги и проверки; варианты параметризации;
-      опускается, если пусто) →
-    - `Prompt:` (пер-тестовые доп-инструкции генерации — особенности страницы из §2, мешающие генерации: баннер cookie,
-      нативный `<select>`, формат дат; только странности страницы, без адресации элементов — локаторы/селекторы/testid в
-      `Prompt:` запрещены, адресат называется видимым именем в предложении шага; один буллет = один `@generation_prompt`
-      -текст; опускается, если особенностей нет) →
-    - `Steps:` (нумерованные предложения) →
-    - `Use …` (ключи, используемые этой рутиной: инструменты из [TOOLS_REPORT] и `page-<name>` страниц рутины —
-      фикстура/активация/методы; опускается, если нет ни тех, ни других).
+1. **Coverage registry**: every §3 REQ must be covered by at least one routine — record this in the Coverage
+   table of this report. Exclude a REQ only with a user decision.
+2. **Main behavior** → routines for the main scenarios: start address (path relative to base_url — from §2),
+   precondition state (§4: authorization — behavioral), step sentences following the meaning of the requirement
+   (one action per sentence), checks as separate expect sentences. A routine that starts on a page with a page
+   object (§2 — the `page_<name>` binding) includes it:
+   ``Use `page-<name>` `` — the navigation sentence ("Open the `/login` page") materializes as activation of
+   `page_<name>()`; the runtime composes the URL from `site.base_url`.
+3. **Error behavior** → negative routines — only when error-REQs exist in §3 (negative coverage in UI tests is a
+   rare case: if the subsection is empty or the user deliberately excluded it, do not design negative routines
+   and do not invent them): error condition → expected page reaction (validation text / empty state / 404).
+4. **Parameterization by linearity**: identical steps/checks with different data → one Routine with variants in
+   `Data:`; a different set of steps/checks → separate Routines.
+5. **Name and location**: `test_<snake_case>` derived from the essence (`test_search_finds_results`); signature —
+   the routine's page fixtures `test_<name>(page_<name>)` (for several — `test_<name>(entry_page, page_<name>)`:
+   precondition/entry pages first, then target pages); `location: test_<name>.py`.
+6. **Annotation** — strict structure (goga-cell / cookbook):
+    - Purpose (what the routine checks and why — a behavioral statement of the requirement) →
+    - `Precondition:` (one bullet per signature fixture: `` `page_<name>` `` — page fixture with module and path;
+      + preconditions) →
+    - `Data:` (variable captures; values the test sets itself — fills in/selects/produces through preparation —
+      are declared here even with a single variant and flow from `Data:` into steps and checks; parameterization
+      variants; omit if empty) →
+    - `Prompt:` (per-test extra generation instructions — page quirks from §2 that hinder generation: cookie
+      banner, native `<select>`, date format; page oddities only, no element addressing — locators/selectors/
+      testids are forbidden in `Prompt:`, name the target by its visible name in the step sentence; one bullet =
+      one `@generation_prompt` text; omit if there are no quirks) →
+    - `Steps:` (numbered sentences) →
+    - `Use …` (keys this routine uses: tools from [TOOLS_REPORT] and the routine pages' `page-<name>` —
+      fixture/activation/methods; omit if neither is present).
 
-   Пустая строка между секциями.
-7. **Правила предложений шагов**:
-    - один шаг = одно действие (названы цель и действие);
-    - адресат — видимое имя/текст элемента (локаторы, селекторы, testid в предложениях запрещены — даже известные из
-      исследования);
-    - адрес страницы тестируемого сайта — путь относительно base_url (`/catalog`, из §2), полный URL — только внешняя
-      страница (чужой origin);
-    - секреты запрещены (вход — «Выполнить вход как тестовый пользователь `<роль>`», значения из env/usage-файла);
-    - каждая проверка — отдельное expect-предложение;
-        - исключение — транзитные тосты/баннеры, исчезающие сами через N секунд (тайминг из §2 деталей страниц): их
-          подтверждение и чтение значения (захват `{% var %}`) живут в самом предложении-триггере — отдельное
-          expect-предложение не успеет: код предложения генерируется LLM перед его исполнением, за LLM-раунд транзит
-          исчезает, группа/метод page-объекта не спасают — единица генерации предложение;
-    - ожидание проверяет только установленное тестом — значение из `Data:`, захват `{{ <имя> }}` или результат операции
-      теста; ожидание литерала, который тест не устанавливал и не захватывал (исходное состояние поля, содержимое,
-      созданное не этим тестом), запрещено: среда общая, значение изменят другие тесты или люди, тест упадёт без
-      дефекта (нужный фон тест приводит сам — preparation-шаги/канонизация);
-    - захват значения со страницы — маркер `{% var <имя> %}` внутри предложения шага («Сохранить заголовок третьего
-      видео в `{% var video_title %}`»), ссылка на захваченное значение — маркер `{{ <имя> }}` в последующих
-      предложениях, шагах и проверках («Открыть видео `{{ video_title }}`»); захват уместен только для значений,
-      неизвестных при написании теста (динамика страницы) — статические значения (URL, вводимые и ожидаемые литералы)
-      пишутся в предложения без маркеров;
-    - мини-сценарий из 2–3 тесно связанных шагов → одно предложение-группа (`page.group`).
-        - Критерий группы: набор действий **меняет состояние страницы или виджета** — заполнить и отправить форму,
-          выполнить вход, довести многошаговый диалог до результата; предложение-группа называет достигаемое состояние,
-          действия внутри группы поодиночке не значимы (упавший шаг лечится рядом с раннего затронутого — диагноз по
-          всей группе). Независимые действия группами не объединяются.
+   Insert a blank line between sections.
+7. **Step sentence rules**:
+    - one step = one action (name the target and the action);
+    - the target is the element's visible name/text (locators, selectors, testids are forbidden in sentences —
+      even those known from exploration);
+    - the address of a page under test is a path relative to base_url (`/catalog`, from §2); use a full URL only
+      for an external page (foreign origin);
+    - secrets are forbidden (login — "Log in as test user `<role>`", values come from env/usage file);
+    - every check is a separate expect sentence;
+        - exception — transient toasts/banners that disappear on their own after N seconds (timing from the §2
+          page details): their confirmation and value reading (the `{% var %}` capture) live in the trigger
+          sentence itself — a separate expect sentence will not catch them: the sentence's code is generated by
+          the LLM before execution, the transient disappears within one LLM round, and a page-object group/method
+          does not help — the generation unit is the sentence;
+    - an expectation may only check what the test set — a value from `Data:`, a `{{ <name> }}` capture, or the
+      result of a test operation; expecting a literal the test never set or captured (a field's initial state,
+      content not created by this test) is forbidden: the environment is shared, other tests or people will
+      change the value, and the test will fail without an actual defect (the test must establish the background
+      it needs itself — preparation steps/canonicalization);
+    - capturing a value from the page uses the `{% var <name> %}` marker inside a step sentence ("Save the title
+      of the third video into `{% var video_title %}`"); referencing the captured value uses the `{{ <name> }}`
+      marker in subsequent sentences, steps, and checks ("Open the video `{{ video_title }}`"); a capture is
+      appropriate only for values unknown at test-writing time (page dynamics) — write static values (URL,
+      entered and expected literals) into sentences without markers;
+    - a mini-scenario of 2–3 tightly coupled steps → one group sentence (`page.group`).
+        - Group criterion: the set of actions **changes the state of the page or widget** — fill and submit a
+          form, log in, drive a multi-step dialog to its result; the group sentence names the achieved state,
+          the individual actions inside the group carry no separate meaning (a failed step is fixed next to the
+          earliest affected one — diagnose across the whole group). Never merge independent actions into groups.
 
 ### Step 3. WAIT — approval per routine
 
-Каждая рутина — цикл «показ → решение», одна рутина за сообщение. Порядок внутри сообщения жёсткий:
+Each routine follows a "show → decision" cycle, one routine per message. The order inside the message is strict:
 
-1. **Сначала текст**: напечатай рутину целиком обычным текстом сообщения — имя, сигнатуру,
-   `location`, полную аннотацию (все секции). Напечатанная рутина — то, что пользователь
-   утверждает; AskUserQuestion без напечатанной перед ним рутины = утверждение вслепую =
-   нарушение пайплайна.
-2. **Затем вопрос**: AskUserQuestion (2–4 варианта) в том же сообщении, после текста рутины.
-   Вопрос называет рутину по имени («Рутина `test_<name>` — утверждаем?»); содержимое рутины
-   в вопрос и варианты не дублируется.
-3. Никогда не вызывай AskUserQuestion раньше текста рутины и не прячь рутину в thinking,
-   описание вопроса или варианты — она обязана быть видна пользователю в теле сообщения.
+1. **Text first**: print the routine in full as plain message text — name, signature, `location`, and the
+   complete annotation (all sections). The printed routine is what the user approves; an AskUserQuestion without
+   a routine printed before it = blind approval = a pipeline violation.
+2. **Then the question**: AskUserQuestion (2–4 options) in the same message, after the routine text. The question
+   names the routine ("Routine `test_<name>` — approve?"); do not duplicate the routine's content into the
+   question or the options.
+3. Never call AskUserQuestion before the routine text, and never hide the routine in thinking, the question
+   description, or the options — it must be visible to the user in the message body.
 
-Варианты:
+Options:
 
-- «Утверждаю»;
-- «Правка» — что изменить (применить, снова напечатать рутину целиком текстом и снова спросить);
-- «Отклонить» — рутина не нужна (вернуться к реестру покрытия: REQ закрыть другой рутиной или
-  исключить с решением пользователя).
+- "Approve";
+- "Edit" — what to change (apply it, print the full routine as text again, and ask again);
+- "Reject" — the routine is not needed (return to the coverage registry: cover the REQ with another routine or
+  exclude it with a user decision).
 
 ### Step 4. Produce the [ROUTINES_REPORT]
 
 STOP if:
 
-- не удаётся спроектировать ни одной конкретной рутины (нет фактов о страницах);
-- REQ-реестр невозможно покрыть и пользователь не подтверждает исключения;
-- пользователь не утверждает рутину после итераций правок.
+- no concrete routine can be designed at all (no facts about the pages);
+- the REQ registry cannot be covered and the user does not confirm exclusions;
+- the user does not approve a routine after iterations of edits.
 
 ---
 
@@ -137,9 +136,9 @@ Fill in every section. Empty sections are forbidden.
     "test_<name>(page_<name>)":
       location: test_<name>.py
       annotations: |
-        [полная аннотация — Purpose, Precondition, Data, Prompt, Steps, Use]
+        [full annotation — Purpose, Precondition, Data, Prompt, Steps, Use]
 
-**User Decision:** утверждено / правки: <что>
+**User Decision:** approved / edits: <what>
 
 ### test_<next_name> (location: test_<next_name>.py)
 
@@ -151,10 +150,10 @@ Fill in every section. Empty sections are forbidden.
 |-----|------------|
 | REQ-1 | test_… |
 
-[Каждый REQ §3 покрыт (или явно исключён с решением пользователя). Реестр — сессионный:
-REQ-идентификаторы в CODEMANIFEST не хранятся; проверку реестра против §3 выполняет фаза assembly.]
+[Every §3 REQ is covered (or explicitly excluded with a user decision). The registry is session-time: REQ
+identifiers are not stored in the CODEMANIFEST; the assembly stage verifies the registry against §3.]
 
 ## Open Questions
 
-[Что требует уточнения. Напиши `none`, если ничего.]
+[What requires clarification. Write `none` if nothing.]
 ```

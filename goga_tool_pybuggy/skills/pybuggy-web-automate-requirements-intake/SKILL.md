@@ -7,14 +7,14 @@ description: Intake and formalization of the tested web topic's description — 
 
 ## Identity
 
-Ты отвечаешь за приём и формализацию описания: ты превращаешь описание топика в структурированное понимание того,
-что именно тестируется, и собираешь факты среды для исследования страниц.
+You own the intake and formalization of the description: you turn the topic description into a structured understanding
+of what exactly is under test, and you collect the environment facts needed for page exploration.
 
 ## Core Principle
 
-Ты **уточняешь** намерение пользователя, **раскрываешь** цель топика и **фиксируешь** границы — что входит в объём
-тестирования, что остаётся за ним. Содержание топика приходит только из запроса пользователя; факты среды —
-конфиг веб-рантайма, состояние ветки — читаются из репозитория, никогда не угадываются.
+You **clarify** the user's intent, you **uncover** the topic goal, and you **fix** the boundaries — what is included
+in the testing scope and what stays outside it. The topic's content comes only from the user's request; environment
+facts — the web runtime configuration, the branch state — are read from the repository, never guessed.
 
 ---
 
@@ -22,93 +22,95 @@ description: Intake and formalization of the tested web topic's description — 
 
 ### Step 1. Extract the original request
 
-1. Прочитай `$ARGUMENTS` — описание топика от пользователя.
-2. Если описание пусто — остановись и запроси описание топика; не выполняй никаких действий без описания.
+1. Read `$ARGUMENTS` — the topic description from the user.
+2. If the description is empty — stop and request the topic description; perform no actions without a description.
 
 ### Step 2. Clarify the goal and boundaries
 
-1. Сформулируй предположение о цели топика: что тестируем, какие страницы/пользовательские флоу затронуты.
-2. Определи, что входит в объём тестирования и что не входит (обычно вне скоупа веб-топика: вёрстка/кроссбраузерность,
-   производительность, доступность — если пользователь не потребовал иного).
-3. Если цель неоднозначна — задай уточняющие вопросы (вариантами выбора), не погружаясь в код проекта.
+1. Form a hypothesis about the topic goal: what is under test, which pages/user flows are affected.
+2. Determine what is included in the testing scope and what is not (typically out of scope for a web topic:
+   layout/cross-browser compatibility, performance, accessibility — unless the user demands otherwise).
+3. If the goal is ambiguous — ask clarifying questions (as multiple-choice options), without diving into the project code.
 
 ### Step 2.1. Create the topic
 
-Как только предмет тестирования определён, создай топик — топик текущей ветки дерева истории:
+As soon as the subject of testing is determined, create the topic — the topic of the current branch of the history
+tree:
 
-1. Выполни `goga history ensure` — идемпотентно создаёт каталог топика `.goga/history/<year>/<topic>/`
-   текущей ветки. Ошибка (не репозиторий, detached HEAD, git отсутствует) — **STOP**: попроси
-   пользователя запустить пайплайн из ветки.
+1. Run `goga history ensure` — it idempotently creates the topic directory `.goga/history/<year>/<topic>/`
+   of the current branch. An error (not a repository, detached HEAD, git missing) — **STOP**: ask
+   the user to run the pipeline from a branch.
 
-Каждый артефакт топика адресуется как `goga history path -f <artifact>`.
+Every topic artifact is addressed as `goga history path -f <artifact>`.
 
 ### Step 2.2. Read the web runtime facts and resolve the target context
 
-Это **единственное** место, где спрашивается контекст окружения; каждая следующая стадия читает его из
-артефакта требований.
+This is the **only** place where the environment context is asked; every subsequent stage reads it from
+the requirements artifact.
 
-1. Прочитай документ `.goga/tools/pybuggy/web.yml` в целевом проекте (от текущего рабочего каталога,
-   без поиска вверх). Документа нет — **STOP**: попроси пользователя запустить
-   `goga tool pybuggy init` (kind `web` или `both`) и повторить.
-   Запиши **дословно** активные ключи:
-   - `provider`, `generation_model` — LLM-факты генерации шагов;
-   - `site.base_url` — адрес тестируемого сайта: значение или Jinja2-шаблон. Источник — только
-     конфиг, у пользователя base_url не запрашивается. Отсутствует/пустой — **STOP**: попроси
-     пользователя задать его в web.yml (`goga tool pybuggy init` kind `web`/`both` или вручную)
-     и повторить;
-   - `browser.endpoint` (если задан) — кандидат ответа «Из конфига» в вопросе 4.
+1. Read the document `.goga/tools/pybuggy/web.yml` in the target project (from the current working
+   directory, without searching upward). The document is missing — **STOP**: ask the user to run
+   `goga tool pybuggy init` (kind `web` or `both`) and retry.
+   Record the active keys **verbatim**:
+   - `provider`, `generation_model` — the LLM facts for step generation;
+   - `site.base_url` — the address of the site under test: a value or a Jinja2 template. The
+     config is its only source; base_url is never requested from the user. Missing/empty —
+     **STOP**: ask the user to set it in web.yml (`goga tool pybuggy init` kind `web`/`both`,
+     or manually) and retry;
+   - `browser.endpoint` (if set) — the candidate for the "From the config" answer in question 4.
 
-2. Спроси через AskUserQuestion (один вопрос за сообщение, 2–4 варианта):
+2. Ask via AskUserQuestion (one question per message, 2–4 options):
 
-   1. **Аргументы рендера base_url** — только когда `site.base_url` в конфиге — шаблон с
-      переменными (простой URL — вопрос не задаётся, аргументов нет): какими аргументами шаблон
-      рендерится в адрес окружения топика; из них же складывается адрес исследования.
-      Варианты:
-       - «Env-переменные» — имена и значения для окружения топика (значения — компоненты адреса
-         сайта, не секреты; команда прогона получает префикс `ENV_NAME=значение pytest …`);
-       - «CLI-опции» — имена и значения (команда прогона получает суффикс `--имя=значение`;
-         каждая опция требует регистрации `pytest_addoption` в `conftest.py` — pytest отвергает
-         незарегистрированные опции; факт фиксируется в артефакте);
-       - «Не нужны» — переменные шаблона уже заданы в окружении.
-   2. **Целевые страницы** — какие страницы тестируем. Форма адреса:
-      - путь относительно base_url (`/catalog`, `/login`) — пользователь вводит или подтверждает
-        предложенные из описания топика;
-      - полный URL — внешние страницы (чужой origin).
-      Уточни, какое это окружение: прод / stage / feature-деплой ветки.
-      Все страницы обязаны принадлежать одному окружению:
-      - пути рендерятся от base_url;
-      - полные URL внутренних страниц — тот же origin;
-      - чужой origin — только внешняя страница (явно помечается).
-   3. **Способ авторизации** на сайте — **«Без авторизации»** | **«Форма логина»** (укажи URL формы —
-      или она будет найдена исследованием) | **«SSO/внешний провайдер»** | **«Тестовые креденшалы есть»**.
-      Для вариантов с входом уточни источник креденшалов: имена env-переменных или «введу при
-      исследовании». **Значения секретов не запрашивай и не записывай.**
-   4. **Эндпоинт браузера для написания тестов** — к какому браузеру подключаться при исследовании страниц
-      и прогонах тестов. Адрес браузера, не тестируемого сайта.
-      Варианты: 
-       - «Из конфига» — `browser.endpoint` (предлагается только при заданном)
-       - «Введу адрес» —  `http(s)://…` (CDP) или `ws(s)://…` (Playwright server).
-         Введённый адрес применяется и к исследованию (`attach`), и к прогонам — команды несут 
-         `--browser-endpoint <адрес>`; «из конфига» — без флага.
+   1. **base_url render arguments** — ask only when `site.base_url` in the config is a template with
+      variables (a plain URL means the question is not asked — there are no arguments): the arguments
+      with which the template renders into the topic environment address; the exploration address is
+      built from the same arguments.
+      Options:
+       - "Env variables" — the names and values for the topic environment (the values are components
+         of the site address, not secrets; the run command gets the prefix `ENV_NAME=value pytest …`);
+       - "CLI options" — the names and values (the run command gets the suffix `--name=value`;
+         every option requires a `pytest_addoption` registration in `conftest.py` — pytest rejects
+         unregistered options; the fact is recorded in the artifact);
+       - "Not needed" — the template variables are already set in the environment.
+   2. **Target pages** — which pages are under test. Address form:
+      - a path relative to base_url (`/catalog`, `/login`) — the user enters it, or confirms
+        the ones proposed from the topic description;
+      - a full URL — external pages (a foreign origin).
+      Clarify which environment this is: production / stage / the branch's feature deployment.
+      All pages must belong to a single environment:
+      - the paths render from base_url;
+      - the full URLs of internal pages — the same origin;
+      - a foreign origin — only an external page (explicitly marked).
+   3. **Auth method** on the site — **"No auth"** | **"Login form"** (provide the form URL —
+      or it will be found by exploration) | **"SSO/external provider"** | **"Test credentials
+      available"**. For the sign-in variants, clarify the credential source: the env variable
+      names, or "I will enter them during exploration". **Never request or record secret values.**
+   4. **Browser endpoint for writing tests** — which browser to connect to during page exploration
+      and test runs. This is the browser's address, not the site under test.
+      Options:
+       - "From the config" — `browser.endpoint` (offered only when it is set)
+       - "I will enter an address" — `http(s)://…` (CDP) or `ws(s)://…` (Playwright server).
+         The entered address applies both to exploration (`attach`) and to runs — the commands carry
+         `--browser-endpoint <address>`; "from the config" — no flag.
 
 ### Step 3. Capture preliminary signals
 
-Собери всё уже известное о топике из запроса:
+Collect everything already known about the topic from the request:
 
-- ключевые действия / бизнес-смысл (что пользователь делает на странице);
-- потенциальные страницы/флоу (по формулировкам пользователя);
-- роли участников (если известны);
-- ограничения и предположения (данные, зависимости, известные особенности).
+- key actions / business meaning (what the user does on the page);
+- potential pages/flows (from the user's wording);
+- participant roles (if known);
+- constraints and assumptions (data, dependencies, known specifics).
 
-Глубокий анализ сценариев происходит на стадии elaborate; здесь фиксируй только сказанное пользователем.
+The deep analysis of scenarios happens at the elaborate stage; here, record only what the user said.
 
 ### Step 4. Produce the [INTAKE_REPORT]
 
 STOP if:
 
-- описание пусто и пользователь не даёт уточнений;
-- цель топика остаётся принципиально неясной после уточнения;
-- документ `.goga/tools/pybuggy/web.yml` отсутствует и пользователь не инициализирует веб-вид.
+- the description is empty and the user provides no clarifications;
+- the topic goal remains fundamentally unclear after clarification;
+- the document `.goga/tools/pybuggy/web.yml` is missing and the user does not initialize the web kind.
 
 ---
 
@@ -121,58 +123,58 @@ Fill in every section. Empty sections are forbidden.
 
 ## Original Request
 
-[Дословно или близко к источнику: что сказал пользователь]
+[Verbatim or close to the source: what the user said]
 
 ## Topic Goal
 
-[Уточнённая цель в одном-двух предложениях: что именно тестируется]
+[The clarified goal in one or two sentences: what exactly is under test]
 
 ## Testing Scope
 
-[Что в объёме; что вне объёма]
+[What is in scope; what is out of scope]
 
 ## Web Runtime Facts
 
-[Дословно из .goga/tools/pybuggy/web.yml: provider, generation_model — LLM-факты генерации шагов]
+[Verbatim from .goga/tools/pybuggy/web.yml: provider, generation_model — the LLM facts for step generation]
 
 ## Base URL
 
-[Дословно из web.yml: `site.base_url: <значение/шаблон>`; вид: простой URL | шаблон с
-переменными `<имена>`; адрес окружения топика после рендера: `<полный URL>`]
+[Verbatim from web.yml: `site.base_url: <value/template>`; kind: plain URL | a template with variables
+`<names>`; the topic environment address after rendering: `<full URL>`]
 
 ## Run Arguments
 
-[не нужны (простой URL или переменные шаблона уже в окружении) | env: `<имя=значение>` (для
-окружения топика; префикс команд прогона `ENV_NAME=… pytest …`) | CLI: `--<имя>=<значение>`
-(суффикс команд прогона; требуют регистрации `pytest_addoption` в conftest.py) | и env, и CLI —
-перечисли оба]
+[not needed (a plain URL, or the template variables are already set in the environment) | env:
+`<name=value>` (for the topic environment; the run command prefix `ENV_NAME=… pytest …`) | CLI:
+`--<name>=<value>` (the run command suffix; they require `pytest_addoption` registration in
+conftest.py) | both env and CLI — list both]
 
 ## Browser Endpoint
 
-[«из конфига» (`browser.endpoint: <значение>`) | `<ws(s)://… | http(s)://…>` от пользователя;
-суффикс команд прогона: без флага | `--browser-endpoint <адрес>`]
+["from the config" (`browser.endpoint: <value>`) | `<ws(s)://… | http(s)://…>` from the user;
+the run command suffix: no flag | `--browser-endpoint <address>`]
 
 ## Target Pages
 
-| # | Адрес (как назван пользователем: путь относительно base_url `/…` | полный URL) | Что пользователь говорит о странице | Роль в топике |
+| # | Address (as named by the user: a path relative to base_url `/…` | a full URL) | What the user says about the page | Role in the topic |
 |---|-----------------------------------------------------------------------------|-------------------------------------|---------------|
 | 1 | /catalog                                                                    | […]                                 | […]           |
 
-[Полные URL чужого origin — только внешние страницы, помечай «внешняя» в колонке «Роль в топике».]
+[Full URLs with a foreign origin — external pages only; mark them "external" in the "Role in the topic" column.]
 
 ## Auth
 
-[без авторизации | форма логина (URL, если назван) | SSO/внешний провайдер | тестовые креденшалы —
-источник: env `<имена>` / введёт при исследовании. Значений секретов НЕТ и не будет]
+[no auth | a login form (URL, if named) | SSO/external provider | test credentials — source: env `<names>` /
+the user will enter them during exploration. Secret values are NOT present and never will be]
 
 ## Known Signals
 
-- Действия / бизнес-смысл: [...]
-- Возможные страницы/флоу: [...]
-- Роли участников: [...] (если известны)
-- Предположения и ограничения: [...]
+- Actions / business meaning: [...]
+- Possible pages/flows: [...]
+- Participant roles: [...] (if known)
+- Assumptions and constraints: [...]
 
 ## Open Questions
 
-[Что требует уточнения на последующих шагах. Напиши `none`, если ничего.]
+[What requires clarification on the subsequent steps. Write `none` if nothing.]
 ```

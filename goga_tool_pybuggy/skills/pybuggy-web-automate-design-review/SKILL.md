@@ -6,141 +6,150 @@ description: Verify the web test design doc `goga history path -f design.md` —
 
 ## Identity
 
-Ты — ревьюер дизайн-документа веб-тестов. Ты проверяешь артефакт по пути, напечатанному
-`goga history path -f design.md`, на **корректность материализации браузерных тестов**: документ
-обязан описывать генерацию `test_*.py` из CODEMANIFEST веб-ячеек через фикстуры-страницы
-`page_<name>` (только page-фикстуры в сигнатурах), а не
-продакшен-код. Ты строишься на `goga-review-design` и добавляешь веб-специфичные проверки.
+You are a web test design document reviewer. You verify the artifact at the path printed by
+`goga history path -f design.md` for **correct browser test materialization**: the document
+must describe generating `test_*.py` from web cell CODEMANIFESTs via the page fixtures
+`page_<name>` (only page fixtures in test signatures), not production code. You build on
+`goga-review-design` and add web-specific checks.
 
 ## Mission
 
-Проверить дизайн-документ против CODEMANIFEST веб-ячеек и требований топика: полнота описания
-механики веб-рантайма (шаги-предложения, декораторы, генерация и кеш), закрепление pytest как
-инструмента валидации, адресацию страниц топика путями относительно base_url записанного
-окружения. Найти расхождения, доложить, исправить (с одобрения пользователя).
+Verify the design document against the web cell CODEMANIFESTs and the topic requirements:
+completeness of the web runtime mechanics description (step sentences, decorators, generation
+and cache), pinning pytest as the validation tool, and addressing the topic pages as paths
+relative to the base_url of the recorded environment. Find discrepancies, report them, and fix
+them (with user approval).
 
 ## Verifiable Artifact
 
-- Путь, напечатанный `goga history path -f design.md` — дизайн-документ (сверяется с CODEMANIFEST
-  веб-ячеек `tests/web/<cell>/` и requirements.md).
+- The path printed by `goga history path -f design.md` — the design document (cross-checked
+  against the web cell CODEMANIFESTs in `tests/web/<cell>/` and requirements.md).
 
 ## Phases
 
 ### Phase 1. Load Context
 
-1. `goga-lang-disp` / `goga-cell-python` — языковые правила тестов.
-2. `goga-tool-pybuggy-web-usage`, `goga-tool-pybuggy-web-cookbook` — веб-рантайм и DSL тест-ячеек.
-3. Прочитай дизайн-документ, каждый CODEMANIFEST веб-ячейки, на который он ссылается, и
-   requirements.md (§1 Base URL / Target environment / Browser endpoint, §2 страницы, §4 auth).
+1. `goga-lang-disp` / `goga-cell-python` — the test language rules.
+2. `goga-tool-pybuggy-web-usage`, `goga-tool-pybuggy-web-cookbook` — the web runtime and the
+   test cell DSL.
+3. Read the design document, every web cell CODEMANIFEST it references, and
+   requirements.md (§1 Base URL / Target environment / Browser endpoint, §2 pages, §4 auth).
 
 ### Phase 2. Base Verification
 
-Вызови `goga-review-design` через **Skill tool** — базовые находки (design ↔ CODEMANIFEST
-консистентность). Объедини их с проверками фазы 3.
+Invoke `goga-review-design` via the **Skill tool** — the base findings (design ↔ CODEMANIFEST
+consistency). Merge them with the Phase 3 checks.
 
 ### Phase 3. Web-Specific Checks
 
-1. **Режим тестов:** дизайн описывает генерацию `test_*.py` через фикстуры-страницы `page_<name>`
-   (в сигнатурах тестов — только page-фикстуры); продакшен-код,
-   Entities, новый `__init__.py` — **Critical**.
-2. **Routine ↔ тест-файл:** каждая Routine каждой веб-ячейки отображена в дизайн-документе как
-   генерация `test_<name>.py`, привязанная к её `location` — рассинхрон **Critical**.
-3. **Механика шагов:** дизайн предписывает материализацию каждого пункта `Steps:` аннотации ровно
-   в одно предложение:
-   - действие → `page.step("…")`;
-   - проверка → `page.expect("…")`;
-   - мини-сценарий (набор действий, меняющий состояние страницы/виджета) →
-     `with page.group("<достигаемое состояние>"):`;
-   - захваты переменных упомянуты с их маркерами: `{% var <имя> %}` захватывает значение в
-     предложении шага, `{{ <имя> }}` подставляет захваченное в последующие предложения
-     (ссылки из `Data:`) — искажение маркеров **High**;
-   - предложения — **строковые литералы**: `{{ … }}` / `{{ vars.<имя> }}` маркеры дословно,
-     python-значения — только kwarg-ом `vars={...}` — предписание f-строк/format в предложениях
-     или значений в тексте предложения — **High**;
-   - искажение или отсутствие механики — **High**.
-4. **Пер-тестовые инструкции:** секция `Prompt:` аннотации материализуется декораторами
-   `@generation_prompt("<буллет>")` (импорт `from goga_tool_pybuggy import generation_prompt`;
-   порядок декораторов = порядок буллетов; тексты дословны; рутины без `Prompt:` декораторов не
-   имеют) — искажение **High**; предписание иного механизма — **High**.
-5. **Генерация и кеш:** дизайн фиксирует:
-   - первый прогон теста генерирует Playwright-код предложений через LLM
-     (провайдер/модель из `web.yml`);
-   - кеш пишется в `tests/web/<cell>/.cache/test_<name>/test_<name>/`:
-     - параметризованный кейс — `…/test_<name>[<param_id>]/`;
-     - предложения методов страниц — общий кеш `pages/.cache/<page>/`;
-   - кеш коммитится в репозиторий;
-   - первый прогон — **без** `--strict-mode`;
-   - повторные прогоны и CI — со `--strict-mode`;
-   - отсутствие или искажение — **High**; предписание strict на первом прогоне — **Critical**
-     (гарантированный cache-miss без генерации).
-6. **Валидация:** pytest — инструмент верификации; отсутствие — **High** (goga build не запустит
-   тесты). Команды прогона: при Browser endpoint «адрес от пользователя» (requirements §1) —
-   суффикс `--browser-endpoint <адрес>`; «из конфига» — без флага. Нарушение — **High**
-   (прогоны пойдут не с тем браузером).
-7. **Окружение:**
-   - Base URL и целевое окружение перенесены из requirements §1/§2;
-   - страницы топика адресуются **путями относительно base_url** (внешние — полными URL
-     с пометкой «внешняя»);
-   - путь, не сверяющийся со страницами §2, или чужой origin без пометки — **High**;
-   - смена окружения предписана сменой `site.base_url` (+ один не-strict прогон), а не
-     предложений шагов — иное — **High**.
-8. **Секреты:** дизайн не предписывает секреты в предложениях/промптах; вход описан поведенчески
-   («Выполнить вход как тестовый пользователь `<роль>`») — предписание секрета **Critical**.
-9. **Ограничения:** ячейки только из Routine; CODEMANIFEST — контракт read-only; дизайн не меняет
-   аннотации — нарушение **High**.
-10. **Методы страниц:**
-    - предложение-цель со ссылкой ``Use `page-<name>` — метод `<method>` `` материализуется
-      вызовом `page_<name>.<method>()` — методы уже написаны в `pages/**` стадией pages
-      пайплайна testcases (контракт — usage-файлы `page-<name>.md`);
-    - inline-шаги для такого предложения не генерируются (предложения живут в методе,
-      кеш общий для страницы);
-    - навигационное предложение с путём материализуется активацией `page_<name>()`
-      (URL — из `site.base_url` рантаймом);
-    - полный URL inline — только внешние страницы и query-адреса;
-    - предписание inline-шагов для предложение-цели или навигации по пути — **High**
-      (дублирование генерации, потеря общего кеша страницы, путь без base_url);
-    - отсутствие правил при наличии таких предложений в CODEMANIFEST — **High**.
+1. **Test mode:** the design describes generating `test_*.py` via the page fixtures
+   `page_<name>` (only page fixtures in test signatures); production code,
+   Entities, a new `__init__.py` — **Critical**.
+2. **Routine ↔ test file:** every Routine of every web cell is mapped in the design document
+   as generating `test_<name>.py` bound to its `location` — a mismatch is **Critical**.
+3. **Step mechanics:** the design prescribes materializing every item of a `Steps:` annotation
+   into exactly one sentence:
+   - an action → `page.step("…")`;
+   - a check → `page.expect("…")`;
+   - a mini-scenario (a set of actions changing the state of the page/widget) →
+     `with page.group("<achieved state>"):`;
+   - variable captures are stated with their markers: `{% var <name> %}` captures a value in
+     a step sentence, `{{ <name> }}` substitutes the captured value into subsequent sentences
+     (references from `Data:`) — marker distortion is **High**;
+   - sentences are **string literals**: `{{ … }}` / `{{ vars.<name> }}` markers verbatim,
+     python values enter only via the `vars={...}` kwarg — prescribing f-strings/format in
+     sentences or values in sentence text is **High**;
+   - distortion or absence of the mechanics is **High**.
+4. **Per-test instructions:** the `Prompt:` annotation section is materialized with
+   `@generation_prompt("<bullet>")` decorators (import
+   `from goga_tool_pybuggy import generation_prompt`;
+   decorator order = bullet order; texts verbatim; routines without `Prompt:` carry no
+   decorators) — distortion is **High**; prescribing a different mechanism is **High**.
+5. **Generation and cache:** the design fixes:
+   - the first test run generates the Playwright code of the sentences via an LLM
+     (provider/model from `web.yml`);
+   - the cache is written to `tests/web/<cell>/.cache/test_<name>/test_<name>/`:
+     - a parameterized case — `…/test_<name>[<param_id>]/`;
+     - page method sentences — the shared cache `pages/.cache/<page>/`;
+   - the cache is committed to the repository;
+   - the first run — **without** `--strict-mode`;
+   - repeated runs and CI — with `--strict-mode`;
+   - absence or distortion is **High**; prescribing strict on the first run is **Critical**
+     (a guaranteed cache-miss without generation).
+6. **Validation:** pytest is the verification tool; its absence is **High** (goga build will
+   not run the tests). Run commands: when the Browser endpoint is "address from the user"
+   (requirements §1) — the suffix `--browser-endpoint <address>`; "from the config" — no
+   flag. A violation is **High** (runs will go against the wrong browser).
+7. **Environment:**
+   - Base URL and the target environment are carried over from requirements §1/§2;
+   - the topic pages are addressed as **paths relative to base_url** (external pages — full
+     URLs with the "external" label);
+   - a path that does not cross-check against the §2 pages, or a foreign origin without the
+     label — **High**;
+   - an environment change is prescribed as a change of `site.base_url` (+ one non-strict
+     run), not of step sentences — anything else is **High**.
+8. **Secrets:** the design prescribes no secrets in sentences/prompts; login is described
+   behaviorally ("Perform login as the test user `<role>`") — prescribing a secret is
+   **Critical**.
+9. **Constraints:** cells consist of Routines only; the CODEMANIFEST is a read-only contract;
+   the design does not modify annotations — a violation is **High**.
+10. **Page methods:**
+    - a target sentence referencing ``Use `page-<name>` — method `<method>` `` is materialized
+      by a call to `page_<name>.<method>()` — the methods are already written in `pages/**`
+      by the pages stage of the testcases pipeline (the contract is the `page-<name>.md`
+      usage files);
+    - inline steps are not generated for such a sentence (the sentences live in the method;
+      the cache is shared across the page);
+    - a navigation sentence with a path is materialized by activating `page_<name>()`
+      (the URL comes from `site.base_url` at runtime);
+    - a full inline URL — external pages and query-string addresses only;
+    - prescribing inline steps for a target sentence or for path-based navigation is **High**
+      (duplicated generation, loss of the shared page cache, a path without base_url);
+    - the absence of these rules when such sentences are present in the CODEMANIFEST is
+      **High**.
 
 ### Phase 4. Report and Fix Findings (Interactive)
 
-> **Fix scope rule:** правь **только** `goga history path -f design.md`. CODEMANIFEST веб-ячеек —
-> read-only; расхождение дизайн ↔ манифест чинится в дизайн-документе (или возвратом к стадии
-> testcases, если правилен дизайн — реши с пользователем). requirements.md — upstream.
+> **Fix scope rule:** edit **only** `goga history path -f design.md`. The web cell CODEMANIFESTs
+> are read-only; a design ↔ manifest discrepancy is fixed in the design document (or by
+> returning to the testcases stage, if the design is the correct one — decide with the user).
+> requirements.md is upstream.
 
-- Собери все находки (база + фаза 3) **до** показа; сортируй **Critical → High → Medium**.
-- Показывай по одной: Severity / Area (Base / Test-mode / Runtime / Generation-cache /
+- Collect all findings (base + Phase 3) **before** presenting them; sort them
+  **Critical → High → Medium**.
+- Show one at a time: Severity / Area (Base / Test-mode / Runtime / Generation-cache /
   Validation / Environment) / Location / Issue / Impact / Suggested fix.
-- AskUserQuestion (2–4 варианта): **Apply suggested fix** / **Propose alternative** / **Skip** —
-  счётчик «Находка 3 из 12».
+- AskUserQuestion (2–4 options): **Apply suggested fix** / **Propose alternative** / **Skip** —
+  with a "Finding 3 of 12" counter.
 
 ---
 
 ## Output
 
-- Сводка находок: fixed / skipped по серьёзности и областям
-- Обновлённый `goga history path -f design.md` (если правки применялись)
-- Вердикт: passed / failed
+- Findings summary: fixed / skipped by severity and area
+- The updated `goga history path -f design.md` (if edits were applied)
+- Verdict: passed / failed
 
 ---
 
 ## Final Self-Check
 
-Перед завершением проверь:
+Before finishing, verify:
 
-1. Прочитаны ли design.md, все CODEMANIFEST веб-ячеек и requirements.md?
-2. Вызван ли `goga-review-design` и объединены ли его находки с веб-проверками?
-3. Проверены ли режим тестов (`test_*.py`, без продакшен-кода) и трасса Routine ↔ `location` ↔
-   `test_<name>.py`?
-4. Проверена ли механика шагов (`page.step`/`page.expect`/`page.group` через поверхность
-   страницы, захваты), материализация
-   `Prompt:` декораторами `@generation_prompt` и материализация предложение-цель вызовом метода
-   page-объекта (`page_<name>.<method>()` по `Use page-<name>`, без inline-шагов)?
-5. Проверена ли политика генерации и кеша (первый прогон LLM без strict, кеш коммитится, повторы —
-   strict)?
-6. Закреплён ли pytest; несут ли команды прогона суффикс `--browser-endpoint` при адресе от
-   пользователя; адресуются ли страницы топика путями относительно base_url записанного
-   окружения?
-7. Показана ли каждая находка по одной с выбором Apply/Alternative/Skip; применены ли правки
-   только в design.md?
+1. Have you read design.md, all web cell CODEMANIFESTs, and requirements.md?
+2. Have you invoked `goga-review-design` and merged its findings with the web checks?
+3. Have you verified the test mode (`test_*.py`, no production code) and the Routine ↔
+   `location` ↔ `test_<name>.py` trace?
+4. Have you verified the step mechanics (`page.step`/`page.expect`/`page.group` via the page
+   surface, captures), the materialization of `Prompt:` with `@generation_prompt` decorators,
+   and the materialization of the target sentence via a page object method call
+   (`page_<name>.<method>()` per `Use page-<name>`, without inline steps)?
+5. Have you verified the generation and cache policy (first run via LLM without strict, the
+   cache is committed, repeat runs — strict)?
+6. Is pytest pinned as the validation tool; do the run commands carry the
+   `--browser-endpoint` suffix when the address comes from the user; are the topic pages
+   addressed as paths relative to the base_url of the recorded environment?
+7. Was each finding shown one at a time with an Apply/Alternative/Skip choice; were the
+   edits applied only in design.md?
 
-Если хотя бы один ответ «нет» — заверши незавершённую проверку, прежде чем вернуться.
+If at least one answer is "no" — complete the unfinished check before returning.

@@ -7,15 +7,15 @@ description: Cell map for approved Routines — proposes cell boundaries (a desi
 
 ## Identity
 
-Ты раскладываешь утверждённые рутины по ячейкам. Это дизайн-решение: слаг ячейки становится
-именем каталога `tests/web/<cell-name>/`.
+You distribute the approved Routines across cells. This is a design decision: the cell slug becomes
+the directory name `tests/web/<cell-name>/`.
 
 ## Core Principle
 
-Ячейка — единица материализации и владения: `tests/web/<cell-name>/` + CODEMANIFEST.
+A cell is the unit of materialization and ownership: `tests/web/<cell-name>/` + CODEMANIFEST.
 
-- Стартовая гипотеза — ячейка на страницу.
-- Объединение страниц одного флоу или дробление — осознанные альтернативы.
+- The starting hypothesis is one cell per page.
+- Merging the pages of one flow, or splitting into several cells, are deliberate alternatives.
 
 ---
 
@@ -23,36 +23,36 @@ description: Cell map for approved Routines — proposes cell boundaries (a desi
 
 ### Step 1. Load context
 
-1. [ROUTINES_REPORT] — утверждённые рутины (имена, стартовые страницы из первых шагов `Steps:`).
-2. [TESTCASES_INTAKE] — §2 страницы (PAGE-<N> → URL), §9 существующее покрытие.
-3. Существующие ячейки `tests/web/**` на диске — новые рутины тех же страниц примыкают к ним
-   (merge-семантика на фазе assembly).
+1. [ROUTINES_REPORT] — the approved Routines (names, starting pages from the first `Steps:` entries).
+2. [TESTCASES_INTAKE] — §2 pages (PAGE-<N> → URL), §9 existing coverage.
+3. Existing cells `tests/web/**` on disk — new Routines of the same pages adjoin them
+   (merge semantics at the assembly phase).
 
 ### Step 2. Propose the layout
 
-1. Сгруппируй рутины по стартовой странице (адрес первого шага — путь относительно base_url или
-   полный URL — ↔ §2).
-2. Стартовая гипотеза: одна ячейка на страницу — слаг `kebab-case` от имени/URL страницы
+1. Group the Routines by starting page (the address of the first step — a path relative to base_url or
+   a full URL — ↔ §2).
+2. Starting hypothesis: one cell per page — a `kebab-case` slug from the page name/URL
    (`catalog`, `checkout`).
-3. Альтернативы: сквозные рутины нескольких страниц одного флоу — ячейка флоу (`checkout-flow`);
-   страница с большим числом разнородных рутин — дробление на несколько ячеек.
-4. Для каждой ячейки: слаг + обоснование (одной строкой).
+3. Alternatives: Routines spanning several pages of one flow — a flow cell (`checkout-flow`);
+   a page with many heterogeneous Routines — splitting into several cells.
+4. For each cell: slug + rationale (one line).
 
 ### Step 3. WAIT — user approval
 
-AskUserQuestion (один вопрос за сообщение, 2–4 варианта):
+AskUserQuestion (one question per message, 2–4 options):
 
-- **question**: «Раскладка: <ячейки со слагами и списком рутин>. Утверждаем?»
-- **options**: «Утверждаю» / «Объединить <…>» (если применимо) / «Разделить <…>» / «Другое»
-  (уточнение текстом).
+- **question**: "Layout: <cells with slugs and the list of Routines>. Approve?"
+- **options**: "Approve" / "Merge <…>" (if applicable) / "Split <…>" / "Other"
+  (clarify in free text).
 
 ### Step 4. Produce the [CELL_MAP_REPORT]
 
 STOP if:
 
-- 0 ячеек получилось;
-- рутина осталась нераспределённой;
-- пользователь не утверждает раскладку после итерации.
+- 0 cells resulted;
+- a Routine remains unassigned;
+- the user does not approve the layout after an iteration.
 
 ---
 
@@ -65,21 +65,21 @@ Fill in every section. Empty sections are forbidden.
 
 ## Cells
 
-| Ячейка (slug) | Путь | Страницы | Routines | Обоснование |
+| Cell (slug) | Path | Pages | Routines | Rationale |
 |---------------|------|----------|----------|-------------|
-| catalog | tests/web/catalog/ | PAGE-1 | test_search_finds_results, … | ячейка на страницу |
+| catalog | tests/web/catalog/ | PAGE-1 | test_search_finds_results, … | one cell per page |
 
 ## Routine → Cell
 
-| Routine | Ячейка |
+| Routine | Cell |
 |---------|--------|
 | test_search_finds_results | catalog |
 
 ## User Decision
 
-[Утверждено / изменено — что именно подтвердил пользователь]
+[Approved / changed — what exactly the user confirmed]
 
 ## Notes
 
-[Существующие ячейки tests/web/**, затронутые merge-семантикой assembly. Напиши `none`, если ничего.]
+[Existing `tests/web/**` cells affected by assembly merge semantics. Write `none` if there are none.]
 ```

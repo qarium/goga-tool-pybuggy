@@ -7,21 +7,21 @@ description: Identifying the tool needs of the web tests (data preparation via A
 
 ## Identity
 
-Ты определяешь инструментальные потребности тестов топика, согласовываешь их с пользователем
-и создаёшь usage-файлы новых инструментов. Веб-тест самодостаточен в браузере, но часто нуждается
-в подготовке данных, моках или документированном способе входа.
+You identify the tool needs of the topic's tests, agree on them with the user,
+and create usage files for new tools. A web test is self-sufficient in the browser, but it often needs
+data preparation, mocks, or a documented way to log in.
 
 ## Core Principle
 
-Инструмент — то, что существует **вне** предложений шагов: библиотека подготовки данных (API-клиент),
-мок бэкенда, usage-файл «как логиниться».
+A tool is anything that exists **outside** step suggestions: a data-preparation library (API client),
+a backend mock, or a usage file "how to log in".
 
-Границы:
+Boundaries:
 
-- Ключ usage подключается в Header ячейки на фазе assembly — ты только создаёшь/выбираешь файлы.
-- Веб-рантайм (`pybuggy-web`) инструментом не считается — он уже в базовом блоке.
-- Usage-файлы страниц (`page-<name>`) здесь тоже не создаются — они рождаются на стадии pages
-  из повторяющихся шагов утверждённых рутин.
+- The assembly phase wires a usage key into the cell Header — you only create/select the files.
+- The web runtime (`pybuggy-web`) is not a tool — it is already in the base block.
+- Page usage files (`page-<name>`) are not created here either — they originate at the pages stage
+  from repeated steps of approved routines.
 
 ---
 
@@ -29,50 +29,50 @@ description: Identifying the tool needs of the web tests (data preparation via A
 
 ### Step 1. Identify the needs
 
-Пройдись по [TESTCASES_INTAKE] и выяви потребности трёх видов:
+Walk through [TESTCASES_INTAKE] and identify needs of three kinds:
 
-1. **Дата-подготовка через API** — сценариям §3 нужны сущности, которые нельзя создать через UI
-   (или нецелесообразно): каталог товаров, записи справочника. Инструменты — существующие
-   cooks-ключи реестра §8 (например, `requests`/`httpx`) или новые библиотеки.
-2. **Мок бэкенда** — редко: когда REQ §3 описывает реакцию страницы на недоступный/ошибочный
-   бэкенд. Инструменты — например, `mokapi`/`wiremock` (если есть в реестре или пользователь
-   подтверждает).
-3. **Тестовые креденшалы / как логиниться** — usage-файл, документирующий механизм входа и источник
-   креденшалов из §4 (env-имена), **без значений секретов**: рутины ссылаются на него в
-   предусловиях («выполнен вход как тестовый пользователь `<роль>`» — см. `<key>`).
+1. **Data preparation via API** — the §3 scenarios need entities that cannot be created through the UI
+   (or it is impractical): a product catalog, reference records. Tools: existing
+   cooks keys from the §8 registry (for example, `requests`/`httpx`) or new libraries.
+2. **Backend mock** — rare: when a §3 REQ describes the page's reaction to an unavailable/failing
+   backend. Tools: for example, `mokapi`/`wiremock` (if present in the registry or the user
+   confirms them).
+3. **Test credentials / how to log in** — a usage file documenting the login mechanism and the source
+   of credentials from §4 (env names), **without secret values**: routines reference it in
+   preconditions ("logged in as test user `<role>`" — see `<key>`).
 
-Потребность без инструмента в реестре §8 — кандидат на новый usage-файл.
+A need without a tool in the §8 registry is a candidate for a new usage file.
 
 ### Step 2. Agree with the user (WAIT)
 
-По каждой потребности — AskUserQuestion (один вопрос за сообщение, 2–4 варианта):
+For each need, use AskUserQuestion (one question per message, 2–4 options):
 
-- **«Существующий usages»** — ключ уже в реестре §8;
-- **«Новый usage-файл»** — создать `.goga/usages/cooks/<key>.md` здесь (ключ — имя библиотеки
-  snake_case/kebab-case; содержимое — как потреблять инструмент в тестах этого проекта: назначение,
-  базовые вызовы, где брать значения; секреты — только имена env);
-- **«Отложить»** — потребность не блокирует тесты (записать в отчёт как открытую).
+- **"Existing usages"** — the key is already in the §8 registry;
+- **"New usage file"** — create `.goga/usages/cooks/<key>.md` here (the key is the library name
+  in snake_case/kebab-case; the content is how to consume the tool in this project's tests: purpose,
+  base calls, where to get values; secrets — env names only);
+- **"Defer"** — the need does not block the tests (record it in the report as open).
 
 ### Step 3. Create the usage files
 
-Для подтверждённых новых инструментов создай `.goga/usages/cooks/<key>.md` (`page-<name>`
-здесь не создаётся — стадия pages):
+For confirmed new tools, create `.goga/usages/cooks/<key>.md` (`page-<name>`
+is not created here — that is the pages stage):
 
-1. Заголовок `# <key> — <назначение в этом проекте>`.
-2. Секции: Domain (что покрывает), Enable (подключение/зависимости), Usage (как использовать в
-   тестах — паттерны, без секретных значений), Examples (2–3 фрагмента).
-3. Пиши для агента без контекста топика:
-   - предметная справка об инструменте — назначение, вызовы, источники значений;
-   - идентификаторы топика (`REQ-<N>`, номера кейсов/тикетов, ссылки на § артефактов) в файл
-     не попадают — реестр покрытия сессионный.
-4. Файл обязан существовать на диске до конца шага — фаза assembly подключает ключи в Header
-   только существующих файлов.
+1. Heading `# <key> — <purpose in this project>`.
+2. Sections: Domain (what it covers), Enable (connection/dependencies), Usage (how to use in
+   tests — patterns, without secret values), Examples (2–3 fragments).
+3. Write for an agent without topic context:
+   - a tool reference — purpose, calls, sources of values;
+   - topic identifiers (`REQ-<N>`, case/ticket numbers, artifact § links) must not
+     get into the file — the coverage registry is session-scoped.
+4. The file must exist on disk before the end of the step — the assembly phase wires into the Header
+   only the keys of existing files.
 
 ### Step 4. Produce the [TOOLS_REPORT]
 
 STOP if:
 
-- блокирующая потребность (без неё рутины не строятся) осталась без инструмента после согласования.
+- a blocking need (routines cannot be built without it) remains without a tool after the agreement step.
 
 ---
 
@@ -85,15 +85,15 @@ Fill in every section. Empty sections are forbidden.
 
 ## Identified Needs
 
-| Потребность | REQ §3 | Вид (data / mock / credentials) |
+| Need | REQ §3 | Kind (data / mock / credentials) |
 |-------------|--------|---------------------------------|
 | […] | REQ-1, REQ-4 | data |
 
 ## Decisions
 
-| Потребность | Решение | Ключ |
+| Need | Decision | Key |
 |-------------|---------|------|
-| […] | существующий usages / новый usage-файл | `<key>` |
+| […] | existing usages / new usage file | `<key>` |
 
 ## Created Usage Files
 
@@ -101,9 +101,9 @@ Fill in every section. Empty sections are forbidden.
 |-----|------|
 | `<key>` | .goga/usages/cooks/<key>.md |
 
-[Если ничего не создано — `none`]
+[If nothing is created — `none`]
 
 ## Deferred Needs
 
-[Отложенные потребности + почему они не блокируют. Напиши `none`, если ничего.]
+[Deferred needs + why they do not block. Write `none` if nothing.]
 ```

@@ -7,114 +7,114 @@ description: Dispatch wrapper around goga-design for web testing mode — produc
 
 ## Identity
 
-Ты — инженер тестовой архитектуры. Ты диспетчеризуешь скилл `goga-design` в **режиме веб-тестирования**: 
-пайплайн пишет тесты, он никогда не пишет продакшен-код.
-Твоя роль: встроить пре-промпт веб-тестирования в сессию, затем передать управление goga-скиллу.
+You are a test architecture engineer. You dispatch the `goga-design` skill in **web testing mode**:
+the pipeline writes tests — it never writes production code.
+Your role: embed the web-testing pre-prompt into the session, then hand control over to the goga skill.
 
 ## Mission
 
-Создать дизайн-документ `goga history path -f design.md`, описывающий **материализацию браузерных
-UI-тестов** из CODEMANIFEST веб-ячеек. Документ определяет: какие файлы `test_*.py` генерировать;
-как фикстуры-страницы `page_<name>` превращают предложения шагов в Playwright-код (генерация LLM
-при первом прогоне + кеш). Закрепить в нём `pytest` как инструмент валидации.
+Create the design document `goga history path -f design.md` describing **the materialization of browser
+UI tests** from CODEMANIFEST web cells. The document defines: which `test_*.py` files to generate;
+how page fixtures `page_<name>` turn step sentences into Playwright code (LLM generation
+on the first run + cache). Anchor `pytest` in it as the validation tool.
 
 ## Testing Mode (pre-prompt — mandatory)
 
-Зафиксируй следующее до вызова goga-скилла и держи всю сессию:
+Establish the following before invoking the goga skill and hold it for the entire session:
 
-- **Mode: TESTING.** Артефакт — тестовый код `test_*.py`, **не** код приложения. Продакшен-сущности
-  не проектируются.
+- **Mode: TESTING.** The artifact is test code `test_*.py`, **not** application code. Production entities
+  are not designed.
 - **Source of truth:**
-  - CODEMANIFEST веб-ячеек в `tests/web/<cell>/`;
-  - тест-кейс = Routine; варианты параметризованной Routine различаются только значениями
-    (заполняемые данные, ожидаемые тексты) — тело теста остаётся линейным, без ветвления
-    по варианту;
-  - CODEMANIFEST — контракт read-only.
-- **Runtime/фикстуры:**
-  - фикстуры-страницы `page_<name>` (`pages/<…>_page.py`, активация
-    `with page_<name>() as page:`, поверхность `page.step/expect/group`);
-  - внешние/литеральные страницы — шаги с полным URL через поверхность page-фикстуры;
-  - референс — `.goga/usages/cooks/pybuggy/pybuggy-web.md`; загрузи через скиллы
-    `goga-tool-pybuggy-web-usage` и `goga-tool-pybuggy-web-cookbook`.
-- **Шаги-предложения:** каждый пункт `Steps:` аннотации материализуется ровно в одно предложение:
-  - действие → `page.step("…")`, проверка → `page.expect("…")`,
-    мини-сценарий (набор действий, меняющий состояние страницы/виджета) →
-    `with page.group("<достигаемое состояние>"):` (через поверхность активированной страницы);
-  - один шаг = одно действие;
-  - адресация: адрес страницы тестируемого сайта — путь относительно base_url (`/catalog`,
-    из §2 требований; навигация сайта компонуется рантаймом из `site.base_url`),
-    полный URL — только внешняя страница (чужой origin);
-  - ожидания — отдельными `page.expect`; исключение — транзитные тосты/баннеры с временем
-    жизни из §2: их подтверждение/чтение живёт в самом предложении-триггере — отдельное
-    expect-предложение не успеет: код предложения генерируется LLM непосредственно перед
-    его исполнением, за LLM-раунд транзит исчезает;
-  - захваты значений — маркерами в предложениях дословно: `{% var <имя> %}` захватывает
-    значение со страницы, `{{ <имя> }}` подставляет захваченное в последующие предложения
-    (только динамика страницы — значения, неизвестные при написании теста; статические
-    литералы идут без маркеров);
-  - предложения материализуются **строковыми литералами** — `{{ … }}` / `{{ vars.<имя> }}`
-    маркеры движка дословно, python-значение входит в предложение только kwarg-ом
-    `vars={...}` (`{{ имя }}` — память, `{{ vars.имя }}` — колл-входы);
-  - **секреты в предложениях запрещены** (всё попадает в промпт LLM-провайдера и в
-    репозиторий; вход — «Выполнить вход как тестовый пользователь `<роль>`», значения из
-    env/usage-файла).
-- **Пер-тестовые инструкции генерации:**
-  - секция `Prompt:` аннотации Routine материализуется декораторами
-    `@generation_prompt("<буллет>")` над тестом (импорт
+  - CODEMANIFEST web cells in `tests/web/<cell>/`;
+  - test case = Routine; variants of a parameterized Routine differ only in values
+    (entered data, expected texts) — the test body stays linear, with no branching
+    per variant;
+  - CODEMANIFEST — a read-only contract.
+- **Runtime/fixtures:**
+  - page fixtures `page_<name>` (`pages/<…>_page.py`, activation
+    `with page_<name>() as page:`, surface `page.step/expect/group`);
+  - external/literal pages — steps with a full URL through the page fixture's surface;
+  - the reference — `.goga/usages/cooks/pybuggy/pybuggy-web.md`; load it via the skills
+    `goga-tool-pybuggy-web-usage` and `goga-tool-pybuggy-web-cookbook`.
+- **Step sentences:** each `Steps:` item of the annotation materializes into exactly one sentence:
+  - action → `page.step("…")`, check → `page.expect("…")`,
+    mini-scenario (a set of actions changing the state of a page/widget) →
+    `with page.group("<reached state>"):` (through the activated page's surface);
+  - one step = one action;
+  - addressing: the address of a page of the site under test is a path relative to base_url (`/catalog`,
+    from §2 of the requirements; the site navigation is composed by the runtime from `site.base_url`);
+    a full URL — only for an external page (foreign origin);
+  - expectations — as separate `page.expect` calls; the exception is transient toasts/banners with
+    a lifetime from §2: their confirmation/reading lives in the trigger sentence itself — a separate
+    expect sentence cannot land in time: the sentence's code is generated by the LLM immediately
+    before its execution, and within one LLM round the transient disappears;
+  - value captures — by markers in the sentences, verbatim: `{% var <name> %}` captures
+    a value from the page, `{{ <name> }}` substitutes the captured value into subsequent sentences
+    (page dynamics only — values unknown when writing the test; static
+    literals go without markers);
+  - sentences materialize as **string literals** — `{{ … }}` / `{{ vars.<name> }}`
+    engine markers verbatim; a python value enters the sentence only via the
+    `vars={...}` kwarg (`{{ name }}` — memory, `{{ vars.name }}` — call inputs);
+  - **secrets in sentences are forbidden** (everything lands in the LLM provider's prompt and in
+    the repository; for login, use the sentence "Perform login as test user `<role>`", with values
+    from env or the usage file).
+- **Per-test generation instructions:**
+  - the `Prompt:` section of a Routine annotation materializes as `@generation_prompt("<bullet>")`
+    decorators over the test (import
     `from goga_tool_pybuggy import generation_prompt`);
-  - порядок буллетов = порядок декораторов, тексты дословны;
-  - у Routine без `Prompt:` декораторов нет;
-  - семантика — `pybuggy-web` usage.
-- **Методы страниц:**
-  - методы page-объектов уже написаны стадией pages пайплайна testcases (`pages/<…>_page.py`;
-    их контракт — usage-файлы `.goga/usages/cooks/page-<name>.md`);
-  - предложение-цель со ссылкой ``Use `page-<name>` for <цель> — метод `<method>` ``
-    материализуется вызовом `page_<name>.<method>()` через фикстуру страницы (pytest
-    резолвит её по имени);
-  - **inline-шаги для такого предложения не генерируются**: предложения уже живут в методе,
-    их кеш общий для страницы (`pages/.cache/<page>/`).
-- **Навигация на страницы сайта:**
-  - навигационное предложение с путём («Открыть страницу `/login`») материализуется
-    **активацией фикстуры страницы** `page_<name>()` — вызов открывает страницу одним шагом,
-    URL компонуется рантаймом из `site.base_url`;
-  - inline-шаг с полным URL — только внешние страницы (чужой origin) и query-адреса.
-- **Генерация шагов и кеш:**
-  - **первый** прогон теста генерирует Playwright-код каждого предложения через LLM
-    (провайдер/модель из `.goga/tools/pybuggy/web.yml`);
-  - кеш пишется в `tests/web/<cell>/.cache/test_<name>/test_<name>/` (параметризованный кейс —
-    `…/test_<name>[<param_id>]/`); кеш коммитится в репозиторий;
-  - предложения методов страниц — общий кеш `pages/.cache/<page>/`;
-  - первый прогон — **без** `--strict-mode`; повторные прогоны и CI — со `--strict-mode`
-    (реплей из кеша, 0 LLM-вызовов);
-  - смена окружения — см. **Target environment**.
+  - bullet order = decorator order, texts verbatim;
+  - a Routine without `Prompt:` gets no decorators;
+  - semantics — the `pybuggy-web` usage.
+- **Page methods:**
+  - page-object methods are already written by the pages stage of the testcases pipeline
+    (`pages/<…>_page.py`; their contract — usage files `.goga/usages/cooks/page-<name>.md`);
+  - a goal sentence with the reference ``Use `page-<name>` for <goal> — method `<method>` ``
+    materializes as a `page_<name>.<method>()` call through the page fixture (pytest
+    resolves it by name);
+  - **inline steps are not generated for such a sentence**: the sentences already live in the method,
+    and their cache is shared across the page (`pages/.cache/<page>/`).
+- **Navigation to the site's pages:**
+  - a navigation sentence with a path ("Open the page `/login`") materializes
+    by **activating the page fixture** `page_<name>()` — the call opens the page in one step,
+    and the URL is composed by the runtime from `site.base_url`;
+  - an inline step with a full URL — external pages (foreign origin) and query addresses only.
+- **Step generation and cache:**
+  - the **first** run of a test generates the Playwright code of each sentence via the LLM
+    (provider/model from `.goga/tools/pybuggy/web.yml`);
+  - the cache is written to `tests/web/<cell>/.cache/test_<name>/test_<name>/` (a parameterized case —
+    `…/test_<name>[<param_id>]/`); the cache is committed to the repository;
+  - page-method sentences — the shared cache `pages/.cache/<page>/`;
+  - the first run — **without** `--strict-mode`; repeated runs and CI — with `--strict-mode`
+    (replay from the cache, 0 LLM calls);
+  - environment change — see **Target environment**.
 - **Constraints:**
-  - ячейки только из Routine;
-  - без Entities;
-  - без нового продакшен-кода;
-  - без нового `__init__.py`.
-- **Validation:** инструмент верификации — `pytest` (для плана). Укажи в дизайне, что валидация =
-  запуск тестов.
+  - cells from Routines only;
+  - no Entities;
+  - no new production code;
+  - no new `__init__.py`.
+- **Validation:** the verification tool is `pytest` (for the plan). State in the design that validation =
+  running the tests.
 - **Target environment:**
-  - прочитай Base URL и целевое окружение топика из пути, напечатанного
+  - read the Base URL and the topic's target environment from the path printed by
     `goga history path -f requirements.md` (§1 "Base URL" / "Target environment" / §4),
-    и перенеси их в дизайн;
-  - адресация: страницы топика адресуются **путями относительно base_url** (внешние —
-    полными URL с пометкой);
-  - смена окружения — смена `site.base_url` (+ один прогон без `--strict-mode`),
-    предложения шагов не меняются;
-  - записанные команды прогона несут аргументы рендера base_url (env/CLI) из §1.
+    and carry them over into the design;
+  - addressing: the topic's pages are addressed **by paths relative to base_url** (external ones —
+    by full URLs, marked as such);
+  - an environment change is a change of `site.base_url` (+ one run without `--strict-mode`);
+    step sentences do not change;
+  - the recorded run commands carry the base_url rendering arguments (env/CLI) from §1.
 
 ## Dispatch
 
 Arguments: `$ARGUMENTS`
 
-1. Если `$ARGUMENTS` пуст — проверь, что CODEMANIFEST веб-ячеек существуют в `tests/web/*/`
-   (мега-стейдж testcases должен был отработать): отсутствуют → halt и попроси пользователя
-   сначала запустить его.
-2. Загрузи контекст веб-тестирования через **Skill tool**: `goga-tool-pybuggy-web-usage` и
+1. If `$ARGUMENTS` is empty — check that CODEMANIFEST web cells exist in `tests/web/*/`
+   (the testcases mega-stage must have run): if missing → halt and ask the user
+   to run it first.
+2. Load the web-testing context via the **Skill tool**: `goga-tool-pybuggy-web-usage` and
    `goga-tool-pybuggy-web-cookbook`.
-3. Вызови `goga-design` через **Skill tool**, приложив явный пакет режима веб-тестирования
-   (маркерная фраза: «Pybuggy web testing mode: generate browser UI tests from CODEMANIFEST web-cells;
+3. Invoke `goga-design` via the **Skill tool**, attaching the explicit web-testing mode package
+   (marker phrase: "Pybuggy web testing mode: generate browser UI tests from CODEMANIFEST web-cells;
    deliverable is `test_*.py` using page-object fixtures (`page_<name>`; external/literal pages
    open by full-URL step sentences through the page fixture's surface) with step sentences (one action per step,
    site pages addressed as paths relative to the base URL with external pages by full URLs,
@@ -123,38 +123,39 @@ Arguments: `$ARGUMENTS`
    calls — the page-object methods already exist in pages/**, never generate inline steps
    for them; first run generates the Playwright steps via
    the LLM and caches them next to the test — never `--strict-mode` on first run; never production
-   code»).
-4. `goga-design` сам диспетчеризует `goga-design-by-changes` — не вызывай его в обход `goga-design`.
-5. По завершении проверь, что путь, напечатанный `goga history path -f design.md`:
-   - описывает генерацию веб-тестов: фикстуры-страницы `page_<name>`, предложения шагов,
-     каталоги `tests/web/<cell>/`;
-   - называет `pytest` инструментом валидации;
-   - упоминает генерацию шагов LLM при первом прогоне с кешем, коммитящимся в репозиторий
-     (и запрет `--strict-mode` на первом прогоне);
-   - закрепляет материализацию предложение-цель вызовом метода page-объекта
-     (`page_<name>.<method>()` по ссылке `Use page-<name>`, без inline-шагов).
+   code").
+4. `goga-design` itself dispatches `goga-design-by-changes` — do not call it bypassing `goga-design`.
+5. Upon completion, check that the document at the path printed by `goga history path -f design.md`:
+   - describes web test generation: page fixtures `page_<name>`, step sentences,
+     directories `tests/web/<cell>/`;
+   - names `pytest` as the validation tool;
+   - mentions LLM step generation on the first run with a cache committed
+     to the repository (and the ban on `--strict-mode` on the first run);
+   - anchors the materialization of a goal sentence as a page-object method call
+     (`page_<name>.<method>()` by the `Use page-<name>` reference, without inline steps).
 
-   Если нет — дополни документ в духе режима веб-тестирования.
+   If not — extend the document in the spirit of web testing mode.
 
 ## Invariants
 
 ### NEVER
 
-- писать или проектировать продакшен-код, Entities, `__init__.py`
-- вызывать `goga-design-by-changes` в обход `goga-design`
-- терять режим веб-тестирования при передаче управления goga-скиллу
-- изменять CODEMANIFEST веб-ячеек
-- предлагать секреты в предложениях шагов
+- write or design production code, Entities, `__init__.py`
+- call `goga-design-by-changes` bypassing `goga-design`
+- lose the web-testing mode when handing control over to the goga skill
+- modify the CODEMANIFESTs of web cells
+- propose secrets in step sentences
 
 ### ALWAYS
 
-- встроить пре-промпт веб-тестирования до вызова `goga-design`
-- загрузить референс веб-рантайма (`goga-tool-pybuggy-web-usage`, `goga-tool-pybuggy-web-cookbook`)
-- считать CODEMANIFEST веб-ячеек источником истины
-- закрепить `pytest` как инструмент валидации в дизайн-документе
-- перенести Base URL и целевое окружение топика в предписания дизайна (страницы топика — путями
-  относительно base_url; смена окружения — смена `site.base_url`, не предложений шагов)
-- отразить механику генерации шагов: первый прогон — LLM + кеш (без strict), повторы — strict-реплей
-- закрепить материализацию предложений: дословные строковые литералы — маркеры
-  `{{ <имя> }}` / `{{ vars.<имя> }}` дословно, python-значения только kwarg-ом `vars={...}`;
-  секция `Prompt:` — декораторами `@generation_prompt`
+- embed the web-testing pre-prompt before invoking `goga-design`
+- load the web runtime reference (`goga-tool-pybuggy-web-usage`, `goga-tool-pybuggy-web-cookbook`)
+- treat the CODEMANIFESTs of web cells as the source of truth
+- anchor `pytest` as the validation tool in the design document
+- carry the Base URL and the topic's target environment into the design's mandates (the topic's pages —
+  by paths relative to base_url; an environment change is a change of `site.base_url`,
+  not of step sentences)
+- reflect the step generation mechanics: the first run — LLM + cache (no strict); repeats — strict replay
+- anchor the sentence materialization rules: verbatim string literals — the markers
+  `{{ <name> }}` / `{{ vars.<name> }}` verbatim, python values only via the `vars={...}` kwarg;
+  the `Prompt:` section — via `@generation_prompt` decorators

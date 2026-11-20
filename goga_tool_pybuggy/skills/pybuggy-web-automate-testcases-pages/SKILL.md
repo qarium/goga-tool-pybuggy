@@ -7,24 +7,26 @@ description: Page-method extraction from the approved Routines — detects repea
 
 ## Identity
 
-Ты обрабатываешь страницы топика относительно спроектированных рутин: находишь общие шаги,
-достойные метода page-объекта, согласуешь их с пользователем, дописываешь методы в модули
-`pages/**`, документируешь API страницы usage-файлом и переписываешь затронутые рутины так,
-чтобы повторяющаяся последовательность стала одним предложением-целью со ссылкой на метод.
+You process the topic's pages against the designed Routines: find common steps worthy of
+page-object methods, agree on them with the user, append the methods to the `pages/**`
+modules, document each page's API in a usage file, and rewrite the affected Routines so
+that the repeated sequence becomes a single goal sentence with a reference to the method.
 
 ## Core Principle
 
-Метод page-объекта — переиспользуемые предложения страницы: написанные один раз шаги разделяются
-всеми тестами страницы (общий кеш страницы — первый тест генерирует, остальные реплеят без LLM).
-Кандидат на метод — только последовательность **без параметризации**: предложения идентичны
-дословно во всех вхождениях, без маркеров `{% var <имя> %}` / `{{ <имя> }}` и без литералов,
-меняющихся между вхождениями. Любое различие данных — не метод: параметры в методах страницы
-запрещены (предложения метода слова́тся против живого DOM, а не данных момента).
+A page-object method is a page's reusable sentences: steps written once are shared by all
+tests of that page (shared page cache — the first test generates it, the remaining tests
+replay it without an LLM). A sequence qualifies as a method candidate only if it is
+**non-parameterized**: the sentences are identical verbatim across all occurrences, with no
+markers `{% var <name> %}` / `{{ <name> }}` and no literals that change between occurrences.
+Any difference in the data means it is not a method: parameters are forbidden in page
+methods (a method's sentences are phrased against the live DOM, not against the data of
+the moment).
 
-Запрещены в методах страницы:
+Forbidden in page methods:
 
-- секреты — никогда;
-- локаторы/селекторы/testid — никогда (видимые имена).
+- secrets — never;
+- locators/selectors/testid — never (visible names).
 
 ---
 
@@ -32,78 +34,78 @@ description: Page-method extraction from the approved Routines — detects repea
 
 ### Step 1. Load context
 
-1. [ROUTINES_REPORT] — утверждённые рутины (полные аннотации, предложения `Steps:`).
-2. [TESTCASES_INTAKE] — requirements §2: страницы, привязки page-объектов (фикстура
-   `page_<name>`, класс `<Name>Page`, модуль `pages/**`; «литеральная» навигация) и детали
-   страниц (баннеры, состояния — контекст для описания методов).
-3. Модули `pages/**` на диске — существующие методы страниц (переиспользование, не дубли).
-4. [TOOLS_REPORT] — занятые usage-ключи (новые ключи `page-<name>` не конфликтуют).
-5. Через **Skill tool**: `goga-tool-pybuggy-web-usage` (механика методов страницы — общий кеш,
-   формулировки против живого DOM), `goga-tool-pybuggy-web-cookbook`.
+1. [ROUTINES_REPORT] — approved Routines (full annotations, `Steps:` sentences).
+2. [TESTCASES_INTAKE] — requirements §2: pages, page-object bindings (the `page_<name>`
+   fixture, the `<Name>Page` class, the `pages/**` module; "literal" navigation) and page
+   details (banners, states — context for describing methods).
+3. The `pages/**` modules on disk — existing page methods (reuse, not duplicates).
+4. [TOOLS_REPORT] — occupied usage keys (the new `page-<name>` keys do not conflict).
+5. Via the **Skill tool**: `goga-tool-pybuggy-web-usage` (page-method mechanics — the shared
+   cache, wording against the live DOM), `goga-tool-pybuggy-web-cookbook`.
 
 ### Step 2. Detect the candidates
 
-По каждой странице топика **с page-объектом** (рутины литеральной навигации пропускаются):
+For each topic page **with a page object** (skip literal-navigation Routines):
 
-1. Собери вхождения: последовательности из 1–3 соседних предложений `Steps:` рутин страницы,
-   привязанные к поведению страницы (не к данным конкретного теста).
-2. Кандидат — последовательность, повторяющаяся:
-   - в ≥ 2 рутинах страницы, **или**
-   - во **всех** рутинах, начинающихся на странице (типовой случай — баннер, появляющийся
-     при каждом открытии: шаги его закрытия).
-3. **Критерий отсутствия параметризации (жёсткий)**: все вхождения идентичны дословно; ни в
-   одном нет маркеров `{% var %}` / `{{ … }}`; литералы (видимые тексты кнопок, вводимые
-   значения) не различаются между вхождениями. Различие хотя бы в одном фрагменте данных —
-   кандидат отбрасывается, шаги остаются в рутинах как есть.
-4. Сверь с существующими методами модуля: метод с теми же предложениями уже есть — кандидат
-   становится «переиспользованием» (новый метод не пишется); существующие методы не
-   изменяются и не удаляются (их предложения могут быть уже в кеше страницы).
-5. Предложи имя: `snake_case`, глагол вперёд, от достигаемого состояния
+1. Collect occurrences: sequences of 1–3 adjacent `Steps:` sentences from the page's
+   Routines, bound to the page's behavior (not to the data of a specific test).
+2. A candidate is a sequence that repeats:
+   - in ≥ 2 Routines of the page, **or**
+   - in **all** Routines that start on the page (the typical case: a banner that appears on
+     every open — the steps that dismiss it).
+3. **No-parameterization criterion (strict)**: all occurrences are verbatim-identical; none
+   contains markers `{% var %}` / `{{ … }}`; the literals (visible button texts, entered
+   values) do not differ between occurrences. A difference in even one data fragment
+   discards the candidate — the steps stay in the Routines as is.
+4. Check against the module's existing methods: a method with the same sentences already
+   exists — the candidate becomes "reuse" (no new method is written); existing methods are
+   never modified or deleted (their sentences may already be in the page cache).
+5. Propose a name: `snake_case`, verb first, derived from the target state
    (`dismiss_cookie_banner`, `submit_login_form`).
 
-### Step 3. WAIT — методы и правки рутин
+### Step 3. WAIT — methods and Routine edits
 
-1. Покажи таблицу кандидатов целиком текстом: страница (фикстура) | метод | предложения
-   дословно | рутины | статус (новый / переиспользование).
-2. По каждой затронутой рутине — сверку «было → стало»: последовательность → предложение-цель
-   + строка `Use`.
-3. AskUserQuestion (один вопрос за сообщение, 2–4 варианта): «Утверждаю» / «Правка» (что
-   изменить — уточни текстом) / «Отклонить» (шаги остаются в рутинах как есть).
+1. Show the full candidates table as text: page (fixture) | method | sentences verbatim |
+   Routines | status (new / reuse).
+2. For each affected Routine — a "was → became" comparison: sequence → goal sentence + a
+   `Use` line.
+3. AskUserQuestion (one question per message, 2–4 options): "Approve" / "Edit" (state in
+   text what to change) / "Reject" (the steps stay in the Routines as is).
 
 ### Step 4. Materialize
 
-1. **Методы**: допиши утверждённые методы в модули `pages/<…>_page.py` — тело метода несёт
-   предложения дословно через поверхность страницы (`self.step` / `self.expect`; тесно
-   связанный мини-сценарий — `with self.group("<достигаемое состояние>"):`). Существующие
-   методы и активационная семантика класса сохраняются в неизменном виде.
-2. **Usage-файлы**: создай `.goga/usages/cooks/page-<name>.md` (только несуществующие;
-   `<name>` — имя страницы из §2, kebab-case):
-   - заголовок `# page-<name> — <назначение страницы в топике>`;
-   - секции: **Domain** (страница, её path, фикстура `page_<name>`, что страница делает),
-     **Enable** (подключение — ключ в Header ячейки через стандартный механизм гоги),
-     **Usage** (методы: имя → что делает поведенчески, видимыми именами; когда вызывать),
-     **Examples** (2–3 фрагмента вызова из теста/рутины);
-   - локаторы/селекторы/testid и секреты — запрещены;
-   - пиши для агента без контекста топика: предметная справка страницы и её API — фикстура,
-     path, методы (имя → достигаемое состояние + предложения дословно), когда вызывать;
-     идентификаторы топика (`REQ-<N>`, номера кейсов/тикетов, ссылки на § артефактов) в файл
-     не попадают — реестр покрытия сессионный.
-3. **Рутины**: в затронутых рутинах замени повторяющуюся последовательность одним
-   предложением-целью («Закрыть баннер cookie») и добавь/расширь секцию `Use …`:
-   ``Use `page-<name>` for <предложение-цель> — метод `<method>` ``. Правки — только
-   утверждённые на шаге 3; остальное содержимое рутин сохраняется без изменений.
-4. Обнови [ROUTINES_REPORT] (только затронутые рутины) — его читают cell-map и assembly.
+1. **Methods**: append the approved methods to the `pages/<…>_page.py` modules — the method
+   body carries the sentences verbatim through the page surface (`self.step` /
+   `self.expect`; a tightly coupled mini-scenario — `with self.group("<target state>"):`).
+   Existing methods and the class activation semantics stay unchanged.
+2. **Usage files**: create `.goga/usages/cooks/page-<name>.md` (only non-existing files;
+   `<name>` — the page name from §2, kebab-case):
+   - heading `# page-<name> — <page purpose in the topic>`;
+   - sections: **Domain** (the page, its path, the `page_<name>` fixture, what the page
+     does), **Enable** (wiring — the key into the cell's Header via the standard goga
+     mechanism), **Usage** (methods: name → what it does behaviorally, in visible names;
+     when to call), **Examples** (2–3 call fragments from a test/Routine);
+   - locators/selectors/testid and secrets — forbidden;
+   - write for an agent without topic context: a domain reference of the page and its API —
+     fixture, path, methods (name → target state + sentences verbatim), when to call; topic
+     identifiers (`REQ-<N>`, case/ticket numbers, links to artifact sections) never appear
+     in the file — the coverage registry is session-scoped.
+3. **Routines**: in the affected Routines, replace the repeated sequence with a single goal
+   sentence ("Close the cookie banner") and add/extend the `Use …` section:
+   ``Use `page-<name>` for <goal sentence> — method `<method>` ``. Apply only the edits
+   approved in Step 3; keep the rest of the Routine content unchanged.
+4. Update [ROUTINES_REPORT] (affected Routines only) — cell-map and assembly read it.
 
 ### Step 5. Produce the [PAGE_METHODS_REPORT]
 
 STOP if:
 
-- модуль `pages/<…>_page.py` отсутствует на диске при подтверждённой привязке §2 — вернись
-  к пайплайну requirements (стадия pages);
-- пользователь не утверждает методы после итераций правок.
+- the `pages/<…>_page.py` module is missing on disk although §2 confirms the binding —
+  return to the requirements pipeline (the pages stage);
+- the user does not approve the methods after edit iterations.
 
-Кандидатов не нашлось / все страницы литеральные — **не STOP**: отчёт с `none`-секциями и
-[ROUTINES_REPORT] без изменений.
+No candidates found / all pages are literal — **not a STOP**: produce the report with
+`none` sections and leave [ROUTINES_REPORT] unchanged.
 
 ---
 
@@ -116,11 +118,11 @@ Fill in every section. Empty sections are forbidden.
 
 ## Page Methods
 
-| Страница | Метод | Предложения (дословно) | Рутины | Статус |
+| Page | Method | Sentences (verbatim) | Routines | Status |
 |----------|-------|------------------------|--------|--------|
-| PAGE-1 (page_login) | dismiss_cookie_banner | […] | test_…, test_… | создан / переиспользован |
+| PAGE-1 (page_login) | dismiss_cookie_banner | […] | test_…, test_… | created / reused |
 
-[Утверждённые методы. Напиши `none`, если кандидатов не оказалось.]
+[Approved methods. Write `none` if no candidates were found.]
 
 ## Usage Files
 
@@ -128,26 +130,26 @@ Fill in every section. Empty sections are forbidden.
 |-----|------|
 | `page-login` | .goga/usages/cooks/page-login.md |
 
-[Созданные usage-файлы. Напиши `none`, если ничего.]
+[Created usage files. Write `none` if none.]
 
 ## Routine Updates
 
-| Routine | Было (последовательность) | Стало (предложение-цель + Use) |
+| Routine | Was (sequence) | Became (goal sentence + Use) |
 |---------|---------------------------|--------------------------------|
-| test_… | […] | «Закрыть баннер cookie» + ``Use `page-login` …`` |
+| test_… | […] | "Close the cookie banner" + ``Use `page-login` …`` |
 
-[Затронутые рутины. Напиши `none`, если рутины не менялись.]
+[Affected Routines. Write `none` if the Routines did not change.]
 
 ## Reused Existing Methods
 
-[Методы, переиспользованные без записи нового. Напиши `none`, если ничего.]
+[Methods reused without writing new ones. Write `none` if none.]
 
 ## User Decision
 
-[Утверждено / изменено — что именно подтвердил пользователь]
+[Approved / changed — what exactly the user confirmed]
 
 ## Warnings
 
-[Отклонённые кандидаты (причина: параметризация / единственное вхождение), конфликты ключей.
-Напиши `none`, если ничего.]
+[Rejected candidates (reason: parameterization / single occurrence), key conflicts.
+Write `none` if none.]
 ```

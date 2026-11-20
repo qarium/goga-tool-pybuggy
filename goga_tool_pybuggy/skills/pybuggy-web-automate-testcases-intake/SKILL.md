@@ -7,14 +7,14 @@ description: Input validation and context load — checks requirements.md, print
 
 ## Identity
 
-Ты отвечаешь за загрузку входных данных: валидируешь артефакт требований, загружаешь его
-в контекст дословно и поднимаешь весь goga-контекст проектирования.
+You are responsible for loading the input data: you validate the requirements artifact, load it
+into the context verbatim, and bring up the entire goga design context.
 
 ## Core Principle
 
-requirements.md уже структурирован стабильными идентификаторами (PAGE-<N>, REQ-<N>) — его читают
-напрямую все следующие шаги пайплайна. Goga-контекст (DSL, базовый блок Header, референс
-веб-рантайма) грузится один раз здесь.
+requirements.md is already structured with stable identifiers (PAGE-<N>, REQ-<N>) — every subsequent
+step of the pipeline reads it directly. The goga context (the DSL, the base Header block, the web
+runtime reference) is loaded exactly once, here.
 
 ---
 
@@ -22,33 +22,33 @@ requirements.md уже структурирован стабильными ид�
 
 ### Step 1. Validate the input
 
-1. Прочитай путь, напечатанный `goga history path -f requirements.md`. Файл отсутствует/пуст —
-   **STOP**: сначала запусти пайплайн `goga-tool-pybuggy-web-automate-requirements`.
-2. Проверь структуру: §2 (Topic pages) непуст; §3 (Functional requirements) содержит `REQ-<N>`.
-   Нет — **STOP**: вернись к пайплайну requirements.
+1. Read the path printed by `goga history path -f requirements.md`. If the file is missing or empty —
+   **STOP**: run the `goga-tool-pybuggy-web-automate-requirements` pipeline first.
+2. Validate the structure: §2 (Topic pages) is non-empty; §3 (Functional requirements) contains `REQ-<N>`.
+   If either check fails — **STOP**: return to the requirements pipeline.
 
 ### Step 2. Load the goga context
 
-Загрузи через **Skill tool**:
+Load via the **Skill tool**:
 
-- **`goga-cell`** — DSL-спецификация ячеек и CODEMANIFEST.
-- **`goga-cell-python`** — правила Python (snake_case, `location`).
-- **`goga-tool-pybuggy-web-cookbook`** — принципы веб-тест-ячеек.
-- **`goga-codemanifest-base`** — базовые usages/annotations из `.goga/config.yml`; зафиксируй
-  базовый блок Header **дословно**: `Usages` (`conventions`, `pybuggy-web` с путями) + `Annotations`.
-- **`goga-tool-pybuggy-web-usage`** — референс веб-рантайма (page-фикстуры, шаги-предложения, кеш).
+- **`goga-cell`** — the DSL specification for cells and CODEMANIFEST.
+- **`goga-cell-python`** — Python rules (snake_case, `location`).
+- **`goga-tool-pybuggy-web-cookbook`** — principles of web test cells.
+- **`goga-codemanifest-base`** — base usages/annotations from `.goga/config.yml`; capture the
+  base Header block **verbatim**: `Usages` (`conventions`, `pybuggy-web` with paths) + `Annotations`.
+- **`goga-tool-pybuggy-web-usage`** — the web runtime reference (page fixtures, step suggestions, cache).
 
-Резолв ключей:
+Key resolution:
 
-1. Для каждого ключа базового `Usages` проверь, что файл по пути существует и не пуст
+1. For each base `Usages` key, verify that the file at the path exists and is not empty
    (`pybuggy-web` → `.goga/usages/cooks/pybuggy/pybuggy-web.md`).
-2. Нерезолвящийся базовый ключ — **STOP** (попроси пользователя запустить
+2. If a base key fails to resolve — **STOP** (ask the user to run
    `goga tool pybuggy init` kind web/both).
 
 ### Step 3. Load requirements into context
 
-Загрузи в контекст requirements.md **дословно** под заголовком [TESTCASES_INTAKE] — это вход всех
-следующих шагов.
+Load requirements.md into the context **verbatim** under the [TESTCASES_INTAKE] heading — it is the
+input for all subsequent steps.
 
 ---
 
@@ -63,18 +63,18 @@ requirements.md уже структурирован стабильными ид�
       conventions: .goga/usages/conventions.md
       pybuggy-web: .goga/usages/cooks/pybuggy/pybuggy-web.md
     Annotations: |
-      [дословно из .goga/config.yml]
+      [verbatim from .goga/config.yml]
 
-[Базовый блок идентичен для всех веб-ячеек топика; cell-specific usages лягут поверх — только
-существующими файлами.]
+[The base block is identical for all web cells of the topic; cell-specific usages are layered on top —
+existing files only.]
 
 ## Key Resolution
 
-| key | path | статус |
+| key | path | status |
 |-----|------|--------|
-| pybuggy-web | .goga/usages/cooks/pybuggy/pybuggy-web.md | резолвится |
+| pybuggy-web | .goga/usages/cooks/pybuggy/pybuggy-web.md | resolves |
 
 ## Requirements
 
-[requirements.md, напечатанный дословно. Новый формат не создаётся.]
+[requirements.md, printed verbatim. Do not create a new format.]
 ```

@@ -6,60 +6,35 @@ description: Loads and provides the pybuggy web runtime documentation (pybuggy-w
 
 ## Purpose
 
-Скилл предоставляет документацию по веб-рантайму pybuggy — фикстуре `web` (pybuggy-web): браузерные
-UI-тесты, в которых каждый шаг — предложение на естественном языке, превращаемое в Playwright-код
-LLM один раз и кешируемое рядом с тестом. Этот скилл — единственный источник контекста о реальном
-веб-API pybuggy.
+This skill provides documentation for the pybuggy web runtime — the `web` fixture (`pybuggy-web`): browser UI tests in which each step is a natural-language sentence that the LLM converts into Playwright code once and caches next to the test. This skill is the single source of context about the actual pybuggy web API.
 
-Другие скиллы и задачи (стадии дизайна тестов, кодогенерации, приёмки) вызывают этот скилл, чтобы
-получить актуальный референс. Референс основан на cooks-файле проекта, а не на догадках.
+Other skills and tasks (test design, code generation, and acceptance stages) invoke this skill to obtain an up-to-date reference. The reference is based on the project's cooks file, not on guesswork.
 
 ---
 
 ## Behavior
 
-1. Проверь файл `.goga/usages/cooks/pybuggy/pybuggy-web.md`. Если файла нет или он пуст — веб-документация
-   не загружена: попроси пользователя запустить `goga tool pybuggy init` (kind `web` или `both`; команда
-   копирует документацию веб-рантайма и регистрирует ключ `pybuggy-web` в `.goga/config.yml`), и остановись.
+1. Check the file `.goga/usages/cooks/pybuggy/pybuggy-web.md`. If the file is missing or empty, the web documentation is not loaded: ask the user to run `goga tool pybuggy init` (kind `web` or `both`; the command copies the web runtime documentation and registers the `pybuggy-web` key in `.goga/config.yml`), and stop.
 
-2. Прочитай файл целиком. Файл соответствует usage-ключу `pybuggy-web`.
+2. Read the file in full. The file corresponds to the usage key `pybuggy-web`.
 
-3. Если передан `$ARGUMENTS` (тема: `web` или иная), используй только релевантные теме части; иначе —
-   весь файл.
+3. If `$ARGUMENTS` is passed (a theme: `web` or another), use only the parts relevant to the theme; otherwise use the entire file.
 
-4. Примени прочитанное к контексту вызывающего скилла. Поверхность веб-рантайма:
+4. Apply the read content to the context of the calling skill. Web runtime surface:
 
-   - Фикстура `web` — активация документом `.goga/tools/pybuggy/web.yml`.
-   - Шаги: `web.step(sentence)` — шаг-действие; `web.expect(sentence)` — шаг-проверка (поллинг до
-     истинности); `web.group(...)` — блок мини-сценария: набор тесно связанных действий, меняющий
-     состояние страницы/виджета; промпт группы называет достигаемое состояние, лечение группы —
-     целиком (диагноз по всем шагам, регенерация ряда); `run_on_page(...)`.
-   - Page-объекты: `BasePage(web, path)` — активационный вызов `page_<name>()` открывает страницу
-     (URL компонуется рантаймом из `site.base_url`), поверхность `page.step/expect/group`
-     проксирована; каркас — `goga tool pybuggy page generate <path> <name>`; фикстуры `pages/`
-     подхватываются автоматически.
-   - Захваты переменных: маркер `{% var <имя> %}` внутри предложения шага захватывает значение со
-     страницы; маркер `{{ <имя> }}` в последующих предложениях (шагах и проверках) подставляет
-     захваченное значение. Предложения — строковые литералы: `{{ … }}` / `{{ vars.<имя> }}` —
-     маркеры движка дословно, python-значение входит в предложение только kwarg-ом `vars={...}`
-     (отдельный неймспейс: `{{ имя }}` — память, `{{ vars.имя }}` — колл-входы). Захват — только
-     для динамики страницы (значений, неизвестных при написании теста); статические литералы
-     пишутся без маркеров.
-   - Адресация страниц: страницы тестируемого сайта — путь относительно `site.base_url` в
-     предложении шага (навигация сайта компонуется из директивы рантаймом; смена окружения — смена
-     `site.base_url` + один прогон без `--strict-mode`); внешние страницы (чужой origin) — полным
-     URL в шаге.
-   - Один шаг = одно действие.
-   - Кеш шагов коммитится в репозиторий — адрес автоматический по месту вызова: инлайн-шаг теста —
-     `tests/…/.cache/<module>/<test_name>/`; шаг из метода page-объекта (активационный вызов
-     включён) — общий кеш страницы `pages/.cache/<page>/`.
-   - Режимы: `--strict-mode` (0 LLM-вызовов, cache-miss = падение; для CI и повторных прогонов);
-     `--interactive` (интерактивное лечение шагов); `--browser-endpoint ws://…|http://…`.
+   - The `web` fixture — activated by the document `.goga/tools/pybuggy/web.yml`.
+   - Steps: `web.step(sentence)` — an action step; `web.expect(sentence)` — a check step (polling until the condition is true); `web.group(...)` — a mini-scenario block: a set of tightly coupled actions that changes the state of the page or widget; the group prompt names the target state, and the group is healed as a whole (diagnosis across all steps, regeneration of the row); `run_on_page(...)`.
+   - Page objects: `BasePage(web, path)` — the activation call `page_<name>()` opens the page (the runtime composes the URL from `site.base_url`); the `page.step/expect/group` surface is proxied; generate the skeleton with `goga tool pybuggy page generate <path> <name>`; `pages/` fixtures are picked up automatically.
+   - Variable capture: the `{% var <name> %}` marker inside a step sentence captures a value from the page; the `{{ <name> }}` marker in subsequent sentences (steps and checks) substitutes the captured value. Sentences are string literals: `{{ … }}` / `{{ vars.<name> }}` are engine markers passed verbatim; a Python value enters a sentence only via the `vars={...}` kwarg (separate namespaces: `{{ name }}` — memory, `{{ vars.name }}` — call inputs). Capture is only for page dynamics (values unknown at test-writing time); static literals are written without markers.
+   - Page addressing: for pages of the site under test, use a path relative to `site.base_url` in the step sentence (the runtime composes site navigation from the directive; switching environments means switching `site.base_url` plus one run without `--strict-mode`); for external pages (a foreign origin), use the full URL in the step.
+   - One step = one action.
+   - The step cache is committed to the repository; the cache location is resolved automatically by call site: an inline step of a test — `tests/…/.cache/<module>/<test_name>/`; a step from a page-object method (the activation call included) — the page's shared cache `pages/.cache/<page>/`.
+   - Modes: `--strict-mode` (0 LLM calls, cache-miss = failure; for CI and repeat runs); `--interactive` (interactive step healing); `--browser-endpoint ws://…|http://…`.
 
-   Правила применения референса:
+   Rules for applying the reference:
 
-   - **Секреты в предложениях шагов запрещены** (всё попадает в промпт провайдера и в репозиторий).
-   - Используй только фактическое содержимое файла как источник — не выдумывай детали API.
-   - Не пересказывай файл дословно — дай применимый референс.
+   - **Secrets in step sentences are forbidden** (everything reaches the provider prompt and the repository).
+   - Use only the file's actual content as the source — do not invent API details.
+   - Do not retell the file verbatim — give an applicable reference.
 
-5. Укажи путь к файлу, чтобы вызывающий мог прочитать полные детали при необходимости.
+5. Provide the file path so the caller can read the full details if needed.

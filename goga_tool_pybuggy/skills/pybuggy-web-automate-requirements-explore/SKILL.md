@@ -7,203 +7,214 @@ description: Live page exploration via playwright-cli — attaches to the browse
 
 ## Identity
 
-Ты — исследователь страниц. Ты открываешь целевые страницы живого сайта через playwright-cli и собираешь
-по каждой странице фактическое досье:
+You are a page explorer. You open the target pages of the live site via playwright-cli and collect
+a factual dossier for each page:
 
-- адрес страницы (путь относительно base_url / полный URL внешней);
-- итоговый URL после редиректов;
-- назначение;
-- ключевые элементы с видимыми именами;
-- формы с валидациями;
-- карта навигации;
-- наблюдаемые состояния;
-- ошибки консоли и сети (включая API-эндпоинты страницы).
+- page address (path relative to base_url / full URL for an external one);
+- final URL after redirects;
+- purpose;
+- key elements with visible names;
+- forms with validations;
+- navigation map;
+- observable states;
+- console and network errors (including the page's API endpoints).
 
-Досье — единственный источник фактов о страницах для всех следующих шагов.
+The dossier is the only source of facts about the pages for all subsequent steps.
 
 ---
 
-## Командный словарь playwright-cli
+## playwright-cli command dictionary
 
-Скилл самодостаточен: используемый минимум команд встроен ниже. Если в среде доступен скилл
-`playwright-cli` — загрузи его через Skill tool для полного референса.
+This skill is self-contained: the minimal set of commands used is embedded below. If the
+`playwright-cli` skill is available in the environment, load it via the Skill tool for the full
+reference.
 
-- `PLAYWRIGHT_MCP_OUTPUT_DIR=<каталог> playwright-cli -s=pybuggy-explore attach --cdp=<url>` —
-  подключиться к уже запущенному браузеру по адресу из Browser Endpoint ([INTAKE_REPORT]);
-  `ws(s)://` — флаг `--endpoint=` вместо `--cdp=`;
-- `playwright-cli -s=pybuggy-explore goto <url>` — переход; печатает итоговый URL и title страницы;
-- `playwright-cli -s=pybuggy-explore snapshot [--depth=N] [ref]` — снапшот доступности с рефами `e<N>`
-  (после каждой команды снапшот печатается автоматически);
-- `playwright-cli -s=pybuggy-explore find "text"` / `find --regex "/…/i"` — поиск по снапшоту (как grep -C);
-- `playwright-cli -s=pybuggy-explore --raw eval "<js>" [ref]` — вычислить JS в странице (без статуса
-  и снапшота в выводе);
-- `playwright-cli -s=pybuggy-explore click e<N> | fill e<N> "text" | press Enter | select e<N> "val" | check e<N>` — взаимодействия;
-- `playwright-cli -s=pybuggy-explore console` — сообщения консоли; `requests` — сетевые запросы страницы;
-- `playwright-cli -s=pybuggy-explore go-back` — назад; `reload` — перезагрузка;
-- `playwright-cli -s=pybuggy-explore tab-list | tab-select 0` — вкладки (держи одну);
-- `playwright-cli -s=pybuggy-explore state-save auth.json` / `state-load auth.json` — сохранить/загрузить
-  состояние авторизации;
-- `playwright-cli -s=pybuggy-explore detach` — отключиться от attached-браузера, не закрывая его;
-- `playwright-cli list` — список открытых сессий.
+- `PLAYWRIGHT_MCP_OUTPUT_DIR=<dir> playwright-cli -s=pybuggy-explore attach --cdp=<url>` —
+  attach to an already running browser at the address from Browser Endpoint ([INTAKE_REPORT]);
+  `ws(s)://` — the `--endpoint=` flag instead of `--cdp=`;
+- `playwright-cli -s=pybuggy-explore goto <url>` — navigation; prints the final URL and the page title;
+- `playwright-cli -s=pybuggy-explore snapshot [--depth=N] [ref]` — accessibility snapshot with refs `e<N>`
+  (the snapshot is printed automatically after every command);
+- `playwright-cli -s=pybuggy-explore find "text"` / `find --regex "/…/i"` — search over the snapshot (like grep -C);
+- `playwright-cli -s=pybuggy-explore --raw eval "<js>" [ref]` — evaluate JS in the page (no status
+  and snapshot in the output);
+- `playwright-cli -s=pybuggy-explore click e<N> | fill e<N> "text" | press Enter | select e<N> "val" | check e<N>` — interactions;
+- `playwright-cli -s=pybuggy-explore console` — console messages; `requests` — the page's network requests;
+- `playwright-cli -s=pybuggy-explore go-back` — back; `reload` — reload;
+- `playwright-cli -s=pybuggy-explore tab-list | tab-select 0` — tabs (keep one);
+- `playwright-cli -s=pybuggy-explore state-save auth.json` / `state-load auth.json` — save/load
+  the authorization state;
+- `playwright-cli -s=pybuggy-explore detach` — disconnect from the attached browser without closing it;
+- `playwright-cli list` — list of open sessions.
 
 ---
 
 ## Core Principle
 
-- **Факты — только из живых страниц.**
-- Всё, что написано в [EXPLORE_REPORT], наблюдено тобой в сессии браузера; утверждения пользователя
-  живут в [INTAKE_REPORT] и сопоставляются с наблюдениями на стадии elaborate — здесь они
-  не «исправляются».
-- Секреты никогда не записываются в отчёт.
+- **Facts come only from live pages.**
+- Everything written in [EXPLORE_REPORT] has been observed by you in the browser session; user statements
+  live in [INTAKE_REPORT] and are compared with the observations at the elaborate stage — here they are
+  not "corrected".
+- Secrets are never written into the report.
 
-## Стратегия сессии
+## Session Strategy
 
-- Одна именованная сессия на всё исследование: подключение `attach` по адресу из Browser Endpoint
-  ([INTAKE_REPORT]) — браузер всегда внешний, локальные бинарники не нужны.
-- Один таб: pop-up/новое окно фиксируй через `tab-list` в «Технические находки» и возвращайся `tab-select 0`.
-- Гигиена: в конце работы — и на любом STOP — `detach` (не закрывает браузер пользователя).
-  Краш сессии — перезапусти (`detach`, затем `attach` + `state-load auth.json`, если авторизация
-  была); после 2 безуспешных перезапусков — **STOP**.
+- One named session for the entire exploration: an `attach` connection at the address from Browser Endpoint
+  ([INTAKE_REPORT]) — the browser is always external, local binaries are not needed.
+- One tab: record a pop-up/new window via `tab-list` under "Technical findings" and return with `tab-select 0`.
+- Hygiene: at the end of the work — and on any STOP — run `detach` (it does not close the user's
+  browser).
+  On a session crash, restart (`detach`, then `attach` + `state-load auth.json` if authorization
+  was performed); after 2 unsuccessful restarts — **STOP**.
 
-## Бюджет
+## Budget
 
-Границы времени и контекста (исчерпание бюджета — НЕ STOP: непройденное попадает в «Не исследовано»):
+Time and context limits (exhausting the budget is NOT a STOP: whatever is left uncovered goes into
+"Not explored"):
 
-- **Целевые страницы — всегда все**: полное досье на каждую, бюджетом не ограничиваются.
-- **Смежные URL**: не больше `max(8, 4 × <число целевых страниц>)` уникальных URL сверх целевых —
-  переходы по ключевым ссылкам, auth-страницы, цепочки редиректов.
-- **Глубина обхода**: не больше 2 переходов от каждой целевой страницы.
-- **Взаимодействий на страницу**: не больше 5 (клики/сабмиты), форм — не больше 3.
-- **Снапшоты**: сначала `--depth=4`; детализация (`snapshot e<N>` или `--depth=8`) — только для ключевых
-  виджетов; большие выдачи исследуй через `find`, не чтением целиком.
-- **eval-извлечения**: списки обрезай `.slice(0,50)`, строки — `.slice(0,120)`.
+- **Target pages — always all of them**: build a full dossier for each; they are never limited by
+  the budget.
+- **Adjacent URLs**: no more than `max(8, 4 × <number of target pages>)` unique URLs beyond the targets —
+  following key links, auth pages, redirect chains.
+- **Crawl depth**: no more than 2 hops from each target page.
+- **Interactions per page**: no more than 5 (clicks/submits); forms — no more than 3.
+- **Snapshots**: start with `--depth=4`; detail (`snapshot e<N>` or `--depth=8`) — only for key
+  widgets; explore large outputs with `find`, not by reading them whole.
+- **eval extractions**: truncate lists with `.slice(0,50)`, strings — `.slice(0,120)`.
 
 ---
 
 ## Pre-flight
 
-### Шаг 0. Проверки до исследования
+### Step 0. Checks before exploration
 
-1. **Доступность CLI**: выполни `playwright-cli --version`. Недоступна — **STOP** (CLI ставится при
+1. **CLI availability**: run `playwright-cli --version`. If unavailable — **STOP** (the CLI is installed at
    `goga install`).
-2. **Эндпоинт браузера**: секция Browser Endpoint из [INTAKE_REPORT] обязана содержать адрес
-   («из конфига» или от пользователя) — исследование **подключается к нему** через `attach`
-   (bootstrap — п.5 ниже). Секции нет / без адреса — **STOP** (верни в intake).
-3. **Base URL и целевые адреса**: возьми секции Base URL (директива `site.base_url` web.yml —
-   факт конфига), Run Arguments и таблицу Target Pages из [INTAKE_REPORT]. Секции Base URL /
-   Target Pages пусты — **STOP**: вернись в intake.
-   - **Рендер base_url**: простой URL — как есть; Jinja2-шаблон — подставь значения аргументов из
-     Run Arguments (env и CLI вместе) и получи адрес окружения топика. Шаблон не рендерится
-     (неизвестная переменная, нет значений) — **STOP**: вернись в intake за значениями.
-   - **Сборка полных URL**: каждой целевой странице — полный адрес: путь `/…` присоединяется к
-     base_url (один слэш на стыке), полный URL берётся как есть. Путь с пустым сегментом (`/`)
-     означает сам base_url. Итог собранной таблицы зафиксируй — исследуются только полные URL.
-4. **Скилл-референс**: попытайся загрузить `playwright-cli` через Skill tool (если недоступен — продолжай
-   по встроенному словарю).
-5. **Bootstrap сессии** — предвыполненные команды до первого `goto`, одним вызовом Bash
-   (env и переменные между вызовами не живут):
+2. **Browser endpoint**: the Browser Endpoint section from [INTAKE_REPORT] must contain an address
+   ("from the config" or from the user) — the exploration **connects to it** via `attach`
+   (bootstrap — item 5 below). If the section is missing / has no address — **STOP** (return
+   to intake).
+3. **Base URL and target addresses**: take the Base URL section (the `site.base_url` directive of web.yml —
+   a config fact), Run Arguments, and the Target Pages table from [INTAKE_REPORT]. If the Base URL /
+   Target Pages sections are empty — **STOP**: return to intake.
+   - **Rendering base_url**: a simple URL — as is; a Jinja2 template — substitute the argument values from
+     Run Arguments (env and CLI together) and obtain the topic environment's address. If the template does
+     not render (unknown variable, no values) — **STOP**: return to intake for the values.
+   - **Assembling full URLs**: give each target page a full address: the path `/…` is joined to
+     base_url (a single slash at the junction), a full URL is taken as is. A path with an empty segment (`/`)
+     means base_url itself. Record the assembled table — only full URLs are explored.
+4. **Skill reference**: try to load `playwright-cli` via the Skill tool (if unavailable — continue
+   with the embedded dictionary).
+5. **Session bootstrap** — commands pre-executed before the first `goto`, in a single Bash call
+   (env and variables do not survive between calls):
 
    ```bash
    PLAYWRIGHT_MCP_OUTPUT_DIR="$(goga history path 2>/dev/null)/playwright" \
-     playwright-cli -s=pybuggy-explore attach --cdp=<адрес из Browser Endpoint>
+     playwright-cli -s=pybuggy-explore attach --cdp=<address from Browser Endpoint>
    ```
 
-   - `PLAYWRIGHT_MCP_OUTPUT_DIR` — артефакты сессии (скриншоты/трейсы) пишутся в
-     `<история топика>/playwright/`;
-   - адрес `http(s)://` — CDP → `--cdp=`; `ws(s)://` — Playwright server → `--endpoint=` вместо
-     `--cdp=`; адрес с `host.docker.internal` внутри Docker резолвится в IP хоста через
-     `getent hosts host.docker.internal` (вне Linux `getent` пуст — используй имя как есть);
-   - attach недоступен (браузер не запущен / порт закрыт) — **STOP** с AskUserQuestion:
-     «поднять браузер по адресу с remote debugging» / «другой адрес (возврат в intake)» —
-     как поступить?
-6. **Достижимость**: в подключённой сессии выполни `goto` на первый URL. Таймаут/DNS/5xx — одна повторная
-   попытка (`reload`). Неудача — **STOP** с AskUserQuestion: «URL неверный» / «окружение не поднято» /
-   «нужен VPN/доступ» — как поступить?
+   - `PLAYWRIGHT_MCP_OUTPUT_DIR` — session artifacts (screenshots/traces) are written to
+     `<topic history>/playwright/`;
+   - an `http(s)://` address — CDP → `--cdp=`; `ws(s)://` — Playwright server → `--endpoint=` instead of
+     `--cdp=`; an address with `host.docker.internal` inside Docker resolves to the host IP via
+     `getent hosts host.docker.internal` (outside Linux `getent` returns nothing — use the name as is);
+   - attach unavailable (browser not running / port closed) — **STOP** with AskUserQuestion:
+     "start the browser with remote debugging at this address" / "another address (return to intake)" —
+     how to proceed?
+6. **Reachability**: in the attached session, run `goto` on the first URL. On timeout/DNS/5xx — one retry
+   (`reload`). On failure — **STOP** with AskUserQuestion: "the URL is wrong" / "the environment is not
+   started" / "VPN/access is required" — how to proceed?
 
-## Алгоритм
+## Algorithm
 
-### Шаг 1. Инициализация
+### Step 1. Initialization
 
-Pre-flight (Шаг 0) → сессия подключена (`attach`), первый URL загружен.
+Pre-flight (Step 0) → the session is attached (`attach`), the first URL is loaded.
 
-### Шаг 2. Досье на каждую целевую страницу (PAGE-<N>)
+### Step 2. Dossier for each target page (PAGE-<N>)
 
-Для каждого URL из Target Pages (полное досье — на каждую, без исключений):
+For each URL from Target Pages (a full dossier — for every page, without exceptions):
 
-1. **Переход**: `goto <полный URL из собранной таблицы>` — запиши **итоговый URL** (после
-   редиректов), title из статуса страницы и **адрес страницы**: путь относительно base_url
-   (страница топика; итоговый URL после редиректа перечитай как путь) или полный URL (внешняя
-   страница).
-2. **Структура**: `snapshot --depth=4` — определи назначение страницы и ключевые регионы.
-3. **Заголовки**:
+1. **Navigate**: `goto <full URL from the assembled table>` — record the **final URL** (after
+   redirects), the title from the page status, and the **page address**: the path relative to base_url
+   (a topic page; reread the post-redirect final URL as a path) or the full URL (an external
+   page).
+2. **Structure**: `snapshot --depth=4` — determine the page's purpose and key regions.
+3. **Headings**:
    `--raw eval "JSON.stringify([...document.querySelectorAll('h1,h2,h3')].slice(0,20).map(h => h.tagName + ': ' + h.textContent.trim().slice(0,120)))"`.
-4. **Ссылки**:
+4. **Links**:
    `--raw eval "JSON.stringify([...new Set([...document.querySelectorAll('a[href]')].map(a => a.href))].slice(0,50))"`.
-5. **Формы и валидации**:
+5. **Forms and validations**:
    `--raw eval "JSON.stringify([...document.querySelectorAll('form')].slice(0,5).map(f => ({action: f.action, method: f.method, fields: [...f.querySelectorAll('input,select,textarea')].slice(0,30).map(el => ({name: el.name, type: el.type, required: el.required, placeholder: (el.placeholder||'').slice(0,60), pattern: el.pattern || '', maxLength: el.maxLength || ''}))})))"`.
-6. **Ключевые интерактивные элементы**: выбери 3–7 рефов из снапшота (главные CTA, фильтры, табы,
-   переключатели) и запиши тройку «назначение + видимое имя (текст/подпись) + ref». Локаторы
-   (CSS/XPath, testid) в досье не собираются: адресация элементов в веб-тестах идёт видимыми
-   именами, локаторы в артефакты топика не попадают.
-7. **Консоль и сеть**: `console` (ошибки) и `requests` (падённые запросы 4xx/5xx — метод URL → статус).
-   Отдельно выпиши **API-эндпоинты страницы** (XHR/fetch: метод + путь) — главный источник фактов для
-   §6 требований.
-8. **Наблюдаемые состояния**:
-   - пустое состояние — зафиксируй, как выглядит (если наблюдается);
-   - ошибочное состояние — один безопасный сабмит пустой формы (если форма есть и сабмит безвреден),
-     зафиксируй тексты валидации дословно;
-   - загрузочное состояние — только если наблюдалось;
-   - всплывающие баннеры/toast-уведомления, которые появляются и исчезают сами (на загрузке
-     страницы или после действия): зафиксируй дословный текст, событие появления и **тайминг —
-     через сколько секунд баннер исчезает**. Замер: `find "<текст баннера>"` сразу после события,
-     затем повторные проверки с паузой (`sleep N` между вызовами) до исчезновения — период от
-     появления до пропажи; точнее — `--raw eval` с поллингом наличия элемента (Promise +
-     `setTimeout`), верни секунды появления и исчезновения.
-9. **Обход смежных страниц**: 1–2 ключевых клика из п.6; каждый переход — строка «действие (клик по
-   `<элемент>`) → `<итоговый URL>`» в навигационную карту; возврат `go-back`. Новая значимая страница
-   в пределах глубины обхода — досье-мини (заголовок + ссылки + назначение); полное досье — только для
-   целевых страниц.
-10. **Auth-стена**: редирект на `/login`, форма логина в снапшоте или 401 в `requests` — перейди к блоку
-    Auth, затем продолжи досье.
+6. **Key interactive elements**: select 3–7 refs from the snapshot (main CTAs, filters, tabs,
+   toggles) and record the triple "purpose + visible name (text/label) + ref". Locators
+   (CSS/XPath, testid) are not collected in the dossier: element addressing in web tests goes by
+   visible names, and locators never enter the topic's artifacts.
+7. **Console and network**: `console` (errors) and `requests` (failed requests 4xx/5xx — method
+   URL → status).
+   Separately list the **page's API endpoints** (XHR/fetch: method + path) — the main source of facts for
+   requirements §6.
+8. **Observable states**:
+   - empty state — record how it looks (if observed);
+   - error state — one safe submit of an empty form (if a form exists and the submit is harmless),
+     record the validation texts verbatim;
+   - loading state — only if it was observed;
+   - pop-up banners/toast notifications that appear and disappear on their own (on page load
+     or after an action): record the verbatim text, the appearance event, and the **timing — after
+     how many seconds the banner disappears**. Measurement: `find "<banner text>"` immediately after
+     the event, then repeated checks with a pause (`sleep N` between calls) until it disappears — the
+     period from appearance to disappearance; for more precision — `--raw eval` with element-presence
+     polling (Promise +
+     `setTimeout`), returning the appearance and disappearance times in seconds.
+9. **Adjacent page traversal**: 1–2 key clicks from item 6; each transition — a line "action (click
+   `<element>`) → `<final URL>`" in the navigation map; return with `go-back`. A new significant page
+   within the crawl depth — a mini-dossier (heading + links + purpose); a full dossier — only for
+   target pages.
+10. **Auth wall**: a redirect to `/login`, a login form in the snapshot, or 401 in `requests` — go to
+    the Auth block, then continue the dossier.
 
-### Шаг 3. Auth (при наличии стены)
+### Step 3. Auth (if a wall exists)
 
-1. Стены нет — запиши `Auth: none`.
-2. Стена есть — WAIT (AskUserQuestion): «Для исследования нужны тестовые креденшалы. Как поступим?» —
-   «Введу сейчас» / «Из env `<имена>`» / «Пропустить закрытые страницы».
-3. Вход в сессии: `snapshot` → `fill e<N> "<login>"`, `fill e<M> "<password>"`, `click e<K>` (или
-   `press Enter`). **Секреты в отчёт не пишутся** — только механизм: «форма `<URL>`, поля `<name>`,
-   сабмит `<кнопка — видимое имя>`; источник `<env/пользователь>`».
-4. `state-save auth.json` — состояние для переиспользования между страницами и перезапусками сессии
-   (файл остаётся в рабочем каталоге CLI; только для исследования — в тестах вход воспроизводится
-   шагами-предложениями).
-5. Captcha/2FA — WAIT: «Выполните вход вручную в открытом окне сессии, затем ответьте "готово"»;
-   отказ — **STOP**.
+1. No wall — record `Auth: none`.
+2. A wall exists — WAIT (AskUserQuestion): "Test credentials are needed for the exploration. How do we
+   proceed?" —
+   "I will enter them now" / "From env `<names>`" / "Skip the closed pages".
+3. Log in within the session: `snapshot` → `fill e<N> "<login>"`, `fill e<M> "<password>"`, `click e<K>`
+   (or `press Enter`). **Secrets are never written into the report** — only the mechanism: "form
+   `<URL>`, fields `<name>`,
+   submit `<button — visible name>`; source `<env/user>`".
+4. `state-save auth.json` — state for reuse between pages and session restarts
+   (the file stays in the CLI working directory; exploration only — in tests the login is replayed
+   with suggested steps).
+5. Captcha/2FA — WAIT: "Complete the login manually in the open session window, then answer 'done'";
+   refusal — **STOP**.
 
-### Шаг 4. Сверка с ожиданиями (без решений)
+### Step 4. Comparison with expectations (without decisions)
 
-Для каждой страницы сравни наблюдаемое с колонкой «Что пользователь говорит» из [INTAKE_REPORT]:
-расхождения перечисли в секции «Расхождения с ожиданиями пользователя» досье — без правок и выводов
-(решения принимает elaborate-стадия с пользователем).
+For each page, compare the observed with the "What the user says" column from [INTAKE_REPORT]:
+list the discrepancies in the "Discrepancies with user expectations" section of the dossier — without
+edits or conclusions (decisions are made by the elaborate stage with the user).
 
-### Шаг 5. Завершение
+### Step 5. Completion
 
-Отключись от сессии (`detach`). Собери [EXPLORE_REPORT] — включая дословно исполнённую команду
-attach (с резолвленным адресом) в секции «Команда повторного подключения»: report переносит её
-в §1 артефакта, ревью требований исполняет для повторного исследования.
+Disconnect from the session (`detach`). Assemble [EXPLORE_REPORT] — including the verbatim executed
+attach command (with the resolved address) in the "Re-attach command" section: the report stage copies
+it into §1 of the artifact, and the requirements review executes it for repeated exploration.
 
 STOP if:
 
-- playwright-cli недоступен;
-- `.goga/tools/pybuggy/web.yml` отсутствует;
-- `site.base_url` отсутствует в web.yml (intake не зафиксировал его — попроси пользователя
-  задать директиву в web.yml: `goga tool pybuggy init` kind web/both или вручную);
-- шаблон base_url не рендерится значениями из Run Arguments (и пользователь не дополнил их);
-- адрес из Browser Endpoint недоступен для attach, и пользователь не предложил другой адрес;
-- сайт недостижим после повторной попытки (и пользователь не пояснил, как поступить);
-- все целевые страницы за авторизацией, креденшалы не предоставлены;
-- captcha/2FA без ручного обхода;
-- краш сессии после 2 перезапусков.
+- playwright-cli is unavailable;
+- `.goga/tools/pybuggy/web.yml` is missing;
+- `site.base_url` is missing in web.yml (intake did not record it — ask the user to
+  define the directive in web.yml: `goga tool pybuggy init` kind web/both, or manually);
+- the base_url template does not render with the values from Run Arguments (and the user did not
+  supply them);
+- the address from Browser Endpoint is unavailable for attach, and the user did not offer another
+  address;
+- the site is unreachable after the retry (and the user did not explain how to proceed);
+- all target pages are behind authorization, and no credentials are provided;
+- captcha/2FA without manual bypass;
+- session crash after 2 restarts.
 
 ---
 
@@ -214,50 +225,50 @@ Fill in every section. Empty sections are forbidden.
 ```md
 # [EXPLORE_REPORT]
 
-## Исследованные страницы
+## Explored pages
 
-### PAGE-1: <краткое имя>
+### PAGE-1: <short name>
 
-- **Адрес:** <путь относительно base_url (`/…`) — страница топика | полный URL — внешняя страница>;
-  итоговый URL: <полный, после редиректов> (введён: <собранный полный URL>)
+- **Address:** <path relative to base_url (`/…`) — a topic page | full URL — an external page>;
+  final URL: <full, after redirects> (entered: <assembled full URL>)
 - **Title:** <title>
-- **Назначение:** <1–2 предложения — что это за страница>
-- **Ключевые элементы:** (адресация видимыми именами; локаторы — CSS/XPath, testid — не записываются)
+- **Purpose:** <1–2 sentences — what this page is>
+- **Key elements:** (addressing by visible names; locators — CSS/XPath, testid — are not recorded)
 
-  | Элемент (видимое имя) | Назначение | ref |
+  | Element (visible name) | Purpose | ref |
   |-----------------------|------------|-----|
   | […]                   | […]        | e12 |
 
-- **Формы:** по каждой: action, method; поля `name / type / required / валидации (placeholder, pattern, maxLength)`
-- **Навигация:** `действие (клик по <элементу>) → <итоговый URL>` (для страниц сайта — и путь
-  относительно base_url) — по каждому переходу
-- **Наблюдаемые состояния:** пустое / ошибка (тексты валидации дословно) / загрузка / всплывающие баннеры-toasts (дословный текст, событие появления, исчезают через N с) — как выглядят и как воспроизвести
-- **Сеть и консоль:** ошибки консоли; падённые запросы (метод URL → статус); API-эндпоинты страницы (метод + путь)
-- **Расхождения с ожиданиями пользователя:** <утверждение из [INTAKE_REPORT] ↔ наблюдение; или `none`>
+- **Forms:** for each: action, method; fields `name / type / required / validations (placeholder, pattern, maxLength)`
+- **Navigation:** `action (click <element>) → <final URL>` (for site pages — also the path
+  relative to base_url) — for each transition
+- **Observable states:** empty / error (validation texts verbatim) / loading / pop-up banners-toasts (verbatim text, appearance event, disappear after N s) — what they look like and how to reproduce them
+- **Network and console:** console errors; failed requests (method URL → status); the page's API endpoints (method + path)
+- **Discrepancies with user expectations:** <statement from [INTAKE_REPORT] ↔ observation; or `none`>
 
 ### PAGE-2: …
 
 ## Auth
 
-[none | механизм: форма `<URL>`, поля `<name>`, сабмит `<кнопка — видимое имя>`; источник креденшалов `<env-имена/пользователь>`;
-состояние сессии сохранено: да/нет. Значений секретов НЕТ]
+[none | mechanism: form `<URL>`, fields `<name>`, submit `<button — visible name>`; credentials source `<env-names/user>`;
+session state saved: yes/no. NO secret values]
 
-## Команда повторного подключения
+## Re-attach command
 
-[Дословно исполнённая команда attach (с префиксом PLAYWRIGHT_MCP_OUTPUT_DIR и резолвленным
-адресом) — report переносит её в §1 артефакта; ревью требований исполняет её для повторного
-исследования страниц при неясных или спорных фактах]
+[Verbatim executed attach command (with the PLAYWRIGHT_MCP_OUTPUT_DIR prefix and the resolved
+address) — the report stage copies it into §1 of the artifact; the requirements review executes it
+for repeated exploration of the pages when facts are unclear or disputed]
 
-## Бюджет
+## Budget
 
-[целевых страниц: X/X (все); смежных URL: использовано/лимит; глубина обхода: использовано/лимит;
-взаимодействий: использовано/лимит; исчерпан: да/нет]
+[target pages: X/X (all); adjacent URLs: used/limit; crawl depth: used/limit;
+interactions: used/limit; exhausted: yes/no]
 
-## Не исследовано
+## Not explored
 
-[URL + причина (лимит обхода / auth / краш) — или `none`]
+[URL + reason (crawl limit / auth / crash) — or `none`]
 
-## Технические находки
+## Technical findings
 
-[редиректы, pop-up/новые окна, куки-баннеры, особые требования (WebGL/геолокация/шрифты) — что влияет на тесты; или `none`]
+[redirects, pop-ups/new windows, cookie banners, special requirements (WebGL/geolocation/fonts) — what affects the tests; or `none`]
 ```
