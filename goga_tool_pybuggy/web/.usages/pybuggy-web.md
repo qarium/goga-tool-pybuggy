@@ -65,8 +65,10 @@ markers reaching the engine verbatim, and a Python value enters a sentence only 
 `vars=`:
 
 ```python
-page.expect("Ячейка строки {{ driver_id }} показывает {{ vars.expected_telephone }}",
-            vars={"expected_telephone": expected_telephone})
+page.expect(
+    "Ячейка строки {{ driver_id }} показывает {{ vars.expected_telephone }}",
+    vars={"expected_telephone": expected_telephone},
+)
 ```
 
 ## Tested-site pages (`BasePage`)
