@@ -37,8 +37,8 @@ cell-level `.usages/`.
    ключи из секций `Use …` рутин ячейки, только с существующими файлами
    `.goga/usages/cooks/<key>.md`. Подключение — строка `<key>: .goga/usages/cooks/<key>.md`
    в `Usages` + строка ``Use `<key>` for <назначение>`` в `Annotations`.
-2. **Body** — рутины ячейки **дословно** из [ROUTINES_REPORT]: сигнатура
-   сигнатура (фикстуры-страницы `page_<name>` либо `web: PrettyPlay`), `location`, аннотация.
+2. **Body** — рутины ячейки **дословно** из [ROUTINES_REPORT]: сигнатура (фикстуры-страницы
+   `page_<name>`), `location`, аннотация.
 3. **Footer** — `Author: Goga`, `CreatedAt: <день/месяц/год>`, `Description: <зачем ячейка>`.
 
 ### Step 3. Validate against the DSL (до записи)
@@ -49,7 +49,7 @@ cell-level `.usages/`.
 2. Header: базовый блок идентичен [TESTCASES_INTAKE]; cell-specific ключи резолвятся (файлы есть).
 3. Body: только Routine (без `methods`/`properties`, без Entities); сигнатура без выхода;
    `location: test_<name>.py`; snake_case; аннотация — строгая структура секций с пустыми строками;
-   бэктик-ссылки (`` `web` ``, `` `<key>` ``) резолвятся в контексте CODEMANIFEST.
+   бэктик-ссылки (`` `<key>` ``) резолвятся в контексте CODEMANIFEST.
 4. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
 DSL-ошибка — исправь и повтори валидацию; неисправимая — **STOP** (файлов не создавать).

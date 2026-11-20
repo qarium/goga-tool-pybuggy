@@ -27,7 +27,7 @@ Routine → `test_*.py` (включая кеш шагов), запустить �
 - **`goga-cell`** — DSL-спецификация CODEMANIFEST.
 - **`goga-tool-pybuggy-web-cookbook`** — принципы веб-тест-ячеек.
 - **`goga-cell-python`** — правила Python (именование, location).
-- **`goga-tool-pybuggy-web-usage`** — референс веб-рантайма (фикстура `web`, кеш, режимы).
+- **`goga-tool-pybuggy-web-usage`** — референс веб-рантайма (page-фикстуры, кеш, режимы).
 
 ## Pipeline
 

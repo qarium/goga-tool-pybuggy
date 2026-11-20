@@ -15,7 +15,7 @@ description: Dispatch wrapper around goga-design for web testing mode — produc
 
 Создать дизайн-документ `goga history path -f design.md`, описывающий **материализацию браузерных
 UI-тестов** из CODEMANIFEST веб-ячеек: какие файлы `test_*.py` генерировать, как фикстуры-страницы
-`page_<name>` (и рантайм `web` для рутин без page-объекта) превращают предложения шагов в
+`page_<name>` превращают предложения шагов в
 Playwright-код (генерация LLM при первом прогоне + кеш), и закрепить
 `pytest` как инструмент валидации.
 
@@ -28,16 +28,15 @@ Playwright-код (генерация LLM при первом прогоне + �
 - **Source of truth:** CODEMANIFEST веб-ячеек в `tests/web/<cell>/`. Тест-кейс = Routine; варианты
   параметризованной Routine различаются только значениями (заполняемые данные, ожидаемые тексты) —
   тело теста остаётся линейным, без ветвления по варианту. CODEMANIFEST — контракт read-only.
-- **Runtime/фикстуры:** первично — фикстуры-страницы `page_<name>` (`pages/<…>_page.py`,
-  активация `with page_<name>() as page:`, поверхность `page.step/expect/group`);
-  `web` (PrettyPlay) — только рутинам без page-объекта (внешние/литеральные страницы).
+- **Runtime/фикстуры:** фикстуры-страницы `page_<name>` (`pages/<…>_page.py`,
+  активация `with page_<name>() as page:`, поверхность `page.step/expect/group`); внешние/литеральные
+  страницы — шаги с полным URL через поверхность page-фикстуры.
   Референс — `.goga/usages/cooks/pybuggy/pybuggy-web.md`; загрузи
   через скиллы `goga-tool-pybuggy-web-usage` и `goga-tool-pybuggy-web-cookbook`.
 - **Шаги-предложения:** каждый пункт `Steps:` аннотации материализуется ровно в одно предложение —
   действие → `page.step("…")`, проверка → `page.expect("…")`, мини-сценарий (набор действий, меняющий
   состояние страницы/виджета) → `with page.group("<достигаемое состояние>"):`
-  (через поверхность активированной страницы; `web.step`/`web.expect`/`web.group` — только рутинам
-  без page-объекта).
+  (через поверхность активированной страницы).
   Один шаг = одно действие; адрес страницы тестируемого сайта — путь относительно base_url
   (`/catalog`, из §2 требований; навигация сайта компонуется рантаймом из `site.base_url`),
   полный URL — только внешняя страница (чужой origin); ожидания — отдельными `page.expect`
@@ -97,8 +96,8 @@ Arguments: `$ARGUMENTS`
    `goga-tool-pybuggy-web-cookbook`.
 3. Вызови `goga-design` через **Skill tool**, приложив явный пакет режима веб-тестирования
    (маркерная фраза: «Pybuggy web testing mode: generate browser UI tests from CODEMANIFEST web-cells;
-   deliverable is `test_*.py` using page-object fixtures (`page_<name>`; the `web` fixture only
-   for routines without a page object) with step sentences (one action per step,
+   deliverable is `test_*.py` using page-object fixtures (`page_<name>`; external/literal pages
+   open by full-URL step sentences through the page fixture's surface) with step sentences (one action per step,
    site pages addressed as paths relative to the base URL with external pages by full URLs,
    expectations as separate expect-steps); goal sentences carrying a
    `Use page-<name> — method <method>` reference materialize as `page_<name>.<method>()`
@@ -108,7 +107,7 @@ Arguments: `$ARGUMENTS`
    code»).
 4. `goga-design` сам диспетчеризует `goga-design-by-changes` — не вызывай его в обход `goga-design`.
 5. По завершении проверь, что путь, напечатанный `goga history path -f design.md`, описывает
-   генерацию веб-тестов (фикстуры-страницы `page_<name>`, `web` — только рутинам без page-объекта,
+   генерацию веб-тестов (фикстуры-страницы `page_<name>`,
    предложения шагов, каталоги `tests/web/<cell>/`), называет
    `pytest` инструментом валидации, упоминает генерацию шагов LLM при первом прогоне с кешем,
    коммитящимся в репозиторий (и запрет `--strict-mode` на первом прогоне), и закрепляет

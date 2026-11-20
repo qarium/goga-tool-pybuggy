@@ -44,7 +44,7 @@ description: Dispatch wrapper around goga-plan for web testing mode — compiles
 ralphex (`task.txt`, STEP 2 VALIDATE): *"Run the test and lint commands specified in the plan"*. ralphex
 запускает тесты **только** когда план явно перечисляет команды `pytest` в `## Validation Commands` и
 даёт исполняемые чекбоксы в Task. Для веб-тестов это критичнее, чем для API: без прогона не только
-нет проверки — **нет самих шагов**: предложения (`page.step(...)`/`web.step(...)`) превращаются в Playwright-код только
+нет проверки — **нет самих шагов**: предложения (`page.step(...)`/`page.expect(...)`) превращаются в Playwright-код только
 при первом прогоне (LLM), и кеш шагов не появляется. Стандартный `goga-plan` нацелен на
 продакшен-код и не закладывает pytest-валидацию в план → тесты записываются, но никогда не
 исполняются и не кешируются. Эта dispatch-обёртка принудительно внедряет pytest (без strict) в план.
@@ -99,8 +99,7 @@ Arguments: `$ARGUMENTS`
    не предложений шагов.
 3. Вызови `goga-plan` через **Skill tool**, передав payload режима веб-тестирования (маркерная фраза:
    "Pybuggy web testing mode: compile a plan to GENERATE and RUN browser UI tests from CODEMANIFEST
-   web-cells; deliverable is `test_*.py` using page-object fixtures (`page_<name>`; the `web`
-   fixture only for routines without a page object) with step sentences;
+   web-cells; deliverable is `test_*.py` using page-object fixtures (`page_<name>`) with step sentences;
    `pytest tests/web/ -q` MUST be in Validation Commands and as executable Task checkboxes —
    WITHOUT `--strict-mode` (the first run generates the Playwright steps via the LLM and writes the
    step cache next to the test; the cache is committed); every generating Task carries the browser
