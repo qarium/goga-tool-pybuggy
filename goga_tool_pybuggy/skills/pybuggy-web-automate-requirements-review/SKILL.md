@@ -181,8 +181,9 @@ check.
 2. **Vocabulary** — the minimum set of commands to answer the finding's question: `goto <url>` /
    `snapshot --depth=4` / `find "text"` / `--raw eval "<js>"` / `console` / `requests` / `go-back`.
    Interactions (`click`/`fill`) — only to observe a state (a harmless empty form submit → the
-   verbatim validation text). If the `playwright-cli` skill is available in the environment — load
-   it via the Skill tool for the full reference.
+   verbatim validation text). The command vocabulary — load
+   `goga-tool-pybuggy-web-playwright-cli` via the Skill tool (if the upstream `playwright-cli`
+   skill is available in the environment, it carries the full reference).
 3. **Auth wall** — WAIT (AskUserQuestion): "I'll enter now" / "from env `<names>`" / "skip" — then
    the finding is marked "not confirmed on the live page". Secrets are not written into the report.
 4. **Budget** — only the §2 topic pages; no more than 3 pages per finding and 5 interactions per

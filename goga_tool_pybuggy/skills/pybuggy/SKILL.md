@@ -79,7 +79,9 @@ stage is a clean context, stages exchange artifacts of the topic's history direc
 durable chain is Routine → `test_*.py` (manifests carry no REQ ids); the REQ→Routine coverage is a
 session-time registry of the testcases stage, checked mechanically at assembly against §3, extended
 with `PAGE-<N>` page identifiers.
-Web specifics: steps carry **full URLs** (no base_url templating); the **first** run of each test — the
+Web specifics: step sentences address the topic's pages by **paths relative to `site.base_url`**
+(external pages — full URLs of a foreign origin; switching the environment means switching
+`site.base_url`, not the step sentences); the **first** run of each test — the
 `ralphex-build` stage, via the executable Task checkboxes of the plan — generates the Playwright steps via
 the LLM and writes the step cache (`tests/web/<cell>/.cache/test_<name>/test_<name>/`); repeated runs and acceptance replay
 from the cache with `--strict-mode` (zero LLM calls). Page exploration at the requirements stage goes
@@ -89,23 +91,28 @@ through `playwright-cli`. Requires the web runtime document `.goga/tools/pybuggy
 | Skill                                          | Purpose                                                                                                                                                                                                                                        | Input                                  | Output artifact                              |
 |------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------|----------------------------------------------|
 | `goga-tool-pybuggy-web-automate-requirements`  | Interviews the user, explores the live pages via playwright-cli (per-page dossiers), reconciles discrepancies, collects requirements                                                                                                           | topic description (pages to test)       | `requirements.md`                            |
-| `goga-tool-pybuggy-web-automate-testcases`     | Designs Routines directly from the requirements (a test case IS a Routine — step sentences, per-routine user approval; the REQ coverage registry is session-time, no REQ ids in the manifests), distributes them into cells, and assembles/materializes CODEMANIFESTs into `tests/web/<cell>/` | `requirements.md`          | `tests/web/<cell>/CODEMANIFEST` |
+| `goga-tool-pybuggy-web-automate-testcases`     | Designs Routines directly from the requirements (a test case IS a Routine — step sentences, per-routine user approval; the REQ coverage registry is session-time, no REQ ids in the manifests), distributes them into cells, assembles/materializes CODEMANIFESTs into `tests/web/<cell>/`, and rehearses every Routine live in the browser (a step-by-step walkthrough via playwright-cli — infeasible steps and expectation mismatches are triaged with the user before design/build) | `requirements.md`          | `tests/web/<cell>/CODEMANIFEST` |
 | `goga-tool-pybuggy-web-automate-design`        | Dispatch wrapper around `goga-design` in web testing mode (the `web` fixture, step sentences, full URLs)                                                                                                                                       | `tests/web/*/CODEMANIFEST`              | `design.md`                                  |
 | `goga-tool-pybuggy-web-automate-plan`          | Dispatch wrapper around `goga-plan`: guarantees an executable test-run checkbox in every generating Task **without** `--strict-mode` — that run is when the LLM generates the step code and writes the cache                                   | `design.md`              | `plan.md`                                    |
 | `goga-tool-pybuggy-web-automate-accept`        | Acceptance: cross-checks Routine → `test_*.py` (step sentences, caches), runs pytest in strict mode, triages failures; service bugs go to the topic's `bugs.md`                                                                          | `requirements.md` + built tests | [ACCEPT_REPORT] + `bugs.md` |
 
-Full flow: **requirements → testcases (cases → cells → materialization) → design → plan → ralphex build
-(`goga build` — the generating first run) → accept**.
+Full flow: **requirements → testcases (routines → cells → materialization → live rehearsal) → design →
+plan → ralphex build (`goga build` — the generating first run) → accept**.
 
 Web reference skills:
 
 - **`goga-tool-pybuggy-web-usage`** — the web runtime reference (`pybuggy-web.md`: the `web` fixture,
   `web.step`/`web.expect`/`web.group`, step cache, run modes).
 - **`goga-tool-pybuggy-web-cookbook`** — principles for applying the `goga-cell` DSL to **web** test
-  cells (step-sentence annotations, full URLs, no secrets, base Usages `conventions` + `pybuggy-web`).
+  cells (step-sentence annotations, site pages addressed as `site.base_url`-relative paths, no
+  secrets, base Usages `conventions` + `pybuggy-web`).
+- **`goga-tool-pybuggy-web-playwright-cli`** — the playwright-cli command reference for the web
+  stages (named sessions, attach/detach, snapshot/find/eval, interactions, authorization state) —
+  loaded by the exploration, rehearsal, and review stages instead of an embedded dictionary.
 
-Web review skills (`requirements-review` / `testcases-review` / `design-review` / `plan-review`) are
-stub placeholders for now — the pipeline runs them as pass-through until their bodies are authored.
+Web review skills (`requirements-review` / `testcases-review` / `design-review` / `plan-review`)
+verify the stage artifacts against the disk facts (and, for requirements, the live pages via the
+§1 re-exploration command) and fix the findings with user approval.
 
 ### Fix flow (pipelines)
 

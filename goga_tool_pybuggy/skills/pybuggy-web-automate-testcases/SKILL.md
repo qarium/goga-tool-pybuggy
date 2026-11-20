@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-testcases
-description: Web test pipeline — from the requirements artifact straight to materialized CODEMANIFESTs; designs Routines (a test case IS a Routine — step sentences, no REQ ids in the manifests) with per-routine user approval, distributes them into cells, and assembles/materializes the CODEMANIFESTs into tests/web/<cell>/ — every requirement §3 must be covered by a Routine (session-time coverage registry)
+description: Web test pipeline — from the requirements artifact straight to materialized CODEMANIFESTs; designs Routines (a test case IS a Routine — step sentences, no REQ ids in the manifests) with per-routine user approval, distributes them into cells, assembles/materializes the CODEMANIFESTs into tests/web/<cell>/ (every requirement §3 must be covered by a Routine — session-time coverage registry), and then rehearses every Routine live in the browser — a step-by-step walkthrough via the §1 attach command; infeasible steps and expectation mismatches are triaged with the user before design and build
 ---
 
 # Pybuggy Web Topic Testcases
@@ -10,12 +10,16 @@ description: Web test pipeline — from the requirements artifact straight to ma
 You are the orchestrator of test case generation for a topic. You take the topic requirements,
 design each routine whole in a single pass (a test case = a Routine: step sentences — future
 `page.step(...)`/`page.expect(...)` via page fixtures), get each one approved by the user,
-distribute them across cells, and materialize the CODEMANIFESTs into `tests/web/<cell>/`.
+distribute them across cells, materialize the CODEMANIFESTs into `tests/web/<cell>/`, and then
+rehearse every materialized Routine live in the browser — a step that reads well but cannot be
+passed is found and fixed here, before design, plan, and `goga build` pay for generation and
+triage.
 
 ## Mission
 
 Materialize `tests/web/<cell>/CODEMANIFEST` in the target project so that every §3 requirement
-of requirements.md is covered by at least one Routine.
+of requirements.md is covered by at least one Routine — and rehearse the materialized Routines
+live in the browser: every Routine must be passable step by step (primary `Data:` variant).
 
 ## Pipeline
 
@@ -23,8 +27,9 @@ Execute the steps strictly sequentially — one at a time. Validate each step's 
 
 - Each step MUST produce its complete output before the next one starts.
 - Each step is an independent atomic operation invoked via the **Skill tool**.
-- WAIT-gate: steps 2, 3 (each Routine), 4 (page methods and routine edits), and 5 require
-  user confirmation (one question per message, 2–4 options).
+- WAIT-gate: steps 2, 3 (each Routine), 4 (page methods and routine edits), 5, and 7 (the triage
+  of every walked-Routine discrepancy) require user confirmation (one question per message,
+  2–4 options).
 
 ### Step 1. Intake
 
@@ -76,6 +81,18 @@ Execute the steps strictly sequentially — one at a time. Validate each step's 
 - STOP if: a CODEMANIFEST DSL error; `goga lint` is red after materialization; a REQ of §3 is
   left without a Routine
 
+### Step 7. Rehearse (WAIT)
+
+- Invoke: `goga-tool-pybuggy-web-automate-testcases-rehearse`
+- Reads: [ASSEMBLY_REPORT], [ROUTINES_REPORT], [TESTCASES_INTAKE] + the materialized CODEMANIFESTs
+  (the source of truth) and the page methods `pages/**`
+- Output: [REHEARSAL_REPORT] + the approved edits of the CODEMANIFESTs / page methods — every
+  Routine is walked step by step in the live browser (primary `Data:` variant, attach via the §1
+  re-exploration command)
+- WAIT: the triage of every infeasible step and every expectation mismatch of the walked Routines
+- STOP if: playwright-cli is unavailable; the browser at the §1 attach address / the site is
+  unreachable and the user did not restore them
+
 ## Output Rule
 
 Every sub-skill MUST fill every section of its output format.
@@ -97,6 +114,9 @@ An empty section = an incomplete sub-skill = STOP of the pipeline.
 - write step sentences anywhere except the `Steps:` of routines (and the page-object methods
   of the pages stage)
 - skip pipeline steps, bypass a STOP condition or a WAIT-gate
+- skip the rehearsal of the materialized Routines — the only exception is an explicit user
+  decision recorded in the rehearsal report
+- record a service-bug candidate without the user's triage decision
 - leave output sections empty
 - invent data or behavior — only facts from requirements.md and the dossier
 
@@ -110,3 +130,6 @@ An empty section = an incomplete sub-skill = STOP of the pipeline.
   a `Use` reference); reuse existing methods, do not duplicate
 - offer the user ready solutions at every WAIT; cell boundaries are a design decision
 - after materialization, run `goga lint` and `goga schema tests/`
+- rehearse every materialized Routine in the live browser (primary `Data:` variant) before the
+  pipeline finishes — passability is proven by a walkthrough, not by the adequacy of the wording
+- after rehearsal edits of the CODEMANIFESTs — re-run `goga lint` and `goga schema tests/`

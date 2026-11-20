@@ -25,27 +25,10 @@ The dossier is the only source of facts about the pages for all subsequent steps
 
 ## playwright-cli command dictionary
 
-This skill is self-contained: the minimal set of commands used is embedded below. If the
-`playwright-cli` skill is available in the environment, load it via the Skill tool for the full
-reference.
-
-- `PLAYWRIGHT_MCP_OUTPUT_DIR=<dir> playwright-cli -s=pybuggy-explore attach --cdp=<url>` —
-  attach to an already running browser at the address from Browser Endpoint ([INTAKE_REPORT]);
-  `ws(s)://` — the `--endpoint=` flag instead of `--cdp=`;
-- `playwright-cli -s=pybuggy-explore goto <url>` — navigation; prints the final URL and the page title;
-- `playwright-cli -s=pybuggy-explore snapshot [--depth=N] [ref]` — accessibility snapshot with refs `e<N>`
-  (the snapshot is printed automatically after every command);
-- `playwright-cli -s=pybuggy-explore find "text"` / `find --regex "/…/i"` — search over the snapshot (like grep -C);
-- `playwright-cli -s=pybuggy-explore --raw eval "<js>" [ref]` — evaluate JS in the page (no status
-  and snapshot in the output);
-- `playwright-cli -s=pybuggy-explore click e<N> | fill e<N> "text" | press Enter | select e<N> "val" | check e<N>` — interactions;
-- `playwright-cli -s=pybuggy-explore console` — console messages; `requests` — the page's network requests;
-- `playwright-cli -s=pybuggy-explore go-back` — back; `reload` — reload;
-- `playwright-cli -s=pybuggy-explore tab-list | tab-select 0` — tabs (keep one);
-- `playwright-cli -s=pybuggy-explore state-save auth.json` / `state-load auth.json` — save/load
-  the authorization state;
-- `playwright-cli -s=pybuggy-explore detach` — disconnect from the attached browser without closing it;
-- `playwright-cli list` — list of open sessions.
+The command vocabulary is not embedded here: load the reference skill
+`goga-tool-pybuggy-web-playwright-cli` via the **Skill tool** — the agreed minimal command set
+(sessions, attach/detach, navigation, snapshots/refs, find, eval, interactions, console/network,
+tabs, authorization state).
 
 ---
 
@@ -103,8 +86,9 @@ Time and context limits (exhausting the budget is NOT a STOP: whatever is left u
    - **Assembling full URLs**: give each target page a full address: the path `/…` is joined to
      base_url (a single slash at the junction), a full URL is taken as is. A path with an empty segment (`/`)
      means base_url itself. Record the assembled table — only full URLs are explored.
-4. **Skill reference**: try to load `playwright-cli` via the Skill tool (if unavailable — continue
-   with the embedded dictionary).
+4. **Skill reference**: load `goga-tool-pybuggy-web-playwright-cli` via the Skill tool — the
+   command vocabulary of the exploration (sessions, attach/detach, snapshots/refs, find, eval,
+   interactions, console/network, authorization state).
 5. **Session bootstrap** — commands pre-executed before the first `goto`, in a single Bash call
    (env and variables do not survive between calls):
 
