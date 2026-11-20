@@ -7,9 +7,11 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 
 ## Identity
 
-Ты определяешь объём приёмки топика: перечисляешь существующие на диске артефакты, ячейки и Routine,
-обнаруживаешь материализованные `test_*.py` и кеши шагов, определяешь команду прогона. Используешь
-только факты с диска — никаких предположений.
+Ты определяешь объём приёмки топика. Используешь только факты с диска — никаких предположений:
+
+- перечисляешь существующие на диске артефакты, ячейки и Routine;
+- обнаруживаешь материализованные `test_*.py` и кеши шагов;
+- определяешь команду прогона.
 
 ## Algorithm
 
@@ -22,10 +24,11 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 2. `tests/web/<cell>/CODEMANIFEST` — все ячейки топика. Источник истины о составе — CODEMANIFEST
    на диске (фактическое состояние).
 3. Сгенерированные `test_<name>.py` — по `location` каждой Routine.
-4. **Кеши шагов**: `tests/web/<cell>/.cache/test_<name>/test_<name>/` на каждый тест
-   (параметризованный кейс — `…/test_<name>[<param_id>]/`) и общий кеш каждой используемой
-   страницы `pages/.cache/<page>/` (создаются первым, генерирующим
-   прогоном на `goga build`); зафиксируй наличие/отсутствие и наполненность каждого.
+4. **Кеши шагов** (создаются первым, генерирующим прогоном на `goga build`) — зафиксируй
+   наличие/отсутствие и наполненность каждого:
+   - кеш теста: `tests/web/<cell>/.cache/test_<name>/test_<name>/` на каждый тест
+     (параметризованный кейс — `…/test_<name>[<param_id>]`);
+   - общий кеш каждой используемой страницы: `pages/.cache/<page>/`.
 5. **Page-объекты**: модули `pages/**` страниц топика (§2 — привязки `page_<name>` / литеральная
    навигация) — наличие модулей и заявленных методов (контракт — usage-файлы
    `.goga/usages/cooks/page-<name>.md`).
@@ -71,17 +74,16 @@ description: Web topic artifact inventory for acceptance — cells, Routines, te
 3. `conftest.py` существует; отсутствует — зафиксируй в отчёте (Environment notes).
 4. `.goga/tools/pybuggy/web.yml` существует; отсутствует — зафиксируй (веб-фикстура не
    зарегистрируется).
-
-STOP if:
-
-- артефакты топика не найдены (нет ни requirements.md, ни CODEMANIFEST-ячеек);
-- сгенерированных тест-файлов нет вообще (фаза `goga build` не исполнялась).
+5. STOP if: артефакты топика не найдены (нет ни requirements.md, ни CODEMANIFEST-ячеек)
+   или сгенерированных тест-файлов нет вообще (фаза `goga build` не исполнялась).
 
 ---
 
 ## Output Format
 
 Fill in every section. Empty sections are prohibited.
+
+Каждое поле отчёта — только факты с диска.
 
 ```md
 # [ACCEPT_SCOPE]

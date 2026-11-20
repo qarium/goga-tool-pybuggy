@@ -10,7 +10,7 @@ description: Web test pipeline — from the requirements artifact straight to ma
 Ты — оркестратор генерации тест-кейсов топика. Ты принимаешь требования топика, проектируешь
 рутины сразу целиком (тест-кейс = Routine: шаги-предложения, будущие `page.step(...)`/`page.expect(...)`
 через фикстуры-страницы),
-утверждаешь каждую с пользователем, раскладываешь по клеткам и материализуешь CODEMANIFEST-ы в
+утверждаешь каждую с пользователем, раскладываешь по ячейкам и материализуешь CODEMANIFEST-ы в
 `tests/web/<cell>/`.
 
 ## Mission
@@ -34,7 +34,7 @@ requirements.md было покрыто хотя бы одной Routine.
 - STOP if: requirements.md отсутствует или пуст; в §2 нет страниц; реестр REQ §3 пуст;
   базовые usages/annotations не резолвятся
 
-### Step 2. Tools
+### Step 2. Tools (WAIT)
 
 - Invoke: `goga-tool-pybuggy-web-automate-testcases-tools`
 - Reads: [TESTCASES_INTAKE]
@@ -42,7 +42,7 @@ requirements.md было покрыто хотя бы одной Routine.
 - WAIT: согласовать инструменты с пользователем (существующие usages / новые / отложить)
 - STOP if: блокирующая потребность осталась без инструмента после согласования
 
-### Step 3. Routines design
+### Step 3. Routines design (WAIT)
 
 - Invoke: `goga-tool-pybuggy-web-automate-testcases-routines`
 - Reads: [TESTCASES_INTAKE], [TOOLS_REPORT]
@@ -61,13 +61,13 @@ requirements.md было покрыто хотя бы одной Routine.
 - STOP if: модуль `pages/<…>_page.py` отсутствует при подтверждённой привязке §2; пользователь
   не утверждает методы после итераций. Кандидатов нет — не STOP (пустой отчёт)
 
-### Step 5. Cell map
+### Step 5. Cell map (WAIT)
 
 - Invoke: `goga-tool-pybuggy-web-automate-testcases-cell-map`
 - Reads: [ROUTINES_REPORT], [TESTCASES_INTAKE]
 - Output: [CELL_MAP_REPORT]
 - WAIT: утвердить раскладку с пользователем (готовый вариант / правки)
-- STOP if: 0 клеток; рутина осталась нераспределённой; пользователь не утверждает
+- STOP if: 0 ячеек; рутина осталась нераспределённой; пользователь не утверждает
 
 ### Step 6. Assembly
 

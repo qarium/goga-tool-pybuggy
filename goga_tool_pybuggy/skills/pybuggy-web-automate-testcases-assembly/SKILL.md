@@ -14,8 +14,7 @@ description: Assembles and materializes the cells — builds each cell's complet
 ## Core Principle
 
 Сборка детерминирована: внутренности рутин уже утверждены пользователем (routines design),
-раскладка утверждена (cell map) — здесь не проектируется ничего нового. Создаётся **только** CODEMANIFEST,
-cell-level `.usages/`.
+раскладка утверждена (cell map) — здесь не проектируется ничего нового. Создаётся **только** CODEMANIFEST.
 
 ---
 
@@ -47,9 +46,12 @@ cell-level `.usages/`.
 
 1. Структура: Header → `---` → Body → `---` → Footer; ключи чувствительны к регистру.
 2. Header: базовый блок идентичен [TESTCASES_INTAKE]; cell-specific ключи резолвятся (файлы есть).
-3. Body: только Routine (без `methods`/`properties`, без Entities); сигнатура без выхода;
-   `location: test_<name>.py`; snake_case; аннотация — строгая структура секций с пустыми строками;
-   бэктик-ссылки (`` `<key>` ``) резолвятся в контексте CODEMANIFEST.
+3. Body:
+   - только Routine (без `methods`/`properties`, без Entities);
+   - сигнатура без выхода;
+   - `location: test_<name>.py`; snake_case;
+   - аннотация — строгая структура секций с пустыми строками;
+   - бэктик-ссылки (`` `<key>` ``) резолвятся в контексте CODEMANIFEST.
 4. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
 DSL-ошибка — исправь и повтори валидацию; неисправимая — **STOP** (файлов не создавать).

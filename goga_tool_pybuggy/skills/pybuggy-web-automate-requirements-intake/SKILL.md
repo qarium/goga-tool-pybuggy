@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-requirements-intake
-description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined, reads the web runtime facts (the site address is the site.base_url directive of web.yml — a value or a Jinja2 template, never asked from the user), asks only the template's render arguments (env/CLI) when it has variables, the target pages (paths relative to the base URL or full URLs), auth method, and the browser endpoint (config or user-provided) for exploration and runs
+description: Intake and formalization of the tested web topic's description — creates the topic of the current branch (`goga history ensure`) as soon as the testing subject is determined. Reads the web runtime facts from web.yml — the site address is the site.base_url directive (a value or a Jinja2 template, never asked from the user). Asks the template's render arguments (env/CLI) only when it has variables, the target pages (paths relative to the base URL or full URLs), the auth method, and the browser endpoint (config or user-provided) for exploration and runs
 ---
 
 # Pybuggy Web Topic Requirements — Intake
@@ -44,24 +44,25 @@ description: Intake and formalization of the tested web topic's description — 
 
 ### Step 2.2. Read the web runtime facts and resolve the target context
 
-Это **единственное** место, где спрашивается контекст окружения; каждый следующий стейдж читает его из
+Это **единственное** место, где спрашивается контекст окружения; каждая следующая стадия читает его из
 артефакта требований.
 
 1. Прочитай документ `.goga/tools/pybuggy/web.yml` в целевом проекте (от текущего рабочего каталога,
-   без поиска вверх). Запиши **дословно** активные ключи `provider`, `generation_model` — LLM-факты
-   генерации шагов; `site.base_url` — адрес тестируемого сайта (значение или Jinja2-шаблон;
-   источник — только конфиг, у пользователя base_url не запрашивается) — отсутствует/пустой —
-   **STOP**: попроси пользователя задать его в web.yml (`goga tool pybuggy init` kind `web`/`both`
-   или вручную) и повторить; `browser.endpoint` (если задан) — кандидат ответа «Из
-   конфига» в вопросе 4.
-   Документа нет — **STOP**: попроси пользователя запустить `goga tool pybuggy init` (kind `web` или `both`) и повторить.
+   без поиска вверх). Документа нет — **STOP**: попроси пользователя запустить
+   `goga tool pybuggy init` (kind `web` или `both`) и повторить.
+   Запиши **дословно** активные ключи:
+   - `provider`, `generation_model` — LLM-факты генерации шагов;
+   - `site.base_url` — адрес тестируемого сайта: значение или Jinja2-шаблон. Источник — только
+     конфиг, у пользователя base_url не запрашивается. Отсутствует/пустой — **STOP**: попроси
+     пользователя задать его в web.yml (`goga tool pybuggy init` kind `web`/`both` или вручную)
+     и повторить;
+   - `browser.endpoint` (если задан) — кандидат ответа «Из конфига» в вопросе 4.
 
 2. Спроси через AskUserQuestion (один вопрос за сообщение, 2–4 варианта):
 
    1. **Аргументы рендера base_url** — только когда `site.base_url` в конфиге — шаблон с
       переменными (простой URL — вопрос не задаётся, аргументов нет): какими аргументами шаблон
-      рендерится в адрес окружения топика. Эти аргументы — префикс/суффикс каждой записанной
-      команды прогона, из них же складывается адрес исследования.
+      рендерится в адрес окружения топика; из них же складывается адрес исследования.
       Варианты:
        - «Env-переменные» — имена и значения для окружения топика (значения — компоненты адреса
          сайта, не секреты; команда прогона получает префикс `ENV_NAME=значение pytest …`);
@@ -69,12 +70,15 @@ description: Intake and formalization of the tested web topic's description — 
          каждая опция требует регистрации `pytest_addoption` в `conftest.py` — pytest отвергает
          незарегистрированные опции; факт фиксируется в артефакте);
        - «Не нужны» — переменные шаблона уже заданы в окружении.
-   2. **Целевые страницы** — какие страницы тестируем: путями относительно base_url (`/catalog`,
-      `/login` — пользователь вводит или подтверждает предложенные из описания топика) или полными
-      URL (внешние страницы — чужой origin). Уточни, какое это окружение: прод / stage /
-      feature-деплой ветки — все страницы обязаны принадлежать одному окружению: пути рендерятся
-      от base_url, полные URL внутренних страниц — тот же origin; чужой origin — только внешняя
-      страница (явно помечается).
+   2. **Целевые страницы** — какие страницы тестируем. Форма адреса:
+      - путь относительно base_url (`/catalog`, `/login`) — пользователь вводит или подтверждает
+        предложенные из описания топика;
+      - полный URL — внешние страницы (чужой origin).
+      Уточни, какое это окружение: прод / stage / feature-деплой ветки.
+      Все страницы обязаны принадлежать одному окружению:
+      - пути рендерятся от base_url;
+      - полные URL внутренних страниц — тот же origin;
+      - чужой origin — только внешняя страница (явно помечается).
    3. **Способ авторизации** на сайте — **«Без авторизации»** | **«Форма логина»** (укажи URL формы —
       или она будет найдена исследованием) | **«SSO/внешний провайдер»** | **«Тестовые креденшалы есть»**.
       Для вариантов с входом уточни источник креденшалов: имена env-переменных или «введу при

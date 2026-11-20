@@ -38,9 +38,12 @@ requirements.md уже структурирован стабильными ид�
   базовый блок Header **дословно**: `Usages` (`conventions`, `pybuggy-web` с путями) + `Annotations`.
 - **`goga-tool-pybuggy-web-usage`** — референс веб-рантайма (page-фикстуры, шаги-предложения, кеш).
 
-Резолв ключей: для каждого ключа базового `Usages` проверь, что файл по пути существует и не пуст
-(`pybuggy-web` → `.goga/usages/cooks/pybuggy/pybuggy-web.md`). Нерезолвящийся базовый ключ —
-**STOP** (попроси пользователя запустить `goga tool pybuggy init` kind web/both).
+Резолв ключей:
+
+1. Для каждого ключа базового `Usages` проверь, что файл по пути существует и не пуст
+   (`pybuggy-web` → `.goga/usages/cooks/pybuggy/pybuggy-web.md`).
+2. Нерезолвящийся базовый ключ — **STOP** (попроси пользователя запустить
+   `goga tool pybuggy init` kind web/both).
 
 ### Step 3. Load requirements into context
 
