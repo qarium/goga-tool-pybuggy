@@ -1,8 +1,10 @@
-"""Commands/init cell facade — the 20 init-cell routines across init, session, and bootstrap."""
+"""Commands/init cell facade — the 25 init-cell routines across init, session, and bootstrap."""
 
 from .bootstrap import (
     document_config_examples,
+    document_web_config_examples,
     ensure_review_skip,
+    install_playwright,
     install_pybuggy,
     register_annotations,
     register_usages,
@@ -14,22 +16,28 @@ from .session import (
     amend_pybuggy_config,
     build_config_amendments,
     build_config_data,
+    build_web_config_data,
     declare_pybuggy_session,
     parse_specs,
     pybuggy_questions,
     run_session,
+    survey_api_options,
     survey_autonomy,
-    survey_extra_specs,
+    survey_specs,
+    survey_web_config,
 )
 
 __all__ = [
     "amend_pybuggy_config",
     "build_config_amendments",
     "build_config_data",
+    "build_web_config_data",
     "declare_pybuggy_session",
     "document_config_examples",
+    "document_web_config_examples",
     "ensure_review_skip",
     "init_cmd",
+    "install_playwright",
     "install_pybuggy",
     "parse_specs",
     "pybuggy_questions",
@@ -39,8 +47,10 @@ __all__ = [
     "run_bootstrap",
     "run_init",
     "run_session",
+    "survey_api_options",
     "survey_autonomy",
-    "survey_extra_specs",
+    "survey_specs",
+    "survey_web_config",
     "write_pybuggy_conftest",
     "write_test_convention",
 ]

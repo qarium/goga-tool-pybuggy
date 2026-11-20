@@ -2,17 +2,19 @@
 
 ## Domain
 
-Cell `goga_tool_pybuggy/config` provides consumption patterns for loading `.goga/tools/pybuggy/config.yml` into typed models and accessing spec entries. Target audience: consumer commands and the CLI facade.
+Cell `goga_tool_pybuggy/config` provides consumption patterns for loading `.goga/tools/pybuggy/api.yml` into typed models and accessing spec entries. Target audience: consumer commands and the CLI facade.
 
 ## Loading the configuration
 
 ```python
 from goga_tool_pybuggy.config import load_config
 
-config = load_config()  # the fixed location .goga/tools/pybuggy/config.yml
+config = load_config()  # the fixed location .goga/tools/pybuggy/api.yml
 ```
 
-The `load_config` function obtains the raw parse of the tool config file through the goga tool-config facade and validates the result into the `Config` model. An absent file fails with a clean error naming the tool config location; an invalid configuration raises a pydantic validation error.
+The `load_config` function obtains the raw parse of the api tool config file through the goga tool-config facade and validates the result into the `Config` model. An absent file fails with a clean error naming the tool config location; an invalid configuration raises a pydantic validation error.
+
+An old `.goga/tools/pybuggy/config.yml` is not read — pybuggy 2.1 renamed the file to `api.yml` (clean break): rename an existing `config.yml` by hand.
 
 ## Accessing spec entries
 

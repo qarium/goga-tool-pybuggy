@@ -6,7 +6,7 @@ from .spec_entry import SpecEntry
 
 
 class Config(BaseModel):
-    """Root pybuggy configuration (``.goga/tools/pybuggy/config.yml``).
+    """Root pybuggy configuration (``.goga/tools/pybuggy/api.yml``).
 
     Spec names (dict keys) surface in ``list``/``info`` command output.
 

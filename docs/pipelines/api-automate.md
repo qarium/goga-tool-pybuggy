@@ -93,14 +93,14 @@ reached stage under its own name instead of the built-in axis:
 
 | Artifact            | Status                                 |
 |---------------------|----------------------------------------|
-| `requirements.md`   | `pybuggy.automate.requirements-created`|
-| `testcases.md`      | `pybuggy.automate.testcases-designed`  |
-| `arch.md`           | `pybuggy.automate.arch-prepared`       |
-| `design.md`         | `pybuggy.automate.code-designed`       |
-| `plan.md`           | `pybuggy.automate.coding-planned`      |
-| `completed/plan.md` | `pybuggy.automate.done`                |
+| `requirements.md`   | `pybuggy.api.automate.requirements-created`|
+| `testcases.md`      | `pybuggy.api.automate.testcases-designed`  |
+| `arch.md`           | `pybuggy.api.automate.arch-prepared`       |
+| `design.md`         | `pybuggy.api.automate.code-designed`       |
+| `plan.md`           | `pybuggy.api.automate.coding-planned`      |
+| `completed/plan.md` | `pybuggy.api.automate.done`                |
 
-Each automate status anchors above its built-in twin (`automate.done` above the built-in `done`), and
+Each automate status anchors above its built-in twin (`api.automate.done` above the built-in `done`), and
 `goga history status` shows the latest reached stage of the topic. Read the scale with
 `goga history status`; filter topics by any registered name with `goga history status -s <name>`.
 Service bugs recorded in `bugs.md` are history records — they mark no status on the scale.
@@ -112,7 +112,7 @@ pipeline through the `pipelines` section of the tool config — set it by hand o
 autonomy confirm of [`pybuggy init`](../cli/init.md):
 
 ```yaml
-# .goga/tools/pybuggy/config.yml
+# .goga/tools/pybuggy/api.yml
 pipelines:
   api.automate:
     autonomous: true
@@ -134,8 +134,10 @@ Everything outside the window stays with you: the requirement-shaping stages
 never part of the contribution — it keeps its manual trigger, so accepting the results
 (the `pytest` run and the failure triage) remains an interactive step.
 
-The contribution is a silent no-op for every pipeline outside the automate and patch
-lines — the window shape is carried per pipeline record — and for every disabled
+The contribution is a silent no-op for every pipeline outside the automate, patch, and
+web-automate lines (the web line's switch lives in `web.yml` — see
+[web.automate — Автономные прогоны](web-automate.md#autonomous-runs)) — the window
+shape is carried per pipeline record — and for every disabled
 state: an absent file, an absent
 `pipelines` section, an absent `api.automate` entry, and `autonomous: false` all mean a
 normal interactive run. Autonomy never disables silently on a malformed config: a

@@ -106,7 +106,7 @@ and a missing or corrupt `meta.json` / schema JSON file.
 ## Preconditions
 
 - Spec files must reside at `location` (after `pull` or placed manually); the config is valid and
-  resides at the fixed path `.goga/tools/pybuggy/config.yml`.
+  resides at the fixed path `.goga/tools/pybuggy/api.yml`.
 - Generated artifacts live under the current working directory (`api/<spec>/<segment>/`); tests
   isolate via `tmp_path` and a `cwd` override.
 - The command is read-only — it never writes, creates, or deletes anything; a run over an existing

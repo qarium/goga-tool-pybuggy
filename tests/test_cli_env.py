@@ -133,7 +133,7 @@ def test_load_env_then_run_pull_env_coupling(tmp_path: Path, monkeypatch: pytest
     monkeypatch.delenv("PYBUGGY_REF", raising=False)
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """

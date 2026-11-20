@@ -11,8 +11,8 @@ from .workflow import build_autonomous_workflow
 def amend_workflow(context: object) -> None:
     """Contribute the autonomous workflow amendment when the run qualifies.
 
-    The record whose identity equals the discovered pipeline name drives qualification, axis routing, and the
-    contributed document; disqualifying states contribute nothing and raise nothing.
+    The record whose identity equals the discovered pipeline name drives qualification, axis and file routing, and
+    the contributed document; disqualifying states contribute nothing and raise nothing.
 
     Args:
         context: The platform amendment view — pipeline identity plus the contribute buffer.
@@ -28,7 +28,7 @@ def amend_workflow(context: object) -> None:
     if contribution is None:
         return
 
-    enabled = resolve_autonomy(contribution.axis)
+    enabled = resolve_autonomy(contribution.axis, contribution.config_file)
 
     if not enabled:
         return

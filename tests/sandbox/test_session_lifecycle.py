@@ -11,11 +11,12 @@ docker-gated — the live session over the pinned mocks.
 import json
 import pathlib
 from collections.abc import Callable
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 import requests
-from goga_tool_pybuggy.plugin import SandboxPlugin
+from goga_tool_pybuggy.plugins import SandboxPlugin
 from goga_tool_pybuggy.sandbox import sandbox as sandbox_module
 from goga_tool_pybuggy.sandbox.engines import DataOperation, EngineError, InstanceAddress
 from kafka import KafkaConsumer
@@ -181,6 +182,52 @@ class RequestStub:
         return self._sandbox
 
 
+class PluginManagerStub:
+    """Plugin-manager double resolving the sandbox plugin by its registration name.
+
+    The session fixture is a staticmethod resolving the owning plugin through
+    ``request.config.pluginmanager`` — this stub answers that lookup for the armed plugin.
+
+    Attributes:
+        plugin: The plugin every lookup of the registration name returns.
+    """
+
+    def __init__(self, plugin: SandboxPlugin) -> None:
+        """Initialize the double answering lookups with ``plugin``.
+
+        Args:
+            plugin: The configured plugin the session fixture resolves.
+        """
+        self.plugin = plugin
+
+    def get_plugin(self, name: str) -> SandboxPlugin | None:
+        """Return the plugin for the sandbox registration name; ``None`` for any other.
+
+        Args:
+            name: The registration name being looked up.
+
+        Returns:
+            The armed plugin, or ``None`` for a foreign name.
+        """
+        return self.plugin if name == "pybuggy-sandbox" else None
+
+
+class SessionRequestStub:
+    """Request double carrying the config the session fixture resolves the plugin through.
+
+    Attributes:
+        config: The config double exposing the plugin manager.
+    """
+
+    def __init__(self, plugin: SandboxPlugin) -> None:
+        """Initialize the request with a plugin manager answering for ``plugin``.
+
+        Args:
+            plugin: The configured plugin registered under the sandbox name.
+        """
+        self.config = SimpleNamespace(pluginmanager=PluginManagerStub(plugin))
+
+
 class ArmedSession:
     """One configured sandbox plugin with its fixtures driven over the generator protocol.
 
@@ -208,7 +255,7 @@ class ArmedSession:
         Returns:
             The started session sandbox.
         """
-        self._generator = SandboxPlugin.sandbox.__wrapped__(self.plugin)
+        self._generator = SandboxPlugin.sandbox.__wrapped__(SessionRequestStub(self.plugin))
         self.sandbox = next(self._generator)
 
         return self.sandbox
@@ -297,7 +344,7 @@ def configured_plugin(
             The configured plugin and the config double of the session.
         """
         path = sandbox_yaml(document)
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         monkeypatch.setattr(type(plugin), "plugin_config", full_load(path.read_text(encoding="utf-8")), raising=False)
 
         config = ConfigStub()
@@ -645,7 +692,7 @@ class TestLiveSessionLifecycle:
         the reset flow restarts the mock and replays the journaled baseline.
         """
         path = sandbox_yaml(LIVE_DOCUMENT)
-        plugin = SandboxPlugin()
+        plugin = SandboxPlugin(context={})
         monkeypatch.setattr(type(plugin), "plugin_config", full_load(path.read_text(encoding="utf-8")), raising=False)
 
         config = ConfigStub()

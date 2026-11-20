@@ -33,7 +33,7 @@ def test_run_pull_copies_spec_from_clone(tmp_path: Path, monkeypatch: pytest.Mon
     """run_pull should clone repo and copy spec file to destination."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -72,7 +72,7 @@ def test_run_pull_copies_spec_directory_from_clone(tmp_path: Path, monkeypatch: 
     """run_pull should handle directory copies from clone."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -106,7 +106,7 @@ def test_run_pull_raises_on_missing_repo_path(tmp_path: Path, monkeypatch: pytes
     """run_pull should raise ClickException when path not found in repo."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -137,7 +137,7 @@ def test_run_pull_skips_local_only_spec_silently(
     """run_pull silently skips specs without a git field — no file pulled, no warning."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -161,7 +161,7 @@ def test_run_pull_raises_on_spec_not_found(tmp_path: Path, monkeypatch: pytest.M
     """run_pull should raise ClickException when spec_name not found in config."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -181,7 +181,7 @@ def test_run_pull_handles_git_clone_error(tmp_path: Path, monkeypatch: pytest.Mo
     """run_pull should map GitCommandError to ClickException."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -209,7 +209,7 @@ def test_run_pull_filters_by_spec_name(tmp_path: Path, monkeypatch: pytest.Monke
     """run_pull should only pull specified spec when spec_name provided."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -260,7 +260,7 @@ def test_run_pull_clones_specified_ref(tmp_path: Path, monkeypatch: pytest.Monke
     """run_pull should clone the configured git ref via ``branch=<ref>``."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -299,7 +299,7 @@ def test_run_pull_clones_default_branch_when_no_ref(tmp_path: Path, monkeypatch:
     """run_pull passes ``branch=None`` (no --branch) when git.ref is absent."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """
@@ -336,7 +336,7 @@ def _write_client_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, ref: s
     """Write a one-spec config (with/without git.ref) at the standard tool-config path."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     ref_line = f"      ref: {ref}\n" if ref is not None else ""
     config_path.write_text(
@@ -429,7 +429,7 @@ def _write_two_spec_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> P
     """Write a two-spec config (client+server, distinct repos, no git.ref) at the standard path."""
     monkeypatch.chdir(tmp_path)
 
-    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+    config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         """

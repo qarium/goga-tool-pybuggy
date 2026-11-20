@@ -32,12 +32,13 @@ class Endpoint:
         adapter: per-endpoint resq adapter override; ``None`` falls back to the ``Api`` default.
     """
 
-    def __init__(  # noqa: PLR0913, PLR0917
+    def __init__(  # noqa: PLR0913
         self,
         api: Api,
         url_path: str,
         method: str,
         expected_status: int | None = 200,
+        *,
         use_autocheck: bool = True,
         adapter: str | None = None,
     ) -> None:

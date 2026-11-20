@@ -17,6 +17,10 @@ from goga_tool_pybuggy.commands.init import init_cmd, run_bootstrap, run_session
 _SESSION_SEAM = "goga_tool_pybuggy.commands.init.init.run_session"
 _BOOTSTRAP_SEAM = "goga_tool_pybuggy.commands.init.init.run_bootstrap"
 
+# The install block the bootstrap writes into the project Dockerfile — the root-user project-copy
+# install step; the bulk ``goga install`` reads the project's ``tools:`` pin, so no version lives here.
+_INSTALL_BLOCK = "USER root\nCOPY . /tmp/project\nRUN cd /tmp/project && goga install && rm -rf /tmp/project\nUSER goga"
+
 # Every core gate is declined; no Dockerfile gate exists (the section is skipped, the block asks
 # the image inputs), and the pybuggy tools record is amended regardless of the declined gate.
 _CONFIRM_ANSWERS = {
@@ -47,9 +51,12 @@ _EXPECTED_CONFIRMS = [
 ]
 
 # Only the prompts that must carry an explicit value are pinned; the optional ones read as Enter
-# (the FROM prompt keeps its newest-python-family default).
+# (the kind choice keeps its api default, the FROM prompt its newest-python-family default, the
+# amend-moment scalar and git prompts their empty skip defaults). The language question is never
+# asked — the section is skipped, and the unscripted choice prompt (no default) would fail the
+# scripted TTY outright if it ever returned.
 _PROMPT_ANSWERS = {
-    "Language": "python",
+    "Test kind (api — API tests over specs, web — browser UI tests, both)": "api",
     "Built image name": "pybuggy-smoke:latest",
     "Base URL (Jinja2 template, required)": "https://{{ HOST }}/api",
     "Spec name": ["shop", "billing"],
@@ -100,6 +107,9 @@ def _assert_bootstrap_registration_split(root: Path) -> None:
     assert (sandbox / "sandbox-session.md").exists()
     assert (sandbox / "migration-set.md").exists()
 
+    # The web usage never crosses into an api-only project — no file, no registration.
+    assert not (sandbox.parent / "pybuggy-web.md").exists()
+
 
 class TestSessionSmoke:
     """The native-session path — real engine, real registry, real hooks, scripted TTY."""
@@ -121,7 +131,9 @@ class TestSessionSmoke:
         captured = capsys.readouterr()
         assert code == 0
         assert [text for text, _answer in tty.confirms] == _EXPECTED_CONFIRMS
-        assert "created .goga/tools/pybuggy/config.yml (tool: pybuggy)" in captured.out
+        # The language question is never asked — the section is skipped, python arrives as the amendment.
+        assert "Language" not in {text for text, _default, _returned in tty.prompts}
+        assert "created .goga/tools/pybuggy/api.yml (tool: pybuggy)" in captured.out
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
         config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text(encoding="utf-8"))
@@ -134,7 +146,7 @@ class TestSessionSmoke:
         assert "build" not in config  # the build.review.skip amendment never reaches the config (q2/A)
         assert "codemanifest" not in config  # both gates declined — the offline guarantee
 
-        tool_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml"
+        tool_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml"
         tool_config = yaml.safe_load(tool_config_path.read_text("utf-8"))
         assert tool_config == _EXPECTED_TOOL_CONFIG
         assert "#" not in tool_config_path.read_text(encoding="utf-8")  # plain engine serialization
@@ -167,17 +179,15 @@ class TestSessionSmoke:
 
         tool_config_text = tool_config_path.read_text(encoding="utf-8")
         assert yaml.safe_load(tool_config_text) == _EXPECTED_TOOL_CONFIG  # active keys untouched
+        # The bootstrap's example documentation targets api.yml — the session-written plain
+        # document gains the commented example records of the absent plugin members.
         assert "# headers: example (skipped complex member)" in tool_config_text
         assert "# timeout: (skipped optional scalar)" in tool_config_text
         assert "# loader: example (skipped complex member)" in tool_config_text
         assert "# assert_response_class: (skipped optional scalar)" in tool_config_text
 
         _assert_bootstrap_registration_split(tmp_path)
-        assert (
-            (tmp_path / ".goga" / "Dockerfile")
-            .read_text(encoding="utf-8")
-            .endswith("RUN goga install pybuggy -v 2.0.x\n")
-        )
+        assert (tmp_path / ".goga" / "Dockerfile").read_text(encoding="utf-8").endswith(_INSTALL_BLOCK + "\n")
         assert (tmp_path / "conftest.py").exists()
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
@@ -205,8 +215,146 @@ class TestSessionSmoke:
         assert code == 0
         assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
-        tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "config.yml").read_text("utf-8"))
+        tool_config = yaml.safe_load((tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml").read_text("utf-8"))
         assert tool_config["pipelines"] == {"api.automate": {"autonomous": True}, "api.patch": {"autonomous": True}}
+
+
+class TestSessionSmokeWebKind:
+    """The web-kind native-session path — session write to bootstrap gate, end to end."""
+
+    def test_session_smoke_web_kind_writes_web_config_and_runs_web_bootstrap(
+        self, tmp_path, monkeypatch, caplog, scripted_tty
+    ):
+        """A ``web`` kind session writes ``web.yml`` only; the bootstrap delivers every web artifact.
+
+        The chain under test is the full one: the surveyed web minimum → ``build_web_config_data``
+        → the engine write → the bootstrap's ``web_written`` gate (examples, the ``pybuggy-web``
+        registration, the playwright line).
+        """
+        monkeypatch.chdir(tmp_path)
+        tty = scripted_tty(
+            confirms={
+                "Add codemanifest usages?": False,
+                "Add codemanifest annotations?": False,
+                "Configure a build agent?": False,
+                "Configure a pipeline agent?": False,
+                "Add tools?": False,
+                "Add usages records?": False,
+                "Run the browser headless?": False,
+                "Run the web.automate pipeline unattended (autonomous mode)?": False,
+            },
+            prompts={
+                "Test kind (api — API tests over specs, web — browser UI tests, both)": "web",
+                "Built image name": "pybuggy-web-smoke:latest",
+                "Generation model (the LLM writing the browser-step code, required)": "glm-5.3",
+                "Classification model (the LLM classifying captured steps, required)": "glm-5.3",
+            },
+        )
+        monkeypatch.setattr(click, "confirm", tty.confirm)
+        monkeypatch.setattr(click, "prompt", tty.prompt)
+
+        with caplog.at_level(logging.INFO):
+            code = run_session()
+
+        assert code == 0
+        assert [text for text, _answer in tty.confirms] == [
+            "Add codemanifest usages?",
+            "Add codemanifest annotations?",
+            "Configure a build agent?",
+            "Configure a pipeline agent?",
+            "Add tools?",
+            "Add usages records?",
+            "Run the browser headless?",
+            "Run the web.automate pipeline unattended (autonomous mode)?",
+        ]
+        assert "Language" not in {text for text, _default, _returned in tty.prompts}
+
+        # The web branch writes only web.yml — the api branch (base_url, specs, its autonomy)
+        # never asks; the declined web confirm writes no pipelines entry.
+        web_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        assert yaml.safe_load(web_config_path.read_text("utf-8")) == {
+            "provider": "openai",  # the unscripted choice default
+            "generation_model": "glm-5.3",
+            "classification_model": "glm-5.3",
+            "browser": {"name": "chromium", "headless": False},  # name defaulted, headless declined
+            "strict": False,
+            "interactive": False,
+        }
+        assert not (tmp_path / ".goga" / "tools" / "pybuggy" / "api.yml").exists()
+
+        # The bootstrap consumes the written web.yml as its kind signal.
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
+
+        web_config_text = web_config_path.read_text("utf-8")
+        assert "# base_url:" in web_config_text  # the absent keys documented as commented examples
+
+        config = yaml.safe_load((tmp_path / ".goga" / "config.yml").read_text("utf-8"))
+        # The web-only registration set — the api keys never cross into a web-only project.
+        assert config["codemanifest"]["usages"]["pybuggy-web"] == ".goga/usages/cooks/pybuggy/pybuggy-web.md"
+        assert set(config["codemanifest"]["usages"]) == {"pybuggy-web", "conventions"}
+        assert "`pybuggy-web`" in config["codemanifest"]["annotations"]
+        assert "`pybuggy-api`" not in config["codemanifest"]["annotations"]
+        assert (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "pybuggy-web.md").exists()
+        assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "api.md").exists()
+        assert not (tmp_path / ".goga" / "usages" / "cooks" / "pybuggy" / "asserts.md").exists()
+
+        dockerfile = (tmp_path / ".goga" / "Dockerfile").read_text("utf-8")
+        # The playwright line rides inside the root section — the block is present structurally
+        # (its RUN step), not as one contiguous substring.
+        assert "USER root\nCOPY . /tmp/project\n" in dockerfile
+        assert "RUN cd /tmp/project && goga install && rm -rf /tmp/project\n" in dockerfile
+        assert dockerfile.endswith("RUN playwright install --with-deps chromium\nUSER goga\n")
+
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
+
+    def test_session_smoke_web_autonomy_confirm_accepted_writes_web_axis(
+        self, tmp_path, monkeypatch, caplog, scripted_tty
+    ):
+        """Accepting the web autonomy confirm lands the ``pipelines`` axis in the written ``web.yml``.
+
+        The bootstrap's example-documentation pass round-trips the foreign section untouched —
+        the axis survives the whole init chain.
+        """
+        monkeypatch.chdir(tmp_path)
+        tty = scripted_tty(
+            confirms={
+                "Add codemanifest usages?": False,
+                "Add codemanifest annotations?": False,
+                "Configure a build agent?": False,
+                "Configure a pipeline agent?": False,
+                "Add tools?": False,
+                "Add usages records?": False,
+                "Run the browser headless?": True,
+                "Run the web.automate pipeline unattended (autonomous mode)?": True,
+            },
+            prompts={
+                "Test kind (api — API tests over specs, web — browser UI tests, both)": "web",
+                "Built image name": "pybuggy-web-smoke:latest",
+                "Generation model (the LLM writing the browser-step code, required)": "glm-5.3",
+                "Classification model (the LLM classifying captured steps, required)": "glm-5.3",
+            },
+        )
+        monkeypatch.setattr(click, "confirm", tty.confirm)
+        monkeypatch.setattr(click, "prompt", tty.prompt)
+
+        with caplog.at_level(logging.INFO):
+            assert run_session() == 0
+
+        web_config_path = tmp_path / ".goga" / "tools" / "pybuggy" / "web.yml"
+        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {"web.automate": {"autonomous": True}}
+
+        monkeypatch.setattr(importlib.metadata, "version", lambda _name: "2.0.3")
+
+        with caplog.at_level(logging.INFO):
+            assert run_bootstrap(template_mode=False) == 0
+
+        # The example documentation pins commented records before active web keys only — the
+        # foreign pipelines section round-trips intact.
+        assert yaml.safe_load(web_config_path.read_text("utf-8"))["pipelines"] == {"web.automate": {"autonomous": True}}
+        assert not [record for record in caplog.records if record.levelno >= logging.ERROR]
 
 
 class TestCliComposition:

@@ -50,7 +50,7 @@ refs to vary them.
   into a temporary directory, then copy `git.location` → `<project_root>/<location>`
   (overwrite, idempotent).
 - A spec without `git`: skipped (local-only) without an error.
-- The config is loaded from the fixed path `.goga/tools/pybuggy/config.yml`.
+- The config is loaded from the fixed path `.goga/tools/pybuggy/api.yml`.
 - Clone failures and missing repo paths → `click.ClickException` (non-zero exit).
 
 ## Preconditions

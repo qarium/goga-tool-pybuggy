@@ -5,9 +5,10 @@ from pydantic import ValidationError
 from .config import Config
 from .pipeline_autonomy import PipelineAutonomy
 
-# Tool-config read arguments: fixed standard location ``.goga/tools/pybuggy/config.yml``.
+# Tool-config read arguments: the fixed tool home plus the kind's own file — ``load_config``
+# reads the fixed ``api.yml``; the autonomy resolver reads the file of the kind's axis.
 _TOOL = "pybuggy"
-_FILENAME = "config.yml"
+_FILENAME = "api.yml"
 
 
 def load_config() -> Config:
@@ -31,18 +32,21 @@ def load_config() -> Config:
     raw = load_tool_config(_TOOL, _FILENAME)
 
     if raw is None:
-        raise FileNotFoundError("tool config not found: .goga/tools/pybuggy/config.yml")
+        raise FileNotFoundError("tool config not found: .goga/tools/pybuggy/api.yml")
 
     return Config.model_validate(raw)
 
 
-def resolve_autonomy(pipeline: str) -> bool:
+def resolve_autonomy(pipeline: str, filename: str) -> bool:
     """Resolve whether autonomy is enabled for the running pipeline.
 
-    The whole ``pipelines`` axis is validated on every call, not just the running pipeline.
+    The whole ``pipelines`` axis of the given file is validated on every call, not just the
+    running pipeline.
 
     Args:
         pipeline: The identity of the running pipeline.
+        filename: The tool-config file the axis lives in — ``api.yml`` or ``web.yml``, the
+            kind's own document.
 
     Returns:
         True only when the axis carries an enabling entry for ``pipeline``.
@@ -56,7 +60,7 @@ def resolve_autonomy(pipeline: str) -> bool:
     # Call-time import — contract: keeps goga out of the runtime dependencies.
     from goga.config import load_tool_config  # noqa: PLC0415
 
-    raw = load_tool_config(_TOOL, _FILENAME)
+    raw = load_tool_config(_TOOL, filename)
 
     if raw is None:
         return False

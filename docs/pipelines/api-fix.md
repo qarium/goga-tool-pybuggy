@@ -92,14 +92,14 @@ the automate line:
 
 | Artifact         | Status                      |
 |------------------|-----------------------------|
-| `fix-collect.md` | `pybuggy.fix.collected`     |
-| `fix-analysis.md`| `pybuggy.fix.analyzed`      |
-| `fix-plan.md`    | `pybuggy.fix.planned`       |
-| `fix-execute.md` | `pybuggy.fix.executed`      |
-| `fix-review.md`  | `pybuggy.fix.reviewed`      |
+| `fix-collect.md` | `pybuggy.api.fix.collected`     |
+| `fix-analysis.md`| `pybuggy.api.fix.analyzed`      |
+| `fix-plan.md`    | `pybuggy.api.fix.planned`       |
+| `fix-execute.md` | `pybuggy.api.fix.executed`      |
+| `fix-review.md`  | `pybuggy.api.fix.reviewed`      |
 
 A topic mid-repair therefore shows one maximal status per line — e.g.
-`[pybuggy.fix.analyzed] [pybuggy.automate.done]`. The fix chain is an independent line
+`[pybuggy.api.fix.analyzed] [pybuggy.api.automate.done]`. The fix chain is an independent line
 anchored at the built-in `empty` (see
 [api.automate — Topic status](api-automate.md#topic-status)).
 

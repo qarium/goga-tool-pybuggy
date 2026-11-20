@@ -121,3 +121,19 @@ class StatusCodeInRange(BaseMatcher):
   reporting.
 - On failure return `MatchResult(False, errors=..., expectations=...)` — both lists are
   mandatory.
+
+## Failure-tolerant calls — `allow_failure`
+
+The `allow_failure` decorator — re-exported from the matchcrest root — suppresses any
+exception raised by the decorated function, logs it, and returns `None`. It is what the
+matcher engine itself uses to save failure reports (`BaseMatcher._matches` wraps the
+report save in it, so a failing save never breaks the matcher run), and it fits any
+fault-tolerant call whose failure must not interrupt the surrounding flow:
+
+```python
+from goga_tool_pybuggy.matchcrest import allow_failure
+
+
+@allow_failure
+def cleanup(): ...  # an exception is logged and swallowed; the result is None
+```

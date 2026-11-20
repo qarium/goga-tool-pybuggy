@@ -59,6 +59,6 @@ An invalid spec — not a mapping, no `paths` mapping, no `swagger`/`openapi` ve
 ## Preconditions
 
 - Spec files must reside at `location` (after `pull` or placed manually).
-- The config is valid and resides at the fixed path `.goga/tools/pybuggy/config.yml`.
+- The config is valid and resides at the fixed path `.goga/tools/pybuggy/api.yml`.
 - In the status mode, generated artifacts live under the working directory (`api/<name>/<segment>/`); tests isolate via `tmp_path` and a `cwd` override.
 - The command is read-only — it does not modify specs, the config, or artifacts.

@@ -1,4 +1,4 @@
-"""pybuggy CLI assembly: root group + endpoint subgroup with all commands."""
+"""pybuggy CLI assembly: root group + endpoint/page subgroups with all commands."""
 
 import click
 
@@ -7,6 +7,7 @@ from .commands.generate import generate_cmd
 from .commands.info import info_cmd
 from .commands.init import init_cmd
 from .commands.list import list_cmd
+from .commands.page import page_generate_cmd
 from .commands.pull import pull_cmd
 from .env import load_env
 
@@ -19,7 +20,7 @@ def _load_env_callback(ctx: click.Context, _param: click.Parameter, value: str |
     Args:
         ctx: context whose ``obj`` receives the ``EnvContext``.
         _param: unused option parameter.
-        value: ``--env-file`` path, or ``None`` for the implicit ``.env``.
+        value: the ``--env-file`` path, or ``None`` for the implicit ``.env``.
 
     Returns:
         The option value unchanged.
@@ -54,3 +55,13 @@ endpoint_group.add_command(diff_cmd)
 
 main.add_command(endpoint_group)
 main.add_command(init_cmd)
+
+
+@click.group("page", help="Manage tested-site page objects (BasePage subclasses and fixtures).")
+def page_group() -> None:
+    """Page-object management commands."""
+
+
+page_group.add_command(page_generate_cmd)
+
+main.add_command(page_group)

@@ -34,10 +34,10 @@ class TestRegisterPatchStatusesBehavior:
         register_patch_statuses(recorder_context)
 
         assert recorder_context.calls == [
-            ("patch.intended", "intent.md", "empty", None),
-            ("patch.analyzed", "impact.md", "pybuggy.patch.intended", None),
-            ("patch.applied", "apply.md", "pybuggy.patch.analyzed", None),
-            ("patch.designed", "rework.md", "pybuggy.patch.applied", None),
-            ("patch.planned", "workplan.md", "pybuggy.patch.designed", None),
-            ("patch.done", "completed/workplan.md", "pybuggy.patch.planned", None),
+            ("api.patch.intended", "intent.md", "empty", None),
+            ("api.patch.analyzed", "impact.md", "pybuggy.api.patch.intended", None),
+            ("api.patch.applied", "apply.md", "pybuggy.api.patch.analyzed", None),
+            ("api.patch.designed", "rework.md", "pybuggy.api.patch.applied", None),
+            ("api.patch.planned", "workplan.md", "pybuggy.api.patch.designed", None),
+            ("api.patch.done", "completed/workplan.md", "pybuggy.api.patch.planned", None),
         ]

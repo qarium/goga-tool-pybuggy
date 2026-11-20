@@ -202,7 +202,7 @@ generated `api/` and `tests/` tree.
 ## Preconditions
 
 - Spec files must be present in `location` (after `pull` or placed manually).
-- The config must be valid and reside at the fixed path `.goga/tools/pybuggy/config.yml`; it is
+- The config must be valid and reside at the fixed path `.goga/tools/pybuggy/api.yml`; it is
   loaded via `load_config`.
 - Artifacts are written to the current working directory (`Path.cwd()`); tests isolate via
   `tmp_path` and a `cwd` override.

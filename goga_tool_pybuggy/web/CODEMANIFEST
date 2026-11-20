@@ -1,0 +1,357 @@
+Usages:
+  conventions: .goga/usages/conventions.md
+  prettyplay: .goga/usages/cooks/prettyplay.md
+  allure-pytest: .goga/usages/cooks/allure-pytest.md
+
+Annotations: |
+  Use `conventions` for code writing rules, relative imports, docstrings, and testing.
+  Use `prettyplay` for the prettyplay contract — the PrettyConfig field table, PrettyPlay construction
+  (cache_key/cache_path/config), the StepHooks event set, and the security rules.
+  Use `allure-pytest` for the guarded import and the StepHooks-to-Allure mapping with failure
+  screenshots.
+
+  Web-library cell — the prettyplay test kind's library surface: the settings materialization of the
+  validated web config into the complete effective prettyplay settings (no mirror model — the cell
+  declares no config models of its own and consumes the already validated activation), the Allure
+  step reporting hooks, and the console event formatter. The web config key set and the document
+  validation live in the plugins cell (the WebPlugin reads and validates web.yml into the library
+  PrettyConfig at configphase).
+  web.yml is the single configuration source for web tests (the single CLI exception: the typed
+  --browser-endpoint flag of the plugins cell overrides browser.endpoint on the document copy
+  before the validation — never a second document, never an env source): the web fixture
+  passes the explicitly
+  built config to the runtime, and prettyplay adopts an explicit config verbatim — the library's
+  pyproject+env file layer never loads for it and never back-fills anything, so an empty or omitted
+  key keeps the library model default. The env layer never reaches the runtime either way: configure
+  scrubs the PRETTYPLAY_* variables of the process once at configphase (a process-level guard on
+  top of the verbatim adoption). The library's pyproject auto-search runs only on the config-less
+  file-layer construction the web fixture never takes — a repository without a pyproject.toml
+  upward from the cwd no longer fails web tests at fixture setup. The library's semantic
+  validators (the browser matrix, the endpoint scheme — ws/wss or http/https of the CDP family, the
+  speed range) run at the plugins-cell activation — a
+  semantic violation fails the run at configphase, before any collection or browser. LLM API keys
+  live only in env/.env (the root load_env loads it);
+  web.yml never carries keys; step sentences, captured vars, and cache files land in LLM prompts and
+  logs — no secrets in step sentences (documented in this cell's consumer usage doc).
+  The pytest integration (the WebPlugin: the web fixture, the strict/interactive options, the web
+  config key set, and the document validation) lives in
+  the plugins cell and is activated by its installation gate on the presence of the web config
+  document; this cell registers nothing on its own. Web steps carry full URLs
+  (web.step("Open https://ya.ru")) — no sentence templating, no sandbox binding; the tested
+  site's own base URL is the site.base_url directive of web.yml (the site group of the library
+  PrettyConfig), carried by the web runtime and consumed by this cell's BasePage.
+
+  The page-object base: BasePage binds a web runtime and a page path the way the api kind's
+  Endpoint binds an Api and a route path — the base URL lives on the runtime
+  (PrettyPlay.site_base_url, see `prettyplay`), the page adds its path, and the page performs
+  its characteristic action — opening the full URL through one ordinary action step sentence —
+  on call, the Endpoint pattern; the navigation participates in the step cycle (cache,
+  generation, healing) like every authored step. The step surface (action, assertion, group)
+  is proxied onto the page, so tests and page methods alike drive the runtime without the .web
+  hop; the runtime itself stays public for everything else (run_on_page, site_base_url). The
+  context manager scopes the work on an opened page under a short local name — the exit closes
+  nothing (the runtime lifecycle belongs to the web fixture of the plugins cell) and never
+  suppresses. Test pages are behavior subclasses (an application may stack a semantic base over the
+  page-object base for its opening flow) — the address never lives in the class: it arrives
+  at construction, the per-page fixture binding it. A subclass also encapsulates the page's own scenario logic as
+  methods (closing a cookie banner, a form flow) running their step sentences through the
+  proxied surface; a per-page fixture constructs the subclass with the runtime, the mirror of
+  the api kind's Endpoint(api, path) fixtures. The proxied surface is also the boundary of the
+  page's shared step vocabulary: a sentence executed from a named method of the page class (the
+  activation call included) carries the page's cache scope — the page module's path — so one
+  sentence of one page is one shared cache entry for every test using that page, while an inline
+  call from a test stays the test's own per-test entry; the discrimination is automatic (the
+  caller frame of the proxy is a bound method of this very page or it is not), no path is ever
+  passed by hand (see `prettyplay` for the scope addressing).
+
+  The cell also carries the per-test prompt declaration surface: the `generation_prompt`
+  decorator (the pattern of the sandbox services decorator) attaches the
+  pybuggy_generation_prompt marker and a usefixtures("web") stamp to a test function — a pure
+  declaration; this cell registers nothing on its own. The marker registration and the per-test
+  read live in the plugins cell (the WebPlugin configure step and the web fixture). Decorator
+  text, like step sentences, lands in LLM prompts and logs — the no-secrets rule extends to it
+  (documented in this cell's consumer usage doc).
+
+  Constraints:
+  - The cell declares no config models of its own — the document model is the library PrettyConfig,
+    imported from prettyplay and never re-exported by the facade.
+  - Use relative imports inside the cell.
+  - The only direct playwright import is playwright.sync_api.Error (a transitive dependency, not
+    declared separately — documented in `prettyplay`).
+  - allure-pytest is never a runtime dependency: the import sits under a guard (allure is None
+    constructs no hooks — web tests run without step decoration).
+
+---
+
+"build_pretty_config(config: PrettyConfig, strict_flag: bool, interactive_flag: bool, prompt_extra: str = \"\") -> pretty: PrettyConfig":
+  location: pretty.py
+  annotations: |
+    Materialize the validated web config with the resolved strict and interactive modes and
+    the per-test prompt extras — the single construction point of the prettyplay settings
+    layer.
+
+    `config`: the validated web config (the activation).
+    `strict_flag`: the effective strict override — True forces strict even when the document says
+      false.
+    `interactive_flag`: the effective interactive override — the same form.
+    `prompt_extra`: the per-test extra generation instructions (the decorator texts, already
+      joined by the caller); empty means no extras.
+    `pretty`: the explicitly constructed prettyplay config.
+
+    Algorithm:
+    1. Compute the effective modes: strict = config.strict or strict_flag; interactive =
+       config.interactive or interactive_flag — a CLI flag forces the mode on, never off.
+    2. Compute the effective generation prompt: join the non-empty parts of
+       config.generation_prompt and `prompt_extra`, in this order, with a single newline.
+    3. Construct the explicit object — every field, the browser group included, passed as a
+       constructor argument; generation_prompt receives the computed join.
+
+    Requirements:
+    - The all-fields construction is load-bearing: every field lands in the constructed model,
+      and the runtime adopts the result verbatim; an empty or None field keeps the library
+      model default (see `prettyplay`).
+    - Pure — no I/O, no environment reads.
+    - `prompt_extra` defaults to the empty string — call sites without extras are unchanged.
+
+    Constraints:
+    - Do not read env or pyproject here — the single source is the passed model and flags.
+    - Do not normalize `prompt_extra` beyond the empty-part skip — the texts are stripped and
+      joined by the caller.
+
+    Use `prettyplay` for the PrettyConfig and browser config field contract.
+    Use `conventions` for type hints.
+
+"generation_prompt(text: str) -> decorator: Callable":
+  location: pretty.py
+  annotations: |
+    Per-test generation-instruction decorator: declare test-specific extra instructions that
+    append (newline-joined) to the generation prompt of exactly this test — web.yml stays the
+    single global source, the decorator carries only the extras (see `prettyplay` for the
+    generation_prompt field the text rides on).
+
+    `text`: the instruction text — a non-empty, non-whitespace-only string.
+    `decorator`: the marker decorator applied to a test function.
+
+    Algorithm:
+    1. Validate at decoration: `text` must be a str whose stripped form is non-empty — a
+       non-string, empty, or whitespace-only value raises ValueError (visible at collection,
+       before any browser or LLM).
+    2. Attach the pybuggy_generation_prompt marker carrying the stripped text as its `text`
+       kwarg.
+    3. Stamp the function with a usefixtures mark requesting the web fixture — the marked test
+       always gets the web runtime, with or without an explicit web parameter.
+    4. Return the function unchanged.
+
+    Requirements:
+    - Function-level application; stacking allowed — each application attaches its own marker,
+      and the texts concatenate in the order written (the plugins-cell web fixture collects
+      them).
+    - Pure declaration — no I/O, no plugin lookup, no config read; works without web.yml (the
+      failure then arrives at setup as pytest's standard fixture-not-found).
+
+    Constraints:
+    - Do not wrap the function body and do not execute anything at decoration time.
+    - No new config keys and no presets — the web.yml key set stays fixed.
+
+    Use `conventions` for docstrings, type hints, and testing.
+    Use `prettyplay` for the generation_prompt semantics and the no-secrets rule.
+
+"BasePage(web: PrettyPlay, path: str)":
+  location: pages.py
+  annotations: |
+    The page-object base of the web test kind: one tested-site page — the web runtime plus a
+    path, the web kind's counterpart of the api kind's Endpoint.
+
+    `web`: the web runtime of the current test — the site.base_url source (the site_base_url
+    property, see `prettyplay`) and the step executor of the navigation; held as the public
+    `web` attribute the way Endpoint holds its api (run_on_page and everything beyond the step
+    surface stay there).
+    `path`: the required page path resolved against the site base URL ("" — the site root);
+    there is no class-level fallback — the address arrives at construction and the per-page
+    fixture binds it; a subclass declares behavior, never a path.
+
+    Algorithm:
+    1. Hold the runtime and the path as given — no resolution, no class-level fallback.
+    2. url joins: site.base_url + "/" + path with the joining slashes normalized (a trailing
+       slash of the base and a leading slash of the path never duplicate); a path without a
+       non-empty segment ("" or "/") yields the declared base URL verbatim — its trailing
+       slash is significant, servers may answer 404 to the slashed-off form, so the page
+       never rewrites the declared base; an unset base URL raises the loud actionable
+       PrettyplayError naming the site.base_url directive of web.yml.
+    3. The activation call executes one action step sentence "Open <url>" through the page's own
+       step proxy and returns the page itself — the characteristic action on call, the Endpoint
+       pattern; an ordinary step of the cycle — generated once, cached, replayed, healed — and a
+       page-scoped one: the opening sentence is the shared entry of every test of this page.
+    4. step, expect and group proxy their sentences to the bound runtime verbatim — the page's
+       own surface for tests and scenario methods alike, the keyword-only parameters passed
+       through unchanged — attaching the page's cache scope (the page module's path under a
+       .cache segment) exactly
+       when the proxy call originates from the page's own code: a bound method of this very
+       instance, the activation call, or a helper nested inside the page's own source files; an
+       inline call from a test attaches no scope and addresses the step under the test's cache
+       key (the frame walk never crosses a source file that is neither the page class's nor the
+       base module's, and a foreign self — a test-class method — never matches).
+    5. The context manager returns the page from enter; the exit is scoping only — it closes
+       nothing and never suppresses (a falsy return keeps the block exception propagating).
+
+    Requirements:
+    - The URL join is pure — no I/O, no config reads beyond the runtime property.
+    - The activation call delegates wholly to the runtime's action step — no direct playwright
+      navigation, no page pre-opening (the page opens lazily on the first step, see
+      `prettyplay`); the call is never overridden — scenario logic lives in named methods.
+    - step, expect and group are reserved names of the page surface — a subclass never
+      redefines them.
+    - The page's cache scope is derived, never declared — the concrete class's module path
+      (type(page).__module__, dots as separators); a subclass in another module is its own
+      vocabulary. The scope rides the runtime's integrator-level _scope keyword (see
+      `prettyplay`) and is validated there.
+    - A missing site.base_url fails loudly at first use (url or the call), never at
+      construction — a BasePage over an unset site works as a plain path holder.
+    - The runtime lifecycle belongs to the web fixture of the plugins cell — the context
+      manager manages nothing on exit.
+
+    Constraints:
+    - No new config keys here — the base URL arrives through the validated activation carried
+      by the runtime (the plugins cell owns web.yml).
+    - No lifecycle management — no close, no teardown; the with-block is scoping only.
+    - Do not proxy beyond the step surface — run_on_page and the rest of the runtime stay on
+      the `web` attribute.
+    - The full URL lands in the step sentence — the no-secrets rule of `prettyplay` covers the
+      base URL and the path (no tokens in query strings).
+
+    Use `prettyplay` for the step surface signatures, site_base_url, and the no-secrets rule.
+    Use `conventions` for docstrings, type hints, and testing.
+  properties:
+    "web -> PrettyPlay": |
+      The bound web runtime — the tested page's step executor and site.base_url source; the
+      escape hatch for everything beyond the step surface (run_on_page).
+    "path -> str": |
+      The page path as constructed — the address bound by the per-page fixture.
+    "url -> str": |
+      The full page URL — the site base URL with this page's path, slashes normalized; raises
+      the loud actionable PrettyplayError when the site base URL is unset.
+  methods:
+    "step(text: str, tries: int | None = None, delay: float | None = None, vars: dict[str, str] | None = None)": |
+      Execute one action step sentence through the bound runtime — the sentence and the
+      keyword-only parameters passed through verbatim.
+    "expect(text: str, tries: int | None = None, delay: float | None = None, vars: dict[str, str] | None = None)": |
+      Execute one assertion step sentence through the bound runtime — the same pass-through
+      form as the action proxy.
+    "group(prompt: str, speed: int | None = None, delay: float | None = None) -> g: StepGroup": |
+      Open the group authoring block through the bound runtime and yield its group object.
+    "__call__() -> page: BasePage": |
+      Open this page — one action step sentence carrying the full URL — and return the page
+      itself: the activation call of the with-form (with page() as page:), the pattern of the
+      api kind's Endpoint; never overridden — scenario logic lives in named methods.
+    "__enter__() -> page: BasePage": |
+      Enter the page block — the activation call has opened the page; yields this page as the
+      short local name of the block.
+    "__exit__(exc_type: object, exc_value: object, traceback: object)": |
+      Leave the page block — scoping only: closes nothing (the runtime lifecycle belongs to
+      the web fixture of the plugins cell) and never suppresses — the falsy return keeps the
+      block exception propagating.
+
+"AllureStepHooks(play: PrettyPlay)":
+  location: allure_hooks.py
+  annotations: |
+    Allure reporting integration over the prettyplay hook contract — a StepHooks subclass active
+    only when allure-pytest is installed (guarded import; see `allure-pytest`).
+
+    `play`: the prettyplay runtime whose steps are reported — the failure screenshot source.
+
+    Algorithm:
+    1. Hold two exit stacks — steps and groups — so the enter/exit pairs stay balanced when a step
+       fails mid-group (see `allure-pytest` for the stack discipline).
+
+    Requirements:
+    - Constructed only when the guarded allure import succeeded — never on import failure.
+
+    Use `allure-pytest` for the mapping table and the stack discipline.
+    Use `prettyplay` for the StepHooks event signatures and the screenshot source.
+  methods:
+    "on_group_started(group_prompt: str)": |
+      Enter an allure step context titled "[group] " + group_prompt on the group stack.
+
+      `group_prompt`: the group sentence.
+    "on_group_finished(group_prompt: str)": |
+      Close the group stack — every entered group context exits.
+
+      `group_prompt`: the group sentence.
+    "on_step_started(step_text: str, step_type: str)": |
+      Enter an allure step wrapper titled "[<step_type>] <step_text>" on the step stack.
+
+      `step_text`: the step sentence.
+      `step_type`: the step type (action or assertion).
+    "on_step_failed(step_text: str, step_type: str, error: str)": |
+      Mark the current step failed and attach the failure screenshot: AssertionError for the
+      assertion type, a generic Exception otherwise; the screenshot bytes attach as screenshot.png,
+      and the capture is best-effort — a PlaywrightError of the capture and the library's no-page
+      error (a PrettyplayError) are both swallowed: no page, no screenshot (the failure itself is
+      already recorded; see `prettyplay` for the only playwright import).
+
+      `step_text`: the step sentence.
+      `step_type`: the step type.
+      `error`: the failure description.
+    "on_step_finished(step_text: str, step_type: str, outcome: str)": |
+      Close the step stack — the step context exits with the accumulated failure.
+
+      `step_text`: the step sentence.
+      `step_type`: the step type.
+      `outcome`: the step outcome.
+
+"EventLogFormatter(fmt: str, datefmt: str)":
+  location: logging_setup.py
+  annotations: |
+    Console formatter of the prettyplay log events — renders human-readable events without payload
+    duplication. A logging.Formatter subclass.
+
+    `fmt`: the logging format string.
+    `datefmt`: the date format string.
+
+    Requirements:
+    - The human-readable event set — step_results_declared, step_inputs, step_candidate_code,
+      step_cached_code, step_captured — renders as the plain message (the message already carries the
+      execution context); every other event keeps its context visible through the appended extras.
+    - Pure rendering — no I/O.
+
+    Use `conventions` for the logging rules.
+  methods:
+    "format(record: logging.LogRecord) -> message: str": |
+      Render the record; when the record's event is one of the human-readable events, return the
+      rendered message as is; otherwise append the sorted non-reserved record extras as
+      " | key=value" pairs.
+
+      `record`: the log record, including its structured context.
+      `message`: the formatted console text.
+
+"install_event_log_formatter()":
+  location: logging_setup.py
+  annotations: |
+    Install the prettyplay event log formatter on the console.
+
+    Algorithm:
+    1. Set the prettyplay logger to INFO.
+    2. Attach a stdout stream handler carrying `EventLogFormatter`.
+    3. Idempotent — a repeated installation adds no duplicate handler.
+
+    Requirements:
+    - Web-test runs render prettyplay log events in the console, human-readable, without payload
+      duplication.
+    - Installed by the configure step of the web plugin (the plugins cell) — active whenever the
+      plugin is, independent of allure.
+
+    Use `conventions` for the logging rules.
+
+---
+
+Author: Goga
+CreatedAt: 28/10/26
+Description: |
+  Web library cell — the prettyplay capability's library surface: the prettyplay settings
+  materialization of the validated web config (no mirror model — the cell declares no config
+  models of its own), the per-test generation-prompt decorator, the page-object base (BasePage —
+  the tested-site page binding the web runtime and a path over the site.base_url directive),
+  the Allure step reporting hooks, and the console event log formatter. The web plugin itself
+  (the web fixture, the strict/interactive options), the web config key set, and the document
+  validation live in the plugins cell (goga_tool_pybuggy/plugins), activated by its installation
+  gate on the presence of the web config document.
