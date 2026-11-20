@@ -43,6 +43,7 @@ class Api:
     def __init__(  # noqa: PLR0913
         self,
         base_url: str,
+        *,
         auth: AuthBase | None = None,
         headers: dict[str, str] | None = None,
         cookies: SimpleCookie | None = None,

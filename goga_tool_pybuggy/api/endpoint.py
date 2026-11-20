@@ -38,6 +38,7 @@ class Endpoint:
         url_path: str,
         method: str,
         expected_status: int | None = 200,
+        *,
         use_autocheck: bool = True,
         adapter: str | None = None,
     ) -> None:
