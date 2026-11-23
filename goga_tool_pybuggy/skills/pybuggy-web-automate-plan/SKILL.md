@@ -37,12 +37,34 @@ Compile the ralphex plan `goga history path -f plan.md` from the design document
    a parameterized case — `…/test_<name>[<param_id>]/`; the shared page cache
    `pages/.cache/<page>/`) — never delete, clean, or gitignore it; the cache is committed to the
    repository;
-6. **every** Task in the plan carries the CRITICAL failing-test instruction: if a test fails and the
-   failure cannot be fixed — leave the test failing and move on to the next task without blocking
-   the build; skipped tests (`pytest.skip`, skip markers, `xfail`) are **forbidden**; if the LLM
-   failed to generate a step — the sentence and the failing test stay, the fact is recorded in the
-   Task report, and sentences are never reformulated to make generation succeed. This constraint
-   carries the same weight as the read-only CODEMANIFEST.
+6. **every** Task in the plan carries the CRITICAL failing-test instruction with three parts:
+   - **Diagnose first — parse the pytest log**: the run output/log (wherever the environment
+     writes it) is the first evidence source. Classify the failure: a provider/generation error
+     (no code produced) / a cache-miss / an execution failure (element not found, wrong element,
+     assertion mismatch, timeout, navigation). Read the failed sentence and its generated code
+     (the cache file — reading is allowed, editing is not). When the cause is not in the log —
+     look at the live page: playwright-cli attach at the Browser endpoint (requirements §1) →
+     `goto` → `find` the sentence's visible name / `snapshot` (read-only) → `detach` after.
+   - **Fix by cause — do everything possible so the steps are generated and the tests are
+     written**: a test failure at build is an implementation defect (the scenario and its
+     expectations were rehearsed live before build) — so **fix the test `test_*.py`, not the
+     contract**: reformat the failing step (adapt the sentence wording to what the page actually
+     has), adjust the glue (fixtures, order, `vars`, waits, activation blocks), and when a step's
+     wording/execution changed — delete its stale cache file and regenerate it with one non-strict
+     run (the cache is **never edited by hand**). A provider/generation error → check the
+     key/model (web.yml) and retry the non-strict run — not a sentence problem; the environment →
+     restore it. The **CODEMANIFEST, `pages/**`, and requirements stay read-only**; skipped tests
+     (`pytest.skip`, skip markers, `xfail`) are **forbidden**. Limit — **3 refinement iterations
+     per test** (each = cause → targeted fix → isolated re-run; blind retries do not count toward
+     a fix and only burn time).
+   - **Abandon (last resort)**: only after all sanctioned options are exhausted and the test still
+     fails after 3 iterations — leave the test failing, record the cause and the fact in the Task
+     report (was → became), and move on to the next task without blocking the build. An element
+     that does not exist / a flow that does not hold is **not fixable at build** — the same
+     fallback (it goes to accept triage). Recurring refinements of the same step are candidates
+     for `Prompt:` bullets / annotation updates via the user.
+
+   This constraint carries the same weight as the read-only CODEMANIFEST.
 
 ## Testing Mode (pre-prompt — mandatory)
 
@@ -75,12 +97,31 @@ Compile the ralphex plan `goga history path -f plan.md` from the design document
   Playwright code for the sentences and writes the cache exactly then; strict on the first run =
   a guaranteed cache-miss with no generation. The flag's absence from the commands is not enough —
   ralphex, when it retries a failed test on its own, may add the flag.
-- **CRITICAL: Failing-test policy —** embed this instruction into **every** Task of the plan: if a
-  test fails and the failure cannot be fixed, leave the test failing and move on to the next task
-  without blocking the build. **Do NOT skip tests** (`pytest.skip`, skip markers, `xfail`) — the
-  failure must remain visible. If the LLM did not generate a step, keep the sentence and the
-  failing test and record the fact in the Task report; **never reformulate step sentences to make
-  generation succeed**. This constraint carries the same weight as the read-only CODEMANIFEST.
+- **CRITICAL: Diagnose before fixing —** parse the pytest log/run output (wherever the environment
+  writes it) before touching anything: classify the failure (a provider/generation error — no code
+  produced; a cache-miss; an execution failure — element not found, wrong element, assertion
+  mismatch, timeout, navigation), read the failed sentence and its generated code (the cache file —
+  reading is allowed, editing is not). When the cause is not in the log — look at the live page
+  (playwright-cli attach at the Browser endpoint, requirements §1: `goto` + `find` the sentence's
+  visible name + `snapshot`, read-only, `detach` after).
+- **CRITICAL: Implementation refinement policy —** embed this instruction into **every** Task of
+  the plan: a test failure at build is an implementation defect (the scenario and its expectations
+  were rehearsed live before build) — the agent must **do everything possible so that the steps
+  are generated and the tests are written**: fix the test `test_*.py`, not the contract — reformat
+  the failing step (adapt the sentence wording to what the page actually has), fix the glue
+  (fixtures, order, `vars`, waits, activation blocks), retry the generation (delete the step's
+  stale cache file + one non-strict run; the cache is **never edited by hand**); a
+  provider/generation error → check the key/model (web.yml) and retry the non-strict run — not a
+  sentence problem; the environment → restore it, not a refinement. The CODEMANIFEST, `pages/**`,
+  and requirements stay read-only; **do NOT skip tests** (`pytest.skip`, skip markers, `xfail`) —
+  the failure must remain visible. Limit — **3 refinement iterations per test** (each = cause →
+  targeted fix → isolated re-run; blind retries do not count); only after all sanctioned options
+  are exhausted — leave the test failing, record the cause and the fact in the Task report
+  (was → became), and move on to the next task without blocking the build. An element that does
+  not exist / a flow that does not hold is **not fixable at build** — the same fallback (it goes
+  to accept triage). Recurring refinements of the same step are candidates for `Prompt:` bullets /
+  annotation updates via the user. This constraint carries the same weight as the read-only
+  CODEMANIFEST.
 
 ## Dispatch
 
@@ -105,10 +146,15 @@ Arguments: `$ARGUMENTS`
    prohibition of `--strict-mode` in the Task text; every generating Task references the Routine
    `location` from the CODEMANIFEST; one action per step sentence, site pages addressed as paths
    relative to the base URL with external pages by full URLs; CRITICAL in EVERY
-   Task: on unfixable test failure — abandon the fix, leave the test failing, and proceed to the next
-   task; do NOT skip/xfail tests; if the LLM fails to generate a step, keep the sentence and the
-   failing test and record the fact — never rewrite or delete step sentences to make generation
-   easier; do not block the build").
+   Task: do everything possible so that the steps are generated and the tests are written —
+   parse the pytest log, find out what the problem is (provider/generation error, cache-miss,
+   execution failure), try reformatting the step in `test_*.py` (adapt the sentence wording to
+   the actual page, fix the glue), retry the generation (delete the step's stale cache file +
+   one non-strict run); never edit the cache by hand; the CODEMANIFEST and `pages/**` stay
+   read-only; a provider error is retried, not reworded; limit 3 targeted refinement iterations
+   per test — only after all options are exhausted leave the test failing, record the cause in
+   the Task report, and proceed to the next task; do NOT skip/xfail tests; do not block the
+   build").
 4. `goga-plan` dispatches `goga-plan-by-design` itself — do not call it bypassing `goga-plan`.
 
 ## Post-Dispatch Gate (critical — enforcing step generation)
@@ -141,9 +187,14 @@ plan where necessary:
 7. **Address cross-check:** page addresses in the Tasks ↔ requirements §2 (paths relative to
    base_url); Base URL ↔ §1; external pages — full URLs of a foreign origin marked "external"; the
    run commands carry the base_url render arguments (env/CLI) from §1 if any are specified.
-8. **CRITICAL failing-test policy in every Task** (+ the web addition: a failed step generation —
-   the sentence and the failing test stay; sentences are not reformulated to make generation
-   succeed). Verify that `pytest.skip`/skip markers/`xfail` appear nowhere in the plan.
+8. **CRITICAL refinement policy in every Task**: the diagnose instruction (parse the pytest log/run
+   output — wherever the environment writes it; classify the failure; read the step's cached code
+   read-only; a live-page check via playwright-cli when the cause is not in the log) + the
+   "do everything possible" refinement instruction (reformat the step in `test_*.py`, fix the
+   glue, retry the generation via a stale-cache deletion + one non-strict run; never edit the
+   cache by hand; CODEMANIFEST/`pages/**` read-only; limit 3 targeted iterations) + the abandon
+   fallback (only after all options are exhausted — leave failing, record the cause in the Task
+   report, move on). Verify that `pytest.skip`/skip markers/`xfail` appear nowhere in the plan.
 9. **Run preconditions** are named next to the commands: the provider's LLM key in the
    environment, and the reachability of the target URLs and of the browser address from the
    Browser endpoint (§1).
@@ -164,9 +215,12 @@ and report the additions to the user.
 - mark the test run as "manual/skipped/not automatable"
 - plan production code
 - lose the web testing mode when handing over control
-- prescribe deleting/cleaning/gitignoring the step cache
+- prescribe deleting/cleaning/gitignoring the step cache wholesale — the only sanctioned cache
+  deletion is the stale file of a changed step, followed by one non-strict regeneration
 - mask a failure with `pytest.skip`/skip markers/`xfail` — the failure must remain visible
-- deliver a Task without the CRITICAL failing-test instruction
+- let a Task instruct editing the CODEMANIFEST, `pages/**`, or the cache by hand — the refinement
+  surface is `test_*.py` only
+- deliver a Task without the CRITICAL refinement policy (fix the test, limit 3, then abandon)
 
 ### ALWAYS
 
@@ -180,4 +234,8 @@ and report the additions to the user.
   in place
 - build the plan on the web-cell CODEMANIFESTs and their `location` fields
 - load the web runtime reference and the DSL
-- embed the CRITICAL failing-test instruction into **every** Task of the plan
+- embed the CRITICAL refinement policy (parse the pytest log and diagnose; reformat the step and
+  fix the glue in `test_*.py`; retry the generation via a stale-cache deletion + one non-strict
+  run, never hand-edited; do everything possible so the steps are generated and the tests are
+  written; limit 3 targeted iterations; abandon only after all options are exhausted) into
+  **every** Task of the plan

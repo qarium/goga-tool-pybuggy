@@ -19,6 +19,9 @@ presence, and no skip masking of failures.
 - Every finding carries a precise location and a concrete suggested fix.
 - Edit only the test files `tests/web/**` and (by the re-generation decision) the step cache;
   do not edit CODEMANIFEST and requirements.md — they are upstream.
+- Build-time refinements of the test (the plan's implementation refinement policy) are expected:
+  the review classifies them — a wording adaptation that preserves semantics vs. a semantic
+  change (Step 3).
 - Fill in every section of the report; empty sections are forbidden.
 
 STOP:
@@ -53,16 +56,25 @@ STOP:
 
 For every test, compare the step sentences (`page.step`/`page.expect`/`page.group` — the surface
 of the activated page) with the annotation of its
-Routine (`Steps:`):
+Routine (`Steps:`). The build agent may have refined the test (the implementation layer): an
+adapted step wording is an expected outcome of the refinement policy, not a defect by itself —
+classify each divergence:
 
-1. Every `Steps:` item of the annotation is reflected by a sentence (directly or inside a group)
-   or by a page-object method call (a goal sentence with the reference ``Use `page-<name>` — method``);
-   a navigation item — by the activation `with page_<name>() as page:`.
-2. There are no extra sentences (no actions outside the annotation).
-3. Actions are `page.step`, checks are `page.expect` (mixed up = a finding; the exception is
+1. Every `Steps:` item of the annotation is reflected by a sentence (directly or inside a group),
+   a refined wording of it, or a page-object method call (a goal sentence with the reference
+   ``Use `page-<name>` — method``); a navigation item — by the activation `with page_<name>() as
+   page:`. An annotation step with no counterpart at all — **High** (a check was dropped).
+2. **Refinement drift** (was → became): the wording differs from the annotation but the semantics
+   are preserved (the same target, the same expectation — adapted to the page) — **Medium**; each
+   one goes to the review decision: absorb into the annotation through the user (patch pipeline) /
+   revert the test. A refinement that changes what is checked (a different expectation, a weakened
+   check, a different target) — **High**.
+3. Extra sentences with no annotation counterpart — **High**, unless they are the refined form of
+   an annotation step (see item 2).
+4. Actions are `page.step`, checks are `page.expect` (mixed up = a finding; the exception is
    transient toasts/banners with a lifetime from the §2 details: their acknowledgment lives in
    the trigger action sentence — this is not a mix-up, see the cookbook).
-4. One action per sentence (a combined "open and fill" = a finding).
+5. One action per sentence (a combined "open and fill" = a finding).
 
 ### Step 4. Generation prompts ↔ `Prompt:`
 
@@ -101,6 +113,10 @@ Findings:
    materialization defect.
 4. A complete absence of caches for every test is a STOP: `goga build` was not executed; run it
    first according to the topic's plan (the first, generating run).
+5. **Orphan cache**: a build-time refinement may have changed a step's wording — the old
+   sentence's cache file then stays behind. A cache file whose sentence no longer exists in the
+   test — **Medium** (fix — delete the stale file; the cache is never edited by hand: deletion +
+   one non-strict regeneration is the sanctioned mutation).
 
 ### Step 7. Skip masking
 
@@ -133,7 +149,8 @@ Fill in every section.
 
 ## Step sentences ↔ Routine annotation
 
-[Table: Test | Routine | Status (full match / what is missing / what is extra)]
+[Table: Test | Routine | Status (full match / refined wording — semantics preserved / semantic
+drift / what is missing / what is extra)]
 
 ## Generation prompts ↔ `Prompt:`
 

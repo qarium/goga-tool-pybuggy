@@ -1,6 +1,6 @@
 ---
 name: goga-tool-pybuggy-web-automate-plan-review
-description: Verification of the web ralphex plan `goga history path -f plan.md` — guarantees the plan actually runs the tests WITHOUT --strict-mode (the first run generates the Playwright steps via the LLM and writes the committed step cache), the browser connection line in executable form in every generating Task, the cache-preservation instruction, and the CRITICAL failing-test policy in every Task
+description: Verification of the web ralphex plan `goga history path -f plan.md` — the tests actually run WITHOUT --strict-mode (the first run generates the step code and writes the committed cache), the browser connection line in every generating Task, the cache-preservation instruction, and the CRITICAL refinement policy (diagnose from the pytest log → fix by cause in test_*.py, limit 3, abandon last; the CODEMANIFEST stays read-only)
 ---
 # Pybuggy Web Topic Plan — Review
 
@@ -40,7 +40,8 @@ CODEMANIFESTs:
 - an executable run without strict in every generating Task;
 - the browser connection line in executable form;
 - the step-cache preservation instruction;
-- the failing-test policy in every Task.
+- the implementation refinement policy in every Task (fix the test — wording and glue; limit 3
+  iterations, then abandon).
 
 ## Phases
 
@@ -79,16 +80,18 @@ CODEMANIFEST consistency). Merge them with the Phase 3 checks.
    `pages/.cache/<page>/`) are created by the first run; do not delete, do not clean, do not gitignore;
    the cache is committed; after the run, verify that the cache files have appeared. A missing
    instruction — **High**; a prescription to clean/gitignore — **Critical**.
-7. **CRITICAL failing-test policy in every Task:**
-   - on an unfixable failure — leave the test failing and move on to the next Task without blocking the
-     build;
-   - `pytest.skip`/skip markers/`xfail` are forbidden;
-   - a failed step generation — the suggestion and the failing test remain, and the fact is recorded in
-     the Task report;
-   - suggestions must not be rephrased to force generation.
+7. **Refinement policy in every generating Task** — each Task carries:
+   - diagnose first: parse the pytest log/run output → classify (provider/generation error,
+     cache-miss, execution failure) → read the step's cached code (read-only); a live-page check
+     when the cause is not in the log;
+   - fix by cause in `test_*.py`: reformat the step, fix the glue, stale cache delete + one
+     non-strict regen (never hand-edit);
+   - CODEMANIFEST/`pages/**` read-only; limit 3 targeted iterations; abandon only after all
+     options are exhausted (cause + was → became in the Task report);
+   - no `pytest.skip`/skip markers/`xfail` anywhere.
 
-   A missing instruction in a Task — **Critical**; any occurrence of skip/xfail in the plan — **Critical**
-   (failure masking).
+   Missing instruction — **Critical**; retries without a diagnosis — **High**; any skip/xfail —
+   **Critical**; a Task instructing manifest/pages/cache edits — **Critical**.
 8. **Routine → Task:** every CODEMANIFEST Routine is covered by a Task that generates `test_<name>.py`
    at its `location` (the Task references `location`) — a gap is **High**.
 9. **Address cross-check:** the topic pages in the Tasks appear as paths relative to base_url;
@@ -142,7 +145,9 @@ Before finishing, verify:
 4. Does every generating Task carry an executable run checkbox, the browser connection line in
    executable form, and an explicit textual CRITICAL prohibition of strict?
 5. Is the cache instruction present (committed, not cleaned, verify its appearance) along with the
-   failing-test policy in every Task; is there no skip/xfail anywhere?
+   refinement policy (diagnose from the pytest log → fix by cause in `test_*.py` → regenerate the
+   stale cache, never hand-edited; limit 3; abandon last) in every Task; is there no skip/xfail
+   anywhere?
 6. Are all Routines covered (references to `location`) and are the page addresses cross-checked (paths
    relative to base_url; external ones — full URLs) against §1/§2?
 7. Was every finding presented one at a time with the Apply/Alternative/Skip choice; were the fixes

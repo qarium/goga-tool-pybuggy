@@ -87,7 +87,7 @@ Triage every failed test by category (details in the `accept-run` sub-skill):
 
 | Failure category | Meaning                                                                                                                           | Action                                                                                                                                                                              |
 |------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Test defect**  | the test artifact is wrong: an ambiguous step sentence, a stale/broken step cache, a wrong assert, a broken import, invalid data                                    | fixed here: clarify the sentence with the user → if the cache is broken, delete the step's cache file and regenerate it with a non-strict run; editing `test_*.py` — with the user's approval |
+| **Test defect**  | the test artifact is wrong: a wording the page does not satisfy, a stale/broken step cache, a wrong assert, a broken import, invalid data. Most are fixed autonomously at build (the plan's implementation refinement policy — limit 3 iterations) | fixed here with the user's approval: refine `test_*.py`; a changed step's stale cache file — delete + one non-strict regeneration (the cache is never edited by hand) |
 | **Service bug**  | the test is correct; the service violates the contract                                                                                                             | a bug record in `goga history path -f bugs.md` — one record per problem with the list of failed tests                                                                                |
 | **Environment**  | the browser at the Browser endpoint address / the LLM key / the network / the site are unavailable                                                                  | restore the environment; not a service bug and not a test defect                                                                                                                     |
 | **Ambiguous**    | there is not enough data to decide                                                                                                                                 | joint analysis with the user (WAIT)                                                                                                                                                  |
@@ -103,8 +103,9 @@ the pipeline: the remaining tests keep running, and the bug is recorded in the a
 - edit the CODEMANIFEST of web cells — the contract is read-only; a Routine/test-file mismatch is fixed
   by editing `test_*.py` or by returning to the testcases pipeline
 - mask failures (`pytest.skip`, skip markers, `xfail`) — every failure remains visible
-- rephrase step sentences for the sake of a green run — a step sentence originates from the
-  Routine annotation; it changes only with a user decision
+- weaken a check under the banner of a refinement — a build-time refinement (the plan's policy)
+  adapts the wording to the page while preserving what the sentence checks; an accept-stage
+  rephrasing happens only with a user decision
 - record a service bug without a concrete problem statement and a list of the failed tests
 - decide the triage (test defect / service bug) without the user
 - bypass a STOP condition or skip a WAIT-gate
