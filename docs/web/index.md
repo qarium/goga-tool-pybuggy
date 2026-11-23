@@ -211,12 +211,14 @@ The step cache is committed to the repository — replay (and strict runs) needs
 address two ways, decided automatically by where the call comes from: an inline step of a test
 lands in the test's own cache; a step sentence executed from a named method of a page class
 (the activation call included) lands in the page's **shared** cache — one entry per sentence
-for every test using that page:
+per method for every test using that method: the same sentence of two methods of one page is
+two entries (two same-named «OK» buttons of one page press in their own contexts, the code of
+one never stands in for the other):
 
 ```
 tests/test_search.py
-tests/.cache/test_search/test_duckduckgo_search/  # the per-test cache — inline steps of the test
-pages/.cache/login_page/3f2a….py                  # the page's shared cache — method sentences
+tests/.cache/test_search/test_duckduckgo_search/    # the per-test cache — inline steps of the test
+pages/.cache/login_page/fill_credentials/3f2a….py  # the page's shared cache — per method
 ```
 
 The cache root is the run's rootdir (or the explicit `cache_root` directive); the per-test
@@ -227,13 +229,14 @@ parameter case — the address carries the node name with its `[<param_id>]` suf
 (`tests/.cache/test_search/test_duckduckgo_search[phrase-ui]/`); pytest's ASCII escape of a
 non-latin id decodes back to the letters (`имя и отчество` → `имя-и-отчество`), and unsafe
 characters and spaces flatten to dashes. The page's shared cache lives under the same `.cache`
-segment at the page module's path — never
+segment at the page module's path, one directory per method below the page's own (`__call__`
+for the activation) — never
 put an `__init__.py` inside a page's cache directory (the fixture discovery imports every
 module of a marked directory at startup — the generated step files would join that sweep). Cache
 files are never deleted
 automatically — a run that fails mid-test keeps the cached steps it never reached. Do not
 edit cache files by hand — delete a step's file to force its regeneration on the next
-non-strict run (deleting a page-scope file affects every test of that page).
+non-strict run (deleting a method's file affects every test calling that method).
 
 ## Reporting
 

@@ -157,7 +157,7 @@ review and re-exploration):
 
 Note: the step cache of the materialized tests lives in
 `tests/web/<cell>/.cache/test_<name>/test_<name>/` (a parameterized case —
-`…/test_<name>[<param_id>]/`; page-method sentences — the shared cache `pages/.cache/<page>/`) and
+`…/test_<name>[<param_id>]/`; page-method sentences — the shared cache `pages/.cache/<page>/<method>/`) and
 is committed to the repository. Page elements are described by visible names/texts — locators,
 selectors, and testid never get into the artifact (except the §4 Auth login mechanism).
 

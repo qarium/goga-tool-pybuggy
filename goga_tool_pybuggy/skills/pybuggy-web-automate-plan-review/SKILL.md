@@ -76,8 +76,8 @@ CODEMANIFEST consistency). Merge them with the Phase 3 checks.
 5. **An explicit CRITICAL prohibition of `--strict-mode` in plain text** in every generating Task — its
    absence is **High** (the absence of the flag in the commands is not sufficient).
 6. **The step-cache instruction**: the directories `tests/web/<cell>/.cache/test_<name>/test_<name>/`
-   (a parameterized case — `…/test_<name>[<param_id>]/`; shared page caches —
-   `pages/.cache/<page>/`) are created by the first run; do not delete, do not clean, do not gitignore;
+   (a parameterized case — `…/test_<name>[<param_id>]/`; shared page-method caches —
+   `pages/.cache/<page>/<method>/`) are created by the first run; do not delete, do not clean, do not gitignore;
    the cache is committed; after the run, verify that the cache files have appeared. A missing
    instruction — **High**; a prescription to clean/gitignore — **Critical**.
 7. **Refinement policy in every generating Task** — each Task carries:

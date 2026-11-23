@@ -34,8 +34,8 @@ Compile the ralphex plan `goga history path -f plan.md` from the design document
 4. **no** command or checkbox in the plan contains `--strict-mode` — strict mode on the first run
    means a guaranteed cache-miss with no generation;
 5. the plan mandates preserving the step cache (`tests/web/<cell>/.cache/test_<name>/test_<name>/`,
-   a parameterized case — `…/test_<name>[<param_id>]/`; the shared page cache
-   `pages/.cache/<page>/`) — never delete, clean, or gitignore it; the cache is committed to the
+   a parameterized case — `…/test_<name>[<param_id>]/`; the shared page-method cache
+   `pages/.cache/<page>/<method>/`) — never delete, clean, or gitignore it; the cache is committed to the
    repository;
 6. **every** Task in the plan carries the CRITICAL failing-test instruction with three parts:
    - **Diagnose first — parse the pytest log**: the run output/log (wherever the environment
@@ -84,7 +84,7 @@ Compile the ralphex plan `goga history path -f plan.md` from the design document
 - **TDM inverted:** there is no separate "implementation code" — the test files are the implementation.
 - **Step generation:** the first run of each test generates the Playwright code for the sentences
   via the LLM and writes the cache to `tests/web/<cell>/.cache/test_<name>/test_<name>/`
-  (page-method sentences — the shared cache `pages/.cache/<page>/`); the cache is committed. The
+  (page-method sentences — the shared cache `pages/.cache/<page>/<method>/`, the activation — `__call__`); the cache is committed. The
   first run goes without `--strict-mode`; repeat/CI runs — with `--strict-mode`.
 - **Executable form of the Browser endpoint address:** write the address from requirements §1 into
   the commands in a form that is executable in the current environment: a loopback address
@@ -181,7 +181,7 @@ plan where necessary:
 5. Every Task that generates a `test_*.py` references the `location` field from the CODEMANIFEST
    of the corresponding web cell.
 6. **The cache instruction** is present in the plan: the directories
-   `tests/web/<cell>/.cache/test_<name>/test_<name>/` (and the shared `pages/.cache/<page>/`) are
+   `tests/web/<cell>/.cache/test_<name>/test_<name>/` (and the shared `pages/.cache/<page>/<method>/`) are
    created by the first run; never delete, clean, or gitignore them; after the run, make sure the
    cache files have appeared. If missing, add it.
 7. **Address cross-check:** page addresses in the Tasks ↔ requirements §2 (paths relative to

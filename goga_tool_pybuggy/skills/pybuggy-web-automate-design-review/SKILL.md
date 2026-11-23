@@ -70,7 +70,7 @@ consistency). Merge them with the Phase 3 checks.
      (provider/model from `web.yml`);
    - the cache is written to `tests/web/<cell>/.cache/test_<name>/test_<name>/`:
      - a parameterized case — `…/test_<name>[<param_id>]/`;
-     - page method sentences — the shared cache `pages/.cache/<page>/`;
+     - page method sentences — the shared cache `pages/.cache/<page>/<method>/` (the step binds to the method; the activation — `__call__`);
    - the cache is committed to the repository;
    - the first run — **without** `--strict-mode`;
    - repeated runs and CI — with `--strict-mode`;

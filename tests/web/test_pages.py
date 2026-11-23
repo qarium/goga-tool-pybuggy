@@ -9,6 +9,11 @@ from goga_tool_pybuggy.web.pages import _page_scope
 from prettyplay.failures import PrettyplayError
 
 
+def _method_scope(page_class: type[BasePage], method: str) -> str:
+    """The expected scope of a step called from a page method — the base scope plus the method."""
+    return f"{_page_scope(page_class)}/{method}"
+
+
 class _FakeGroup:
     """The group double the FakeWeb.group hands out."""
 
@@ -150,7 +155,7 @@ class TestBasePageCall:
         page = BasePage(web, "/login")
 
         assert page() is page
-        assert web.steps == [("Open https://example.com/login", None, None, None, _page_scope(BasePage))]
+        assert web.steps == [("Open https://example.com/login", None, None, None, _method_scope(BasePage, "__call__"))]
 
     def test_call_of_a_subclass_uses_its_constructed_path(self):
         web = FakeWeb("https://example.com")
@@ -160,7 +165,7 @@ class TestBasePageCall:
 
         LoginPage(web, "/login")()
 
-        assert web.steps == [("Open https://example.com/login", None, None, None, _page_scope(LoginPage))]
+        assert web.steps == [("Open https://example.com/login", None, None, None, _method_scope(LoginPage, "__call__"))]
 
     def test_call_without_a_base_url_fails_before_any_step(self):
         web = FakeWeb()
@@ -191,7 +196,7 @@ class TestBasePageContextManager:
         with page() as bound:
             assert bound is page
 
-        assert web.steps == [("Open https://example.com/login", None, None, None, _page_scope(BasePage))]
+        assert web.steps == [("Open https://example.com/login", None, None, None, _method_scope(BasePage, "__call__"))]
 
     def test_exit_never_suppresses_exceptions(self):
         page = BasePage(FakeWeb("https://example.com"), "/login")
@@ -248,8 +253,10 @@ class TestBasePageStepProxies:
         web = FakeWeb("https://example.com")
         LoginPage(web, "/login").dismiss_cookie_banner()
 
-        assert web.steps == [("Close the cookie banner", None, None, None, _page_scope(LoginPage))]
-        assert web.expects == [("The cookie banner is gone", None, None, None, _page_scope(LoginPage))]
+        scope = _method_scope(LoginPage, "dismiss_cookie_banner")
+
+        assert web.steps == [("Close the cookie banner", None, None, None, scope)]
+        assert web.expects == [("The cookie banner is gone", None, None, None, scope)]
 
 
 class TestBasePageScopeDetection:
@@ -265,7 +272,47 @@ class TestBasePageScopeDetection:
         web = FakeWeb("https://example.com")
         LoginPage(web, "/login").fill_credentials()
 
-        assert web.steps == [("Заполнить логин и пароль", None, None, None, _page_scope(LoginPage))]
+        expected = _method_scope(LoginPage, "fill_credentials")
+
+        assert web.steps == [("Заполнить логин и пароль", None, None, None, expected)]
+
+    def test_the_same_sentence_of_two_methods_is_two_cache_entries(self):
+        """The step binds to the method, not to the page whole.
+
+        Two methods of one page running the same sentence — two same-named «OK» buttons of
+        one page — address two cache entries: the code generated for one context never
+        stands in for the other.
+        """
+
+        class DialogPage(BasePage):
+            def save_form(self) -> None:
+                self.step("Нажать кнопку «OK»")
+
+            def close_dialog(self) -> None:
+                self.step("Нажать кнопку «OK»")
+
+        web = FakeWeb("https://example.com")
+        DialogPage(web, "/dialog").save_form()
+        DialogPage(web, "/dialog").close_dialog()
+
+        assert [scope for *_, scope in web.steps] == [
+            _method_scope(DialogPage, "save_form"),
+            _method_scope(DialogPage, "close_dialog"),
+        ]
+
+    def test_the_method_scope_is_the_page_scope_with_the_method_segment(self):
+        """The scope value adds the method's own name below the page module's cache directory."""
+
+        class LoginPage(BasePage):
+            def fill_credentials(self) -> None:
+                self.step("Заполнить логин и пароль")
+
+        web = FakeWeb("https://example.com")
+        LoginPage(web, "/login").fill_credentials()
+
+        parts = LoginPage.__module__.split(".")
+
+        assert web.steps[0][4] == "/".join([*parts[:-1], ".cache", parts[-1], "fill_credentials"])
 
     def test_an_inline_call_from_a_test_function_stays_the_tests_own(self):
         web = FakeWeb("https://example.com")
@@ -301,7 +348,9 @@ class TestBasePageScopeDetection:
 
         LoginPage(web, "/login")()
 
-        assert web.steps[-1] == ("Open https://example.com/login", None, None, None, _page_scope(LoginPage))
+        expected = _method_scope(LoginPage, "__call__")
+
+        assert web.steps[-1] == ("Open https://example.com/login", None, None, None, expected)
 
     def test_a_closure_inside_a_page_method_carries_the_page_scope(self):
         """The frame walk climbs nested helpers of the page module to the owning method."""
@@ -316,7 +365,7 @@ class TestBasePageScopeDetection:
         web = FakeWeb("https://example.com")
         LoginPage(web, "/login").dismiss_banner()
 
-        assert web.steps == [("Закрыть баннер", None, None, None, _page_scope(LoginPage))]
+        assert web.steps == [("Закрыть баннер", None, None, None, _method_scope(LoginPage, "dismiss_banner"))]
 
     def test_a_module_level_helper_of_a_foreign_module_stays_the_tests_own(self):
         """A helper outside the page's own files stops the walk — no page scope."""
@@ -339,7 +388,7 @@ class TestBasePageScopeDetection:
         web = FakeWeb("https://example.com")
         LoginPage(web, "/login").login_flow()
 
-        assert web.groups == [("Войти в аккаунт", None, None, _page_scope(LoginPage))]
+        assert web.groups == [("Войти в аккаунт", None, None, _method_scope(LoginPage, "login_flow"))]
 
     def test_a_group_opened_inline_stays_the_tests_own(self):
         web = FakeWeb("https://example.com")

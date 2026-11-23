@@ -58,11 +58,14 @@ Annotations: |
   proxied surface; a per-page fixture constructs the subclass with the runtime, the mirror of
   the api kind's Endpoint(api, path) fixtures. The proxied surface is also the boundary of the
   page's shared step vocabulary: a sentence executed from a named method of the page class (the
-  activation call included) carries the page's cache scope — the page module's path — so one
-  sentence of one page is one shared cache entry for every test using that page, while an inline
-  call from a test stays the test's own per-test entry; the discrimination is automatic (the
-  caller frame of the proxy is a bound method of this very page or it is not), no path is ever
-  passed by hand (see `prettyplay` for the scope addressing).
+  activation call included) carries the calling page method's cache scope — the page module's
+  path with the method's own name as its last segment — so one sentence of one page method is
+  one shared cache entry for every test calling that method (the same sentence of another
+  method of the same page is another entry — two methods pressing a same-named button press it
+  in their own contexts, the generated code of one never stands in for the other), while an
+  inline call from a test stays the test's own per-test entry; the discrimination is automatic
+  (the caller frame of the proxy is a bound method of this very page or it is not), no path is
+  ever passed by hand (see `prettyplay` for the scope addressing).
 
   The cell also carries the per-test prompt declaration surface: the `generation_prompt`
   decorator (the pattern of the sandbox services decorator) attaches the
@@ -181,13 +184,16 @@ Annotations: |
     3. The activation call executes one action step sentence "Open <url>" through the page's own
        step proxy and returns the page itself — the characteristic action on call, the Endpoint
        pattern; an ordinary step of the cycle — generated once, cached, replayed, healed — and a
-       page-scoped one: the opening sentence is the shared entry of every test of this page.
+       method-scoped one: the opening sentence carries the __call__ method's scope and is the
+       shared entry of every test of this page.
     4. step, expect and group proxy their sentences to the bound runtime verbatim — the page's
        own surface for tests and scenario methods alike, the keyword-only parameters passed
-       through unchanged — attaching the page's cache scope (the page module's path under a
-       .cache segment) exactly
+       through unchanged — attaching the calling page method's cache scope (the page module's
+       path under a .cache segment with the method's own name as the last segment) exactly
        when the proxy call originates from the page's own code: a bound method of this very
-       instance, the activation call, or a helper nested inside the page's own source files; an
+       instance, the activation call, or a helper nested inside the page's own source files (a
+       nested closure climbs to its owning method — the walk matches the frame whose first
+       parameter is the page's self); an
        inline call from a test attaches no scope and addresses the step under the test's cache
        key (the frame walk never crosses a source file that is neither the page class's nor the
        base module's, and a foreign self — a test-class method — never matches).
@@ -201,9 +207,10 @@ Annotations: |
       `prettyplay`); the call is never overridden — scenario logic lives in named methods.
     - step, expect and group are reserved names of the page surface — a subclass never
       redefines them.
-    - The page's cache scope is derived, never declared — the concrete class's module path
-      (type(page).__module__, dots as separators); a subclass in another module is its own
-      vocabulary. The scope rides the runtime's integrator-level _scope keyword (see
+    - The cache scope is derived, never declared — the concrete class's module path
+      (type(page).__module__, dots as separators) with the calling method's own name as the
+      last segment; a subclass in another module is its own vocabulary, and one method is its
+      own below the page. The scope rides the runtime's integrator-level _scope keyword (see
       `prettyplay`) and is validated there.
     - A missing site.base_url fails loudly at first use (url or the call), never at
       construction — a BasePage over an unset site works as a plain path holder.

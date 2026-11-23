@@ -105,7 +105,7 @@ AskUserQuestion (2–4 options):
      `tests/web/<cell>/.cache/test_<name>/test_<name>/` and regenerate it with a non-strict run
      (the cache is never edited by hand);
    - the cache file of a page method/activation step lives in the shared cache
-     `pages/.cache/<page>/` — deleting it affects **all** tests of that page (regeneration — a
+     `pages/.cache/<page>/<method>/` — deleting it affects **all** tests calling that method (regeneration — a
      non-strict run of any test of that page).
 2. Any other defect (assert/data/import) — fix `test_<name>.py` according to the Routine
    annotation.

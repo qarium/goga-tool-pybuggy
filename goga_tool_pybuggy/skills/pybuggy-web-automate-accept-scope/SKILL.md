@@ -28,7 +28,7 @@ For the current topic, verify existence and load:
    presence/absence and fill state of each:
    - test cache: `tests/web/<cell>/.cache/test_<name>/test_<name>/` per test
      (a parameterized case — `…/test_<name>[<param_id>]`);
-   - the shared cache of each page in use: `pages/.cache/<page>/`.
+   - the shared cache of each page in use: `pages/.cache/<page>/<method>/` (per method, `__call__` for activation).
 5. **Page objects**: the `pages/**` modules of the topic's pages (§2 — `page_<name>` bindings /
    literal navigation) — the presence of the modules and of the declared methods (the contract is
    the usage files `.goga/usages/cooks/page-<name>.md`).
@@ -49,7 +49,7 @@ From each cell's CODEMANIFEST:
    materialized test file.
 3. For each Routine — the step cache status: the directory exists and is not empty / is missing;
    for the pages whose fixtures/methods the Routine uses — the status of the shared cache
-   `pages/.cache/<page>/`.
+   `pages/.cache/<page>/<method>/` (per method).
 
 ### Step 3. Determine the run command
 

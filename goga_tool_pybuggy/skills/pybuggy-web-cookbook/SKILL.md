@@ -41,7 +41,8 @@ Artifact locations:
 - materialized tests live alongside (`tests/web/<cell-name>/test_<name>.py`);
 - the step cache lives in `tests/web/<cell-name>/.cache/test_<name>/test_<name>/`
   (a parameterized case — `…/test_<name>/test_<name>[<param_id>]/`);
-- the sentence cache of page-object methods is shared and lives in `pages/.cache/<page>/`.
+- the sentence cache of page-object methods is shared per method and lives in `pages/.cache/<page>/<method>/`
+  (the activation call — `__call__`); the same sentence of two methods is two entries.
 
 ## Test cell CODEMANIFEST
 
@@ -245,7 +246,7 @@ case into `Precondition:`/`Data:`); `Algorithm:` is replaced by `Steps:`.
   sentence and writes the cache files:
   - inline test steps — `tests/web/<cell>/.cache/test_<name>/test_<name>/`;
   - a parameterized case — `…/test_<name>/test_<name>[<param_id>]/`;
-  - page-object method steps — in the page's shared cache `pages/.cache/<page>/`.
+  - page-object method steps — in the page's shared cache `pages/.cache/<page>/<method>/` (the activation — `__call__`).
   Commit the cache to the repository.
 - Run the first run **without** `--strict-mode` (strict = 0 LLM calls — a new step fails in
   strict mode). Run repeated runs and CI **with** `--strict-mode` (replay from the cache).

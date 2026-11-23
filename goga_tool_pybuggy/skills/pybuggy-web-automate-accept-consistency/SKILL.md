@@ -106,7 +106,8 @@ Findings:
    not empty (the cache is created by the generating run at build; a parameterized case —
    `…/test_<name>[<param_id>]/`).
 2. For every page whose fixtures/methods the tests use (`Use page-<name>` sections), the shared
-   cache `pages/.cache/<page>/` exists and is not empty — a missing/empty page cache is a finding:
+   cache `pages/.cache/<page>/<method>/` exists and is not empty (per method, `__call__` for the
+   activation) — a missing/empty method cache is a finding:
    the first strict run will fail with a cache-miss on the page activation/methods.
 3. A missing/empty cache is a finding: the test will fail with a cache-miss in strict mode; the
    resolution is re-generation via a non-strict run (after the user's confirmation) or a

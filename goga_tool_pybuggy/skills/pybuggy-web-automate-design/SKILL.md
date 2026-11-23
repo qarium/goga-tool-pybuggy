@@ -72,7 +72,7 @@ Establish the following before invoking the goga skill and hold it for the entir
     materializes as a `page_<name>.<method>()` call through the page fixture (pytest
     resolves it by name);
   - **inline steps are not generated for such a sentence**: the sentences already live in the method,
-    and their cache is shared across the page (`pages/.cache/<page>/`).
+    and their cache is shared per method (`pages/.cache/<page>/<method>/`).
 - **Navigation to the site's pages:**
   - a navigation sentence with a path ("Open the page `/login`") materializes
     by **activating the page fixture** `page_<name>()` — the call opens the page in one step,
@@ -83,7 +83,7 @@ Establish the following before invoking the goga skill and hold it for the entir
     (provider/model from `.goga/tools/pybuggy/web.yml`);
   - the cache is written to `tests/web/<cell>/.cache/test_<name>/test_<name>/` (a parameterized case —
     `…/test_<name>[<param_id>]/`); the cache is committed to the repository;
-  - page-method sentences — the shared cache `pages/.cache/<page>/`;
+  - page-method sentences — the shared cache `pages/.cache/<page>/<method>/` (the activation — `__call__`);
   - the first run — **without** `--strict-mode`; repeated runs and CI — with `--strict-mode`
     (replay from the cache, 0 LLM calls);
   - environment change — see **Target environment**.

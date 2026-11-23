@@ -571,7 +571,7 @@ Annotations: |
          falls back to the legacy address (the module's own directory as the root, the module stem
          as the path head); the cache key is the item's name — both parametrize-aware, so a
          parametrized test addresses one directory per parameter case. One shared root is what
-         makes the page-object shared vocabulary work: the page-scope cache directories of the
+         makes the page-object shared vocabulary work: the page-method cache directories of the
          pages' own step sentences (see the web cell's BasePage) address identically from every
          test.
       2. Collect the per-test prompt extras: read the requesting item's

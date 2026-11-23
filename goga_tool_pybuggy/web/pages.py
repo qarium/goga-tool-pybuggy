@@ -9,9 +9,12 @@ alike drive the runtime without the ``.web`` hop; the runtime itself stays publi
 else (``run_on_page``, ``site_base_url``).
 
 The proxy is also the boundary of the page's shared step vocabulary: a step sentence executed
-from a named method of the page class (the activation call included) carries the page's cache
-scope — the page module's path — so one sentence of one page is one shared cache entry for every
-test using that page; a step called inline from a test stays the test's own per-test entry. The
+from a named method of the page class (the activation call included) carries the page method's
+cache scope — the page module's path with the method's own name as its last segment — so one
+sentence of one page **method** is one shared cache entry for every test using that method;
+the same sentence of another method of the same page is another entry — two methods pressing
+a same-named button press it in their own contexts, the generated code of one never stands in
+for the other. A step called inline from a test stays the test's own per-test entry. The
 discrimination is automatic — the caller frame of the proxy is a bound method of this very page
 or it is not — no path is ever passed by hand (see ``_scope_if_page_call``).
 """
@@ -32,7 +35,7 @@ _CALLER_WALK_LIMIT = 8
 
 @cache
 def _page_scope(page_class: type[BasePage]) -> str:
-    """Derive the shared cache scope of a page class — its module's path under a ``cache`` segment.
+    """Derive the base cache scope of a page class — its module's path under a ``cache`` segment.
 
     Args:
         page_class: the concrete page class of the instance in hand.
@@ -41,8 +44,10 @@ def _page_scope(page_class: type[BasePage]) -> str:
         The module path with the dots of the dotted name as separators and a
         ``.cache`` segment above the module's own name — ``pages.admin.auth_page``
         becomes ``pages/admin/.cache/auth_page``, the subdirectory of the cache
-        root holding the page's shared steps; the ``.cache`` parent keeps the
-        generated directories of one module directory under one roof.
+        root holding the page's method directories of shared steps; the ``.cache``
+        parent keeps the generated directories of one module directory under one
+        roof. The method's own name lands as one more segment on top of this base
+        (see ``_scope_if_page_call``).
     """
     segments = page_class.__module__.split(".")
     segments.insert(-1, ".cache")
@@ -73,21 +78,26 @@ def _page_files(page_class: type[BasePage]) -> frozenset[str]:
 
 
 def _scope_if_page_call(page: BasePage) -> str | None:
-    """Decide whether this proxy call comes from the page's own code.
+    """Decide whether this proxy call comes from the page's own code, and from which method.
 
     Called directly from ``step`` / ``expect`` / ``group`` — two frames up is
     the proxy's caller. The walk stays inside the page's own source files and
     declares the call page-scoped exactly when a frame of this very instance
     (a bound method's ``self``, ``__call__`` included) initiated it; a test
     function, a test-class method (its ``self`` is the test object, never the
-    page) and foreign helpers stop the walk at their first frame.
+    page) and foreign helpers stop the walk at their first frame. The scope of
+    a page call is the page's base scope plus the owning method's own name as
+    the last segment — the step binds to the method, not to the page whole, so
+    the same sentence of two methods is two cache entries, never one shared
+    across their different contexts (a method's name is a plain identifier, a
+    valid scope segment by construction).
 
     Args:
         page: the page instance whose proxy is executing.
 
     Returns:
-        The page's cache scope when the call is the page's own; ``None`` —
-        the test's per-test address — otherwise.
+        The calling page method's cache scope when the call is the page's own;
+        ``None`` — the test's per-test address — otherwise.
     """
     frame = sys._getframe(2)  # this helper sits directly under the proxy; frame two is its caller
     files = _page_files(type(page))
@@ -96,8 +106,11 @@ def _scope_if_page_call(page: BasePage) -> str | None:
         if frame is None or frame.f_code.co_filename not in files:
             return None
 
-        if frame.f_locals.get("self") is page:
-            return _page_scope(type(page))
+        # a method's ``self`` is its first parameter; a closure inside a method sees ``self``
+        # only as a free variable — such a frame is the method's implementation detail, the
+        # walk continues to the owning method itself
+        if frame.f_code.co_varnames[:1] == ("self",) and frame.f_locals.get("self") is page:
+            return f"{_page_scope(type(page))}/{frame.f_code.co_name}"
 
         frame = frame.f_back  # a closure inside a page method — keep walking to the method itself
 
@@ -164,9 +177,10 @@ class BasePage:
     ) -> None:
         """Execute one action step sentence through the bound runtime.
 
-        The sentence carries the page's cache scope when the call comes from the page's own
-        code — a method of this class or the activation call; an inline call from a test
-        addresses the step under the test's own cache key (see the module docstring).
+        The sentence carries the calling page method's cache scope when the call comes from
+        the page's own code — a method of this class or the activation call; an inline call
+        from a test addresses the step under the test's own cache key (see the module
+        docstring).
 
         Args:
             text: The step sentence — the template source, exactly as ``web.step`` takes it.
@@ -186,8 +200,8 @@ class BasePage:
     ) -> None:
         """Execute one assertion step sentence through the bound runtime.
 
-        The scope rule is exactly that of :meth:`step` — the page's scope from the page's
-        own code, the test's address from a test's inline call.
+        The scope rule is exactly that of :meth:`step` — the calling method's scope from the
+        page's own code, the test's address from a test's inline call.
 
         Args:
             text: The expectation sentence — the template source, exactly as ``web.expect``
@@ -202,8 +216,8 @@ class BasePage:
         """Open the group authoring block through the bound runtime.
 
         The scope rule is exactly that of :meth:`step` — a group opened from the page's own
-        code carries the page's scope for every step of the block; opened inline from a test
-        it addresses under the test's cache key.
+        code carries the calling method's scope for every step of the block; opened inline
+        from a test it addresses under the test's cache key.
 
         Args:
             prompt: The group prompt — the shared goal of the mini-scenario.
@@ -221,8 +235,9 @@ class BasePage:
         The page performs its characteristic action on call, the pattern of the api kind's
         ``Endpoint``: ``page_login()`` opens the page, ``with page_login() as page:`` scopes
         the work on it under a short local name. The navigation is an ordinary step of the
-        cycle executed through the page's own proxy — it carries the page's cache scope, so
-        the opening sentence is one shared entry for every test of this page: the first run
+        cycle executed through the page's own proxy — it carries the ``__call__`` method's
+        cache scope (the page's base scope with ``__call__`` as the last segment), so the
+        opening sentence is one shared entry for every test of this page: the first run
         generates and caches it, the replay executes the cached code, a failure heals. Never
         override — scenario logic lives in named methods.
 
