@@ -99,7 +99,7 @@ consistency). Merge them with the Phase 3 checks.
       by the pages stage of the testcases pipeline (the contract is the `page-<name>.md`
       usage files);
     - inline steps are not generated for such a sentence (the sentences live in the method;
-      the cache is shared across the page);
+      the cache is shared across the method);
     - a navigation sentence with a path is materialized by activating `page_<name>()`
       (the URL comes from `site.base_url` at runtime);
     - a full inline URL — external pages and query-string addresses only;

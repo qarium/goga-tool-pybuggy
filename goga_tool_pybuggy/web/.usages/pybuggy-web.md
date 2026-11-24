@@ -125,8 +125,9 @@ def test_login_form(page_login):
   live next to the page they belong to, one fixture per page.
 - **Method sentences are the page's shared vocabulary**: a step executed from a named method of
   the page class (the activation call included) addresses the page's **shared cache** — one
-  cached entry per sentence for every test using the page (the first test generates it, every
-  other test replays it with no LLM call). A step called inline from a test (`page.step(...)` in
+  cached entry per sentence per method for every test calling that method (the first test
+  generates it, every other test replays it with no LLM call; the same sentence of another
+  method of the same page is another entry). A step called inline from a test (`page.step(...)` in
   the test body) stays the test's own per-test entry. The boundary is automatic — no path is
   ever passed by hand — so make it a deliberate choice: a method is a reusable sentence, an
   inline step is private. Word method sentences against the live DOM (position, role, visible

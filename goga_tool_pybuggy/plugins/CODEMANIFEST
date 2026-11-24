@@ -91,7 +91,7 @@ Annotations: |
   FILENAME member of the cell's own `WebConfigKeys`) — with the document the `WebPlugin`
   joins the same installation call and owns the web test kind: the web fixture (a per-test
   prettyplay runtime with the step cache rooted at the run's rootdir — the per-test files in a
-  .cache subdirectory beside the test module, the page-scope shared cache of the pages' own
+  .cache subdirectory beside the test module, the page-method shared cache of the pages' own
   methods under a .cache segment beside the page modules), the plugin options of every web.yml
   directive (the standard pluginator loading) with the --strict-mode, --interactive, and
   --browser-endpoint CLI flags, Allure step reporting, the prettyplay event log formatter, and
