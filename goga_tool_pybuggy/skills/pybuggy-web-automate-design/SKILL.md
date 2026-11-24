@@ -84,8 +84,8 @@ Establish the following before invoking the goga skill and hold it for the entir
   - the cache is written to `tests/web/<cell>/.cache/test_<name>/test_<name>/` (a parameterized case —
     `…/test_<name>[<param_id>]/`); the cache is committed to the repository;
   - page-method sentences — the shared cache `pages/.cache/<page>/<method>/` (the activation — `__call__`);
-  - the first run — **without** `--strict-mode`; repeated runs and CI — with `--strict-mode`
-    (replay from the cache, 0 LLM calls);
+  - the first run — **without** `--strict-mode`; the build's repeat run — without it too; accept
+    and CI — with `--strict-mode` (replay from the cache, 0 LLM calls);
   - environment change — see **Target environment**.
 - **Constraints:**
   - cells from Routines only;
@@ -122,7 +122,7 @@ Arguments: `$ARGUMENTS`
    `Use page-<name> — method <method>` reference materialize as `page_<name>.<method>()`
    calls — the page-object methods already exist in pages/**, never generate inline steps
    for them; first run generates the Playwright steps via
-   the LLM and caches them next to the test — never `--strict-mode` on first run; never production
+   the LLM and caches them next to the test — never `--strict-mode` at build; never production
    code").
 4. `goga-design` itself dispatches `goga-design-by-changes` — do not call it bypassing `goga-design`.
 5. Upon completion, check that the document at the path printed by `goga history path -f design.md`:
@@ -130,7 +130,7 @@ Arguments: `$ARGUMENTS`
      directories `tests/web/<cell>/`;
    - names `pytest` as the validation tool;
    - mentions LLM step generation on the first run with a cache committed
-     to the repository (and the ban on `--strict-mode` on the first run);
+     to the repository (and the ban on `--strict-mode` at build);
    - anchors the materialization of a goal sentence as a page-object method call
      (`page_<name>.<method>()` by the `Use page-<name>` reference, without inline steps).
 
@@ -155,7 +155,8 @@ Arguments: `$ARGUMENTS`
 - carry the Base URL and the topic's target environment into the design's mandates (the topic's pages —
   by paths relative to base_url; an environment change is a change of `site.base_url`,
   not of step sentences)
-- reflect the step generation mechanics: the first run — LLM + cache (no strict); repeats — strict replay
+- reflect the step generation mechanics: the first run — LLM + cache (no strict); the build's
+  repeat run — no strict too; accept and CI — strict replay
 - anchor the sentence materialization rules: verbatim string literals — the markers
   `{{ <name> }}` / `{{ vars.<name> }}` verbatim, python values only via the `vars={...}` kwarg;
   the `Prompt:` section — via `@generation_prompt` decorators

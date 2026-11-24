@@ -73,8 +73,8 @@ consistency). Merge them with the Phase 3 checks.
      - page method sentences — the shared cache `pages/.cache/<page>/<method>/` (the step binds to the method; the activation — `__call__`);
    - the cache is committed to the repository;
    - the first run — **without** `--strict-mode`;
-   - repeated runs and CI — with `--strict-mode`;
-   - absence or distortion is **High**; prescribing strict on the first run is **Critical**
+   - the build's repeat run — without it too; accept and CI — with `--strict-mode`;
+   - absence or distortion is **High**; prescribing strict on any build run is **Critical**
      (a guaranteed cache-miss without generation).
 6. **Validation:** pytest is the verification tool; its absence is **High** (goga build will
    not run the tests). Run commands: when the Browser endpoint is "address from the user"
@@ -145,7 +145,7 @@ Before finishing, verify:
    and the materialization of the target sentence via a page object method call
    (`page_<name>.<method>()` per `Use page-<name>`, without inline steps)?
 5. Have you verified the generation and cache policy (first run via LLM without strict, the
-   cache is committed, repeat runs — strict)?
+   committed cache, the build's repeat run without strict, accept/CI — strict)?
 6. Is pytest pinned as the validation tool; do the run commands carry the
    `--browser-endpoint` suffix when the address comes from the user; are the topic pages
    addressed as paths relative to the base_url of the recorded environment?
