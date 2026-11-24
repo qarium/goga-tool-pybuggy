@@ -27,6 +27,100 @@ for step in body.steps:
     print(step.name, step.title)
 ```
 
+## The header repeatable flag
+
+The pipeline header accepts an optional strictly-bool `repeatable` key next
+to `name`/`description`:
+
+```yaml
+name: Goga feature
+description: Feature implementation
+repeatable: true
+---
+```
+
+- absent key or `repeatable: false` — the pipeline is not repeatable and
+  compiles no `repeat` key;
+- `repeatable: true` — the pipeline declares the cycle capability; the
+  compiler then ALWAYS emits a `repeat` key (a workflow `repeat:` block
+  supplies the authored tuning keys; otherwise the scalar `repeat: true`).
+
+A non-bool value is a structural error "non-bool value in
+header.repeatable". The flag never enters the flow-file directly — it is
+the capability the compiled `repeat` directive is derived from; the cycle
+tuning itself is authored in the workflow-file.
+
+## The stage-body `assistants` map
+
+A stage body (both body formats) may declare the stage's helper
+assistants — a name-keyed map where each entry ships with the pipeline:
+
+```yaml
+---
+- name: review
+  title: Review
+  prompt: Implement the feature
+  assistants:
+    auditor:
+      prompt: Audit the diff.
+      skills: [code-audit]
+      when: finish
+      gate: true
+```
+
+| Value key | Type | Default | Note |
+|-----------|------|---------|------|
+| `prompt` | str | — | the helper's instruction |
+| `skills` | list[str] | — | the helper's own skills (delivered via the team member) |
+| `when` | `start` \| `checkpoints` \| `finish` \| `message` | **required** | when the helper engages |
+| `gate` | bool | `false` | `true` — the verdict must pass before the stage finishes |
+
+Every declaration resolves content — `prompt` or `skills` must be
+authored. The delivery keys `agent`, `env`, `delegate` are NOT part of
+this vocabulary: authoring any of them is a structural error naming the
+stage and the assistant — delivery is configured per project in the
+workflow-file (`stages.<stage>.assistants.<name>`).
+
+The parsed steps carry the declarations in a typed `assistants` field
+(`PhaseStep`/`StageStep`); the key is extracted from the verbatim body.
+The declarations attach to their own stage on EVERY run — with a
+workflow-file or without one — and every loop-expanded copy carries
+them. Assistants are forbidden on a stage whose body carries `script`
+and on a planning-only stage. An `assistants` map in a workflow
+extend-entry body is a structural error there (workflow-side rule).
+
+## YAML links and shared starting points
+
+A pipeline-file parses as ONE YAML stream whose anchor registry survives
+the `---` separator: declare an anchor in the header segment or in a
+hidden body key (any top-level body key starting with `.`) and reuse it
+in the body through aliases (`*name`) and merge keys (`<<:`).
+
+```yaml
+name: Goga feature
+description: Feature implementation
+.defaults: &stage_defaults
+  skills:
+    - goga-change
+---
+build:
+  <<: *stage_defaults
+  title: Build
+verify:
+  <<: *stage_defaults
+  title: Verify
+  depends_on: [build]
+```
+
+- Hidden declaration keys are dropped before stage assembly — a `.defaults`
+  key is never a stage, whatever its content.
+- A PHASES (list) body cannot carry a hidden top-level key — declare the
+  anchor in the header segment instead; `<<:` merges work inside list
+  items.
+- Aliases keep sequential order: an alias authored before its anchor
+  fails, and a duplicate anchor name across the segments fails too — both
+  as the clean structural error "invalid YAML in pipeline-file".
+
 ## Parameters
 
 - `text: str` — the full pipeline-file text (including the `---` separator
@@ -62,6 +156,8 @@ objects. Pure (modulo exceptions).
 | Condition                                       | Exception                                 |
 |-------------------------------------------------|-------------------------------------------|
 | `---` separator missing                         | structural error "missing body separator" |
+| Invalid YAML anywhere (incl. a broken alias or a duplicate anchor) | structural error "invalid YAML in pipeline-file" |
+| Extra `---` line inside the body                | structural error "extra body separator" |
 | Header missing `name` or `description`          | structural error "header missing name/description" |
 | Legacy `agents` key in header                    | structural error "agents key is forbidden in header; use roles" |
 | Unknown key in header `roles` block (incl. `summary`) | structural error "unknown role in header.roles: <key>; valid keys: planner, executor, reviewer" |

@@ -3,11 +3,13 @@
 How a `goga_tool_*` package subscribes its hooks to the pipeline domain
 actions. For tool package authors; no goga code changes are needed.
 
-The domain opens three actions. One is an amendment — a read-and-contribute
+The domain opens eighteen actions. One is an amendment — a read-and-contribute
 view over the workflow a run is about to execute, delivered before
 compilation. Two are notifications —
 the read-only facts of the run, delivered immediately before the runner
-launch and on every launch-attempt return.
+launch and on every launch-attempt return. Fifteen are the bridged mid-run
+events — the stage transitions and the run-level resume/interrupt of the
+run interior, delivered live while the run executes.
 
 ## The events
 
@@ -49,11 +51,17 @@ the workflow decision (disabled / explicit / auto-match / silent-miss,
 with the resolved name); `workflow` — the original authored workflow
 after the decision and the runner-skip merge, read-only and identical
 for every tool (None when no workflow resolved); `work` — the current
-work identity.
+work identity; `profile` — the operation's active contributor profile:
+`name`, `data` (its whole content mapping), and `source` (`project` or
+`home`), or None when no profile is active — including when no workflow
+resolved. It is the same profile that rendered the workflow-file, read
+identically by every tool; you never need to re-resolve it — the CLI
+channel and the home bundle are wired for you.
 
 ```python
 def add_hardening(context):
-    context.contribute(hardening_workflow)
+    if context.profile and context.profile.name == "strict":
+        context.contribute(hardening_workflow)
 ```
 
 - `contribute(document)` buffers one declarative `WorkflowDocument`-shaped
@@ -67,6 +75,29 @@ def add_hardening(context):
   unset, extend entries add under fresh names. `skip` is an ordinary
   field — an authored skip is unbeatable, an unset skip is yours to set,
   including removing a pipeline-file stage the author did not protect.
+- **Every string of your contribution is a template surface.** At your
+  tool's commit the platform renders every string of the contributed
+  document — values and mapping keys alike, at any depth — with the
+  active profile's content, under the same rendering semantics the
+  workflow-file uses: a missing profile key renders empty, no active
+  profile renders against an empty context, and no other variables
+  exist in the context (your tool name, the pipeline, and the workflow
+  name are not template variables). A stage prompt contributed as
+  `Model: {{ model }}` renders against the profile exactly as an
+  authored workflow-file prompt would.
+- A template error anywhere in your contribution — fields that never
+  merge included — stops the command before it runs: the error names
+  your tool and the action and carries the template cause (the error
+  class, the message, and the document path of the failing string);
+  your whole contribution is discarded and no later tool's hooks run.
+  Two keys of one of your maps that render to the same string fail the
+  same way — the map, both source keys, and the colliding result are
+  named.
+- **Legacy note — intended behavior change:** a string carrying literal
+  `{{ }}` that used to land in the workflow as inert text now renders
+  (or fails). This is the intended and only behavior change; a
+  contribution without template syntax composes exactly as before, with
+  or without an active profile.
 - A failing hook of the amendment stops the command with a clean error
   naming your tool and the action; your whole contribution is discarded.
 - The merged workflow passes the same compilation validation as an
@@ -89,6 +120,42 @@ affected.
   completion moment, plus `exit_code` — the actual exit code of the
   launch attempt. Completion is a fact, not a success claim.
 
+## The bridged mid-run events
+
+Fifteen soft actions deliver the run interior live, while the stages still
+execute — one event per lifecycle transition. Observed: a hook never
+changes the run. Best-effort: an event not delivered before a crash is not
+replayed — build subscribers tolerant of gaps.
+
+| Class | Actions | Context |
+|---|---|---|
+| Stage transitions (13) | `stage_planning_started`, `stage_plan_ready`, `stage_approved`, `stage_revision_started`, `stage_execution_started`, `stage_question_asked`, `stage_question_answered`, `stage_retry_scheduled`, `stage_retry_started`, `stage_paused`, `stage_resumed`, `stage_finished`, `stage_failed` | `StageEvent` |
+| Run-level (2) | `run_resumed`, `run_interrupted` | `RunEvent` |
+
+- `StageEvent` reads: `pipeline` — the pipeline name; `run` — the run
+  identity (`run_id`, `run_dir`, `root_dir`, `resumed`); `stage` — the
+  transition (`id`, `name`, `from_status`, `to_status`, `phase`);
+  `event_id` — the stable event identity, the idempotency key;
+  `occurred_at` — the event moment (ISO-8601 UTC); `reason` — the
+  free-text cause, empty when none.
+- `RunEvent` reads the same facts without the `stage` block.
+- Your hooks run inside a short-lived process per event: `self` state dies
+  with the event — persist across events in your own storage. The process
+  inherits the run launch environment (env-file layers, the task env
+  layer, CLI `-e` entries) — treat it as visible.
+- A failing hook warns naming your tool and the action; the event, the
+  run, and the other subscribers are unaffected.
+
+```python
+def register_hooks(hooks):
+    hooks.subscribe("pipeline", "stage_execution_started", "notify", on_start)
+    hooks.subscribe("pipeline", "stage_finished", "notify", on_finish)
+
+
+def on_start(context):
+    report(f"{context.pipeline}: {context.stage.name} → executing")
+```
+
 ## Integration scenarios
 
 - **Artifact → status on completion** — subscribe to `run_completed`,
@@ -96,7 +163,14 @@ affected.
   domain keyed by your artifact.
 - **Run reporting and automation** — subscribe to `run_created` and
   `run_completed`, read the facts, keep state in your `self` context.
+- **Live progress reporting** — subscribe to the stage transitions, read
+  `stage` and `run`, report while the run executes; tolerate gaps
+  (best-effort delivery).
 - **Workflow personalization** — subscribe to `amend_workflow`, read
   `workflow`, contribute your declarative adjustments.
 - **On-the-fly composition add-ons** — contribute `extend` entries with
   fresh stage names; authored names always win.
+- **Profile-aware contribution** — subscribe to `amend_workflow`, read
+  `profile` (name, content, source) to branch programmatically, and put
+  `{{ ... }}` expressions in your contributed strings to template them
+  against the same profile the workflow-file used.

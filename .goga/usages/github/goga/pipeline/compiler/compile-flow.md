@@ -7,10 +7,13 @@ and detects the body format, applies per-stage workflow overrides + loop-expansi
 
 ## Stage-body field translation (canonical order)
 
+Output FlowDocument top-level keys, canonical order:
+prompt, root_dir, name, description, repeat, memory, collaboration, team, stages.
+
 Output FlowStage fields, canonical order:
 interactive, auto_approve, auto_run, command, prompt, description, buttons, agents, supervisor,
 supervisor_prompt, skills, script_before, script, script_after, script_timeout, reflect,
-memory_use, <unknown A-Z>.
+memory_use, assistants, verify, <unknown A-Z>.
 
 Authoring key → output key (the authoring key is consumed, not passed through):
 - communication → interactive (value true/false)
@@ -37,6 +40,29 @@ authoring reflect or memory_use key is likewise rejected ("reflect key is
 forbidden in stage body; use reflect in workflow.stages" / "memory_use key is
 forbidden in stage body; use memory in workflow.stages") — the memory stage
 keys are compiled exclusively from the workflow instructions.
+
+## Repeat compilation (repeatable pipelines)
+
+One rule, no exceptions: a repeatable pipeline ALWAYS compiles a `repeat`
+key — without the key the engine starts no cycle.
+
+| Workflow authoring | Compiled `repeat` |
+|---|---|
+| `repeat: {max_cycles: 3}` | `repeat: {max_cycles: 3}` |
+| `repeat: {keep_runs: 5}` | `repeat: {keep_runs: 5}` |
+| `repeat: {max_cycles: 3, keep_runs: 5}` | both keys, order `max_cycles, keep_runs` |
+| no block / no workflow-file / `--no-workflow` | `repeat: true` |
+
+- Authored keys only — goga materializes no defaults (`max_cycles: 0` and
+  `keep_runs: 0` are authored values and compile verbatim).
+- A workflow `repeat:` block on a non-repeatable pipeline is a compile-time
+  structural error "workflow repeat block requires a repeatable pipeline;
+  author repeatable: true in the pipeline header".
+- The compiled `repeat` sits immediately after `description`, before
+  `memory`.
+- afm owns every cycle semantic (unlimited default cycles, `keep_runs: 2`
+  default, stop-on-failed-cycle, pruning) — the compile path never
+  duplicates them and the run stays a single `afm run`.
 
 ## trigger (stage-body: on_success | manual) & manual (workflow: bool)
 
@@ -130,13 +156,43 @@ from the body — the compiler joins them. PipelineDocument is unaffected
 
 ## Stage script directives
 
-before_script, script, after_script are string stage-body directives that
-translate (word-order reversal) to script_before, script, script_after.
+before_script, script, after_script are stage-body directives that translate
+(word-order reversal) to script_before, script, script_after. Each payload is
+a string or the script's lines — a list:
+
+```yaml
+build:
+  title: Build
+  before_script: [echo prep1, echo prep2]
+  script:
+    - pytest ./
+    - ruff check .
+```
+
+- a string payload passes verbatim
+- a non-empty list of non-empty strings joins with newlines into ONE
+  multi-line string — shell-identical to authoring the same text as a block
+  scalar; the serializer emits the multi-line result as a block literal
+- any other value → structural error "before_script|script|after_script must
+  be a string or a non-empty list of non-empty strings in stage <name>"
+  (the message names the authored key)
 
 Structural error: a stage body that carries script together with prompt
 and/or skills is rejected at compile time — "script is mutually exclusive with
 prompt/skills in stage <name>". before_script/after_script are compatible
 with prompt/skills/script (no error).
+
+Structural error: a stage body that carries script together with a verbatim
+`command` key is rejected at compile time — "script is mutually exclusive
+with command in stage <name>". The stage action is one — the agent exec
+target (`command`) or the script.
+
+Structural error: a workflow stage-level agent instruction on a script stage
+is rejected at compile time — "agent is forbidden on a script stage in
+workflow.<name>: <agent>". A script stage runs its script; the workflow
+agent override applies to agent stages only. before_script/after_script and
+`timeout` stay compatible with the workflow agent override on non-script
+stages.
 
 ## Stage timeout directive
 
@@ -159,6 +215,86 @@ body) translated to the afm per-stage key `script_timeout`.
   `script_timeout` are authored, the translated `timeout` value wins
 - loop-expanded copies inherit `script_timeout` verbatim; `PipelineDocument`
   is unaffected (output-side only)
+
+## Gates compilation (`verify`)
+
+A stage carrying authored check steps compiles a stage-level completion
+gate — the engine `verify` field, in the canonical slot after `assistants`.
+
+Translation (authored → engine):
+
+| Authored | Emitted | Note |
+|----------|---------|------|
+| `script` | `run` | shell step; timeout materializes `1h` when not authored |
+| `agent` | `command` | `/home/goga/bin/<agent>-as-claude.sh` — composed directly, no existence checks |
+| `patience` | `review_patience` | settings, authored keys only |
+| `max_iterations` | `max_failures` | settings, authored keys only |
+| `fresh_correction` | `fresh_correction` | unchanged |
+| `name`/`prompt`/authored `timeout` | same | verbatim |
+
+- No workflow-level settings block → the gate is the steps alone (list
+  form); any authored setting key → the container form (steps + settings).
+  The settings block without per-stage steps is inert.
+- Steps compile in authored order; every loop-expanded copy carries the
+  same gate; a skipped stage emits nothing; an empty gates list equals
+  absence (authored emptiness normalizes to `None` at parse, and the
+  emission guard treats an empty programmatic list the same — no `verify`
+  key, no body check).
+- Pre-run strict errors (naming the stage): gates on a stage whose body
+  carries `script`; gates on a planning-only stage (translated agents
+  exactly `["planning"]`); an authoring `gates` or raw `verify` key in a
+  stage body — `verify` is compiled-only, authored through
+  `workflow.stages`. A check step carrying both or neither of
+  `script`/`agent`, or carrying `prompt` alongside `script` (the engine
+  accepts `prompt` on AI steps only), fails with the parser's message —
+  authored files hit the parser first, but a programmatic workflow (a tool
+  contribution) reaches the compiler unvalidated.
+- Value grammar (durations, name text) passes verbatim — the engine
+  reports malformed values at preflight. goga performs no cross-field
+  checks of engine constraints and never executes or interprets the gate.
+- A step's authored `env` map never reaches the emission (the engine's
+  verify-step schema has no `env` field) — the compiler emits an
+  env-carrying step exactly like an env-free one; the pipeline run
+  coordination's gate wrapper generation delivers the env downstream.
+- A gate-free workflow compiles byte-identically.
+
+## Collaboration emission
+
+Collaboration compiles from both authoring surfaces — the workflow's
+collaboration instructions and the pipeline-file stage-body
+declarations — into three output surfaces:
+
+- the top-level `collaboration` block is emitted into EVERY compiled flow
+  — `mode: assistants` always, `max_depth` only when the workflow's
+  `delegation:` block authors a depth; it sits between `memory` and
+  `team`
+- the `team` list is emitted from the workflow catalog in authored order,
+  then the pipeline-declared members in pipeline body stage order
+  (loop-expanded copies collapse to their base stage's first occurrence;
+  vetoed and stage-skipped declarations never join) — omitted entirely
+  when both sources are empty
+- a stage emits its `assistants` list when it carries at least one
+  effective attachment — the canonical slot after `memory_use`; within
+  the list, pipeline declarations first (authored order), then workflow
+  entries (authored order); uniform across every loop-expanded copy; a
+  skipped stage attaches nothing
+
+Compilation checks (structural errors naming the location): a name
+collision across the effective namespace (catalog, inline, pipeline
+declarations, overlay contributions); an attachment naming no member of
+the namespace (a pipeline-declared name is visible only to its own
+stage's entry); a missing `when` on an entry naming no pipeline
+declaration of the stage; the same assistant name twice in one stage's
+list; an attachment from any source on a stage whose translated body
+carries `script`; an attachment from any source on a planning-only stage
+(translated agents exactly `["planning"]`); a workflow declaration
+resolving no effective prompt and no skills. The checks run over the
+working body after skip removal and loop expansion, with or without a
+workflow document. A workflow entry addressing a pipeline-declared name
+of its own stage is a `{skip: true}` veto or an additive extension
+(when/gate override with inheritance, prompt append with one blank line,
+skills expand with deduplication, agent/env/delegate delivery
+configuration).
 
 ## Key presence
 

@@ -1,6 +1,6 @@
 # CLI Commands — goga/commands facade
 
-The `goga.commands` package is a facade that re-exports 16 CLI commands. Each command is a `click.Command` registered in a click group. Each subcell is an independent Python package (`goga/commands/<name>/`) with implementation in `<name>.py` and re-export through `__init__.py`.
+The `goga.commands` package is a facade that re-exports 19 CLI commands. Each command is a `click.Command` registered in a click group. Each subcell is an independent Python package (`goga/commands/<name>/`) with implementation in `<name>.py` and re-export through `__init__.py`.
 
 ## Import
 
@@ -12,6 +12,8 @@ from goga.commands import (
     build,
     connect,
     schema,
+    codegraph,
+    drift,
     contract,
     config,
     usages,
@@ -24,6 +26,7 @@ from goga.commands import (
     history,
     hooks,
     topics,
+    runtime,
 )
 ```
 
@@ -34,6 +37,8 @@ from goga.commands.lint import lint
 from goga.commands.build import build
 from goga.commands.connect import connect
 from goga.commands.schema import schema
+from goga.commands.codegraph import codegraph
+from goga.commands.drift import drift
 from goga.commands.contract import contract
 from goga.commands.config import config
 from goga.commands.usages import usages
@@ -46,6 +51,7 @@ from goga.commands.install import uninstall
 from goga.commands.history import history
 from goga.commands.hooks import hooks
 from goga.commands.topics import topics
+from goga.commands.runtime import runtime
 ```
 
 ## Registration in click group
@@ -58,6 +64,8 @@ from goga.commands import (
     build,
     connect,
     schema,
+    codegraph,
+    drift,
     contract,
     config,
     usages,
@@ -70,6 +78,7 @@ from goga.commands import (
     history,
     hooks,
     topics,
+    runtime,
 )
 
 
@@ -82,6 +91,8 @@ app.add_command(lint)
 app.add_command(build)
 app.add_command(connect)
 app.add_command(schema)
+app.add_command(codegraph)
+app.add_command(drift)
 app.add_command(contract)
 app.add_command(config)
 app.add_command(usages)
@@ -94,6 +105,7 @@ app.add_command(uninstall)
 app.add_command(history)
 app.add_command(hooks)
 app.add_command(topics)
+app.add_command(runtime)
 ```
 
 ## Testing with CliRunner
@@ -117,6 +129,8 @@ def test_example():
 | `build`     | `goga/commands/build/`    | Build via ralphex                    |
 | `connect`   | `goga/commands/connect/`  | Connect goga skills                  |
 | `schema`    | `goga/commands/schema/`   | Project JSON schema                  |
+| `codegraph` | `goga/commands/codegraph/` | Prospective cell graph from existing code |
+| `drift`     | `goga/commands/drift/`    | Contract drift between schema and codegraph |
 | `contract`  | `goga/commands/contract/` | Compare contract with implementation |
 | `config`    | `goga/commands/config/`   | Output configuration values          |
 | `usages`    | `goga/commands/usages/`   | Synchronize cell-level usages        |
@@ -129,3 +143,4 @@ def test_example():
 | `history`   | `goga/commands/history/`  | Work with the .goga/history/ tree    |
 | `hooks`     | `goga/commands/hooks/`    | Inspect registered tool hooks        |
 | `topics`    | `goga/commands/topics/`   | Topic board, creation, and switching |
+| `runtime`   | `goga/commands/runtime/`  | Runtime state paths and archives     |
