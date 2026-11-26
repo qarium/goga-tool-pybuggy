@@ -80,31 +80,29 @@ Time and context limits (exhausting the budget is NOT a STOP: whatever is left u
 3. **Base URL and target addresses**: take the Base URL section (the `site.base_url` directive of web.yml —
    a config fact), Run Arguments, and the Target Pages table from [INTAKE_REPORT]. If the Base URL /
    Target Pages sections are empty — **STOP**: return to intake.
-   - **Rendering base_url**: a simple URL — as is; a Jinja2 template — substitute the argument values from
-     Run Arguments (env and CLI together) and obtain the topic environment's address. If the template does
-     not render (unknown variable, no values) — **STOP**: return to intake for the values.
-   - **Assembling full URLs**: give each target page a full address: the path `/…` is joined to
-     base_url (a single slash at the junction), a full URL is taken as is. A path with an empty segment (`/`)
-     means base_url itself. Record the assembled table — only full URLs are explored.
+    - **Rendering base_url**: a simple URL — as is; a Jinja2 template — substitute the argument values from
+      Run Arguments (env and CLI together) and obtain the topic environment's address. If the template does
+      not render (unknown variable, no values) — **STOP**: return to intake for the values.
+    - **Assembling full URLs**: give each target page a full address: the path `/…` is joined to
+      base_url (a single slash at the junction), a full URL is taken as is. A path with an empty segment (`/`)
+      means base_url itself. Record the assembled table — only full URLs are explored.
 4. **Skill reference**: load `goga-tool-pybuggy-web-playwright-cli` via the Skill tool — the
    command vocabulary of the exploration (sessions, attach/detach, snapshots/refs, find, eval,
    interactions, console/network, authorization state).
 5. **Session bootstrap** — commands pre-executed before the first `goto`, in a single Bash call
    (env and variables do not survive between calls):
-
    ```bash
    PLAYWRIGHT_MCP_OUTPUT_DIR="$(goga history path 2>/dev/null)/playwright" \
      playwright-cli -s=pybuggy-explore attach --cdp=<address from Browser Endpoint>
    ```
-
-   - `PLAYWRIGHT_MCP_OUTPUT_DIR` — session artifacts (screenshots/traces) are written to
-     `<topic history>/playwright/`;
-   - an `http(s)://` address — CDP → `--cdp=`; `ws(s)://` — Playwright server → `--endpoint=` instead of
-     `--cdp=`; an address with `host.docker.internal` inside Docker resolves to the host IP via
-     `getent hosts host.docker.internal` (outside Linux `getent` returns nothing — use the name as is);
-   - attach unavailable (browser not running / port closed) — **STOP** with AskUserQuestion:
-     "start the browser with remote debugging at this address" / "another address (return to intake)" —
-     how to proceed?
+    - `PLAYWRIGHT_MCP_OUTPUT_DIR` — session artifacts (screenshots/traces) are written to
+      `<topic history>/playwright/`;
+    - an `http(s)://` address — CDP → `--cdp=`; `ws(s)://` — Playwright server → `--endpoint=` instead of
+      `--cdp=`; an address with `host.docker.internal` inside Docker resolves to the host IP via
+      `getent hosts host.docker.internal` (outside Linux `getent` returns nothing — use the name as is);
+    - attach unavailable (browser not running / port closed) — **STOP** with AskUserQuestion:
+      "start the browser with remote debugging at this address" / "another address (return to intake)" —
+      how to proceed?
 6. **Reachability**: in the attached session, run `goto` on the first URL. On timeout/DNS/5xx — one retry
    (`reload`). On failure — **STOP** with AskUserQuestion: "the URL is wrong" / "the environment is not
    started" / "VPN/access is required" — how to proceed?
@@ -139,17 +137,17 @@ For each URL from Target Pages (a full dossier — for every page, without excep
    Separately list the **page's API endpoints** (XHR/fetch: method + path) — the main source of facts for
    requirements §6.
 8. **Observable states**:
-   - empty state — record how it looks (if observed);
-   - error state — one safe submit of an empty form (if a form exists and the submit is harmless),
-     record the validation texts verbatim;
-   - loading state — only if it was observed;
-   - pop-up banners/toast notifications that appear and disappear on their own (on page load
-     or after an action): record the verbatim text, the appearance event, and the **timing — after
-     how many seconds the banner disappears**. Measurement: `find "<banner text>"` immediately after
-     the event, then repeated checks with a pause (`sleep N` between calls) until it disappears — the
-     period from appearance to disappearance; for more precision — `--raw eval` with element-presence
-     polling (Promise +
-     `setTimeout`), returning the appearance and disappearance times in seconds.
+    - empty state — record how it looks (if observed);
+    - error state — one safe submit of an empty form (if a form exists and the submit is harmless),
+      record the validation texts verbatim;
+    - loading state — only if it was observed;
+    - pop-up banners/toast notifications that appear and disappear on their own (on page load
+      or after an action): record the verbatim text, the appearance event, and the **timing — after
+      how many seconds the banner disappears**. Measurement: `find "<banner text>"` immediately after
+      the event, then repeated checks with a pause (`sleep N` between calls) until it disappears — the
+      period from appearance to disappearance; for more precision — `--raw eval` with element-presence
+      polling (Promise +
+      `setTimeout`), returning the appearance and disappearance times in seconds.
 9. **Adjacent page traversal**: 1–2 key clicks from item 6; each transition — a line "action (click
    `<element>`) → `<final URL>`" in the navigation map; return with `go-back`. A new significant page
    within the crawl depth — a mini-dossier (heading + links + purpose); a full dossier — only for
@@ -219,22 +217,25 @@ Fill in every section. Empty sections are forbidden.
 - **Purpose:** <1–2 sentences — what this page is>
 - **Key elements:** (addressing by visible names; locators — CSS/XPath, testid — are not recorded)
 
-  | Element (visible name) | Purpose | ref |
-  |-----------------------|------------|-----|
-  | […]                   | […]        | e12 |
+| Element (visible name) | Purpose | ref |
+|------------------------|---------|-----|
+| […]                    | […]     | e12 |
 
 - **Forms:** for each: action, method; fields `name / type / required / validations (placeholder, pattern, maxLength)`
 - **Navigation:** `action (click <element>) → <final URL>` (for site pages — also the path
   relative to base_url) — for each transition
-- **Observable states:** empty / error (validation texts verbatim) / loading / pop-up banners-toasts (verbatim text, appearance event, disappear after N s) — what they look like and how to reproduce them
-- **Network and console:** console errors; failed requests (method URL → status); the page's API endpoints (method + path)
+- **Observable states:** empty / error (validation texts verbatim) / loading / pop-up banners-toasts (verbatim text,
+  appearance event, disappear after N s) — what they look like and how to reproduce them
+- **Network and console:** console errors; failed requests (method URL → status); the page's API endpoints (method +
+  path)
 - **Discrepancies with user expectations:** <statement from [INTAKE_REPORT] ↔ observation; or `none`>
 
 ### PAGE-2: …
 
 ## Auth
 
-[none | mechanism: form `<URL>`, fields `<name>`, submit `<button — visible name>`; credentials source `<env-names/user>`;
+[none | mechanism: form `<URL>`, fields `<name>`, submit `<button — visible name>`; credentials source
+`<env-names/user>`;
 session state saved: yes/no. NO secret values]
 
 ## Re-attach command
@@ -254,5 +255,6 @@ interactions: used/limit; exhausted: yes/no]
 
 ## Technical findings
 
-[redirects, pop-ups/new windows, cookie banners, special requirements (WebGL/geolocation/fonts) — what affects the tests; or `none`]
+[redirects, pop-ups/new windows, cookie banners, special requirements (WebGL/geolocation/fonts) — what affects the tests; or
+`none`]
 ```

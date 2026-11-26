@@ -89,10 +89,9 @@ from goga_tool_pybuggy.web import BasePage
 class LoginPage(BasePage):
     def dismiss_cookie_banner(self) -> None:
         """Dismiss the cookie banner that covers the form on every visit."""
-        with self.group("Dismiss the cookie banner"):
-            self.step("Close the cookie banner")
-
-        self.expect("The cookie banner is gone")
+        with self.group("Dismiss the cookie banner") as g:
+            g.step("Close the cookie banner")
+            g.expect("The cookie banner is gone")
 
 
 @pytest.fixture(scope="function")
@@ -115,6 +114,12 @@ def test_login_form(page_login):
   pattern of the api kind's `Endpoint`; `with page_login() as page:` scopes the work on the
   opened page under a short local name — the exit closes nothing (the `web` fixture owns the
   runtime lifecycle) and never suppresses.
+- **Activation first, method calls second.** The test's fixture parameter is the page object
+  itself, and the activation is what opens the page: the navigation/activation call (`page_login()`,
+  normally as `with page_login() as page:`) precedes every `page.<method>()`. A method call never
+  navigates — the runtime holds one page per test, so without the activation the method's sentences
+  execute on whatever page is currently open (and before any step there is no page at all):
+  navigation belongs to the activation and to navigation sentences, never to a scenario method.
 - **The step surface is proxied onto the page**: `page.step` / `page.expect` / `page.group` —
   the same sentences and keyword-only parameters (`tries`/`delay`/`vars`) as the runtime's,
   without the `.web` hop; the runtime stays public for everything else

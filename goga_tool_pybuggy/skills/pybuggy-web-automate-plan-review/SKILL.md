@@ -2,6 +2,7 @@
 name: goga-tool-pybuggy-web-automate-plan-review
 description: Verification of the web ralphex plan `goga history path -f plan.md` — every test runs twice (the generation run writes the step code and the committed cache, the repeat run confirms it passes), all runs WITHOUT --strict-mode; the browser connection line in every generating Task, the cache-preservation instruction, and the CRITICAL refinement policy (diagnose from the pytest log → fix by cause in test_*.py, limit 3, abandon last; the CODEMANIFEST stays read-only)
 ---
+
 # Pybuggy Web Topic Plan — Review
 
 ## Identity
@@ -87,14 +88,14 @@ CODEMANIFEST consistency). Merge them with the Phase 3 checks.
    the cache is committed; after the run, verify that the cache files have appeared. A missing
    instruction — **High**; a prescription to clean/gitignore — **Critical**.
 7. **Refinement policy in every generating Task** — each Task carries:
-   - diagnose first: parse the pytest log/run output → classify (provider/generation error,
-     cache-miss, execution failure) → read the step's cached code (read-only); a live-page check
-     when the cause is not in the log;
-   - fix by cause in `test_*.py`: reformat the step, fix the glue, stale cache delete + one
-     non-strict regen (never hand-edit);
-   - CODEMANIFEST/`pages/**` read-only; limit 3 targeted iterations; abandon only after all
-     options are exhausted (cause + was → became in the Task report);
-   - no `pytest.skip`/skip markers/`xfail` anywhere.
+    - diagnose first: parse the pytest log/run output → classify (provider/generation error,
+      cache-miss, execution failure) → read the step's cached code (read-only); a live-page check
+      when the cause is not in the log;
+    - fix by cause in `test_*.py`: reformat the step, fix the glue, stale cache delete + one
+      non-strict regen (never hand-edit);
+    - CODEMANIFEST/`pages/**` read-only; limit 3 targeted iterations; abandon only after all
+      options are exhausted (cause + was → became in the Task report);
+    - no `pytest.skip`/skip markers/`xfail` anywhere.
 
    Missing instruction — **Critical**; retries without a diagnosis — **High**; any skip/xfail —
    **Critical**; a Task instructing manifest/pages/cache edits — **Critical**.
@@ -119,12 +120,12 @@ CODEMANIFEST consistency). Merge them with the Phase 3 checks.
 
 1. Collect all findings (base + Phase 3) **before** presenting them; sort **Critical → High → Medium**.
 2. Present them one at a time, with the fields:
-   - Severity
-   - Area (Base / Execution / Browser / Cache / Policy / Coverage / Environment)
-   - Location
-   - Issue
-   - Impact
-   - Suggested fix
+    - Severity
+    - Area (Base / Execution / Browser / Cache / Policy / Coverage / Environment)
+    - Location
+    - Issue
+    - Impact
+    - Suggested fix
 3. For execution-critical findings (pytest missing, strict present, a missing repeat run, a masked
    checkbox, skip markers) always propose a concrete fix.
 4. AskUserQuestion (2–4 options): **Apply suggested fix** / **Propose alternative** / **Skip** — with a

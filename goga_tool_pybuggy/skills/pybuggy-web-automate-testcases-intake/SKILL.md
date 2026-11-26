@@ -54,6 +54,8 @@ input for all subsequent steps.
 
 ## Output Format
 
+Fill in every section. Empty sections are forbidden.
+
 ```md
 # [TESTCASES_INTAKE]
 
@@ -70,8 +72,8 @@ existing files only.]
 
 ## Key Resolution
 
-| key | path | status |
-|-----|------|--------|
+| key         | path                                      | status   |
+|-------------|-------------------------------------------|----------|
 | pybuggy-web | .goga/usages/cooks/pybuggy/pybuggy-web.md | resolves |
 
 ## Requirements

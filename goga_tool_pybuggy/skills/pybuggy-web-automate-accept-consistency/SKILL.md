@@ -126,8 +126,8 @@ masking = a Critical finding.
 
 ### Step 8. Findings and decisions (WAIT)
 
-1. Collect all findings before showing them; sort by Seriousness Critical → High → Medium.
-2. Show them one at a time: Seriousness / Area / Location (test, Routine, sentence) / Issue /
+1. Collect all findings before showing them; sort by Severity Critical → High → Medium.
+2. Show them one at a time: Severity / Area / Location (test, Routine, sentence) / Issue /
    Evidence / **Suggested fix** (a concrete edit).
 3. AskUserQuestion for each one (2–4 options): **Apply suggested fix** / **Propose alternative** /
    **Skip**. Counter: "Finding 3 of 12".
@@ -173,7 +173,7 @@ a path not from §2 / a foreign origin without the mark)]
 
 ## Findings
 
-[List of findings: Seriousness / Location / Issue / Suggested fix. Write `none` if there is
+[List of findings: Severity / Location / Issue / Suggested fix. Write `none` if there is
 nothing]
 
 ## Applied fixes

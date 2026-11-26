@@ -2,6 +2,7 @@
 name: goga-tool-pybuggy-web-automate-design-review
 description: Verify the web test design doc `goga history path -f design.md` — extends goga-review-design with web-specific checks (test_*.py materialization via the web fixture, step-sentence mechanics, Prompt→@generation_prompt decorators, first-run LLM generation + committed step cache without strict mode, pytest validation, browser-endpoint suffix on run commands, site pages addressed as base_url-relative paths of the recorded environment)
 ---
+
 # Pybuggy Web Topic Design — Review
 
 ## Identity
@@ -49,45 +50,46 @@ consistency). Merge them with the Phase 3 checks.
    as generating `test_<name>.py` bound to its `location` — a mismatch is **Critical**.
 3. **Step mechanics:** the design prescribes materializing every item of a `Steps:` annotation
    into exactly one sentence:
-   - an action → `page.step("…")`;
-   - a check → `page.expect("…")`;
-   - a mini-scenario (a set of actions changing the state of the page/widget) →
-     `with page.group("<achieved state>"):`;
-   - variable captures are stated with their markers: `{% var <name> %}` captures a value in
-     a step sentence, `{{ <name> }}` substitutes the captured value into subsequent sentences
-     (references from `Data:`) — marker distortion is **High**;
-   - sentences are **string literals**: `{{ … }}` / `{{ vars.<name> }}` markers verbatim,
-     python values enter only via the `vars={...}` kwarg — prescribing f-strings/format in
-     sentences or values in sentence text is **High**;
-   - distortion or absence of the mechanics is **High**.
+    - an action → `page.step("…")`;
+    - a check → `page.expect("…")`;
+    - a mini-scenario (a set of actions changing the state of the page/widget) →
+      `with page.group("<achieved state>"):`;
+    - variable captures are stated with their markers: `{% var <name> %}` captures a value in
+      a step sentence, `{{ <name> }}` substitutes the captured value into subsequent sentences
+      (references from `Data:`) — marker distortion is **High**;
+    - sentences are **string literals**: `{{ … }}` / `{{ vars.<name> }}` markers verbatim,
+      python values enter only via the `vars={...}` kwarg — prescribing f-strings/format in
+      sentences or values in sentence text is **High**;
+    - distortion or absence of the mechanics is **High**.
 4. **Per-test instructions:** the `Prompt:` annotation section is materialized with
    `@generation_prompt("<bullet>")` decorators (import
    `from goga_tool_pybuggy import generation_prompt`;
    decorator order = bullet order; texts verbatim; routines without `Prompt:` carry no
    decorators) — distortion is **High**; prescribing a different mechanism is **High**.
 5. **Generation and cache:** the design fixes:
-   - the first test run generates the Playwright code of the sentences via an LLM
-     (provider/model from `web.yml`);
-   - the cache is written to `tests/web/<cell>/.cache/test_<name>/test_<name>/`:
-     - a parameterized case — `…/test_<name>[<param_id>]/`;
-     - page method sentences — the shared cache `pages/.cache/<page>/<method>/` (the step binds to the method; the activation — `__call__`);
-   - the cache is committed to the repository;
-   - the first run — **without** `--strict-mode`;
-   - the build's repeat run — without it too; accept and CI — with `--strict-mode`;
-   - absence or distortion is **High**; prescribing strict on any build run is **Critical**
-     (a guaranteed cache-miss without generation).
+    - the first test run generates the Playwright code of the sentences via an LLM
+      (provider/model from `web.yml`);
+    - the cache is written to `tests/web/<cell>/.cache/test_<name>/test_<name>/`:
+        - a parameterized case — `…/test_<name>[<param_id>]/`;
+        - page method sentences — the shared cache `pages/.cache/<page>/<method>/` (the step binds to the method; the
+          activation — `__call__`);
+    - the cache is committed to the repository;
+    - the first run — **without** `--strict-mode`;
+    - the build's repeat run — without it too; accept and CI — with `--strict-mode`;
+    - absence or distortion is **High**; prescribing strict on any build run is **Critical**
+      (a guaranteed cache-miss without generation).
 6. **Validation:** pytest is the verification tool; its absence is **High** (goga build will
    not run the tests). Run commands: when the Browser endpoint is "address from the user"
    (requirements §1) — the suffix `--browser-endpoint <address>`; "from the config" — no
    flag. A violation is **High** (runs will go against the wrong browser).
 7. **Environment:**
-   - Base URL and the target environment are carried over from requirements §1/§2;
-   - the topic pages are addressed as **paths relative to base_url** (external pages — full
-     URLs with the "external" label);
-   - a path that does not cross-check against the §2 pages, or a foreign origin without the
-     label — **High**;
-   - an environment change is prescribed as a change of `site.base_url` (+ one non-strict
-     run), not of step sentences — anything else is **High**.
+    - Base URL and the target environment are carried over from requirements §1/§2;
+    - the topic pages are addressed as **paths relative to base_url** (external pages — full
+      URLs with the "external" label);
+    - a path that does not cross-check against the §2 pages, or a foreign origin without the
+      label — **High**;
+    - an environment change is prescribed as a change of `site.base_url` (+ one non-strict
+      run), not of step sentences — anything else is **High**.
 8. **Secrets:** the design prescribes no secrets in sentences/prompts; login is described
    behaviorally ("Perform login as the test user `<role>`") — prescribing a secret is
    **Critical**.
@@ -102,6 +104,11 @@ consistency). Merge them with the Phase 3 checks.
       the cache is shared across the method);
     - a navigation sentence with a path is materialized by activating `page_<name>()`
       (the URL comes from `site.base_url` at runtime);
+    - the method call lands **inside the activation block** the navigation step opened
+      (`with page_<name>() as page:`) — the fixture parameter is the page object and the
+      activation call is what navigates; a method call prescribed as opening the page or placed
+      outside the activation block is **High** (the method's sentences run on whatever page is
+      currently open);
     - a full inline URL — external pages and query-string addresses only;
     - prescribing inline steps for a target sentence or for path-based navigation is **High**
       (duplicated generation, loss of the shared page cache, a path without base_url);

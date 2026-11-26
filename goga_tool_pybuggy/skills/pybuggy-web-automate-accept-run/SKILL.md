@@ -90,23 +90,25 @@ AskUserQuestion (2–4 options):
 - **question**: "Test `test_<name>` failed: <one-line failure summary>. Where does it belong?"
 - **header**: "Failure triage"
 - **options**:
-  - **label**: "Fix the test", **description**: "Test defect — edit test_*.py here and rerun"
-  - **label**: "Service bug", **description**: "The test is correct — write a record to `goga history path -f bugs.md`"
-  - **label**: "Back to routines", **description**: "The annotation/requirement is ambiguous — re-clarify via the testcases pipeline"
-  - **label**: "Restore environment", **description**: "Browser/LLM key/site unavailable — restore and rerun"
+    - **label**: "Fix the test", **description**: "Test defect — edit test_*.py here and rerun"
+    - **label**: "Service bug", **description**: "The test is correct — write a record to
+      `goga history path -f bugs.md`"
+    - **label**: "Back to routines", **description**: "The annotation/requirement is ambiguous — re-clarify via the
+      testcases pipeline"
+    - **label**: "Restore environment", **description**: "Browser/LLM key/site unavailable — restore and rerun"
 
 ### Step 5. Execute the triage decision
 
 **Fix the test** — with the user's approval:
 
 1. Step-proposal defect:
-   - refine the wording with the user; update the proposal in `test_*.py`;
-   - if the generation is broken — delete the step's cache file at
-     `tests/web/<cell>/.cache/test_<name>/test_<name>/` and regenerate it with a non-strict run
-     (the cache is never edited by hand);
-   - the cache file of a page method/activation step lives in the shared cache
-     `pages/.cache/<page>/<method>/` — deleting it affects **all** tests calling that method (regeneration — a
-     non-strict run of any test of that page).
+    - refine the wording with the user; update the proposal in `test_*.py`;
+    - if the generation is broken — delete the step's cache file at
+      `tests/web/<cell>/.cache/test_<name>/test_<name>/` and regenerate it with a non-strict run
+      (the cache is never edited by hand);
+    - the cache file of a page method/activation step lives in the shared cache
+      `pages/.cache/<page>/<method>/` — deleting it affects **all** tests calling that method (regeneration — a
+      non-strict run of any test of that page).
 2. Any other defect (assert/data/import) — fix `test_<name>.py` according to the Routine
    annotation.
 3. Rerun the test in isolation (strict); if it fails again — repeat the triage (Step 4) with a
@@ -131,17 +133,21 @@ AskUserQuestion (2–4 options):
 - **Severity:** <the highest severity among the failed tests: Critical/High/Medium/Low>
 
 ### Problem
+
 <Concretely, 2–5 sentences: what the Routine annotation requires and what the page actually does
 (the key fact — text/URL/state). The established cause — in one phrase. Do not retell the steps.>
 
 ### Failing tests
+
 [Table: test `tests/web/<cell>/test_<name>.py` — `test_<name>` | Routine | one-line failure summary]
 
 ### Evidence
+
 <One factual argument: the actual page text/URL/state or the assert output of one test.
 Full tracebacks are not duplicated — the record stays readable.>
 
 ### Notes
+
 <Hypotheses about the cause, observations. Omit if there are none.>
 ```
 
@@ -180,27 +186,35 @@ Fill in every section. Empty sections are forbidden.
 # [ACCEPT_RUN]
 
 ## Run command
+
 [The executed command (strict) and the run directory]
 
 ## Test results
+
 [Table: Test | Cell | Routine | Run outcome (PASSED/FAILED/ERROR/CACHE_MISS) | Outcome after triage (passed/fixed/bug/unresolved)]
 
 ## Triage log
+
 [Table: Test | Classification (Test defect / Service bug / Environment / Ambiguous→routines) | User decision | Action]
 
 ## Fixed tests
+
 [Table: File | What was fixed (edit / step-cache regeneration) | Rerun result. Write `none` if nothing]
 
 ## Cache regeneration
+
 [Regenerated steps: test / step / non-strict run. Write `none` if nothing]
 
 ## Bug records
+
 [List of created/updated BUG-<topic>-<N> records with paths. Write `none` if nothing]
 
 ## Unresolved
+
 [Tests not closed by triage (fix limit exhausted / handed over to routines design). Write `none` if nothing]
 
 ## Rerun command
+
 [The rerun command after the service bugs are fixed — strict, with the browser suffix
 from [ACCEPT_SCOPE] if one is set]
 ```

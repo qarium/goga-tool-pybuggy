@@ -126,9 +126,9 @@ follows the format below. Fill in every section.
 
 **2. Topic pages:**
 
-| PAGE | Address (path `/…` | full URL) | Final URL | Title | Purpose | Page object | Role in the topic |
-|------|--------------------------------|--------------|-------|------------|-------------|---------------|
-| PAGE-1 | /catalog | https://…/catalog | […] | […] | page_catalog | […] |
+| PAGE   | Address (path `/…` or full URL) | Final URL         | Title | Purpose | Page object  | Role in the topic |
+|--------|---------------------------------|-------------------|-------|---------|--------------|-------------------|
+| PAGE-1 | /catalog                        | https://…/catalog | […]   | […]     | page_catalog | […]               |
 
 [A full URL in the "Address" column — external pages only (a foreign origin), marked "external" in
 "Role in the topic"; internal pages — paths relative to the Base URL. The "Page object" column —
@@ -202,8 +202,8 @@ subsection order, with no gaps or duplicates) — the registry for Routine trace
 
 **8. Available project usages:**
 
-| key     | path             | role                                              | purpose                     |
-|---------|------------------|---------------------------------------------------|-----------------------------|
+| key     | path             | role                                               | purpose                   |
+|---------|------------------|----------------------------------------------------|---------------------------|
 | `<key>` | [.goga/usages/…] | [runtime reference / data-mocks-utilities / other] | [subject area — a phrase] |
 
 The registry is the result of scanning `.goga/usages/` of the target project. It is a **reference

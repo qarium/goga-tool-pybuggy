@@ -2,6 +2,7 @@
 name: goga-tool-pybuggy-web-automate-requirements-review
 description: Verification of the web test requirements artifact `goga history path -f requirements.md` — requirement quality (checkable browser-observable behavior with a concrete outcome, no vague predicates, no locators/selectors outside §4 auth), internal consistency (base URL with its render arguments, page paths vs the base URL, page-object bindings vs `pages/**` on disk, auth, roles, pages), realness of web runtime facts and the usage registry against the disk, and targeted live re-verification via the saved exploration command (§1) when a fact is unclear or disputed; no `goga schema` (cells and routines do not exist yet at this stage)
 ---
+
 # Pybuggy Web Topic Requirements — Review
 
 ## Identity
@@ -52,24 +53,24 @@ No upstream artifact exists: this artifact is the head of the topic chain.
    missing or empty — **STOP**: ask the user to run the `goga-tool-pybuggy-web-automate-requirements`
    pipeline first.
 2. Load via the **Skill tool**:
-   - `goga-tool-pybuggy-web-usage` — the web runtime reference: the fixture sees only the page
-     (DOM/text/URL/state); step suggestions are born from requirement formulations
-     (`page.step`/`page.expect` via page fixtures) — this defines what "observable through the browser"
-     means;
-   - `goga-tool-pybuggy-web-cookbook` — what the `testcases` stage needs: Routines are built from
-     §2/§3/§4, and §3 expectations will become `page.expect` suggestions.
+    - `goga-tool-pybuggy-web-usage` — the web runtime reference: the fixture sees only the page
+      (DOM/text/URL/state); step suggestions are born from requirement formulations
+      (`page.step`/`page.expect` via page fixtures) — this defines what "observable through the browser"
+      means;
+    - `goga-tool-pybuggy-web-cookbook` — what the `testcases` stage needs: Routines are built from
+      §2/§3/§4, and §3 expectations will become `page.expect` suggestions.
 3. Collect ground truth from disk (without `goga schema`):
-   - `.goga/tools/pybuggy/web.yml` — the active `provider`, `generation_model`, `site.base_url`
-     (if set — the value/template verbatim), `browser.endpoint` (if set) — verbatim;
-   - a scan of the target project's `.goga/usages/` — the registry for cross-checking §8;
-   - a scan of `pages/**` — existing page objects (module/fixture/class) for cross-checking the §2
-     bindings;
-   - the presence of `tests/web/**` — a fact for §9 (empty is expected for the first topic, not a
-     finding);
-   - §2 "page details" and the §1 "re-exploration command" — the dossier's recorded factual base:
-     the cross-check of REQ wording against the §2 details goes by them; live re-verification
-     (phase 5) is for facts outside the details or raising doubt. An old-format artifact (without
-     details/command) is not a finding; missing facts are covered by phase 5.
+    - `.goga/tools/pybuggy/web.yml` — the active `provider`, `generation_model`, `site.base_url`
+      (if set — the value/template verbatim), `browser.endpoint` (if set) — verbatim;
+    - a scan of the target project's `.goga/usages/` — the registry for cross-checking §8;
+    - a scan of `pages/**` — existing page objects (module/fixture/class) for cross-checking the §2
+      bindings;
+    - the presence of `tests/web/**` — a fact for §9 (empty is expected for the first topic, not a
+      finding);
+    - §2 "page details" and the §1 "re-exploration command" — the dossier's recorded factual base:
+      the cross-check of REQ wording against the §2 details goes by them; live re-verification
+      (phase 5) is for facts outside the details or raising doubt. An old-format artifact (without
+      details/command) is not a finding; missing facts are covered by phase 5.
 
 ### Phase 2. Structure (background)
 
@@ -168,7 +169,7 @@ No upstream artifact exists: this artifact is the head of the topic chain.
     the mentioned existing Routine/files exist on disk (a simple file scan; do not run
     `goga schema`) — a phantom **High**.
 
-### Phase 5. Live Re-verification (as needed)
+### Phase 5. Live Re-verification (unclear or disputed facts only)
 
 A fact is unclear, has diverged from the §2 details, or a remark concerns UI and cannot be checked
 on disk — re-verify it on the live page before proposing a fix or guessing. Do not connect to the

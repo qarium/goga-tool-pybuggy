@@ -2,6 +2,7 @@
 name: goga-tool-pybuggy-web-automate-testcases-review
 description: Verification of the materialized web cells `tests/web/<cell>/CODEMANIFEST` — semantic REQ coverage (REQ ids are not stored in the manifests; the review re-derives coverage from requirements §3 against Routine Purpose/Steps), step-sentence quality (one action, unambiguous target by visible name — no locators/selectors/testids, site pages addressed as paths relative to the base URL with external pages by full URLs, concrete expectations, no secrets, the group criterion), parameterization linearity, DSL structure and usage resolution — fixes the manifests with user approval
 ---
+
 # Pybuggy Web Topic Testcases — Review
 
 ## Identity
@@ -118,7 +119,7 @@ For each CODEMANIFEST:
 
 For each routine — every `Steps:` item (and the `Data:` values):
 
-1. **One action per sentence**, with the target and the action named ("Open `https://…`", "Click
+1. **One action per sentence**, with the target and the action named ("Open the `/login` page", "Click
    the 'Sign in' button"). Combined ones ("open and fill in", "fill in and submit" without group
    grounds) — **High**.
 2. **The target is unambiguous** for on-page lookup: the element's visible name, text, URL. "The

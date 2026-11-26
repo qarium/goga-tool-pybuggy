@@ -41,12 +41,12 @@ You **reconcile** the two sources and **synthesize** concrete specifics. Rules:
 2. Each discrepancy from the "Discrepancies with user expectations" section becomes an AskUserQuestion
    (one question per message, 2–4 options):
 
-   - **question**: "User: '<statement>'. Observation: '<fact>'. Which is true?"
-   - **options**:
-     - "The observation is true" — the fact is recorded as is;
-     - "The claim is true — looks like a service bug" — record it as an error behavior requirement
-       (what should happen);
-     - "Both are true in different states" — clarify which states, record the condition.
+    - **question**: "User: '<statement>'. Observation: '<fact>'. Which is true?"
+    - **options**:
+        - "The observation is true" — the fact is recorded as is;
+        - "The claim is true — looks like a service bug" — record it as an error behavior requirement
+          (what should happen);
+        - "Both are true in different states" — clarify which states, record the condition.
 
 3. All decisions go into the Reconciliation table.
 
@@ -58,15 +58,15 @@ test data:
 1. **Main behavior**: per page — key user scenarios (what we open, what we enter, what we click, what
    we see); end-to-end flows across several pages (by the navigation map).
 2. **Error behavior — as a contract (optional, only with factual grounding)**:
-   - Negative coverage in UI tests is a relatively rare case — NOT required by default.
-   - Record only grounded errors: observed in the dossiers (a safe empty submit → verbatim validation
-     texts; an observed empty state; 404; a redirect of an unauthenticated user to login) or named
-     by the user.
-   - A candidate without an observation (for example, a contract from the client code, not reproduced
-     in the session) is not a requirement by default: **propose** it to the user as a single option
-     (WAIT; the default is out of scope), and record the decision in the report.
-   - Do not invent error conditions for the sake of section completeness — a topic without negative
-     behavior is a normal state.
+    - Negative coverage in UI tests is a relatively rare case — NOT required by default.
+    - Record only grounded errors: observed in the dossiers (a safe empty submit → verbatim validation
+      texts; an observed empty state; 404; a redirect of an unauthenticated user to login) or named
+      by the user.
+    - A candidate without an observation (for example, a contract from the client code, not reproduced
+      in the session) is not a requirement by default: **propose** it to the user as a single option
+      (WAIT; the default is out of scope), and record the decision in the report.
+    - Do not invent error conditions for the sake of section completeness — a topic without negative
+      behavior is a normal state.
 3. **Acceptance criteria**: measurable success criteria for the scenarios.
 4. **Constraints and boundaries**: what the topic does not do (out of scope), data and state constraints.
 
@@ -109,28 +109,28 @@ test data.
 
 ## Reconciliation
 
-| User statement | Observation | User decision |
-|--------------------------|------------|----------------------|
-| […]                      | […]        | observation is true / claim is true (bug — an error behavior requirement) / both are true under <condition> |
+| User statement | Observation | User decision                                                                                               |
+|----------------|-------------|-------------------------------------------------------------------------------------------------------------|
+| […]            | […]         | observation is true / claim is true (bug — an error behavior requirement) / both are true under <condition> |
 
 [If there are no discrepancies — `none`]
 
 ## Requirements Draft
 
 - **Main behavior:**
-    - [Scenario: condition → expected page behavior]
+   - [Scenario: condition → expected page behavior]
 - **Error behavior (contract):**
-    - [Error condition → expected reaction (validation text / empty state / 404)]
+   - [Error condition → expected reaction (validation text / empty state / 404)]
 - **Acceptance criteria:**
-    - [Criterion]
+   - [Criterion]
 - **Constraints and boundaries:**
-    - [What the topic does not do; data and state constraints]
+   - [What the topic does not do; data and state constraints]
 
 ## Page Purposes
 
 | PAGE-<N> | Purpose (confirmed) | Role in the topic |
-|----------|---------------------------|---------------|
-| […]      | […]                       | […]           |
+|----------|---------------------|-------------------|
+| […]      | […]                 | […]               |
 
 ## Roles and permissions
 

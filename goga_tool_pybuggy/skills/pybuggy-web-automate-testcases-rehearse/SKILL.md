@@ -106,30 +106,30 @@ For every Routine of the topic:
 1. **Reset**: the precondition state (auth per §4/`Precondition:`), `goto` the start address —
    record the final URL after redirects.
 2. **Walk `Steps:` in order** (primary variant values):
-   - a navigation sentence with a path → `goto <assembled full URL>` (in the materialized test the
-     page fixture activation opens it; observationally equivalent) — compare the final URL after
-     redirects with the expected one;
-   - an action sentence → find the target by its visible name (`find "…"`, `snapshot`) → the
-     interaction (`click`/`fill`/`press`/`select`/`check`);
-   - an expect sentence → verify the observed state **verbatim**: the text in quotes is present,
-     the URL matches (the path relative to base_url), the state/element is observable; transient
-     banners/toasts (timing from the §2 details) — check at the trigger moment, inside the same
-     step, exactly as the sentence prescribes;
-   - a group sentence → walk the actions it stands for to the named state (the annotation's inner
-     items if itemized; otherwise derived from the §2 page details and the visible page — the
-     future generation will derive them the same way);
-   - a goal sentence with ``Use `page-<name>` — method `<method>` `` → walk the method's
-     sentences (from `pages/**`) in its place;
-   - a capture `{% var <name> %}` → verify the value is observable and record it; a reference
-     `{{ <name> }}` → substitute the captured value.
+    - a navigation sentence with a path → `goto <assembled full URL>` (in the materialized test the
+      page fixture activation opens it; observationally equivalent) — compare the final URL after
+      redirects with the expected one;
+    - an action sentence → find the target by its visible name (`find "…"`, `snapshot`) → the
+      interaction (`click`/`fill`/`press`/`select`/`check`);
+    - an expect sentence → verify the observed state **verbatim**: the text in quotes is present,
+      the URL matches (the path relative to base_url), the state/element is observable; transient
+      banners/toasts (timing from the §2 details) — check at the trigger moment, inside the same
+      step, exactly as the sentence prescribes;
+    - a group sentence → walk the actions it stands for to the named state (the annotation's inner
+      items if itemized; otherwise derived from the §2 page details and the visible page — the
+      future generation will derive them the same way);
+    - a goal sentence with ``Use `page-<name>` — method `<method>` `` → walk the method's
+      sentences (from `pages/**`) in its place;
+    - a capture `{% var <name> %}` → verify the value is observable and record it; a reference
+      `{{ <name> }}` → substitute the captured value.
 3. **Outcome per step**:
-   - **PASSED** — executed as the sentence describes;
-   - **INFEASIBLE** — the sentence cannot be executed: the visible name does not resolve on the
-     page, the control is disabled/absent, the form rejects the data;
-   - **MISMATCH** — executed, but the observed result ≠ the expectation (a different verbatim
-     text/URL/state);
-   - **BLOCKED** — an earlier step failed; the remainder is unreachable (the walk resumes from the
-     fixed step after the triage).
+    - **PASSED** — executed as the sentence describes;
+    - **INFEASIBLE** — the sentence cannot be executed: the visible name does not resolve on the
+      page, the control is disabled/absent, the form rejects the data;
+    - **MISMATCH** — executed, but the observed result ≠ the expectation (a different verbatim
+      text/URL/state);
+    - **BLOCKED** — an earlier step failed; the remainder is unreachable (the walk resumes from the
+      fixed step after the triage).
 4. Record a walkthrough log line per step: the sentence → the commands → the outcome → the
    observation.
 
@@ -160,8 +160,8 @@ AskUserQuestion (2–4 options):
 - **"Restore environment"** — restore and re-walk.
 
 After every applied fix — **re-walk from the fixed step to the end of the Routine** (reset the
-state as needed). The fix limit is two iterations per step; after that — an open finding into the
-report.
+precondition state when the fix requires it). The fix limit is two iterations per step; after
+that — an open finding into the report.
 
 ### Step 5. Post-edit gates
 
@@ -201,17 +201,21 @@ take the next free number.
 - **Found at:** rehearsal (before test materialization)
 
 ### Problem
+
 <Concretely, 2–5 sentences: what the Routine annotation requires and what the page actually does
 (the key fact — text/URL/state). The established cause — in one phrase. Do not retell the steps.>
 
 ### Routines
+
 [Table: Routine `test_<name>` | cell | the step sentence that exposed the problem | one-line
 observation]
 
 ### Evidence
+
 <One factual argument: the actual page text/URL/state observed in the session.>
 
 ### Notes
+
 <Hypotheses about the cause, observations. Omit if there are none.>
 ```
 

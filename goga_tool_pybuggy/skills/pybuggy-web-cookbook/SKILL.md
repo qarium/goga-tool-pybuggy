@@ -2,6 +2,7 @@
 name: goga-tool-pybuggy-web-cookbook
 description: Principles for applying the goga-cell DSL to design web test cells
 ---
+
 # Pybuggy Web Cookbook
 
 ## Purpose
@@ -38,6 +39,7 @@ Cell boundaries are a design decision of the cell-map phase: one cell per page, 
 of a single user flow into one cell, or several cells per page — all variants are acceptable.
 
 Artifact locations:
+
 - materialized tests live alongside (`tests/web/<cell-name>/test_<name>.py`);
 - the step cache lives in `tests/web/<cell-name>/.cache/test_<name>/test_<name>/`
   (a parameterized case — `…/test_<name>/test_<name>[<param_id>]/`);
@@ -93,12 +95,17 @@ Usages:
   and the source of credentials, **without secret values**) or an API-based data preparation
   library.
 - The page usage file `page-<name>` is the page-object API (the `page_<name>` fixture, methods):
-  - the pages stage of the testcases pipeline creates it when a repeated **parameterless**
-    sequence of routine steps (sentences identical verbatim, without
-    `{% var %}` / `{{ … }}` markers) is extracted into a page-object method;
-  - the affected routine collapses the sequence into a single goal sentence and references the
-    method: `` Use `page-login` for closing the cookie banner — the `dismiss_cookie_banner` method ``;
-  - connect it in the cell's Header the standard way (key + the line ``Use `<key>` for …``).
+    - the pages stage of the testcases pipeline creates it when a repeated **parameterless**
+      sequence of routine steps (sentences identical verbatim, without
+      `{% var %}` / `{{ … }}` markers) is extracted into a page-object method;
+    - the affected routine collapses the sequence into a single goal sentence and references the
+      method: `` Use `page-login` for closing the cookie banner — the `dismiss_cookie_banner` method ``;
+    - the call protocol: the method is declared on the `BasePage` subclass (no parameters beyond
+      `self`, sentences via `self.step` / `self.expect` / `with self.group(...)`) and is called
+      from the test **on the activated page** — the routine's navigation sentence materializes as
+      the activation `page_<name>()` (`with page_<name>() as page:`), the `page.<method>()` calls
+      follow inside the block; a method call never opens the page by itself;
+    - connect it in the cell's Header the standard way (key + the line ``Use `<key>` for …``).
 
 ### Body — Routine
 
@@ -187,13 +194,18 @@ express steps in plain language (one action per sentence; name the target and th
 without pytest/playwright code. A numbered list (`1. `).
 
 Step sentence rules (from `pybuggy-web`):
-- one step = one action; the sentence names the target and the action ("Open `https://…`",
+
+- one step = one action; the sentence names the target and the action ("Open the `/login` page",
   "Fill the “Email” field with the value …", "Click the “Log in” button"); name the target by its
   visible name/text — locators, selectors, and testids are forbidden in sentences;
 - express navigation to a page of the site under test as a sentence with a path ("Open the
   `/login` page"); it materializes as activation of the page fixture `page_<name>()` — the
   runtime composes the URL from `site.base_url`; use a full URL in a sentence only for external
   pages and query addresses;
+- a goal sentence carrying a ``Use `page-<name>` … — method `<method>` `` reference materializes
+  as a `page_<name>.<method>()` call **on the page the navigation step already activated** (inside
+  the `with page_<name>() as page:` block) — a method call never opens the page, the sentences of
+  the method run against the page currently open;
 - a group (`page.group`) is a mini-scenario of 2–3 tightly coupled actions that **together change
   the state of the page or widget** (fill and submit a form, log in, drive a dialog to its
   result): the group sentence names the achieved state; the actions inside it carry no individual
@@ -204,7 +216,7 @@ Step sentence rules (from `pybuggy-web`):
   only; switching environments means changing `site.base_url` in web.yml (+ one run without
   `--strict-mode`); step sentences do not change;
 - write expectations as separate `page.expect` sentences ("The page displays the text …",
-  "The URL became `https://…/orders`"); **exception — transient elements**: a toast/banner that
+  "The URL became `/orders`"); **exception — transient elements**: a toast/banner that
   appears from an action and disappears on its own within seconds (timing from §2 of the
   requirements) is checked (and read — the `{% var %}` capture) **inside the trigger sentence**:
   "Click the “Save” button — a “Changes saved” toast appears in the top left corner". The LLM
@@ -244,10 +256,11 @@ case into `Precondition:`/`Data:`); `Algorithm:` is replaced by `Steps:`.
 
 - The **first run** of the test creates the cache: the LLM generates Playwright code for each
   sentence and writes the cache files:
-  - inline test steps — `tests/web/<cell>/.cache/test_<name>/test_<name>/`;
-  - a parameterized case — `…/test_<name>/test_<name>[<param_id>]/`;
-  - page-object method steps — in the page's shared cache `pages/.cache/<page>/<method>/` (the activation — `__call__`).
-  Commit the cache to the repository.
+    - inline test steps — `tests/web/<cell>/.cache/test_<name>/test_<name>/`;
+    - a parameterized case — `…/test_<name>/test_<name>[<param_id>]/`;
+    - page-object method steps — in the page's shared cache `pages/.cache/<page>/<method>/` (the activation —
+      `__call__`).
+      Commit the cache to the repository.
 - Run the first run **without** `--strict-mode` (strict = 0 LLM calls — a new step fails in
   strict mode). Run repeated runs and CI **with** `--strict-mode` (replay from the cache).
 - Never edit the cache by hand; to regenerate a step, delete its cache file and let the next
@@ -270,16 +283,17 @@ Example:
     - The catalog is available without authorization.
 
     Data:
-    - Search query: "laptop" — the single variant; entered by step 2, expected by steps 3–4.
+    - Search query: "laptop" — the single variant; entered by step 2, expected by steps 4–5.
 
     Steps:
-    1. Open the catalog page /catalog.
-    2. Fill the search field with the value "laptop" and click the "Find" button.
-    3. The results page displays at least one product with the text "laptop".
-    4. The results page URL is /catalog?q=laptop.
+    1. Open the catalog page `/catalog`.
+    2. Fill the "Search" field with the value "laptop".
+    3. Click the "Find" button.
+    4. The results page displays at least one product with the text "laptop".
+    5. The results page URL is /catalog?q=laptop.
 
     Use <usages> specific to the Routine
 ```
 
-Here steps 1–2 materialize as `page.step(...)` (step 1 — activation
-`with page_catalog() as page:`), steps 3–4 — as `page.expect(...)`.
+Here steps 1–3 materialize as `page.step(...)` (step 1 — activation
+`with page_catalog() as page:`), steps 4–5 — as `page.expect(...)`.

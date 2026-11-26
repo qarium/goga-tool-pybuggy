@@ -62,9 +62,9 @@ is not created here — that is the pages stage):
 2. Sections: Domain (what it covers), Enable (connection/dependencies), Usage (how to use in
    tests — patterns, without secret values), Examples (2–3 fragments).
 3. Write for an agent without topic context:
-   - a tool reference — purpose, calls, sources of values;
-   - topic identifiers (`REQ-<N>`, case/ticket numbers, artifact § links) must not
-     get into the file — the coverage registry is session-scoped.
+    - a tool reference — purpose, calls, sources of values;
+    - topic identifiers (`REQ-<N>`, case/ticket numbers, artifact § links) must not
+      get into the file — the coverage registry is session-scoped.
 4. The file must exist on disk before the end of the step — the assembly phase wires into the Header
    only the keys of existing files.
 
@@ -85,20 +85,20 @@ Fill in every section. Empty sections are forbidden.
 
 ## Identified Needs
 
-| Need | REQ §3 | Kind (data / mock / credentials) |
-|-------------|--------|---------------------------------|
-| […] | REQ-1, REQ-4 | data |
+| Need | REQ §3       | Kind (data / mock / credentials) |
+|------|--------------|----------------------------------|
+| […]  | REQ-1, REQ-4 | data                             |
 
 ## Decisions
 
-| Need | Decision | Key |
-|-------------|---------|------|
-| […] | existing usages / new usage file | `<key>` |
+| Need | Decision                         | Key     |
+|------|----------------------------------|---------|
+| […]  | existing usages / new usage file | `<key>` |
 
 ## Created Usage Files
 
-| key | path |
-|-----|------|
+| key     | path                        |
+|---------|-----------------------------|
 | `<key>` | .goga/usages/cooks/<key>.md |
 
 [If nothing is created — `none`]

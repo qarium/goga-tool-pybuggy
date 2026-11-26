@@ -26,7 +26,8 @@ The artifacts become the addressing for Routine navigation steps (the activation
 - The base URL lives in the `site.base_url` directive (web.yml); each page adds its own path.
 - Derive the path only from the final URLs of the [EXPLORE_REPORT] dossier.
 - The page name is the user's decision (the fixture and the class form a contract that Routines and cells reference).
-- External pages (a different origin) and addresses with query parameters never become page objects — their navigation stays a step proposal carrying the full URL.
+- External pages (a different origin) and addresses with query parameters never become page objects — their navigation
+  stays a step proposal carrying the full URL.
 
 ---
 
@@ -75,11 +76,11 @@ From the target project root (the directory containing `.goga/`):
 1. For each approved row, run `goga tool pybuggy page generate <path> <name>`
    (without `-f`).
 2. An existing module is skipped silently — read it:
-   - the fixture constructs the class with the same `path`, and the fixture and the class carry
-     the expected names → "exists, valid" (the scenario methods inside are preserved — never
-     touch them);
-   - a mismatch (different path/names) — a warning in the report;
-   - overwrite only on the user's explicit decision (`-f` erases the scenario methods).
+    - the fixture constructs the class with the same `path`, and the fixture and the class carry
+      the expected names → "exists, valid" (the scenario methods inside are preserved — never
+      touch them);
+    - a mismatch (different path/names) — a warning in the report;
+    - overwrite only on the user's explicit decision (`-f` erases the scenario methods).
 3. Verify the artifacts on disk: the module file exists, `__init__.py` markers are present along the
    path, and the fixture/class match the table. Fixture loading is automatic: `pages/` is the default
    fixture package of the web kind (the web plugin discovers the modules itself; no `loader:`
@@ -108,19 +109,20 @@ Fill in every section. Empty sections are forbidden.
 
 ## Page Objects
 
-| PAGE | Path | Name | Fixture | Class | Module | Status |
-|------|------|------|----------|-------|--------|--------|
+| PAGE   | Path   | Name  | Fixture    | Class     | Module              | Status                  |
+|--------|--------|-------|------------|-----------|---------------------|-------------------------|
 | PAGE-1 | /login | login | page_login | LoginPage | pages/login_page.py | created / exists, valid |
 
 [Confirmed page objects. The status is the outcome of the generation step.]
 
 ## Literal Navigation
 
-| PAGE / URL | Reason |
-|------------|---------|
-| https://… | external origin / query address / root page |
+| PAGE / URL | Reason                                      |
+|------------|---------------------------------------------|
+| https://…  | external origin / query address / root page |
 
-[Pages and addresses without a page object — navigation by the full URL in the step proposal. Write `none` if there are none.]
+[Pages and addresses without a page object — navigation by the full URL in the step proposal. Write
+`none` if there are none.]
 
 ## User Decision
 

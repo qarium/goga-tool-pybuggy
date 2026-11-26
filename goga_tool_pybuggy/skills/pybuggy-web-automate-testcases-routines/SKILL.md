@@ -50,7 +50,7 @@ You show each routine to the user and wait for approval; apply edits when needed
 6. **Annotation** — strict structure (goga-cell / cookbook):
     - Purpose (what the routine checks and why — a behavioral statement of the requirement) →
     - `Precondition:` (one bullet per signature fixture: `` `page_<name>` `` — page fixture with module and path;
-      + preconditions) →
+        + preconditions) →
     - `Data:` (variable captures; values the test sets itself — fills in/selects/produces through preparation —
       are declared here even with a single variant and flow from `Data:` into steps and checks; parameterization
       variants; omit if empty) →
@@ -146,9 +146,9 @@ Fill in every section. Empty sections are forbidden.
 
 ## Coverage
 
-| REQ | Routine(s) |
-|-----|------------|
-| REQ-1 | test_… |
+| REQ   | Routine(s) |
+|-------|------------|
+| REQ-1 | test_…     |
 
 [Every §3 REQ is covered (or explicitly excluded with a user decision). The registry is session-time: REQ
 identifiers are not stored in the CODEMANIFEST; the assembly stage verifies the registry against §3.]

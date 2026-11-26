@@ -9,30 +9,47 @@ description: Dispatch wrapper around goga-plan for web testing mode — compiles
 
 You are a web test materialization planner. You dispatch `goga-plan` in **web testing mode**.
 
-**Critical objective:** guarantee that the final ralphex plan **mandates a two-run sequence for every test**: the generation run (the LLM generates the Playwright step code and writes the step cache) followed by the repeat run of the same test. `--strict-mode` appears **nowhere** in the plan — strict belongs to accept and CI.
+**Critical objective:** guarantee that the final ralphex plan **mandates a two-run sequence for every test**: the
+generation run (the LLM generates the Playwright step code and writes the step cache) followed by the repeat run of the
+same test. `--strict-mode` appears **nowhere** in the plan — strict belongs to accept and CI.
 
 ## Why this fixes `goga build`
 
-ralphex (`task.txt`, STEP 2 VALIDATE): *"Run the test and lint commands specified in the plan"*. ralphex runs the tests **only** when the plan explicitly lists the `pytest` commands in `## Validation Commands` and provides executable checkboxes in the Task. For web tests this matters even more than for API tests: without a run there is not only no verification — **there are no steps at all**. Sentences (`page.step(...)`/`page.expect(...)`) turn into Playwright code only on the first run (by the LLM). Without a run there is no step cache either — and without that cache strict acceptance is impossible. The standard `goga-plan` targets production code and does not build pytest validation into the plan → tests get written but are never executed and never cached. The repeat run matters just as much: a test green only on its generation run is not a stable green. This dispatch wrapper forcibly injects the two-run pattern (generation → repeat, both without strict) into the plan.
+ralphex (`task.txt`, STEP 2 VALIDATE): *"Run the test and lint commands specified in the plan"*.
+
+- ralphex runs the tests **only** when the plan explicitly lists the `pytest` commands in
+  `## Validation Commands` and provides executable checkboxes in the Task.
+- For web tests the stakes are higher than for API tests: without a run there is not only no
+  verification — **there are no steps at all**: sentences (`page.step(...)`/`page.expect(...)`)
+  turn into Playwright code only on the first run (by the LLM), and without a run there is no
+  step cache either — without that cache, strict acceptance is impossible.
+- The standard `goga-plan` targets production code and does not build pytest validation into the
+  plan → tests get written but never executed and never cached.
+- The repeat run matters just as much: a test green only on its generation run is not a stable
+  green.
+
+This dispatch wrapper forcibly injects the two-run pattern (generation → repeat, both without
+strict) into the plan.
 
 ## Mission
 
-Compile the ralphex plan `goga history path -f plan.md` from the design document and the web-cell CODEMANIFESTs so that the following conditions hold:
+Compile the ralphex plan `goga history path -f plan.md` from the design document and the web-cell CODEMANIFESTs so that
+the following conditions hold:
 
 1. each Routine of a web cell maps to a Task that generates the corresponding `test_*.py`;
 2. `## Validation Commands` contains `pytest tests/web/ -q` (or a per-cell command) — **without**
    `--strict-mode`;
 3. each generating Task carries a **two-run block**:
-   - `[ ] Run tests (generate steps): pytest tests/web/<cell>/ -q` — the generation run: the
-     sentences turn into Playwright code exactly here (never "manual/skipped");
-   - `[ ] Re-run tests: pytest tests/web/<cell>/ -q` — the repeat run of the same tests right
-     after it; a test green only once is not done → the refinement policy (item 6);
-   - a browser connection line on both run commands: `--browser-endpoint <address>` in the
-     executable form of the Browser endpoint from requirements §1; "from config" — the note
-     "browser from `web.yml`";
-   - an explicit CRITICAL prohibition of `--strict-mode` in the Task text — ralphex executes
-     tasks verbatim and on its own: without the connection line it will launch with the wrong
-     browser, and on a self-retry it may add the flag;
+    - `[ ] Run tests (generate steps): pytest tests/web/<cell>/ -q` — the generation run: the
+      sentences turn into Playwright code exactly here (never "manual/skipped");
+    - `[ ] Re-run tests: pytest tests/web/<cell>/ -q` — the repeat run of the same tests right
+      after it; a test green only once is not done → the refinement policy (item 6);
+    - a browser connection line on both run commands: `--browser-endpoint <address>` in the
+      executable form of the Browser endpoint from requirements §1; "from config" — the note
+      "browser from `web.yml`";
+    - an explicit CRITICAL prohibition of `--strict-mode` in the Task text — ralphex executes
+      tasks verbatim and on its own: without the connection line it will launch with the wrong
+      browser, and on a self-retry it may add the flag;
 4. **no** command or checkbox in the plan contains `--strict-mode` — strict means a guaranteed
    cache-miss with no generation; it belongs to accept and CI;
 5. the plan mandates preserving the step cache (`tests/web/<cell>/.cache/test_<name>/test_<name>/`,
@@ -40,32 +57,32 @@ Compile the ralphex plan `goga history path -f plan.md` from the design document
    `pages/.cache/<page>/<method>/`) — never delete, clean, or gitignore it; the cache is committed to the
    repository;
 6. **every** Task in the plan carries the CRITICAL failing-test instruction with three parts:
-   - **Diagnose first — parse the pytest log**: the run output/log (wherever the environment
-     writes it) is the first evidence source. Classify the failure: a provider/generation error
-     (no code produced) / a cache-miss / an execution failure (element not found, wrong element,
-     assertion mismatch, timeout, navigation). Read the failed sentence and its generated code
-     (the cache file — reading is allowed, editing is not). When the cause is not in the log —
-     look at the live page: playwright-cli attach at the Browser endpoint (requirements §1) →
-     `goto` → `find` the sentence's visible name / `snapshot` (read-only) → `detach` after.
-   - **Fix by cause — do everything possible so the steps are generated and the tests are
-     written**: a test failure at build is an implementation defect (the scenario and its
-     expectations were rehearsed live before build) — so **fix the test `test_*.py`, not the
-     contract**: reformat the failing step (adapt the sentence wording to what the page actually
-     has), adjust the glue (fixtures, order, `vars`, waits, activation blocks), and when a step's
-     wording/execution changed — delete its stale cache file and regenerate it with one non-strict
-     run (the cache is **never edited by hand**). A
-     provider/generation error → check the
-     key/model (web.yml) and retry the non-strict run — not a sentence problem; the environment →
-     restore it. The **CODEMANIFEST, `pages/**`, and requirements stay read-only**; skipped tests
-     (`pytest.skip`, skip markers, `xfail`) are **forbidden**. Limit — **3 refinement iterations
-     per test** (each = cause → targeted fix → isolated re-run; blind
-     retries do not count toward a fix and only burn time).
-   - **Abandon (last resort)**: only after all sanctioned options are exhausted and the test still
-     fails after 3 iterations — leave the test failing, record the cause and the fact in the Task
-     report (was → became), and move on to the next task without blocking the build. An element
-     that does not exist / a flow that does not hold is **not fixable at build** — the same
-     fallback (it goes to accept triage). Recurring refinements of the same step are candidates
-     for `Prompt:` bullets / annotation updates via the user.
+    - **Diagnose first — parse the pytest log**: the run output/log (wherever the environment
+      writes it) is the first evidence source. Classify the failure: a provider/generation error
+      (no code produced) / a cache-miss / an execution failure (element not found, wrong element,
+      assertion mismatch, timeout, navigation). Read the failed sentence and its generated code
+      (the cache file — reading is allowed, editing is not). When the cause is not in the log —
+      look at the live page: playwright-cli attach at the Browser endpoint (requirements §1) →
+      `goto` → `find` the sentence's visible name / `snapshot` (read-only) → `detach` after.
+    - **Fix by cause — do everything possible so the steps are generated and the tests are
+      written**: a test failure at build is an implementation defect (the scenario and its
+      expectations were rehearsed live before build) — so **fix the test `test_*.py`, not the
+      contract**: reformat the failing step (adapt the sentence wording to what the page actually
+      has), adjust the glue (fixtures, order, `vars`, waits, activation blocks), and when a step's
+      wording/execution changed — delete its stale cache file and regenerate it with one non-strict
+      run (the cache is **never edited by hand**). A
+      provider/generation error → check the
+      key/model (web.yml) and retry the non-strict run — not a sentence problem; the environment →
+      restore it. The **CODEMANIFEST, `pages/**`, and requirements stay read-only**; skipped tests
+      (`pytest.skip`, skip markers, `xfail`) are **forbidden**. Limit — **3 refinement iterations
+      per test** (each = cause → targeted fix → isolated re-run; blind
+      retries do not count toward a fix and only burn time).
+    - **Abandon (last resort)**: only after all sanctioned options are exhausted and the test still
+      fails after 3 iterations — leave the test failing, record the cause and the fact in the Task
+      report (was → became), and move on to the next task without blocking the build. An element
+      that does not exist / a flow that does not hold is **not fixable at build** — the same
+      fallback (it goes to accept triage). Recurring refinements of the same step are candidates
+      for `Prompt:` bullets / annotation updates via the user.
 
    This constraint carries the same weight as the read-only CODEMANIFEST.
 
@@ -87,7 +104,8 @@ Compile the ralphex plan `goga history path -f plan.md` from the design document
 - **TDM inverted:** there is no separate "implementation code" — the test files are the implementation.
 - **Step generation:** the first run of each test generates the Playwright code for the sentences
   via the LLM and writes the cache to `tests/web/<cell>/.cache/test_<name>/test_<name>/`
-  (page-method sentences — the shared cache `pages/.cache/<page>/<method>/`, the activation — `__call__`); the cache is committed. The
+  (page-method sentences — the shared cache `pages/.cache/<page>/<method>/`, the activation — `__call__`); the cache is
+  committed. The
   first run — generation; right after it — the repeat run of the same test (a stable green). Both
   without `--strict-mode`; strict belongs to accept and CI.
 - **Executable form of the Browser endpoint address:** write the address from requirements §1 into
@@ -153,7 +171,7 @@ Arguments: `$ARGUMENTS`
    relative to the base URL with external pages by full URLs; CRITICAL in EVERY
    Task: do everything possible so that the steps are generated and the tests are written —
    parse the pytest log, find out what the problem is (provider/generation error, cache-miss,
-   execution failure), try reformatting the step in `test_*.py` (adapt the sentence wording to
+   execution failure), reformat the step in `test_*.py` (adapt the sentence wording to
    the actual page, fix the glue), retry the generation (delete the step's stale cache file +
    one non-strict run); never edit the cache by hand; the CODEMANIFEST and `pages/**` stay
    read-only; a provider error is retried, not reworded; limit 3 targeted refinement iterations
@@ -204,8 +222,8 @@ plan where necessary:
    environment, and the reachability of the target URLs and of the browser address from the
    Browser endpoint (§1).
 10. **Completion Criteria** describe best-effort: "all tests have been run twice (generation +
-   repeat); on an unfixable failure — move to the next task without blocking the build; no test
-   is marked skipped/xfail; the step cache is saved".
+    repeat); on an unfixable failure — move to the next task without blocking the build; no test
+    is marked skipped/xfail; the step cache is saved".
 
 If the plan fails the gate, add the missing items per the requirements of the Testing Mode section
 and report the additions to the user.

@@ -49,11 +49,11 @@ For each CODEMANIFEST (`goga-cell` + `goga-tool-pybuggy-web-cookbook`):
 2. Header: the base block is identical to [TESTCASES_INTAKE]; cell-specific keys resolve (the
    files exist).
 3. Body:
-   - Routine only (no `methods`/`properties`, no Entities);
-   - signature with no output;
-   - `location: test_<name>.py`; snake_case;
-   - annotation — strict section structure with blank lines;
-   - backtick references (`` `<key>` ``) resolve in the CODEMANIFEST context.
+    - Routine only (no `methods`/`properties`, no Entities);
+    - signature with no output;
+    - `location: test_<name>.py`; snake_case;
+    - annotation — strict section structure with blank lines;
+    - backtick references (`` `<key>` ``) resolve in the CODEMANIFEST context.
 4. Footer: `Author: Goga`, `CreatedAt`, `Description`.
 
 A DSL error — fix it and repeat the validation; an unfixable one — **STOP** (create no files).
@@ -64,13 +64,13 @@ Process the cells in [CELL_MAP_REPORT] order:
 
 1. **New cell** — create `tests/web/<slug>/CODEMANIFEST` (the directory if necessary).
 2. **Existing cell** — **merge, do not overwrite**:
-   - before writing, save a copy of the existing file (for a possible rollback);
-   - Body: do not touch existing `test_*` Routines — add only the new Routines; a name from the
-     plan already exists — keep the existing variant and record the collision in the report
-     (warning);
-   - Header: merge `Usages` by keys (keep the base block unchanged; add the new cell-specific
-     ones); in `Annotations` — the line ``Use `<key>` …`` for each new key;
-   - Footer: preserve the existing `CreatedAt`/`Description`; `Author: Goga` stays unchanged.
+    - before writing, save a copy of the existing file (for a possible rollback);
+    - Body: do not touch existing `test_*` Routines — add only the new Routines; a name from the
+      plan already exists — keep the existing variant and record the collision in the report
+      (warning);
+    - Header: merge `Usages` by keys (keep the base block unchanged; add the new cell-specific
+      ones); in `Annotations` — the line ``Use `<key>` …`` for each new key;
+    - Footer: preserve the existing `CreatedAt`/`Description`; `Author: Goga` stays unchanged.
 3. Never create `__init__.py`, test code, or a cell-level `.usages/` — the only artifact is the
    CODEMANIFEST.
 
@@ -79,14 +79,14 @@ Process the cells in [CELL_MAP_REPORT] order:
 1. `goga lint` — red → fix and rerun.
 2. `goga schema tests/` — the new/merged cells are present in the output.
 3. **REQ coverage** (session registry) — a mechanical set comparison:
-   - requirements registry: all `REQ-<N>` from §3 of requirements.md;
-   - from the Coverage table in [ROUTINES_REPORT]: covered REQs plus excluded ones (an exclusion
-     is valid only with a recorded user decision);
-   - condition: `covered ∪ excluded = registry` — no gaps, duplicates, or overlaps, and every
-     Routine from Coverage is found by name in the materialized CODEMANIFESTs.
-   Failure → **STOP** (return to routines design). The registry is not persisted: the
-   "requirement → Routine" link lives only in the session; a rerun of the pipeline rebuilds the
-   registry from §3.
+    - requirements registry: all `REQ-<N>` from §3 of requirements.md;
+    - from the Coverage table in [ROUTINES_REPORT]: covered REQs plus excluded ones (an exclusion
+      is valid only with a recorded user decision);
+    - condition: `covered ∪ excluded = registry` — no gaps, duplicates, or overlaps, and every
+      Routine from Coverage is found by name in the materialized CODEMANIFESTs.
+      Failure → **STOP** (return to routines design). The registry is not persisted: the
+      "requirement → Routine" link lives only in the session; a rerun of the pipeline rebuilds the
+      registry from §3.
 
 ### Step 6. Produce the [ASSEMBLY_REPORT]
 

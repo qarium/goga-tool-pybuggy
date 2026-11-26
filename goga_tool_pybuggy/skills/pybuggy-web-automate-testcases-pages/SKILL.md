@@ -23,6 +23,17 @@ Any difference in the data means it is not a method: parameters are forbidden in
 methods (a method's sentences are phrased against the live DOM, not against the data of
 the moment).
 
+The method lives in the page's generated module `pages/<…>_page.py` — a `BasePage` subclass
+plus its `page_<name>` fixture (the fixture binds the page path at construction; never touch
+the fixture or the base's activation semantics — `__call__` opens the page and must stay the
+base's own). The method is declared on the class with no parameters beyond `self` and is
+consumed from the test **on the activated page**: the routine's navigation sentence
+materializes as the activation call `page_<name>()` (`with page_<name>() as page:` in the
+materialized test), and the `page.<method>()` calls follow inside that block. A method call
+never opens the page — the runtime holds one page per test, and without the activation the
+method's sentences land on whatever page is currently open; navigation belongs to the
+activation and to navigation sentences, not to scenario methods.
+
 Forbidden in page methods:
 
 - secrets — never;
@@ -50,9 +61,9 @@ For each topic page **with a page object** (skip literal-navigation Routines):
 1. Collect occurrences: sequences of 1–3 adjacent `Steps:` sentences from the page's
    Routines, bound to the page's behavior (not to the data of a specific test).
 2. A candidate is a sequence that repeats:
-   - in ≥ 2 Routines of the page, **or**
-   - in **all** Routines that start on the page (the typical case: a banner that appears on
-     every open — the steps that dismiss it).
+    - in ≥ 2 Routines of the page, **or**
+    - in **all** Routines that start on the page (the typical case: a banner that appears on
+      every open — the steps that dismiss it).
 3. **No-parameterization criterion (strict)**: all occurrences are verbatim-identical; none
    contains markers `{% var %}` / `{{ … }}`; the literals (visible button texts, entered
    values) do not differ between occurrences. A difference in even one data fragment
@@ -80,16 +91,16 @@ For each topic page **with a page object** (skip literal-navigation Routines):
    Existing methods and the class activation semantics stay unchanged.
 2. **Usage files**: create `.goga/usages/cooks/page-<name>.md` (only non-existing files;
    `<name>` — the page name from §2, kebab-case):
-   - heading `# page-<name> — <page purpose in the topic>`;
-   - sections: **Domain** (the page, its path, the `page_<name>` fixture, what the page
-     does), **Enable** (wiring — the key into the cell's Header via the standard goga
-     mechanism), **Usage** (methods: name → what it does behaviorally, in visible names;
-     when to call), **Examples** (2–3 call fragments from a test/Routine);
-   - locators/selectors/testid and secrets — forbidden;
-   - write for an agent without topic context: a domain reference of the page and its API —
-     fixture, path, methods (name → target state + sentences verbatim), when to call; topic
-     identifiers (`REQ-<N>`, case/ticket numbers, links to artifact sections) never appear
-     in the file — the coverage registry is session-scoped.
+    - heading `# page-<name> — <page purpose in the topic>`;
+    - sections: **Domain** (the page, its path, the `page_<name>` fixture, what the page
+      does), **Enable** (wiring — the key into the cell's Header via the standard goga
+      mechanism), **Usage** (methods: name → what it does behaviorally, in visible names;
+      when to call), **Examples** (2–3 call fragments from a test/Routine);
+    - locators/selectors/testid and secrets — forbidden;
+    - write for an agent without topic context: a domain reference of the page and its API —
+      fixture, path, methods (name → target state + sentences verbatim), when to call; topic
+      identifiers (`REQ-<N>`, case/ticket numbers, links to artifact sections) never appear
+      in the file — the coverage registry is session-scoped.
 3. **Routines**: in the affected Routines, replace the repeated sequence with a single goal
    sentence ("Close the cookie banner") and add/extend the `Use …` section:
    ``Use `page-<name>` for <goal sentence> — method `<method>` ``. Apply only the edits
@@ -118,25 +129,25 @@ Fill in every section. Empty sections are forbidden.
 
 ## Page Methods
 
-| Page | Method | Sentences (verbatim) | Routines | Status |
-|----------|-------|------------------------|--------|--------|
-| PAGE-1 (page_login) | dismiss_cookie_banner | […] | test_…, test_… | created / reused |
+| Page                | Method                | Sentences (verbatim) | Routines       | Status           |
+|---------------------|-----------------------|----------------------|----------------|------------------|
+| PAGE-1 (page_login) | dismiss_cookie_banner | […]                  | test_…, test_… | created / reused |
 
 [Approved methods. Write `none` if no candidates were found.]
 
 ## Usage Files
 
-| key | path |
-|-----|------|
+| key          | path                             |
+|--------------|----------------------------------|
 | `page-login` | .goga/usages/cooks/page-login.md |
 
 [Created usage files. Write `none` if none.]
 
 ## Routine Updates
 
-| Routine | Was (sequence) | Became (goal sentence + Use) |
-|---------|---------------------------|--------------------------------|
-| test_… | […] | "Close the cookie banner" + ``Use `page-login` …`` |
+| Routine | Was (sequence) | Became (goal sentence + Use)                       |
+|---------|----------------|----------------------------------------------------|
+| test_…  | […]            | "Close the cookie banner" + ``Use `page-login` …`` |
 
 [Affected Routines. Write `none` if the Routines did not change.]
 

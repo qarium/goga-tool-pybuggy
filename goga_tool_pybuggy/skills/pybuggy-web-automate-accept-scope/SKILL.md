@@ -26,9 +26,9 @@ For the current topic, verify existence and load:
 3. Generated `test_<name>.py` files — by each Routine's `location`.
 4. **Step caches** (created by the first, generating run at `goga build`) — record the
    presence/absence and fill state of each:
-   - test cache: `tests/web/<cell>/.cache/test_<name>/test_<name>/` per test
-     (a parameterized case — `…/test_<name>[<param_id>]`);
-   - the shared cache of each page in use: `pages/.cache/<page>/<method>/` (per method, `__call__` for activation).
+    - test cache: `tests/web/<cell>/.cache/test_<name>/test_<name>/` per test
+      (a parameterized case — `…/test_<name>[<param_id>]`);
+    - the shared cache of each page in use: `pages/.cache/<page>/<method>/` (per method, `__call__` for activation).
 5. **Page objects**: the `pages/**` modules of the topic's pages (§2 — `page_<name>` bindings /
    literal navigation) — the presence of the modules and of the declared methods (the contract is
    the usage files `.goga/usages/cooks/page-<name>.md`).
@@ -100,8 +100,7 @@ Every report field — only facts from disk.
 
 ## Trace: Routine → test file
 
-[Table: Routine test_<name> | tests/web/<cell>/test_<name>.py | test cache
-.cache/test_<name>/test_<name>/ | page cache pages/.cache/<page>/ | Status (materialized / not)]
+[Table: Routine test_<name> | tests/web/<cell>/test_<name>.py | test cache .cache/test_<name>/test_<name>/ | page cache pages/.cache/<page>/ | Status (materialized / not)]
 
 ## Run command
 

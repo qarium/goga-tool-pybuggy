@@ -30,7 +30,8 @@ facts — the web runtime configuration, the branch state — are read from the 
 1. Form a hypothesis about the topic goal: what is under test, which pages/user flows are affected.
 2. Determine what is included in the testing scope and what is not (typically out of scope for a web topic:
    layout/cross-browser compatibility, performance, accessibility — unless the user demands otherwise).
-3. If the goal is ambiguous — ask clarifying questions (as multiple-choice options), without diving into the project code.
+3. If the goal is ambiguous — ask clarifying questions (as multiple-choice options), without diving into the project
+   code.
 
 ### Step 2.1. Create the topic
 
@@ -52,46 +53,46 @@ the requirements artifact.
    directory, without searching upward). The document is missing — **STOP**: ask the user to run
    `goga tool pybuggy init` (kind `web` or `both`) and retry.
    Record the active keys **verbatim**:
-   - `provider`, `generation_model` — the LLM facts for step generation;
-   - `site.base_url` — the address of the site under test: a value or a Jinja2 template. The
-     config is its only source; base_url is never requested from the user. Missing/empty —
-     **STOP**: ask the user to set it in web.yml (`goga tool pybuggy init` kind `web`/`both`,
-     or manually) and retry;
-   - `browser.endpoint` (if set) — the candidate for the "From the config" answer in question 4.
+    - `provider`, `generation_model` — the LLM facts for step generation;
+    - `site.base_url` — the address of the site under test: a value or a Jinja2 template. The
+      config is its only source; base_url is never requested from the user. Missing/empty —
+      **STOP**: ask the user to set it in web.yml (`goga tool pybuggy init` kind `web`/`both`,
+      or manually) and retry;
+    - `browser.endpoint` (if set) — the candidate for the "From the config" answer in question 4.
 
 2. Ask via AskUserQuestion (one question per message, 2–4 options):
 
-   1. **base_url render arguments** — ask only when `site.base_url` in the config is a template with
-      variables (a plain URL means the question is not asked — there are no arguments): the arguments
-      with which the template renders into the topic environment address; the exploration address is
-      built from the same arguments.
-      Options:
-       - "Env variables" — the names and values for the topic environment (the values are components
-         of the site address, not secrets; the run command gets the prefix `ENV_NAME=value pytest …`);
-       - "CLI options" — the names and values (the run command gets the suffix `--name=value`;
-         every option requires a `pytest_addoption` registration in `conftest.py` — pytest rejects
-         unregistered options; the fact is recorded in the artifact);
-       - "Not needed" — the template variables are already set in the environment.
-   2. **Target pages** — which pages are under test. Address form:
-      - a path relative to base_url (`/catalog`, `/login`) — the user enters it, or confirms
-        the ones proposed from the topic description;
-      - a full URL — external pages (a foreign origin).
-      Clarify which environment this is: production / stage / the branch's feature deployment.
-      All pages must belong to a single environment:
-      - the paths render from base_url;
-      - the full URLs of internal pages — the same origin;
-      - a foreign origin — only an external page (explicitly marked).
-   3. **Auth method** on the site — **"No auth"** | **"Login form"** (provide the form URL —
-      or it will be found by exploration) | **"SSO/external provider"** | **"Test credentials
-      available"**. For the sign-in variants, clarify the credential source: the env variable
-      names, or "I will enter them during exploration". **Never request or record secret values.**
-   4. **Browser endpoint for writing tests** — which browser to connect to during page exploration
-      and test runs. This is the browser's address, not the site under test.
-      Options:
-       - "From the config" — `browser.endpoint` (offered only when it is set)
-       - "I will enter an address" — `http(s)://…` (CDP) or `ws(s)://…` (Playwright server).
-         The entered address applies both to exploration (`attach`) and to runs — the commands carry
-         `--browser-endpoint <address>`; "from the config" — no flag.
+    1. **base_url render arguments** — ask only when `site.base_url` in the config is a template with
+       variables (a plain URL means the question is not asked — there are no arguments): the arguments
+       with which the template renders into the topic environment address; the exploration address is
+       built from the same arguments.
+       Options:
+        - "Env variables" — the names and values for the topic environment (the values are components
+          of the site address, not secrets; the run command gets the prefix `ENV_NAME=value pytest …`);
+        - "CLI options" — the names and values (the run command gets the suffix `--name=value`;
+          every option requires a `pytest_addoption` registration in `conftest.py` — pytest rejects
+          unregistered options; the fact is recorded in the artifact);
+        - "Not needed" — the template variables are already set in the environment.
+    2. **Target pages** — which pages are under test. Address form:
+        - a path relative to base_url (`/catalog`, `/login`) — the user enters it, or confirms
+          the ones proposed from the topic description;
+        - a full URL — external pages (a foreign origin).
+          Clarify which environment this is: production / stage / the branch's feature deployment.
+          All pages must belong to a single environment:
+        - the paths render from base_url;
+        - the full URLs of internal pages — the same origin;
+        - a foreign origin — only an external page (explicitly marked).
+    3. **Auth method** on the site — **"No auth"** | **"Login form"** (provide the form URL —
+       or it will be found by exploration) | **"SSO/external provider"** | **"Test credentials
+       available"**. For the sign-in variants, clarify the credential source: the env variable
+       names, or "I will enter them during exploration". **Never request or record secret values.**
+    4. **Browser endpoint for writing tests** — which browser to connect to during page exploration
+       and test runs. This is the browser's address, not the site under test.
+       Options:
+        - "From the config" — `browser.endpoint` (offered only when it is set)
+        - "I will enter an address" — `http(s)://…` (CDP) or `ws(s)://…` (Playwright server).
+          The entered address applies both to exploration (`attach`) and to runs — the commands carry
+          `--browser-endpoint <address>`; "from the config" — no flag.
 
 ### Step 3. Capture preliminary signals
 
@@ -156,9 +157,9 @@ the run command suffix: no flag | `--browser-endpoint <address>`]
 
 ## Target Pages
 
-| # | Address (as named by the user: a path relative to base_url `/…` | a full URL) | What the user says about the page | Role in the topic |
-|---|-----------------------------------------------------------------------------|-------------------------------------|---------------|
-| 1 | /catalog                                                                    | […]                                 | […]           |
+| # | Address (as named by the user a path relative to base_url `/…` a full URL) | What the user says about the page | Role in the topic |
+|---|----------------------------------------------------------------------------|-----------------------------------|-------------------|
+| 1 | /catalog                                                                   | […]                               | […]               |
 
 [Full URLs with a foreign origin — external pages only; mark them "external" in the "Role in the topic" column.]
 

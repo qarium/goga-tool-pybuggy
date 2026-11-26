@@ -65,14 +65,14 @@ Fill in every section. Empty sections are forbidden.
 
 ## Cells
 
-| Cell (slug) | Path | Pages | Routines | Rationale |
-|---------------|------|----------|----------|-------------|
-| catalog | tests/web/catalog/ | PAGE-1 | test_search_finds_results, … | one cell per page |
+| Cell (slug) | Path               | Pages  | Routines                     | Rationale         |
+|-------------|--------------------|--------|------------------------------|-------------------|
+| catalog     | tests/web/catalog/ | PAGE-1 | test_search_finds_results, … | one cell per page |
 
 ## Routine → Cell
 
-| Routine | Cell |
-|---------|--------|
+| Routine                   | Cell    |
+|---------------------------|---------|
 | test_search_finds_results | catalog |
 
 ## User Decision
