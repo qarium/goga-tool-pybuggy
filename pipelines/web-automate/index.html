@@ -1,0 +1,2255 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="goga tool for testing: API - a pytest plugin and CLI that turn OpenAPI/Swagger specifications into ready-made fixtures, matchcrest matchers, and an automated API-test lifecycle; Sandbox - session-scoped isolated service testing driven by the sandbox document (.goga/tools/pybuggy/sandbox.yml) and the product sandbox pytest fixture.">
+      
+      
+      
+        <link rel="canonical" href="https://qarium.github.io/goga-tool-pybuggy/pipelines/web-automate/">
+      
+      
+        <link rel="prev" href="../api-automate/">
+      
+      
+        <link rel="next" href="../api-fix/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.2">
+    
+    
+      
+        <title>web.automate - goga-tool-pybuggy</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  
+  <style>
+    /* Dark navbar — override palette in both themes */
+    [data-md-color-scheme=default][data-md-color-primary=custom],
+    [data-md-color-scheme=slate][data-md-color-primary=custom] {
+      --md-primary-fg-color: #0a0a13;
+      --md-primary-fg-color--light: #0a0a13cc;
+      --md-primary-bg-color: #ffffff;
+    }
+
+    /* Content links — keep readable against the custom (near-black) primary,
+       which otherwise bleeds into --md-typeset-a-color */
+    [data-md-color-scheme=default][data-md-color-primary=custom] {
+      --md-typeset-a-color: #3f51b5;
+    }
+    [data-md-color-scheme=slate][data-md-color-primary=custom] {
+      --md-typeset-a-color: #cbd5e0;
+    }
+
+    .md-header__button.md-logo img,
+    .md-header__button.md-logo svg {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+    }
+
+    /* Search form — visible on dark header */
+    .md-search__overlay {
+      background-color: transparent !important;
+    }
+    [data-md-toggle=search]:checked~.md-header .md-search__overlay {
+      background-color: #0000008a !important;
+    }
+    .md-search__inner {
+      background-color: transparent !important;
+    }
+    .md-search__form {
+      background-color: #3a3a3a !important;
+      border-radius: 0.5rem;
+    }
+    .md-search__form:hover {
+      background-color: #4a4a4a !important;
+    }
+    .md-search__input {
+      color: #e0e0e0 !important;
+    }
+    .md-search__input::placeholder {
+      color: #999999 !important;
+    }
+    .md-search__icon {
+      color: #999999 !important;
+    }
+    .md-search__form:hover .md-search__icon,
+    .md-search__input:focus-visible ~ .md-search__icon {
+      color: #e0e0e0 !important;
+    }
+
+    /* Links in dark theme — readable on dark background */
+    [data-md-color-scheme=slate] .md-nav__link,
+    [data-md-color-scheme=slate] .md-toc__link,
+    [data-md-color-scheme=slate] article a {
+      color: #cbd5e0 !important;
+    }
+    [data-md-color-scheme=slate] .md-nav__link--passed,
+    [data-md-color-scheme=slate] .md-toc__link--passed {
+      color: #718096 !important;
+    }
+    [data-md-color-scheme=slate] .md-nav__link:hover,
+    [data-md-color-scheme=slate] .md-toc__link:hover,
+    [data-md-color-scheme=slate] article a:hover {
+      color: var(--md-accent-fg-color) !important;
+    }
+  </style>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-webautomate-lifecycle" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="goga-tool-pybuggy" class="md-header__button md-logo" aria-label="goga-tool-pybuggy" data-md-component="logo">
+      
+  <img src="https://avatars.githubusercontent.com/u/262344922?s=200&v=4" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            goga-tool-pybuggy
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              web.automate
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="custom" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="custom" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/qarium/goga-tool-pybuggy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    qarium/goga-tool-pybuggy
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../" class="md-tabs__link">
+          
+  
+  
+  Pipelines
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../cli/init/" class="md-tabs__link">
+          
+  
+  
+  CLI Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../configuration/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Configuration
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../sandbox/" class="md-tabs__link">
+          
+  
+  
+  Sandbox
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../web/" class="md-tabs__link">
+          
+  
+  
+  Web
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../matchers/" class="md-tabs__link">
+          
+  
+  
+  Matchers
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../plugins/" class="md-tabs__link">
+          
+  
+  
+  Pytest Plugins
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="goga-tool-pybuggy" class="md-nav__button md-logo" aria-label="goga-tool-pybuggy" data-md-component="logo">
+      
+  <img src="https://avatars.githubusercontent.com/u/262344922?s=200&v=4" alt="logo">
+
+    </a>
+    goga-tool-pybuggy
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/qarium/goga-tool-pybuggy" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    qarium/goga-tool-pybuggy
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pipelines
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Pipelines
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-automate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    api.automate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    web.automate
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    web.automate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#stages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-testcases-mega-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The testcases mega-stage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifacts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#page-exploration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Page exploration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#autonomous-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autonomous runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relation-to-the-rest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relation to the rest
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-fix/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    api.fix
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api-patch/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    api.patch
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../workflows/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Workflows
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CLI Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    CLI Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/init/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    goga tool pybuggy init
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/pull/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    goga tool pybuggy endpoint pull
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/list/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    goga tool pybuggy endpoint list
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/info/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    goga tool pybuggy endpoint info
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/generate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    goga tool pybuggy endpoint generate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/diff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    goga tool pybuggy endpoint diff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../cli/page-generate/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    goga tool pybuggy page generate
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sandbox
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Sandbox
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sandbox/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sandbox/api/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Python API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../sandbox/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Web
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Web
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../web/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../web/steps/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Steps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../web/configuration/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_8" >
+        
+          
+          <label class="md-nav__link" for="__nav_8" id="__nav_8_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matchers
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_8_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_8">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Matchers
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../matchers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview & assert_that
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../matchers/asserts/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Assertions
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../matchers/matchers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Matcher Catalog
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_9" >
+        
+          
+          <label class="md-nav__link" for="__nav_9" id="__nav_9_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pytest Plugins
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_9_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_9">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Pytest Plugins
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Enable & Fixtures
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../plugins/loaders/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Loaders
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#stages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-testcases-mega-stage" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The testcases mega-stage
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#artifacts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Artifacts
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#status-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Status model
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#page-exploration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Page exploration
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#step-generation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Step generation
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environment
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#autonomous-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Autonomous runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#relation-to-the-rest" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Relation to the rest
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="the-webautomate-lifecycle">The <code>web.automate</code> lifecycle<a class="headerlink" href="#the-webautomate-lifecycle" title="Permanent link">&para;</a></h1>
+<p>The <code>PybuggyWebAutomate</code> pipeline automates browser UI-test creation end to end: from the
+user interview and live page exploration to materialized, generated, and accepted tests.
+Each stage is a goga skill; the stages exchange only topic artifacts (a clean context per
+stage). The durable traceability chain is <code>Routine</code> → <code>test_*.py</code>: CODEMANIFESTs carry no
+REQ identifiers — requirement coverage is checked by the testcases stage's session registry
+(a mechanical reconciliation against §3 at assembly). Page identifiers <code>PAGE-&lt;N&gt;</code> link
+requirements and cells.</p>
+<p>Tests are written as <strong>step sentences</strong> through the <code>web</code> fixture (see
+<a href="../../web/">Web / Overview</a>): the first run turns every sentence into Playwright code
+with an LLM and caches it next to the test; the cache is committed to the repository, and
+every later run replays it with no LLM.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>goga<span class="w"> </span>pipeline<span class="w"> </span>pybuggy:web.automate
+</code></pre></div>
+<h2 id="stages">Stages<a class="headerlink" href="#stages" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Stage</th>
+<th>Purpose</th>
+<th>Artifact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>create-requirements</code></td>
+<td>Interview (what to test, which pages), page exploration via playwright-cli, discrepancy reconciliation, requirements assembly</td>
+<td><code>requirements.md</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>requirements-review</code></td>
+<td>Requirements review: quality and consistency of requirements, realness of runtime facts and the usage registry, targeted live re-verification</td>
+<td>—</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>create-testcases</code></td>
+<td>Mega-stage: routines (a test case = a Routine, each approved by the user) → cell distribution → CODEMANIFEST assembly and materialization</td>
+<td><code>tests/web/&lt;cell&gt;/CODEMANIFEST</code></td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>testcases-review</code></td>
+<td>Review of the materialized CODEMANIFESTs: semantic REQ coverage, step-sentence quality, DSL structure — fixes applied with user approval</td>
+<td>—</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>code-design</code></td>
+<td>Design document of web-test materialization (a <code>goga-design</code> wrapper)</td>
+<td><code>design.md</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>design-review</code></td>
+<td>Design review extended with web-specific checks (step-sentence mechanics, generating first run, committed cache)</td>
+<td>—</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>coding-plan</code></td>
+<td>ralphex plan: every task carries an executable checkbox that runs the test <strong>without</strong> <code>--strict-mode</code></td>
+<td><code>plan.md</code></td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>plan-review</code></td>
+<td>Plan review: guarantees the generating run stays non-strict, the browser connection line, the cache-preservation policy</td>
+<td>—</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>commit-changes</code></td>
+<td>Commit the tests and step caches</td>
+<td>git commit</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>accept-result</code></td>
+<td>Acceptance: chain consistency, strict run, failure triage, bugs</td>
+<td><code>bugs.md</code> + [ACCEPT_REPORT]</td>
+</tr>
+</tbody>
+</table>
+<p>The full flow: <strong>requirements → testcases (routines → cells → materialization) → design →
+plan → ralphex build → accept</strong>.</p>
+<blockquote>
+<p><strong>Building the tests:</strong> the design stages produce documents only. After <code>plan-review</code>
+approves the plan, the test code is built with <code>goga build &lt;path-to-plan.md&gt;</code> —
+<a href="https://github.com/qarium/goga">goga</a> executes the ralphex plan: it writes each
+<code>test_*.py</code> from the plan's Tasks and runs the task checkboxes — the <strong>first, generating
+run</strong> (the LLM writes the Playwright steps, the cache lands next to the test). There is
+no separate build stage in the pipeline: the command runs by hand — or is added
+automatically on <a href="#autonomous-runs">autonomous runs</a>.</p>
+</blockquote>
+<h2 id="the-testcases-mega-stage">The testcases mega-stage<a class="headerlink" href="#the-testcases-mega-stage" title="Permanent link">&para;</a></h2>
+<p>Five steps of one session, every intermediate result staying in the dialogue context:</p>
+<ol>
+<li><strong>Intake</strong> — validate <code>requirements.md</code> (§2 pages, §3 <code>REQ-&lt;N&gt;</code>), load it into the
+   context verbatim along with the whole goga context: the <code>goga-cell</code> DSL, the Python
+   rules, the web cookbook, the base Header block (via <code>goga-codemanifest-base</code>), the web
+   runtime reference.</li>
+<li><strong>Tools</strong> — the tool needs of the tests (data setup via API, backend mocks, a
+   credentials usage file); agree with the user (WAIT), create
+   <code>.goga/usages/cooks/&lt;key&gt;.md</code>.</li>
+<li><strong>Routines design</strong> — the routines in one pass, without an intermediate case layer:
+   name, Purpose, Precondition, Data (parameterization by the linearity criterion), Steps
+   sentences (the future <code>web.step</code>/<code>web.expect</code>), Use. Every routine is approved by the
+   user (WAIT).</li>
+<li><strong>Cell map</strong> — distribute the ready routines across cells (a variant is proposed;
+   WAIT).</li>
+<li><strong>Assembly</strong> — assemble the complete CODEMANIFEST of every cell (Header: base block +
+   cell-specific usages; Body: routines; Footer), validate against the DSL before writing,
+   write into <code>tests/web/&lt;cell&gt;/</code> (existing cells merge, never overwrite), and run the
+   gates: <code>goga lint</code>, <code>goga schema tests/</code>, REQ coverage.</li>
+</ol>
+<p><strong>REQ policy:</strong> <code>REQ-&lt;N&gt;</code> identifiers live in <code>requirements.md</code> §3 only; the CODEMANIFESTs
+carry none. Coverage is the session registry (the Coverage section of the routines-design
+report): at assembly it is mechanically checked that <code>covered ∪ excluded = the §3 registry</code>
+(no gaps, duplicates, or intersections) and that every routine of the registry is present
+by name in the materialized manifests. The requirement → routine link is never persisted
+anywhere.</p>
+<h2 id="artifacts">Artifacts<a class="headerlink" href="#artifacts" title="Permanent link">&para;</a></h2>
+<p>Every topic artifact is addressed with <code>goga history path -f &lt;artifact&gt;</code> and lives under
+<code>.goga/history/&lt;year&gt;/&lt;topic&gt;/</code>:</p>
+<ul>
+<li><strong>requirements.md</strong> — the requirements: environment and the Browser endpoint (§1), the
+  page dossiers (§2 <code>PAGE-&lt;N&gt;</code>), functional requirements (§3 <code>REQ-&lt;N&gt;</code>), authorization and
+  environment (§4), the usage registry (§8), existing coverage (§9).</li>
+<li><strong>design.md</strong> — the design of test materialization from the web cells' CODEMANIFESTs.</li>
+<li><strong>plan.md</strong> — the ralphex plan with executable run checkboxes in every generating task.</li>
+<li><strong>bugs.md</strong> — service bug records found at acceptance.</li>
+<li><strong>tests/web/<cell>/</strong> — the materialized cells: <code>CODEMANIFEST</code>, <code>test_&lt;name&gt;.py</code>, and the
+  step cache <code>test_&lt;name&gt;/</code> (committed).</li>
+</ul>
+<h2 id="status-model">Status model<a class="headerlink" href="#status-model" title="Permanent link">&para;</a></h2>
+<p>Every artifact of the chain (except <code>bugs.md</code> and the materialization in the target
+project — those are history records, not statuses) marks a status on the topic's goga
+status scale: the package registers one <code>pybuggy.*</code> status per artifact, and the web topic
+reports the reached stage under its own name:</p>
+<table>
+<thead>
+<tr>
+<th>Artifact</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>requirements.md</code></td>
+<td><code>pybuggy.web.automate.requirements-created</code></td>
+</tr>
+<tr>
+<td><code>design.md</code></td>
+<td><code>pybuggy.web.automate.designed</code></td>
+</tr>
+<tr>
+<td><code>plan.md</code></td>
+<td><code>pybuggy.web.automate.planned</code></td>
+</tr>
+<tr>
+<td><code>completed/plan.md</code></td>
+<td><code>pybuggy.web.automate.done</code></td>
+</tr>
+</tbody>
+</table>
+<p>Every status is anchored above its built-in twin (<code>web.automate.done</code> above the built-in
+<code>done</code>). The web line carries no statuses for testcases/arch: the web pipeline writes no
+such artifacts — its cases live as Routines in the target project. The web line's artifact
+names match the <code>pybuggy.api.automate.*</code> line, and the two apply independently — one topic
+can carry several statuses at once. Read the scale with <code>goga history status</code>; filter
+topics by status name — <code>goga history status -s &lt;name&gt;</code>.</p>
+<h2 id="page-exploration">Page exploration<a class="headerlink" href="#page-exploration" title="Permanent link">&para;</a></h2>
+<p>The create-requirements stage explores the live site's real pages with <code>playwright-cli</code>
+(the npm package <code>@playwright/cli</code>) in the named session <code>-s=pybuggy-explore</code>. The browser
+is never launched locally: the intake asks for the <strong>browser endpoint for writing tests</strong> —
+"from the config" (<code>browser.endpoint</code> of <code>web.yml</code>) or an address from the user
+(<code>ws(s)://…</code> a Playwright server / <code>http(s)://…</code> CDP; the browser's address, not the tested
+site's) — and the exploration connects to it via <code>attach</code>. The entered address applies to
+the runs too: run commands carry <code>--browser-endpoint &lt;address&gt;</code>. The pipeline's constraint
+supplies a ready bootstrap command: a loopback address (<code>127.0.0.1</code>/<code>localhost</code> — the
+browser on the Docker host) is rewritten to <code>host.docker.internal</code> and resolved to the
+host's IP (<code>getent</code>, Linux); a remote address is attached as-is. The session's artifacts
+(screenshots/traces) land in <code>&lt;topic history&gt;/playwright/</code>
+(<code>PLAYWRIGHT_MCP_OUTPUT_DIR</code>).</p>
+<p>Every page gets a dossier: the final URL after redirects, its purpose, key elements with
+stable locators (<code>generate-locator</code>), forms with validations, the navigation map,
+observable states, console and network errors (the page's API endpoints included). Target
+pages are all explored; the walk over adjacent pages is bounded by a budget (crawl depth,
+interactions per page, an adjacent-URL allowance); an exhausted budget is not an error:
+the unvisited remainder is recorded in the report.</p>
+<p>Entry to closed pages happens in the session with test credentials; the authorization
+state is saved (<code>state-save</code>). <strong>Secrets are never written</strong> into reports or artifacts —
+only the login mechanism and the credentials source (env names).</p>
+<p>Every user-request ↔ observation discrepancy becomes a separate question to the user
+before the requirements are fixed.</p>
+<h2 id="step-generation">Step generation<a class="headerlink" href="#step-generation" title="Permanent link">&para;</a></h2>
+<p>The pipeline's core mechanic. Step sentences from Routine annotations materialize into
+<code>test_*.py</code> as <code>web.step(...)</code> / <code>web.expect(...)</code>:</p>
+<ul>
+<li>the <strong>first</strong> run of a test — at the ralphex-build stage, through the plan's task
+  checkboxes — generates every sentence's Playwright code via an LLM (the provider and
+  model come from <code>.goga/tools/pybuggy/web.yml</code>) and writes the step cache into
+  <code>tests/web/&lt;cell&gt;/test_&lt;name&gt;/</code>; the cache is <strong>committed</strong> to the repository together
+  with the test (the commit-changes stage);</li>
+<li>the first run must go <strong>without</strong> <code>--strict-mode</code> — the strict mode makes no LLM calls,
+  and a new step fails there with a cache miss;</li>
+<li>repeated runs and CI go with <code>--strict-mode</code>: replay from the cache, zero LLM calls;</li>
+<li>acceptance (accept-result) runs the suite in strict mode; a cache miss is healed by one
+  non-strict run that regenerates the missing steps;</li>
+<li>the cache is never edited by hand — to regenerate a step, delete its cache file, and the
+  next non-strict run recreates it.</li>
+</ul>
+<p>Steps carry the <strong>full URLs</strong> of the recorded environment (no base_url templating): an
+environment switch means new step sentences. <strong>Secrets are forbidden in sentences</strong> — the
+whole sentence reaches the provider prompt and the repository; login is described
+behaviorally ("Log in as the test user <code>&lt;role&gt;</code>"), values come from env/usage files.</p>
+<h2 id="environment">Environment<a class="headerlink" href="#environment" title="Permanent link">&para;</a></h2>
+<p>The pipeline's preconditions:</p>
+<ul>
+<li>the web kind initialized: <code>.goga/tools/pybuggy/web.yml</code> exists — <code>goga tool pybuggy
+  init</code> with kind <code>web</code> or <code>both</code> (see <a href="../../web/configuration/">Web / Configuration</a>);</li>
+<li>an external browser: the endpoint comes from the config (<code>browser.endpoint</code>) or the
+  intake; a host browser runs with remote debugging (Chrome, for example:
+  <code>--remote-debugging-port=9222 --user-data-dir=&lt;dir&gt;</code>). Browser binaries
+  (<code>playwright install --with-deps &lt;browser&gt;</code>) are needed only for local runtime launches
+  outside an endpoint — the pipeline never uses them;</li>
+<li><code>playwright-cli</code> for page exploration: installed automatically by the pybuggy
+  post-install hook at <code>goga install</code> (node/npm on PATH required in the image); when
+  unavailable, the pipeline stops;</li>
+<li>an LLM provider key in env/<code>.env</code> — required by the generating first run
+  (regeneration).</li>
+</ul>
+<h2 id="autonomous-runs">Autonomous runs<a class="headerlink" href="#autonomous-runs" title="Permanent link">&para;</a></h2>
+<p>The pipeline can run unattended starting from the review of the materialized cells.
+Autonomy is enabled per pipeline in the <code>pipelines</code> section of the <strong>web config</strong> — by
+hand or through the autonomy confirmation of the <a href="../../cli/init/"><code>pybuggy init</code></a> command
+(the session's web branch):</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="c1"># .goga/tools/pybuggy/web.yml</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="nt">pipelines</span><span class="p">:</span>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="nt">web.automate</span><span class="p">:</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="w">    </span><span class="nt">autonomous</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</code></pre></div>
+<p>The web line's axis lives in <code>web.yml</code> — the web kind's own document (the plugin ignores
+the <code>pipelines</code> section; the autonomy resolver reads it); the api lines' axes stay in
+<code>api.yml</code>.</p>
+<p>With the entry enabled, pybuggy contributes a fixed workflow document (the
+<a href="../workflows/">Workflows</a> mechanism) to every <code>web.automate</code> run:</p>
+<ul>
+<li>The auto-approval window of six stages <code>testcases-review</code> → <code>commit-changes</code> (stages
+  4–9 of the table above): every window stage is approved automatically — the
+  communication stages no longer wait for review.</li>
+<li>The <code>build</code> stage added after <code>commit-changes</code>: the same <code>goga build</code> step as in the
+  "Building the tests" note above, over the topic's <code>plan.md</code> with an eight-hour timeout
+  and a scratch-tree (<code>.ralphex</code>) cleanup afterwards — the tests are built and committed
+  with no manual build.</li>
+</ul>
+<p>Everything outside the window stays with the human: the requirement- and routine-forming
+stages (<code>create-requirements</code> … <code>create-testcases</code>) run interactively, and <code>accept-result</code>
+is never part of the contribution — the trigger stays manual; acceptance (the strict run
+and the failure triage) remains an interactive step.</p>
+<p>The web line's specifics for the autonomous <code>build</code> is that <strong>first, generating run</strong>: the
+LLM provider key must be in the run's env (without it step generation is impossible), and
+<code>--strict-mode</code> must appear nowhere in the plan (the <code>coding-plan</code> wrapper's guarantee).</p>
+<p>The contribution is a silent no-op for every pipeline outside the three autonomous lines
+(automate, patch, web-automate — the window's shape comes from the per-pipeline record)
+and for every disabled state: a missing file, a missing <code>pipelines</code> section, a missing
+<code>web.automate</code> entry, and <code>autonomous: false</code> are all an ordinary interactive run.
+Autonomy is never silently disabled on a broken structure: a structural violation of the
+section (a non-mapping <code>pipelines</code> root or value, an entry other than exactly
+<code>autonomous: &lt;boolean&gt;</code>) stops the command with a clean error naming pybuggy, and the
+whole contribution is discarded.</p>
+<p>A project's authored workflow wins per slot over the contribution — the file
+<code>.goga/workflows/pybuggy:web.automate.yml</code> can re-enable interaction for any window stage
+or displace the <code>build</code> entry.</p>
+<h2 id="relation-to-the-rest">Relation to the rest<a class="headerlink" href="#relation-to-the-rest" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="../../web/">Web / Overview</a> — the <code>web</code> fixture, step sentences, the cache, run
+  modes.</li>
+<li><a href="../../web/configuration/">Web / Configuration</a> — the <code>web.yml</code> keys (browser, provider,
+  models).</li>
+<li><a href="../workflows/">Workflows</a> — overriding/extending the pipeline with the
+  <code>.goga/workflows/pybuggy:web.automate.yml</code> file.</li>
+<li>The <code>api.*</code> line (<a href="../api-automate/">api.automate</a>, <a href="../api-fix/">api.fix</a>,
+  <a href="../api-patch/">api.patch</a>) — the same context-handling principles for API tests; the
+  web line mirrors them.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.tracking", "toc.follow", "search.highlight", "search.suggest", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.a5f9d56c.min.js"></script>
+      
+    
+  </body>
+</html>
